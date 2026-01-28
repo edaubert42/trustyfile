@@ -1,0 +1,34 @@
+# PDF Processing
+PyMuPDF>=1.24.0          # fitz - Fast PDF parsing
+pdfplumber>=0.11.0       # Structured text extraction
+pikepdf>=8.0.0           # PDF structure analysis (Module E)
+
+# OCR
+pytesseract>=0.3.10      # Tesseract OCR wrapper
+Pillow>=10.0.0           # Image handling
+
+# Image Analysis
+opencv-python>=4.9.0.0   # Computer vision
+pyzbar>=0.1.9            # QR code reading
+scikit-image>=0.22.0     # Advanced image analysis (ELA, noise analysis)
+
+# Text Analysis
+datefinder>=0.7.3        # Date extraction from text
+python-dateutil>=2.8.2   # Date parsing utilities
+
+# Web Interface
+streamlit>=1.37.0        # MVP frontend
+
+# Testing
+pytest>=8.0.0            # Test framework
+pytest-cov>=4.1.0        # Coverage reports
+
+# Utilities
+python-magic>=0.4.27     # File type detection
+hashlib-compat>=1.0.1    # File hashing (if needed)
+
+# Future (Post-MVP)
+# fastapi>=0.111.0       # API endpoint
+# uvicorn>=0.30.0        # ASGI server
+# requests>=2.32.0       # External API calls (Module G)
+# dnspython>=2.6.0       # DNS lookups (Module G)
