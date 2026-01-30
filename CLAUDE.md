@@ -319,6 +319,11 @@ pytest tests/ --cov=src --cov-report=html
 - [ ] API endpoint (FastAPI)
 - [ ] Dark mode UI
 
+**Phase 4 - Security** (future)
+- [ ] VirusTotal API integration: Check file hash against malware database
+- [ ] 2D-Doc verification: Decode French government 2D barcodes (requires libdmtx)
+- [ ] Digital signature validation: Verify PDF signatures are valid
+
 ## Important Notes
 
 - Always use `fitz.open()` with error handling - PDFs can be malformed
