@@ -7,11 +7,17 @@ This module checks:
 - Heavy JPEG compression (re-saved images)
 - Image count anomalies
 - Missing images (unusual for branded invoices)
+- Image-only PDFs (no text layer = possible screenshot/scan)
+- Paste artifact detection (focused on amount regions)
 
 Most checks take ImageInfo objects, so no real PDFs needed.
+Image-only and paste detection tests use programmatic PDFs via fitz.
 """
 
+import os
 import pytest
+import fitz  # PyMuPDF
+import numpy as np
 from src.models import Flag
 from src.modules.images import (
     ImageInfo,
@@ -20,6 +26,9 @@ from src.modules.images import (
     check_heavy_compression,
     check_image_count,
     check_no_images,
+    check_image_only_pdf,
+    find_amount_regions,
+    check_paste_artifacts,
     SCREEN_RESOLUTIONS,
 )
 
@@ -270,4 +279,219 @@ class TestCheckNoImages:
         """Document with images → no flag."""
         images = [make_image()]
         flags = check_no_images(images, text_length=1000)
+        assert len(flags) == 0
+
+
+# =============================================================================
+# TEST check_image_only_pdf
+# =============================================================================
+
+class TestCheckImageOnlyPdf:
+    """
+    Detect PDFs that are entirely images with no real text layer.
+    This catches screenshots and scans saved as PDF.
+    """
+
+    def test_full_page_image_no_text_flagged(self):
+        """One full-page image + no text → high flag."""
+        images = [make_image(width=800, height=1000)]
+        flags = check_image_only_pdf(images, text_length=0, page_count=1)
+        assert len(flags) == 1
+        assert flags[0].code == "IMAGES_IMAGE_ONLY_PDF"
+        assert flags[0].severity == "high"
+
+    def test_full_page_image_little_text_flagged(self):
+        """Full-page image + very little text (< 200 chars/page) → medium flag."""
+        images = [make_image(width=800, height=1000)]
+        flags = check_image_only_pdf(images, text_length=100, page_count=1)
+        assert len(flags) == 1
+        assert flags[0].code == "IMAGES_MOSTLY_IMAGE_PDF"
+        assert flags[0].severity == "medium"
+
+    def test_full_page_image_with_text_no_flag(self):
+        """Full-page image + substantial text → no flag (probably scanned + OCR)."""
+        images = [make_image(width=800, height=1000)]
+        flags = check_image_only_pdf(images, text_length=2000, page_count=1)
+        assert len(flags) == 0
+
+    def test_small_images_no_text_no_flag(self):
+        """Small images (logos) + no text → not image-only (images don't cover page)."""
+        images = [make_image(width=200, height=100)]
+        flags = check_image_only_pdf(images, text_length=0, page_count=1)
+        assert len(flags) == 0
+
+    def test_no_images_no_flag(self):
+        """No images at all → not image-only."""
+        flags = check_image_only_pdf([], text_length=0, page_count=1)
+        assert len(flags) == 0
+
+    def test_multi_page_scan(self):
+        """4-page scan (1 full-page image per page, no text) → flagged."""
+        images = [
+            make_image(width=800, height=1000, page=0),
+            make_image(width=800, height=1000, page=1),
+            make_image(width=800, height=1000, page=2),
+            make_image(width=800, height=1000, page=3),
+        ]
+        flags = check_image_only_pdf(images, text_length=0, page_count=4)
+        assert len(flags) == 1
+        assert flags[0].code == "IMAGES_IMAGE_ONLY_PDF"
+
+    def test_mixed_pages_not_flagged(self):
+        """Half the pages have big images but half don't → not triggered."""
+        images = [
+            make_image(width=800, height=1000, page=0),
+        ]
+        # 1 full-page image for 3 pages → 33% coverage, below 80% threshold
+        flags = check_image_only_pdf(images, text_length=0, page_count=3)
+        assert len(flags) == 0
+
+    def test_zero_pages_no_crash(self):
+        """Edge case: zero pages should not crash."""
+        flags = check_image_only_pdf([], text_length=0, page_count=0)
+        assert len(flags) == 0
+
+
+# =============================================================================
+# FIXTURES for PDF-based tests
+# =============================================================================
+
+TEST_DIR = os.path.join(os.path.dirname(__file__), ".test_pdfs_images")
+
+
+@pytest.fixture
+def pdf_dir():
+    """Create and clean up temporary directory for test PDFs."""
+    os.makedirs(TEST_DIR, exist_ok=True)
+    yield TEST_DIR
+    for f in os.listdir(TEST_DIR):
+        os.remove(os.path.join(TEST_DIR, f))
+    os.rmdir(TEST_DIR)
+
+
+def create_pdf_with_text(pdf_dir, filename, text, position=(100, 100)):
+    """Create a simple PDF with text at a given position."""
+    path = os.path.join(pdf_dir, filename)
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text(position, text)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def create_image_only_pdf(pdf_dir, filename):
+    """
+    Create a PDF that is a single full-page image with no text layer.
+    This simulates a screenshot saved as PDF.
+    """
+    path = os.path.join(pdf_dir, filename)
+    doc = fitz.open()
+    page = doc.new_page()
+
+    # Create a pixmap (bitmap image) to insert as a full-page image.
+    # No alpha channel (0) so set_rect takes 3 color values (R, G, B).
+    img_w, img_h = 595, 842
+    pixmap = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, img_w, img_h), 0)
+    pixmap.set_rect(pixmap.irect, (250, 250, 250))  # Light gray background
+
+    # Insert image covering the full page
+    page.insert_image(page.rect, pixmap=pixmap)
+
+    doc.save(path)
+    doc.close()
+    return path
+
+
+# =============================================================================
+# TEST find_amount_regions
+# =============================================================================
+
+class TestFindAmountRegions:
+    """
+    find_amount_regions locates text blocks containing currency amounts.
+    It returns pixel coordinates scaled by the zoom factor.
+    """
+
+    def test_finds_euro_amount(self, pdf_dir):
+        """A PDF with '100,00 €' should return one region."""
+        path = create_pdf_with_text(pdf_dir, "euro.pdf", "Total: 100,00 €")
+        doc = fitz.open(path)
+        regions = find_amount_regions(doc[0], zoom=2.0)
+        doc.close()
+        assert len(regions) >= 1
+        # Each region is (x0, y0, x1, y1)
+        for r in regions:
+            assert len(r) == 4
+            assert all(isinstance(c, int) for c in r)
+
+    def test_finds_dollar_amount(self, pdf_dir):
+        """A PDF with '$50.00' should return one region."""
+        path = create_pdf_with_text(pdf_dir, "dollar.pdf", "Price: $50.00")
+        doc = fitz.open(path)
+        regions = find_amount_regions(doc[0], zoom=2.0)
+        doc.close()
+        assert len(regions) >= 1
+
+    def test_no_amounts_empty_list(self, pdf_dir):
+        """A PDF with no numbers should return empty list."""
+        path = create_pdf_with_text(pdf_dir, "noamount.pdf", "Hello World")
+        doc = fitz.open(path)
+        regions = find_amount_regions(doc[0], zoom=2.0)
+        doc.close()
+        assert len(regions) == 0
+
+    def test_zoom_scales_coordinates(self, pdf_dir):
+        """Higher zoom should produce larger coordinates."""
+        path = create_pdf_with_text(pdf_dir, "zoom.pdf", "Total: 99,99 €")
+        doc = fitz.open(path)
+        regions_1x = find_amount_regions(doc[0], zoom=1.0)
+        regions_2x = find_amount_regions(doc[0], zoom=2.0)
+        doc.close()
+        if regions_1x and regions_2x:
+            # At zoom=2, coordinates should be roughly 2x larger
+            assert regions_2x[0][0] > regions_1x[0][0]
+
+
+# =============================================================================
+# TEST check_paste_artifacts
+# =============================================================================
+
+class TestCheckPasteArtifacts:
+    """
+    Paste detection focused on amount regions.
+    Digital PDFs (no noise) should never trigger.
+    """
+
+    def test_clean_digital_pdf_no_flags(self, pdf_dir):
+        """A purely digital PDF has zero noise → paste detection skipped."""
+        path = create_pdf_with_text(
+            pdf_dir, "digital.pdf",
+            "Facture n° 2024-001\nTotal: 150,00 €\nTVA: 30,00 €"
+        )
+        flags = check_paste_artifacts(path)
+        assert len(flags) == 0
+
+    def test_no_amounts_no_flags(self, pdf_dir):
+        """A PDF without any amounts → nothing to analyze."""
+        path = create_pdf_with_text(
+            pdf_dir, "noamounts.pdf",
+            "This document has no numbers or currency values."
+        )
+        flags = check_paste_artifacts(path)
+        assert len(flags) == 0
+
+    def test_nonexistent_file_no_crash(self):
+        """Missing file should return empty list, not crash."""
+        flags = check_paste_artifacts("/nonexistent/file.pdf")
+        assert len(flags) == 0
+
+    def test_image_only_pdf_no_paste_flags(self, pdf_dir):
+        """
+        An image-only PDF (no text layer) has no amount regions
+        to analyze, so paste detection returns no flags.
+        (Image-only detection is handled by check_image_only_pdf instead.)
+        """
+        path = create_image_only_pdf(pdf_dir, "imageonly.pdf")
+        flags = check_paste_artifacts(path)
         assert len(flags) == 0
