@@ -154,7 +154,9 @@ with st.sidebar:
 # MAIN CONTENT
 # =============================================================================
 
-st.markdown('<p class="main-header">🔍 TrustyFile</p>', unsafe_allow_html=True)
+col_spacer1, col_logo, col_spacer2 = st.columns([1, 2, 1])
+with col_logo:
+    st.image("static/full_logo_trustyfile.png", use_container_width=True)
 st.markdown('<p class="sub-header">Document Fraud Detection - Upload an invoice to analyze</p>', unsafe_allow_html=True)
 
 # File upload
