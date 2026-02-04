@@ -311,8 +311,8 @@ pytest tests/ --cov=src --cov-report=html
 - [ ] Improved UI with detailed breakdown per module
 
 **Phase 3 - Enhanced** (post-MVP+)
-- [ ] Module E: PDF structure analysis
-- [ ] Module G: External verification
+- [x] Module E: PDF structure analysis (incremental updates, JS, signatures)
+- [x] Module G: External verification (SIREN/SIRET via API)
 - [ ] Module H: Advanced image forensics
 - [ ] Batch upload support
 - [ ] Export report as PDF
@@ -320,9 +320,23 @@ pytest tests/ --cov=src --cov-report=html
 - [ ] Dark mode UI
 
 **Phase 4 - Security** (future)
+- [x] Digital signature validation: Verify PDF signatures via EU DSS API
 - [ ] VirusTotal API integration: Check file hash against malware database
 - [ ] 2D-Doc verification: Decode French government 2D barcodes (requires libdmtx)
-- [ ] Digital signature validation: Verify PDF signatures are valid
+
+**Phase 5 - Forensics** (future)
+- [ ] PDF modification history: Extract and display what changed between versions
+  - Compare content streams between incremental updates
+  - Show diff of text content (before/after)
+  - Identify modified objects (images, text blocks, metadata)
+  - Timeline visualization of all modifications
+- [ ] Content stream decompression: Analyze FlateDecode streams for hidden changes
+- [ ] Object-level diff: Compare PDF objects between versions
+- [ ] Source URL detection: Try to identify the origin of web-generated PDFs
+  - Check for links pointing to same domain
+  - Analyze image URLs if loaded from external sources
+  - Look for footer/header text with URLs
+  - Match document content against known website templates
 
 ## Important Notes
 
