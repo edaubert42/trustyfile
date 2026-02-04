@@ -44,6 +44,207 @@ logger = logging.getLogger(__name__)
 # STRUCTURE ANALYSIS FUNCTIONS
 # =============================================================================
 
+def has_digital_signature(pdf_path: str) -> bool:
+    """
+    Check if the PDF contains a digital signature field.
+
+    Note: This only checks for PRESENCE of a signature, not validity.
+    Use verify_signature_dss() to verify the signature is trusted.
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        True if the PDF has a digital signature field
+    """
+    try:
+        doc = fitz.open(pdf_path)
+
+        # Method 1: Check for signature fields in AcroForm
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            for widget in page.widgets() or []:
+                if widget.field_type_string == "Signature":
+                    doc.close()
+                    return True
+
+        # Method 2: Check for signature objects in the PDF structure
+        xref_len = doc.xref_length()
+        for xref in range(1, xref_len):
+            try:
+                obj_str = doc.xref_object(xref)
+                if obj_str and '/Type /Sig' in obj_str:
+                    doc.close()
+                    return True
+                if obj_str and '/SubFilter /adbe.pkcs7' in obj_str:
+                    doc.close()
+                    return True
+                if obj_str and '/SubFilter /ETSI' in obj_str:
+                    doc.close()
+                    return True
+            except Exception:
+                continue
+
+        doc.close()
+        return False
+
+    except Exception as e:
+        logger.error(f"Error checking for digital signature: {e}")
+        return False
+
+
+def verify_signature_dss(pdf_path: str) -> dict:
+    """
+    Verify PDF digital signature using EU DSS (Digital Signature Services) API.
+
+    This is the official EU tool for validating electronic signatures.
+    It checks against the EU Trusted Lists (LOTL).
+
+    API: https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/services/rest/
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        dict with:
+        - has_signature: bool
+        - is_valid: bool (signature is cryptographically valid)
+        - is_trusted: bool (uses EU trusted certificate - QC from LOTL)
+        - signer: str (signer name if available)
+        - signature_level: str (e.g., "AdESeal-QC", "QES", etc.)
+        - error: str (if verification failed)
+    """
+    try:
+        import requests
+        import base64
+    except ImportError:
+        return {"has_signature": False, "error": "requests library not installed"}
+
+    # Check if signature is present first
+    if not has_digital_signature(pdf_path):
+        return {"has_signature": False, "is_valid": False, "is_trusted": False}
+
+    try:
+        # Read PDF and encode as base64
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
+
+        # DSS REST API endpoint for validation
+        dss_url = "https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/services/rest/validation/validateSignature"
+
+        # Request payload
+        payload = {
+            "signedDocument": {
+                "bytes": pdf_base64,
+                "name": "document.pdf"
+            }
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+
+        response = requests.post(dss_url, json=payload, headers=headers, timeout=30)
+
+        if response.status_code == 200:
+            result = response.json()
+
+            # Parse SimpleReport (cleaner format than raw response)
+            simple_report = result.get("SimpleReport", {})
+            valid_count = simple_report.get("ValidSignaturesCount", 0)
+            total_count = simple_report.get("SignaturesCount", 0)
+
+            # Get signatures from SimpleReport
+            signatures = simple_report.get("signatureOrTimestampOrEvidenceRecord", [])
+
+            if not signatures:
+                return {
+                    "has_signature": True,
+                    "is_valid": None,
+                    "is_trusted": False,
+                    "unverifiable": True,
+                    "error": "No signatures found in DSS response"
+                }
+
+            # Check first signature
+            sig_wrapper = signatures[0]
+            sig = sig_wrapper.get("Signature", {})
+
+            signer_name = sig.get("SignedBy", "")
+            signing_time = sig.get("SigningTime", "")
+
+            # Get signature level (e.g., "AdESeal-QC", "QES", "AdES", etc.)
+            level_info = sig.get("SignatureLevel", {})
+            if isinstance(level_info, dict):
+                level_value = level_info.get("value", "")
+                level_desc = level_info.get("description", "")
+            else:
+                level_value = str(level_info)
+                level_desc = ""
+
+            # Determine trust level based on signature level
+            # QC = Qualified Certificate (from EU Trusted List)
+            # QES = Qualified Electronic Signature
+            # AdESeal-QC = Advanced Electronic Seal with Qualified Certificate
+            has_qc = "QC" in level_value or "QES" in level_value
+
+            # Check if fully valid (PASSED) or indeterminate
+            # Indeterminate with QC is still trustworthy (certificate might just be expired)
+            is_fully_valid = valid_count > 0
+
+            # A signature is "trusted" if it uses a Qualified Certificate from EU list
+            # Even if "Indeterminate" (e.g., expired cert), QC means it was issued by trusted CA
+            is_trusted = has_qc
+
+            # "Valid" means the signature is cryptographically correct
+            # Even Indeterminate signatures are valid if they have QC
+            is_valid = is_fully_valid or has_qc
+
+            return {
+                "has_signature": True,
+                "is_valid": is_valid,
+                "is_trusted": is_trusted,
+                "is_fully_valid": is_fully_valid,
+                "signer": signer_name,
+                "signing_time": signing_time,
+                "signature_level": level_value,
+                "signature_level_description": level_desc,
+                "has_qualified_certificate": has_qc,
+            }
+
+        else:
+            return {
+                "has_signature": True,
+                "is_valid": False,
+                "is_trusted": False,
+                "error": f"DSS API error: HTTP {response.status_code}"
+            }
+
+    except requests.Timeout:
+        return {
+            "has_signature": True,
+            "is_valid": False,
+            "is_trusted": False,
+            "error": "DSS API timeout"
+        }
+    except requests.RequestException as e:
+        return {
+            "has_signature": True,
+            "is_valid": False,
+            "is_trusted": False,
+            "error": f"DSS API request failed: {e}"
+        }
+    except Exception as e:
+        return {
+            "has_signature": True,
+            "is_valid": False,
+            "is_trusted": False,
+            "error": f"Signature verification error: {e}"
+        }
+
+
 def count_incremental_updates(pdf_path: str) -> int:
     """
     Count the number of incremental updates (revisions) in a PDF.
@@ -71,45 +272,127 @@ def count_incremental_updates(pdf_path: str) -> int:
         return 1  # Assume clean if we can't read
 
 
-def check_incremental_updates(pdf_path: str) -> list[Flag]:
+def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> list[Flag]:
     """
     Check if the PDF has been edited (has incremental updates).
 
+    If a TRUSTED digital signature is present (verified via EU DSS API),
+    1 incremental update is expected and legitimate.
+    An untrusted or invalid signature does NOT excuse incremental updates.
+
     Args:
         pdf_path: Path to the PDF file
+        verify_signatures: Whether to verify signatures via DSS API
 
     Returns:
-        List of flags if multiple versions detected
+        List of flags if suspicious updates detected
     """
     flags = []
 
     eof_count = count_incremental_updates(pdf_path)
 
-    if eof_count > 1:
-        # Multiple EOFs = multiple edits
-        edits = eof_count - 1
+    if eof_count <= 1:
+        return flags  # No incremental updates, clean PDF
 
-        if edits >= 3:
-            severity = "critical"
-            message = f"PDF has been edited {edits} times (very suspicious)"
-        elif edits == 2:
-            severity = "high"
-            message = f"PDF has been edited {edits} times"
-        else:
-            severity = "high"
-            message = f"PDF has been edited {edits} time"
+    edits = eof_count - 1
 
-        flags.append(Flag(
-            severity=severity,
-            code="STRUCT_INCREMENTAL_UPDATES",
-            message=message,
-            details={
-                "eof_count": eof_count,
-                "edit_count": edits,
-                "explanation": "Each edit adds a new version to the PDF. "
-                              "Legitimate invoices are generated once and never modified."
-            }
-        ))
+    # Check for digital signature
+    has_signature = has_digital_signature(pdf_path)
+    signature_trusted = False
+    signature_info = {}
+
+    if has_signature and verify_signatures:
+        # Verify signature via EU DSS API
+        signature_info = verify_signature_dss(pdf_path)
+        signature_trusted = signature_info.get("is_trusted", False)
+
+        # Add flag about signature status
+        signer = signature_info.get("signer", "Unknown")
+        level = signature_info.get("signature_level", "")
+
+        if signature_info.get("is_trusted"):
+            # Signature uses Qualified Certificate from EU Trusted List
+            if signature_info.get("is_fully_valid"):
+                # Fully validated
+                flags.append(Flag(
+                    severity="low",  # Informational - excellent signature
+                    code="STRUCT_SIGNATURE_TRUSTED",
+                    message=f"Document has EU trusted signature: {signer} ({level})",
+                    details=signature_info
+                ))
+            else:
+                # QC but not fully valid (e.g., cert expired but was valid at signing time)
+                flags.append(Flag(
+                    severity="low",  # Still trustworthy - QC from EU list
+                    code="STRUCT_SIGNATURE_TRUSTED_EXPIRED",
+                    message=f"Document has EU trusted signature (certificate may be expired): {signer}",
+                    details=signature_info
+                ))
+        elif signature_info.get("is_valid"):
+            # Valid signature but not from EU trusted list
+            flags.append(Flag(
+                severity="medium",
+                code="STRUCT_SIGNATURE_NOT_TRUSTED",
+                message=f"Document has signature but NOT from EU trusted list: {signer}",
+                details=signature_info
+            ))
+        elif signature_info.get("unverifiable"):
+            # Signature present but couldn't be verified
+            flags.append(Flag(
+                severity="medium",
+                code="STRUCT_SIGNATURE_UNVERIFIABLE",
+                message="Document has signature but format not recognized by EU DSS",
+                details=signature_info
+            ))
+        elif signature_info.get("has_signature"):
+            # Signature is invalid
+            flags.append(Flag(
+                severity="high",
+                code="STRUCT_SIGNATURE_INVALID",
+                message="Document has INVALID digital signature",
+                details=signature_info
+            ))
+
+    # Only trusted signatures excuse 1 incremental update
+    if signature_trusted and edits == 1:
+        # Trusted signature + 1 update = legitimate, don't flag edits
+        return flags
+
+    # Calculate effective edits (subtract 1 if trusted signature)
+    effective_edits = edits - 1 if signature_trusted else edits
+
+    if effective_edits <= 0:
+        return flags
+
+    # Severity based on number of edits
+    if effective_edits >= 3:
+        severity = "critical"
+        message = f"PDF has been edited {effective_edits} times (very suspicious)"
+    elif effective_edits == 2:
+        severity = "high"
+        message = f"PDF has been edited {effective_edits} times"
+    else:
+        severity = "medium"
+        message = f"PDF has {effective_edits} incremental update(s)"
+
+    # Add context about untrusted signature if present
+    if has_signature and not signature_trusted:
+        message += " (signature present but NOT trusted)"
+
+    flags.append(Flag(
+        severity=severity,
+        code="STRUCT_INCREMENTAL_UPDATES",
+        message=message,
+        details={
+            "eof_count": eof_count,
+            "edit_count": edits,
+            "has_signature": has_signature,
+            "signature_trusted": signature_trusted,
+            "effective_edits": effective_edits,
+            "explanation": "Each edit adds a new version to the PDF. "
+                          "Only EU-trusted digital signatures excuse 1 update."
+        }
+    ))
 
     return flags
 
@@ -346,6 +629,8 @@ def check_acroform(pdf_path: str) -> list[Flag]:
     - Execute JavaScript
     - Modify displayed content
 
+    Note: Signature fields are excluded - they are legitimate for signed documents.
+
     Args:
         pdf_path: Path to the PDF file
 
@@ -358,8 +643,8 @@ def check_acroform(pdf_path: str) -> list[Flag]:
         doc = fitz.open(pdf_path)
 
         # Check for form fields
-        has_forms = False
         form_fields = []
+        signature_fields = []
 
         for page_num in range(len(doc)):
             page = doc[page_num]
@@ -368,20 +653,27 @@ def check_acroform(pdf_path: str) -> list[Flag]:
             widgets = page.widgets()
             if widgets:
                 for widget in widgets:
-                    has_forms = True
-                    form_fields.append({
+                    field_info = {
                         "page": page_num + 1,
                         "type": widget.field_type_string,
                         "name": widget.field_name or "unnamed",
-                    })
+                    }
+
+                    # Separate signature fields from other form fields
+                    if widget.field_type_string == "Signature":
+                        signature_fields.append(field_info)
+                    else:
+                        form_fields.append(field_info)
 
         doc.close()
 
-        if has_forms:
+        # Only flag non-signature form fields
+        # Signature fields are legitimate for digitally signed documents
+        if form_fields:
             flags.append(Flag(
                 severity="medium",
                 code="STRUCT_ACROFORM_DETECTED",
-                message=f"PDF contains {len(form_fields)} form field(s)",
+                message=f"PDF contains {len(form_fields)} interactive form field(s)",
                 details={
                     "fields": form_fields[:10],  # Limit to first 10
                     "total_count": len(form_fields),
@@ -395,7 +687,7 @@ def check_acroform(pdf_path: str) -> list[Flag]:
     return flags
 
 
-def check_object_streams(pdf_path: str) -> list[Flag]:
+def check_object_streams(pdf_path: str, has_trusted_signature: bool = False) -> list[Flag]:
     """
     Check for suspicious patterns in PDF object streams.
 
@@ -406,6 +698,7 @@ def check_object_streams(pdf_path: str) -> list[Flag]:
 
     Args:
         pdf_path: Path to the PDF file
+        has_trusted_signature: If True, allows more deleted objects (signing creates them)
 
     Returns:
         List of flags if suspicious patterns found
@@ -424,15 +717,28 @@ def check_object_streams(pdf_path: str) -> list[Flag]:
         # In xref table, 'f' means free (deleted)
         free_objects = len(re.findall(rb'\d{10}\s+\d{5}\s+f', content))
 
-        if free_objects > 5:
+        # Threshold depends on whether document has a trusted signature
+        # Signed documents: signing process creates deleted objects (normal up to ~15)
+        # Unsigned documents: should have minimal deleted objects (suspicious if > 3)
+        if has_trusted_signature:
+            threshold = 15  # Signing process creates objects
+            explanation = ("Deleted objects may contain previous versions of content. "
+                          "For signed documents, some deleted objects are normal.")
+        else:
+            threshold = 3  # Unsigned = should be clean
+            explanation = ("Deleted objects may contain previous versions of content. "
+                          "An unsigned document should have minimal deleted objects.")
+
+        if free_objects > threshold:
             flags.append(Flag(
                 severity="medium",
                 code="STRUCT_DELETED_OBJECTS",
                 message=f"PDF contains {free_objects} deleted objects (ghost data)",
                 details={
                     "free_objects": free_objects,
-                    "explanation": "Deleted objects may contain previous versions of content. "
-                                  "This suggests the document was edited."
+                    "threshold": threshold,
+                    "has_trusted_signature": has_trusted_signature,
+                    "explanation": explanation,
                 }
             ))
 
@@ -458,25 +764,33 @@ SEVERITY_POINTS = {
 # MAIN ANALYSIS FUNCTION
 # =============================================================================
 
-def analyze_structure(pdf_data: PDFData) -> ModuleResult:
+def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> ModuleResult:
     """
     Analyze PDF internal structure for signs of manipulation.
 
     Args:
         pdf_data: Extracted PDF data
+        verify_signatures: Whether to verify digital signatures via EU DSS API
+                          (requires internet, set False for offline use)
 
     Returns:
         ModuleResult with score, flags, and confidence
     """
     all_flags = []
 
+    # First, check for trusted signature (affects other checks)
+    has_trusted_signature = False
+    if verify_signatures and has_digital_signature(pdf_data.file_path):
+        sig_info = verify_signature_dss(pdf_data.file_path)
+        has_trusted_signature = sig_info.get("is_trusted", False)
+
     # Run all structure checks
-    all_flags.extend(check_incremental_updates(pdf_data.file_path))
+    all_flags.extend(check_incremental_updates(pdf_data.file_path, verify_signatures))
     all_flags.extend(check_javascript(pdf_data.file_path))
     all_flags.extend(check_hidden_annotations(pdf_data.file_path))
     all_flags.extend(check_embedded_files(pdf_data.file_path))
     all_flags.extend(check_acroform(pdf_data.file_path))
-    all_flags.extend(check_object_streams(pdf_data.file_path))
+    all_flags.extend(check_object_streams(pdf_data.file_path, has_trusted_signature))
 
     # Calculate score
     score = 100
