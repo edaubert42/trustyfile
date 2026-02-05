@@ -10,6 +10,7 @@ Pillow>=10.0.0           # Image handling
 # Image Analysis
 opencv-python>=4.9.0.0   # Computer vision
 pyzbar>=0.1.9            # QR code reading
+pylibdmtx>=0.1.10        # DataMatrix reading (2D-DOC barcodes)
 scikit-image>=0.22.0     # Advanced image analysis (ELA, noise analysis)
 
 # Text Analysis
