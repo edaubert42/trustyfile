@@ -31,12 +31,15 @@ FLAG_THEME_MAP: dict[str, str] = {
     "FONTS_EXCESSIVE_DIVERSITY": "tampering",
     "FONTS_HIGH_DIVERSITY": "tampering",
     "FONTS_MIXED_SUBSETS": "tampering",
+    "FONTS_MIDLINE_CHANGE": "tampering",
     "IMAGES_PASTE_NOISE_ANOMALY": "tampering",
 
-    # dates: future dates, anachronisms, impossible dates
-    "META_FUTURE_CREATION_DATE": "dates",
-    "META_DOCUMENT_MODIFIED": "dates",
-    "META_IMPOSSIBLE_DATES": "dates",
+    # tampering: modification time gap, impossible dates in metadata
+    "META_DOCUMENT_MODIFIED": "tampering",
+    "META_FUTURE_CREATION_DATE": "tampering",
+    "META_IMPOSSIBLE_DATES": "tampering",
+
+    # dates: content-level date inconsistencies (anachronisms, future dates in text)
     "CONTENT_FAR_FUTURE_DATE": "dates",
     "CONTENT_VERY_OLD_DATE": "dates",
     "CONTENT_ANACHRONISM_SERVICE": "dates",
@@ -92,6 +95,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "STRUCT_SUSPICIOUS_ANNOTATIONS": "security",
     "STRUCT_EMBEDDED_FILES": "security",
     "STRUCT_ACROFORM_DETECTED": "security",
+    "STRUCT_XMP_EDITOR_MISMATCH": "tampering",
 
     # fonts (standalone, not tampering-level)
     "FONTS_SYSTEM_FONTS": "fonts",
@@ -167,6 +171,9 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"subset and full forms, which can indicate text editing."
         if f.details else "A font appears in mixed forms, suggesting editing."
     ),
+    "FONTS_MIDLINE_CHANGE": lambda f: (
+        f"A font change was detected mid-line, suggesting text was edited after creation."
+    ),
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "A region of the document shows abnormal noise patterns consistent "
         "with a copy-paste operation."
@@ -179,8 +186,11 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "META_DOCUMENT_MODIFIED": lambda f: (
         f"The document was modified "
-        f"{f.details.get('explanation', 'significantly after creation')}."
-        if f.details and f.details.get('explanation')
+        f"{int(f.details['time_difference_hours'] // 24)} days after creation."
+        if f.details and f.details.get('time_difference_hours', 0) >= 24
+        else f"The document was modified "
+        f"{round(f.details['time_difference_hours'], 1)}h after creation."
+        if f.details and f.details.get('time_difference_hours')
         else "The document was modified after its initial creation."
     ),
     "META_IMPOSSIBLE_DATES": lambda f: (
@@ -324,6 +334,9 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "Suspicious annotation types were found in the PDF "
         "(file attachments, multimedia, etc.)."
     ),
+    "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
+        "The document was modified by a different tool than its creator."
+    ),
 }
 
 
@@ -335,27 +348,27 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
 # When tampering or dates are the dominant theme, we pick a more specific verdict.
 VERDICTS: dict[str, dict[str, str]] = {
     "CRITICAL": {
-        "default": "This document shows strong evidence of fraud.",
-        "tampering": "This document has been heavily tampered with.",
-        "dates": "This document contains impossible dates indicating fabrication.",
-        "identity": "The identity information in this document is fraudulent.",
-        "security": "This document contains potentially dangerous content.",
+        "default": "Do not trust this document.",
+        "tampering": "Do not trust this document — it has been tampered with.",
+        "dates": "Do not trust this document — dates indicate fabrication.",
+        "identity": "Do not trust this document — identity information is fraudulent.",
+        "security": "Do not trust this document — it contains dangerous content.",
     },
     "HIGH": {
-        "default": "This document has multiple red flags suggesting manipulation.",
-        "tampering": "We suspect this document has been altered.",
-        "dates": "Date inconsistencies suggest this document was fabricated.",
-        "identity": "The identity information in this document could not be verified.",
+        "default": "This document is likely fraudulent.",
+        "tampering": "This document has been altered after creation.",
+        "dates": "This document contains suspicious date inconsistencies.",
+        "identity": "The originator of this document could not be verified.",
         "origin": "This document was created with suspicious tools.",
     },
     "MEDIUM": {
-        "default": "Some aspects of this document require manual verification.",
-        "tampering": "This document shows possible signs of editing.",
-        "dates": "Some dates in this document need verification.",
-        "origin": "This document's origin raises some questions.",
+        "default": "This document has issues that need verification.",
+        "tampering": "This document may have been edited.",
+        "dates": "Dates in this document are inconsistent.",
+        "origin": "The origin of this document raises questions.",
     },
     "LOW": {
-        "default": "This document appears legitimate.",
+        "default": "This document appears legitimate. No issues detected.",
     },
 }
 
@@ -485,29 +498,28 @@ def _build_bullets(
     module_results: list[ModuleResult],
 ) -> list[str]:
     """
-    Build a list of bullet-point findings.
+    Build a concise list of issues found.
 
-    Strategy:
-    1. For each theme that has flags, pick the most severe flag and generate
-       a sentence. If the theme has multiple high+ flags, mention up to 2.
-    2. Add positive signals for clean modules.
+    Only shows problems — no positive signals. Keeps it short:
+    one bullet per theme, only the most severe flag.
 
     Args:
         grouped: Flags grouped by theme.
-        module_results: All module results (for positive signals).
+        module_results: All module results (unused, kept for API compat).
 
     Returns:
         List of sentences, each one becoming a bullet point in the UI.
+        Empty list if no issues (the verdict already says "appears legitimate").
     """
     bullets: list[str] = []
 
-    # Order themes for natural reading flow
+    # Order themes by importance
     theme_order = [
-        "origin", "tampering", "dates", "identity",
-        "visual", "images", "security", "fonts", "other",
+        "tampering", "dates", "identity", "origin",
+        "security", "visual", "images", "fonts", "other",
     ]
 
-    # Track which flag codes we've already mentioned to avoid duplicates
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     mentioned_codes: set[str] = set()
 
     for theme in theme_order:
@@ -516,35 +528,26 @@ def _build_bullets(
 
         flags = grouped[theme]
 
-        # Skip themes that are purely informational (signature handled separately)
+        # Skip signature theme (informational, not an issue)
         if theme == "signature":
             continue
 
-        # Sort flags by severity (most severe first)
-        severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        # Sort by severity, pick only the most severe flag per theme
         sorted_flags = sorted(flags, key=lambda f: severity_order.get(f.severity, 4))
 
-        # Pick up to 2 bullets per theme to avoid being too verbose
-        count = 0
         for flag in sorted_flags:
             if flag.code in mentioned_codes:
                 continue
-            if count >= 2:
-                break
-            # Skip low-severity flags unless it's the only flag in this theme
-            if flag.severity == "low" and len(sorted_flags) > 1:
+            # Skip low-severity flags — not worth a bullet
+            if flag.severity == "low":
                 continue
 
             sentence = _flag_to_sentence(flag)
             if sentence and sentence not in bullets:
                 bullets.append(sentence)
                 mentioned_codes.add(flag.code)
-                count += 1
-
-    # Add positive signals for clean modules
-    positive = _get_positive_signals(grouped, module_results)
-    if positive:
-        bullets.extend(positive)
+                if len([c for c in mentioned_codes if c in [f.code for f in flags]]) >= 2:
+                    break  # Max 2 bullets per theme
 
     return bullets
 
@@ -641,8 +644,5 @@ def generate_rich_summary(result: AnalysisResult) -> AnalysisSummary:
     # Build bullet list of findings
     bullets = _build_bullets(grouped, result.modules)
 
-    # If no bullets (clean document), provide a simple one
-    if not bullets:
-        bullets = ["No issues were detected across all analysis modules."]
-
+    # Clean document: no bullets needed, verdict says it all
     return AnalysisSummary(verdict=verdict, bullets=bullets)
