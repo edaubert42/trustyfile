@@ -97,3 +97,18 @@ class AnalysisResult:
     risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
     modules: list[ModuleResult] = field(default_factory=list)
     analysis_time_ms: int = 0
+
+
+@dataclass
+class AnalysisSummary:
+    """
+    Rich summary with a short verdict and a list of bullet findings.
+
+    Attributes:
+        verdict: Short bold statement about the document's trustworthiness.
+            Example: "We suspect this document has been altered."
+        bullets: List of finding sentences, each displayed as a bullet point.
+            Includes negative findings grouped by theme, plus positive signals.
+    """
+    verdict: str
+    bullets: list[str] = field(default_factory=list)

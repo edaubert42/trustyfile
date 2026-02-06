@@ -383,15 +383,20 @@ class TestGenerateSummary:
         summary = generate_summary(result)
         assert "fraud" in summary.lower()
 
-    def test_summary_includes_flag_counts(self):
-        """Summary should mention how many issues were found."""
+    def test_summary_includes_flag_descriptions(self):
+        """Summary should describe the issues found (rich summary format)."""
         result = create_analysis_result("abc", [
             make_result(
                 score=60,
-                flags=[make_flag("high"), make_flag("medium"), make_flag("medium")],
+                flags=[
+                    make_flag("high", code="META_ONLINE_CONVERTER",
+                              message="Document was processed by iLovePDF"),
+                    make_flag("medium", code="CONTENT_ANACHRONISM_SERVICE",
+                              message="Service date after invoice date"),
+                ],
             ),
         ])
         summary = generate_summary(result)
-        # Should contain severity counts
-        assert "1 high" in summary
-        assert "2 medium" in summary
+        # Rich summary should describe the findings, not just list counts
+        assert "converter" in summary.lower()
+        assert "date" in summary.lower()

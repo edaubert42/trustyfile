@@ -212,37 +212,16 @@ def generate_summary(result: AnalysisResult) -> str:
     """
     Generate a human-readable summary of the analysis.
 
+    Delegates to the rich summary generator and returns the combined
+    verdict + explanation as a single string for backward compatibility.
+
     Args:
         result: The complete analysis result
 
     Returns:
         Summary string suitable for display
     """
-    all_flags = collect_all_flags(result.modules)
-    flag_counts = count_flags_by_severity(all_flags)
+    from src.summary import generate_rich_summary
 
-    # Build summary based on risk level
-    if result.risk_level == "LOW":
-        summary = "Document appears legitimate. No significant concerns found."
-    elif result.risk_level == "MEDIUM":
-        summary = "Document has some concerns. Manual verification recommended."
-    elif result.risk_level == "HIGH":
-        summary = "Document has multiple red flags. Likely manipulated or fraudulent."
-    else:  # CRITICAL
-        summary = "Strong evidence of fraud detected. Do not trust this document."
-
-    # Add flag counts
-    if any(flag_counts.values()):
-        flag_parts = []
-        if flag_counts["critical"]:
-            flag_parts.append(f"{flag_counts['critical']} critical")
-        if flag_counts["high"]:
-            flag_parts.append(f"{flag_counts['high']} high")
-        if flag_counts["medium"]:
-            flag_parts.append(f"{flag_counts['medium']} medium")
-        if flag_counts["low"]:
-            flag_parts.append(f"{flag_counts['low']} low")
-
-        summary += f" ({', '.join(flag_parts)} severity issues)"
-
-    return summary
+    rich = generate_rich_summary(result)
+    return f"{rich.verdict} {' '.join(rich.bullets)}"
