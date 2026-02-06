@@ -106,8 +106,8 @@ class TestCheckFontDiversity:
         flags = check_font_diversity(fonts)
         assert len(flags) == 0
 
-    def test_six_fonts_medium_flag(self):
-        """6 font families → medium flag."""
+    def test_six_fonts_no_flag(self):
+        """6 font families → no flag (threshold raised to >7)."""
         fonts = [
             make_font("Helvetica"),
             make_font("Arial"),
@@ -117,12 +117,10 @@ class TestCheckFontDiversity:
             make_font("Tahoma"),
         ]
         flags = check_font_diversity(fonts)
-        assert len(flags) == 1
-        assert flags[0].severity == "medium"
-        assert flags[0].code == "FONTS_HIGH_DIVERSITY"
+        assert len(flags) == 0
 
-    def test_eight_fonts_high_flag(self):
-        """8 font families → high flag."""
+    def test_eight_fonts_medium_flag(self):
+        """8 font families → medium flag (threshold raised)."""
         fonts = [
             make_font("Helvetica"),
             make_font("Arial"),
@@ -133,6 +131,14 @@ class TestCheckFontDiversity:
             make_font("Palatino"),
             make_font("Futura"),
         ]
+        flags = check_font_diversity(fonts)
+        assert len(flags) == 1
+        assert flags[0].severity == "medium"
+        assert flags[0].code == "FONTS_HIGH_DIVERSITY"
+
+    def test_eleven_fonts_high_flag(self):
+        """11 font families → high flag."""
+        fonts = [make_font(f"Font{i}") for i in range(11)]
         flags = check_font_diversity(fonts)
         assert len(flags) == 1
         assert flags[0].severity == "high"
@@ -242,7 +248,7 @@ class TestCheckMixedSubsetFonts:
     """
 
     def test_mixed_subset_flagged(self):
-        """Same base name, one subset, one not → medium flag."""
+        """Same base name, one subset, one not → low flag (normal PDF behavior)."""
         fonts = [
             make_font("BCDFGH+Arial", base_name="Arial", is_subset=True),
             make_font("Arial", base_name="Arial", is_subset=False),
@@ -251,7 +257,7 @@ class TestCheckMixedSubsetFonts:
         flags = check_mixed_subset_fonts(fonts)
         assert len(flags) == 1
         assert flags[0].code == "FONTS_MIXED_SUBSETS"
-        assert flags[0].severity == "medium"
+        assert flags[0].severity == "low"
 
     def test_all_subset_no_flag(self):
         """All subsets of the same font → normal, no flag."""

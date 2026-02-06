@@ -725,7 +725,7 @@ def check_object_streams(pdf_path: str, has_trusted_signature: bool = False) -> 
             explanation = ("Deleted objects may contain previous versions of content. "
                           "For signed documents, some deleted objects are normal.")
         else:
-            threshold = 3  # Unsigned = should be clean
+            threshold = 10  # Some PDF generators create/delete temp objects normally
             explanation = ("Deleted objects may contain previous versions of content. "
                           "An unsigned document should have minimal deleted objects.")
 

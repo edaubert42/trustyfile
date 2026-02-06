@@ -223,8 +223,9 @@ def check_resolution_consistency(images: list[ImageInfo]) -> list[Flag]:
     min_dpi = min(dpi_values)
     max_dpi = max(dpi_values)
 
-    # If DPI varies by more than 2x, it's suspicious
-    if max_dpi > min_dpi * 2.5 and min_dpi > 10:
+    # If DPI varies by more than 4x, it's suspicious
+    # (a logo at 150 DPI vs document at 300 DPI is normal — 2x difference)
+    if max_dpi > min_dpi * 4.0 and min_dpi > 10:
         flags.append(Flag(
             severity="medium",
             code="IMAGES_RESOLUTION_MISMATCH",
@@ -405,9 +406,9 @@ def check_image_only_pdf(
         chars_per_page = text_length / page_count
 
         if chars_per_page < 50:
-            # Almost no text → definitely image-only
+            # Almost no text → image-only (could be a legitimate scan)
             flags.append(Flag(
-                severity="high",
+                severity="medium",
                 code="IMAGES_IMAGE_ONLY_PDF",
                 message=(
                     "Document appears to be image-only (no text layer) "

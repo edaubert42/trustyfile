@@ -707,40 +707,14 @@ def check_duplicate_amounts(text: str) -> list[Flag]:
     """
     Check for suspicious patterns in amounts.
 
-    What we look for:
-    - Exact same amount appearing many times (might be copy-paste)
-    - Round numbers that seem edited (1000.00 instead of 1023.45)
-
     Note:
-        Some legitimate invoices do have repeated amounts (e.g., monthly fee)
-        so we only flag if it seems excessive.
+        Removed the "repeated amount" check — on real invoices, the total
+        amount naturally appears many times (subtotal, total HT, total TTC,
+        amount due, payment reference, etc.). This produced too many false
+        positives. Real copy-paste fraud (digit replacement via Paint) is
+        detected by the image paste noise analysis module instead.
     """
-    flags = []
-
-    amounts = extract_amounts(text)
-
-    if not amounts:
-        return flags
-
-    # Check for too many identical amounts
-    amount_values = [a[0] for a in amounts]
-    from collections import Counter
-    amount_counts = Counter(amount_values)
-
-    for amount, count in amount_counts.items():
-        # If same amount appears more than 3 times, it's suspicious
-        if count > 3:
-            flags.append(Flag(
-                severity="low",
-                code="CONTENT_REPEATED_AMOUNT",
-                message=f"Amount {amount:.2f} appears {count} times in document",
-                details={
-                    "amount": amount,
-                    "count": count,
-                }
-            ))
-
-    return flags
+    return []
 
 
 # =============================================================================

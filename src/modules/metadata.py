@@ -50,7 +50,6 @@ SUSPICIOUS_PRODUCERS = [
 
     # Online office tools (suspicious if invoice claims to be from billing system)
     "google docs",
-    "libreoffice",  # Only suspicious if invoice should be from enterprise system
 ]
 
 # These are MORE suspicious - explicitly editing tools
@@ -123,6 +122,9 @@ LEGITIMATE_PRODUCERS = [
     "microsoft",  # Word/Excel exports
     "pdftex",  # LaTeX
     "latex",
+
+    # Office suites (commonly used by small businesses and freelancers)
+    "libreoffice",
 ]
 
 

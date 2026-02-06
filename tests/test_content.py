@@ -544,24 +544,12 @@ class TestExtractAmounts:
 # =============================================================================
 
 class TestCheckDuplicateAmounts:
-    """Detecting suspicious repeated amounts."""
+    """Duplicate amount check removed — real invoices naturally repeat totals."""
 
-    def test_amount_repeated_4_times_flagged(self):
-        """Same amount > 3 times → suspicious."""
-        text = "100,00€ 100,00€ 100,00€ 100,00€"
+    def test_always_returns_empty(self):
+        """Check is disabled — should never flag anything."""
+        text = "100,00€ 100,00€ 100,00€ 100,00€ 100,00€ 100,00€"
         flags = check_duplicate_amounts(text)
-        repeated = [f for f in flags if f.code == "CONTENT_REPEATED_AMOUNT"]
-        assert len(repeated) == 1
-
-    def test_few_unique_amounts_ok(self):
-        """Different amounts should not trigger duplicate flag."""
-        text = "Sous-total: 100,00€ TVA: 20,00€ Total: 120,00€"
-        flags = check_duplicate_amounts(text)
-        repeated = [f for f in flags if f.code == "CONTENT_REPEATED_AMOUNT"]
-        assert len(repeated) == 0
-
-    def test_no_amounts_no_flags(self):
-        flags = check_duplicate_amounts("No amounts in this text")
         assert len(flags) == 0
 
 

@@ -293,12 +293,12 @@ class TestCheckImageOnlyPdf:
     """
 
     def test_full_page_image_no_text_flagged(self):
-        """One full-page image + no text → high flag."""
+        """One full-page image + no text → medium flag (could be a legitimate scan)."""
         images = [make_image(width=800, height=1000)]
         flags = check_image_only_pdf(images, text_length=0, page_count=1)
         assert len(flags) == 1
         assert flags[0].code == "IMAGES_IMAGE_ONLY_PDF"
-        assert flags[0].severity == "high"
+        assert flags[0].severity == "medium"
 
     def test_full_page_image_little_text_flagged(self):
         """Full-page image + very little text (< 200 chars/page) → medium flag."""

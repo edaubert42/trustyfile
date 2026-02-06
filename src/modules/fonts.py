@@ -212,7 +212,10 @@ def check_font_diversity(fonts: list[FontInfo]) -> list[Flag]:
 
     num_families = len(font_families)
 
-    if num_families > 7:
+    # Complex invoices can legitimately use many fonts (headers, body, tables,
+    # legal text, barcodes, price emphasis). Thresholds raised to reduce
+    # false positives on real invoices.
+    if num_families > 10:
         flags.append(Flag(
             severity="high",
             code="FONTS_EXCESSIVE_DIVERSITY",
@@ -222,7 +225,7 @@ def check_font_diversity(fonts: list[FontInfo]) -> list[Flag]:
                 "fonts": list(font_families),
             }
         ))
-    elif num_families > 5:
+    elif num_families > 7:
         flags.append(Flag(
             severity="medium",
             code="FONTS_HIGH_DIVERSITY",
@@ -352,7 +355,7 @@ def check_mixed_subset_fonts(fonts: list[FontInfo]) -> list[Flag]:
 
         if has_subset and has_non_subset:
             flags.append(Flag(
-                severity="medium",
+                severity="low",
                 code="FONTS_MIXED_SUBSETS",
                 message=f"Font '{base_name}' appears both as subset and non-subset (possible editing)",
                 details={
