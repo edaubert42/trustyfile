@@ -76,6 +76,7 @@ class ModuleResult:
     flags: list[Flag] = field(default_factory=list)
     score: int = 100  # Start at 100 (innocent until proven guilty)
     confidence: float = 1.0
+    details: dict = field(default_factory=dict)  # Optional extra data (e.g., verified companies)
 
 
 @dataclass

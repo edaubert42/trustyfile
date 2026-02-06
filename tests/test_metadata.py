@@ -416,24 +416,21 @@ class TestAnalyzeMetadata:
 
     def test_multiple_flags_stack(self):
         """Multiple issues should stack their deductions."""
-        # Future creation date (critical = 50) + online converter (high = 30)
+        # Online converter (high = 30) — date checks are now in structure module
         pdf_data = make_pdf_data(
             producer="iLovePDF",
             creation_date=datetime.now() + timedelta(days=365),
         )
         result = analyze_metadata(pdf_data)
-        # 100 - 30 (converter) - 50 (future date) = 20
-        assert result.score == 20
+        # 100 - 30 (converter) = 70
+        assert result.score == 70
 
     def test_score_never_below_zero(self):
         """Score should be capped at 0, never negative."""
-        # AI generated (50) + future date (50) + impossible dates (30) = 130 deduction
-        creation = datetime.now() + timedelta(days=365)
-        mod = creation - timedelta(days=400)  # mod before creation
+        # AI generated (50) — date checks are now in structure module
         pdf_data = make_pdf_data(
             producer="ChatGPT",
-            creation_date=creation,
-            mod_date=mod,
+            creation_date=datetime.now() + timedelta(days=365),
         )
         result = analyze_metadata(pdf_data)
         assert result.score >= 0

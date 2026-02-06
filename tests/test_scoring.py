@@ -381,7 +381,7 @@ class TestGenerateSummary:
             ),
         ])
         summary = generate_summary(result)
-        assert "fraud" in summary.lower()
+        assert "not trust" in summary.lower() or "fraud" in summary.lower()
 
     def test_summary_includes_flag_descriptions(self):
         """Summary should describe the issues found (rich summary format)."""

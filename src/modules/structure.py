@@ -31,13 +31,965 @@ This means we can detect:
 
 import re
 import logging
+import difflib
 from dataclasses import dataclass
 import fitz  # PyMuPDF
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
+from src.modules.metadata import check_dates
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# PDF MODIFICATION HISTORY FUNCTIONS
+# =============================================================================
+
+def find_eof_positions(raw_bytes: bytes) -> list[int]:
+    """
+    Find the byte position of every %%EOF marker in a PDF file.
+
+    Each %%EOF marks the end of a PDF version. A clean PDF has 1 %%EOF.
+    Each incremental update (edit) adds another %%EOF.
+
+    We return the position AFTER the %%EOF + newline, so that:
+        raw_bytes[:positions[0]] = version 1 (original)
+        raw_bytes[:positions[1]] = version 2 (first edit)
+        etc.
+
+    Args:
+        raw_bytes: The raw bytes of the PDF file
+
+    Returns:
+        List of byte positions, one per version.
+        Example: [1234, 5678, 9012] means 3 versions.
+
+    Example:
+        >>> content = b'%PDF-1.4 ... %%EOF\\n ... edit ... %%EOF\\n'
+        >>> positions = find_eof_positions(content)
+        >>> len(positions)  # 2 versions
+        2
+        >>> original = content[:positions[0]]  # First version
+    """
+    positions = []
+    # The %%EOF marker — we search for it as bytes
+    marker = b'%%EOF'
+
+    # Start searching from the beginning
+    start = 0
+    while True:
+        # find() returns -1 if not found
+        pos = raw_bytes.find(marker, start)
+        if pos == -1:
+            break  # No more %%EOF markers
+
+        # We want the position AFTER the marker + any trailing newline
+        # so that slicing raw_bytes[:end_pos] gives a complete version
+        end_pos = pos + len(marker)
+
+        # Skip trailing whitespace/newlines after %%EOF
+        # (PDF spec allows \n, \r\n, or \r after %%EOF)
+        while end_pos < len(raw_bytes) and raw_bytes[end_pos:end_pos + 1] in (b'\n', b'\r'):
+            end_pos += 1
+
+        positions.append(end_pos)
+
+        # Continue searching after this marker
+        start = end_pos
+
+    return positions
+
+
+def extract_text_from_content_stream(stream_bytes: bytes) -> str:
+    """
+    Parse a decompressed PDF content stream to extract visible text.
+
+    PDF content streams contain drawing operators. Text is rendered by operators
+    like Tj (show string), TJ (show array with kerning), ' and " (next line + show).
+
+    Text strings in PDF are enclosed in parentheses: (Hello World)
+    Special characters are escaped: \\( \\) \\\\
+
+    For the TJ operator, the array mixes strings and numbers:
+        [(He) -10 (llo)] TJ  →  "Hello"
+    The numbers are kerning adjustments (spacing) — we ignore them.
+
+    Args:
+        stream_bytes: Decompressed content stream bytes (from xref_stream())
+
+    Returns:
+        Extracted text as a single string, with spaces between text chunks
+        and newlines between text blocks.
+
+    Example:
+        >>> stream = b'BT (Hello) Tj (World) Tj ET'
+        >>> extract_text_from_content_stream(stream)
+        'Hello World'
+    """
+    try:
+        # Decode bytes to string — content streams are usually ASCII/Latin-1
+        text = stream_bytes.decode('latin-1', errors='replace')
+    except Exception:
+        return ""
+
+    extracted_parts = []
+
+    # Regex to find PDF string literals inside parentheses: (some text)
+    # Handles escaped parens \( \) and escaped backslash \\
+    # The pattern matches: open paren, then any sequence of:
+    #   - escaped char (backslash + any char)
+    #   - or any char that's not a backslash or close paren
+    # ...until close paren
+    string_pattern = r'\((?:[^\\()]*(?:\\.[^\\()]*)*)\)'
+
+    # Strategy: find all text-showing operators and extract their string operands
+    # We look for patterns like:
+    #   (text) Tj
+    #   [(text) num (text)] TJ
+    #   (text) '
+    #   num num (text) "
+
+    # Pattern 1: Simple Tj — single string before Tj
+    # Example: (Hello World) Tj
+    for match in re.finditer(r'(' + string_pattern + r')\s*Tj\b', text):
+        raw_str = match.group(1)
+        extracted_parts.append(_decode_pdf_string(raw_str))
+
+    # Pattern 2: TJ array — extract all strings from the array
+    # Example: [(He) -10 (llo) 20 ( Wor) (ld)] TJ
+    for match in re.finditer(r'\[(.*?)\]\s*TJ\b', text, re.DOTALL):
+        array_content = match.group(1)
+        # Find all string literals inside the array
+        for str_match in re.finditer(string_pattern, array_content):
+            extracted_parts.append(_decode_pdf_string(str_match.group(0)))
+
+    # Pattern 3: ' operator (next line + show string)
+    # Example: (Hello) '
+    for match in re.finditer(r'(' + string_pattern + r")\s*'", text):
+        raw_str = match.group(1)
+        extracted_parts.append('\n')  # ' moves to next line
+        extracted_parts.append(_decode_pdf_string(raw_str))
+
+    # Pattern 4: " operator (set spacing + next line + show string)
+    # Example: 1 2 (Hello) "
+    for match in re.finditer(r'(' + string_pattern + r')\s*"', text):
+        raw_str = match.group(1)
+        extracted_parts.append('\n')
+        extracted_parts.append(_decode_pdf_string(raw_str))
+
+    return ' '.join(extracted_parts).strip()
+
+
+def _decode_pdf_string(raw: str) -> str:
+    """
+    Decode a PDF string literal by removing outer parens and unescaping.
+
+    PDF strings use backslash escapes:
+        \\n = newline, \\r = carriage return, \\t = tab
+        \\( = literal (, \\) = literal ), \\\\ = literal backslash
+        \\ddd = octal character code
+
+    Args:
+        raw: PDF string including outer parentheses, e.g. "(Hello \\(world\\))"
+
+    Returns:
+        Decoded string, e.g. "Hello (world)"
+    """
+    # Remove outer parentheses
+    if raw.startswith('(') and raw.endswith(')'):
+        raw = raw[1:-1]
+
+    # Unescape PDF string escapes
+    result = []
+    i = 0
+    while i < len(raw):
+        if raw[i] == '\\' and i + 1 < len(raw):
+            next_char = raw[i + 1]
+            if next_char == 'n':
+                result.append('\n')
+                i += 2
+            elif next_char == 'r':
+                result.append('\r')
+                i += 2
+            elif next_char == 't':
+                result.append('\t')
+                i += 2
+            elif next_char in ('(', ')', '\\'):
+                result.append(next_char)
+                i += 2
+            elif next_char.isdigit():
+                # Octal escape: \ddd (1-3 digits)
+                octal = next_char
+                i += 2
+                while i < len(raw) and len(octal) < 3 and raw[i].isdigit():
+                    octal += raw[i]
+                    i += 1
+                try:
+                    result.append(chr(int(octal, 8)))
+                except (ValueError, OverflowError):
+                    result.append(octal)
+            else:
+                # Unknown escape — keep the character after backslash
+                result.append(next_char)
+                i += 2
+        else:
+            result.append(raw[i])
+            i += 1
+
+    return ''.join(result)
+
+
+def _find_page_content_xrefs(doc: fitz.Document) -> dict[int, int]:
+    """
+    Build a mapping from content stream xref → page number.
+
+    Each page in a PDF has a /Contents key pointing to one or more content
+    stream objects. We need this mapping so that when we detect a modified
+    content stream, we know which page it belongs to.
+
+    Args:
+        doc: An open PyMuPDF document
+
+    Returns:
+        Dict mapping xref number → 1-based page number.
+        Example: {5: 1, 8: 2} means xref 5 is page 1's content stream.
+    """
+    content_to_page = {}
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        # page.xref is the xref of the page object itself
+        page_xref = page.xref
+
+        try:
+            # Get the page object definition to find /Contents references
+            page_obj = doc.xref_object(page_xref)
+
+            # /Contents can be a single reference: /Contents 5 0 R
+            # or an array: /Contents [5 0 R 6 0 R]
+            # We extract all referenced xref numbers
+
+            # Pattern for single reference: /Contents N 0 R
+            single = re.search(r'/Contents\s+(\d+)\s+0\s+R', page_obj)
+            if single:
+                content_to_page[int(single.group(1))] = page_num + 1
+
+            # Pattern for array: /Contents [ N 0 R M 0 R ... ]
+            array_match = re.search(r'/Contents\s*\[([^\]]+)\]', page_obj)
+            if array_match:
+                for ref in re.finditer(r'(\d+)\s+0\s+R', array_match.group(1)):
+                    content_to_page[int(ref.group(1))] = page_num + 1
+
+        except Exception:
+            continue
+
+    return content_to_page
+
+
+def _detect_tool(doc: fitz.Document) -> str:
+    """
+    Detect the software tool used to create or modify a PDF version.
+
+    We check two sources:
+    1. XMP Toolkit (x:xmptk) — reveals the LAST editor that touched the file.
+       Adobe Acrobat always writes this even if it doesn't change Producer.
+    2. Producer/Creator metadata — the tool that generated the PDF.
+
+    If XMP toolkit is present AND differs from Producer, we show both
+    (e.g. "Apache FOP → Adobe Acrobat") to make the editing chain clear.
+
+    Args:
+        doc: An open PyMuPDF document
+
+    Returns:
+        Human-readable tool name, e.g. "Apache FOP Version 0.95"
+        or "Apache FOP Version 0.95 → modified with Adobe Acrobat"
+    """
+    meta = doc.metadata
+    producer = meta.get("producer", "") or ""
+    creator = meta.get("creator", "") or ""
+    base_tool = producer or creator or "Unknown"
+
+    # Look for XMP toolkit — reveals the real last editor
+    xmptk = ""
+    try:
+        for xref in range(1, doc.xref_length()):
+            try:
+                obj = doc.xref_object(xref)
+                if obj and '/Subtype /XML' in obj:
+                    stream = doc.xref_stream(xref)
+                    if stream:
+                        xmp_text = stream.decode('utf-8', errors='replace')
+                        match = re.search(r'x:xmptk="([^"]+)"', xmp_text)
+                        if match:
+                            xmptk = match.group(1)
+                    break
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    if not xmptk:
+        return base_tool
+
+    # Check if XMP toolkit reveals a different editor than Producer
+    # Map known XMP toolkit signatures to short names
+    xmptk_lower = xmptk.lower()
+    detected_editor = None
+    if "adobe" in xmptk_lower:
+        detected_editor = "Adobe Acrobat"
+    elif "microsoft" in xmptk_lower:
+        detected_editor = "Microsoft Office"
+    elif "nitro" in xmptk_lower:
+        detected_editor = "Nitro PDF"
+    elif "foxit" in xmptk_lower:
+        detected_editor = "Foxit PDF Editor"
+
+    if not detected_editor:
+        return base_tool
+
+    # If the producer already mentions the same editor, no need to show both
+    if detected_editor.split()[0].lower() in (producer or "").lower():
+        return base_tool
+
+    return f"{base_tool} → modified with {detected_editor}"
+
+
+def compare_versions_by_objects(raw_bytes: bytes, eof_positions: list[int]) -> list[dict]:
+    """
+    Compare individual PDF objects between consecutive versions.
+
+    This is "Approach B" for modification history. Instead of extracting
+    full-page text (which fails when editors rewrite all objects), we:
+
+    1. Open version N and version N+1 as separate PDFs
+    2. Compare every xref object string between them
+    3. For modified content stream objects, extract text and produce a diff
+
+    This catches changes that page-level text extraction misses, because
+    we're comparing the raw PDF objects that PyMuPDF decompresses for us.
+
+    Args:
+        raw_bytes: The raw bytes of the PDF file
+        eof_positions: List of %%EOF positions (from find_eof_positions)
+
+    Returns:
+        List of diffs, same format as diff_versions() plus optional object_changes:
+        [
+            {
+                "from_version": 1,
+                "to_version": 2,
+                "changes": [{"page": 1, "removed": [...], "added": [...]}],
+                "object_changes": [
+                    {"xref": 5, "page": 1, "type": "content_stream",
+                     "removed": [...], "added": [...]},
+                ]
+            }
+        ]
+    """
+    diffs = []
+
+    for i in range(len(eof_positions) - 1):
+        # Truncate raw bytes to get version N and version N+1
+        old_bytes = raw_bytes[:eof_positions[i]]
+        new_bytes = raw_bytes[:eof_positions[i + 1]]
+
+        try:
+            old_doc = fitz.open(stream=old_bytes, filetype="pdf")
+        except Exception as e:
+            logger.debug(f"Could not open version {i + 1}: {e}")
+            # Can't open the old version — skip this pair
+            diffs.append({
+                "from_version": i + 1,
+                "to_version": i + 2,
+                "changes": [],
+                "object_changes": [],
+            })
+            continue
+
+        try:
+            new_doc = fitz.open(stream=new_bytes, filetype="pdf")
+        except Exception as e:
+            logger.debug(f"Could not open version {i + 2}: {e}")
+            old_doc.close()
+            diffs.append({
+                "from_version": i + 1,
+                "to_version": i + 2,
+                "changes": [],
+                "object_changes": [],
+            })
+            continue
+
+        # Skip linearization stubs: if a version has 0 pages, it's not a
+        # real document version — it's just a PDF header/linearization hint.
+        # Comparing it would show ALL text as "added", which is meaningless.
+        if len(old_doc) == 0 or len(new_doc) == 0:
+            logger.debug(
+                f"Skipping version pair {i+1}->{i+2}: "
+                f"old has {len(old_doc)} pages, new has {len(new_doc)} pages "
+                f"(likely a linearization stub)"
+            )
+            old_doc.close()
+            new_doc.close()
+            diffs.append({
+                "from_version": i + 1,
+                "to_version": i + 2,
+                "changes": [],
+                "object_changes": [],
+            })
+            continue
+
+        # =====================================================================
+        # Part 1: Page-level text diff using get_text()
+        # =====================================================================
+        # PyMuPDF's get_text() is much more reliable than parsing raw content
+        # streams ourselves. It handles font encoding, kerning, positioning,
+        # etc. We use it here because both truncated PDFs opened successfully.
+        changes = []
+        all_pages = max(len(old_doc), len(new_doc))
+
+        for page_idx in range(all_pages):
+            old_text = ""
+            new_text = ""
+
+            if page_idx < len(old_doc):
+                old_text = old_doc[page_idx].get_text("text").strip()
+            if page_idx < len(new_doc):
+                new_text = new_doc[page_idx].get_text("text").strip()
+
+            if old_text == new_text:
+                continue  # No changes on this page
+
+            # Diff the page text line by line
+            # Filter out whitespace-only lines BEFORE diffing.
+            # PDF text extraction often has inconsistent blank lines between
+            # versions (extra spaces, empty lines). If we include them,
+            # the diff shows surrounding unchanged text as "moved", which
+            # is noisy. We only want to see lines with real content changes.
+            old_lines = [l for l in old_text.splitlines() if l.strip()]
+            new_lines = [l for l in new_text.splitlines() if l.strip()]
+
+            # Also normalize whitespace within lines: collapse multiple
+            # spaces into one. PDF editors often change internal spacing
+            # without changing the visible text (e.g. "Paypal  " vs "Paypal").
+            old_normalized = [' '.join(l.split()) for l in old_lines]
+            new_normalized = [' '.join(l.split()) for l in new_lines]
+
+            matcher = difflib.SequenceMatcher(None, old_normalized, new_normalized)
+
+            removed = []
+            added = []
+            for op, i1, i2, j1, j2 in matcher.get_opcodes():
+                if op == 'equal':
+                    continue
+                elif op == 'delete':
+                    # Use original lines (not normalized) for display
+                    removed.extend(old_lines[i1:i2])
+                elif op == 'insert':
+                    added.extend(new_lines[j1:j2])
+                elif op == 'replace':
+                    removed.extend(old_lines[i1:i2])
+                    added.extend(new_lines[j1:j2])
+
+            if removed or added:
+                changes.append({
+                    "page": page_idx + 1,
+                    "removed": removed,
+                    "added": added,
+                })
+
+        # =====================================================================
+        # Part 2: Object-level change inventory (metadata for detailed view)
+        # =====================================================================
+        # This tells us WHICH objects were modified (fonts, images, streams...)
+        # but we don't use it for the text diff — get_text() handles that above.
+        object_changes = []
+        content_to_page = _find_page_content_xrefs(new_doc)
+        old_content_to_page = _find_page_content_xrefs(old_doc)
+        for xref, page in old_content_to_page.items():
+            if xref not in content_to_page:
+                content_to_page[xref] = page
+
+        max_xref = max(old_doc.xref_length(), new_doc.xref_length())
+
+        for xref in range(1, max_xref):
+            try:
+                old_obj = old_doc.xref_object(xref) if xref < old_doc.xref_length() else ""
+                new_obj = new_doc.xref_object(xref) if xref < new_doc.xref_length() else ""
+            except Exception:
+                continue
+
+            if old_obj == new_obj:
+                continue
+
+            # Classify the modified object
+            page_num = content_to_page.get(xref)
+            check_str = new_obj or old_obj
+            obj_type = "unknown"
+            if page_num and ('/Length' in check_str or not check_str):
+                obj_type = "content_stream"
+            elif '/Font' in check_str:
+                obj_type = "font"
+            elif '/Image' in check_str or '/XObject' in check_str:
+                obj_type = "image"
+            elif '/Type /Page' in check_str:
+                obj_type = "page_definition"
+            elif '/Catalog' in check_str:
+                obj_type = "catalog"
+            elif '/Info' in check_str:
+                obj_type = "metadata"
+
+            object_changes.append({
+                "xref": xref,
+                "page": page_num,
+                "type": obj_type,
+            })
+
+        # Detect the tool used for each version before closing
+        from_tool = _detect_tool(old_doc)
+        to_tool = _detect_tool(new_doc)
+
+        old_doc.close()
+        new_doc.close()
+
+        diffs.append({
+            "from_version": i + 1,
+            "to_version": i + 2,
+            "from_tool": from_tool,
+            "to_tool": to_tool,
+            "changes": changes,
+            "object_changes": object_changes,
+        })
+
+    return diffs
+
+
+def extract_text_per_version(raw_bytes: bytes, eof_positions: list[int]) -> list[dict]:
+    """
+    Extract text from each version of the PDF by truncating at each %%EOF.
+
+    For each version, we:
+    1. Slice the raw bytes up to that version's %%EOF
+    2. Open the truncated bytes with PyMuPDF
+    3. Extract text from every page
+
+    Args:
+        raw_bytes: The raw bytes of the PDF file
+        eof_positions: List of %%EOF positions (from find_eof_positions)
+
+    Returns:
+        List of dicts, one per version:
+        [
+            {"version": 1, "pages": {"1": "text on page 1", "2": "text on page 2"}},
+            {"version": 2, "pages": {"1": "modified text on page 1"}},
+        ]
+
+        Returns fewer entries if some versions can't be opened (corrupted truncation).
+    """
+    versions = []
+
+    for i, end_pos in enumerate(eof_positions):
+        version_num = i + 1
+        truncated = raw_bytes[:end_pos]
+
+        try:
+            # Open the truncated bytes as a PDF
+            # fitz.open() accepts a bytes stream with filetype="pdf"
+            doc = fitz.open(stream=truncated, filetype="pdf")
+
+            # Skip versions with 0 pages — these are linearization stubs
+            # (small PDF headers that don't contain any real content).
+            # Comparing them would show ALL text as "added", which is useless.
+            if len(doc) == 0:
+                doc.close()
+                logger.debug(f"Skipping version {version_num}: 0 pages (linearization stub)")
+                continue
+
+            pages_text = {}
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text("text").strip()
+                pages_text[str(page_num + 1)] = text
+
+            doc.close()
+
+            versions.append({
+                "version": version_num,
+                "pages": pages_text,
+            })
+
+        except Exception as e:
+            # Some truncations may not produce a valid PDF
+            # (e.g., the %%EOF might be inside a comment or string)
+            # We skip those silently
+            logger.debug(f"Could not open version {version_num}: {e}")
+            continue
+
+    return versions
+
+
+def diff_versions(versions: list[dict]) -> list[dict]:
+    """
+    Compare consecutive versions and produce a human-readable diff.
+
+    For each pair of versions (N, N+1), we compare the text on each page
+    and report what changed: added lines, removed lines, modified lines.
+
+    Uses Python's difflib to compute the differences.
+
+    Args:
+        versions: List from extract_text_per_version()
+
+    Returns:
+        List of diffs:
+        [
+            {
+                "from_version": 1,
+                "to_version": 2,
+                "changes": [
+                    {
+                        "page": 1,
+                        "removed": ["old line 1", "old line 2"],
+                        "added": ["new line 1"],
+                    }
+                ]
+            }
+        ]
+
+        Empty list if there's only 1 version (no edits).
+    """
+    import difflib
+
+    diffs = []
+
+    for i in range(len(versions) - 1):
+        old = versions[i]
+        new = versions[i + 1]
+
+        changes = []
+
+        # Get all page numbers from both versions
+        all_pages = sorted(
+            set(old["pages"].keys()) | set(new["pages"].keys()),
+            key=lambda p: int(p)
+        )
+
+        for page in all_pages:
+            old_text = old["pages"].get(page, "")
+            new_text = new["pages"].get(page, "")
+
+            if old_text == new_text:
+                continue  # No changes on this page
+
+            # Split into lines for difflib
+            old_lines = old_text.splitlines()
+            new_lines = new_text.splitlines()
+
+            # unified_diff gives us a clear view of what changed
+            # We use SequenceMatcher for more control
+            matcher = difflib.SequenceMatcher(None, old_lines, new_lines)
+
+            removed = []
+            added = []
+
+            for op, i1, i2, j1, j2 in matcher.get_opcodes():
+                if op == 'equal':
+                    continue  # Lines are the same, skip
+                elif op == 'delete':
+                    # Lines present in old but not in new
+                    removed.extend(old_lines[i1:i2])
+                elif op == 'insert':
+                    # Lines present in new but not in old
+                    added.extend(new_lines[j1:j2])
+                elif op == 'replace':
+                    # Lines changed from old to new
+                    removed.extend(old_lines[i1:i2])
+                    added.extend(new_lines[j1:j2])
+
+            if removed or added:
+                changes.append({
+                    "page": int(page),
+                    "removed": removed,
+                    "added": added,
+                })
+
+        diffs.append({
+            "from_version": old["version"],
+            "to_version": new["version"],
+            "changes": changes,
+        })
+
+    return diffs
+
+
+def get_modification_history(pdf_path: str) -> dict:
+    """
+    Main function: extract the full modification history of a PDF.
+
+    Combines all the steps:
+    1. Read raw bytes
+    2. Find %%EOF positions (= versions)
+    3. Extract text from each version
+    4. Diff consecutive versions
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        dict with:
+        - version_count: int (number of versions)
+        - versions: list of version text data
+        - diffs: list of changes between versions
+        - error: str if something went wrong
+
+    Example:
+        >>> history = get_modification_history("edited_invoice.pdf")
+        >>> history["version_count"]
+        3
+        >>> for diff in history["diffs"]:
+        ...     for change in diff["changes"]:
+        ...         print(f"Page {change['page']}: removed {change['removed']}")
+    """
+    try:
+        with open(pdf_path, 'rb') as f:
+            raw_bytes = f.read()
+
+        # Step 1: Find all versions
+        eof_positions = find_eof_positions(raw_bytes)
+
+        if len(eof_positions) <= 1:
+            return {
+                "version_count": 1,
+                "versions": [],
+                "diffs": [],
+                "message": "No modification history (single version PDF)"
+            }
+
+        # Step 2: Try Approach B first (object-level comparison)
+        # This works even when editors like Adobe Acrobat rewrite all objects
+        approach_b_diffs = []
+        try:
+            approach_b_diffs = compare_versions_by_objects(raw_bytes, eof_positions)
+        except Exception as e:
+            logger.debug(f"Approach B (object-level) failed: {e}")
+
+        # Check if Approach B found any text changes
+        approach_b_has_text = any(
+            diff.get("changes") for diff in approach_b_diffs
+        )
+
+        if approach_b_has_text:
+            # Approach B found meaningful text diffs — use them
+            logger.debug("Using Approach B (object-level comparison) for modification history")
+            return {
+                "version_count": len(eof_positions),
+                "versions": [],  # Not needed when using Approach B
+                "diffs": approach_b_diffs,
+            }
+
+        # Step 3: Fall back to Approach A (full-page text extraction + diff)
+        # This works well for simple cases where truncated PDFs are readable
+        logger.debug("Falling back to Approach A (text extraction) for modification history")
+        versions = extract_text_per_version(raw_bytes, eof_positions)
+
+        if len(versions) <= 1:
+            # Neither approach could extract text — but we still know there are
+            # multiple versions. Return Approach B results (may have object_changes
+            # even without text diffs)
+            if approach_b_diffs:
+                return {
+                    "version_count": len(eof_positions),
+                    "versions": [],
+                    "diffs": approach_b_diffs,
+                }
+            return {
+                "version_count": len(eof_positions),
+                "versions": [],
+                "diffs": [],
+                "message": "Multiple versions detected but could not extract text from earlier versions"
+            }
+
+        # Approach A text diff
+        diffs = diff_versions(versions)
+
+        return {
+            "version_count": len(eof_positions),
+            "versions": versions,
+            "diffs": diffs,
+        }
+
+    except Exception as e:
+        logger.error(f"Error extracting modification history: {e}")
+        return {
+            "version_count": 0,
+            "versions": [],
+            "diffs": [],
+            "error": str(e),
+        }
+
+
+# =============================================================================
+# XMP TOOLKIT DETECTION
+# =============================================================================
+
+# Known XMP toolkit signatures and what software they belong to
+# The xmptk attribute in XMP metadata reveals which tool last wrote the XMP block
+XMP_TOOLKIT_SIGNATURES = {
+    "adobe xmp core": "Adobe Acrobat",
+    "adobe xmp": "Adobe Acrobat",
+    "microsoft": "Microsoft Office",
+    "nitro": "Nitro PDF",
+    "foxit": "Foxit PDF Editor",
+    "pdflib": "PDFlib",
+    "itext": "iText (Java PDF library)",
+}
+
+# Known scanner software signatures (in Producer or Creator fields)
+# When a document comes from a scanner and is later opened in Acrobat,
+# that's a normal workflow (scan → OCR or view in Acrobat), not tampering.
+SCANNER_SIGNATURES = [
+    "scansnap",       # Fujitsu ScanSnap
+    "pfupdf",         # Fujitsu PFU PDF engine
+    "scan",           # Generic "scan" in producer/creator
+    "epson",          # Epson scanners
+    "canon",          # Canon scanners
+    "hp scan",        # HP scanners
+    "brother",        # Brother scanners
+    "xerox",          # Xerox scanners
+    "konica",         # Konica Minolta
+    "ricoh",          # Ricoh scanners
+    "kyocera",        # Kyocera scanners
+    "twain",          # TWAIN scanner interface
+    "wia",            # Windows Image Acquisition (scanner)
+    "naps2",          # NAPS2 scanning software
+    "vuescan",        # VueScan scanning software
+    "readiris",       # Readiris OCR/scanner software
+    "abbyy",          # ABBYY FineReader (OCR/scan)
+    "paperstream",    # Fujitsu PaperStream
+]
+
+
+def check_xmp_toolkit_mismatch(pdf_path: str, producer: str | None, creator: str | None) -> list[Flag]:
+    """
+    Check if the XMP toolkit reveals a different editor than the Producer/Creator.
+
+    PDF editors like Adobe Acrobat can modify a document without updating the
+    Producer or Creator metadata fields. But they always leave their fingerprint
+    in the XMP metadata block — specifically in the x:xmptk attribute.
+
+    If the xmptk says "Adobe XMP Core" but the Producer says "wkhtmltopdf",
+    it means someone opened the PDF in Acrobat and saved it.
+
+    Args:
+        pdf_path: Path to the PDF file
+        producer: The Producer field from standard metadata
+        creator: The Creator field from standard metadata
+
+    Returns:
+        List of flags if a mismatch is detected
+    """
+    flags = []
+
+    try:
+        doc = fitz.open(pdf_path)
+
+        # Find the XMP metadata stream
+        xmp_text = None
+        xref_len = doc.xref_length()
+        for xref in range(1, xref_len):
+            try:
+                obj = doc.xref_object(xref)
+                if obj and '/Subtype /XML' in obj:
+                    stream = doc.xref_stream(xref)
+                    if stream:
+                        xmp_text = stream.decode('utf-8', errors='replace')
+                        break
+            except Exception:
+                continue
+
+        doc.close()
+
+        if not xmp_text:
+            return flags  # No XMP metadata found
+
+        # Extract the xmptk (XMP Toolkit) value
+        # Format: x:xmptk="Adobe XMP Core 5.6-c016 91.163616, 2018/10/29"
+        import re as re_mod
+        match = re_mod.search(r'x:xmptk="([^"]+)"', xmp_text)
+        if not match:
+            return flags
+
+        xmptk = match.group(1)
+
+        # Check if the toolkit belongs to a known editor
+        xmptk_lower = xmptk.lower()
+        detected_editor = None
+        for signature, editor_name in XMP_TOOLKIT_SIGNATURES.items():
+            if signature in xmptk_lower:
+                detected_editor = editor_name
+                break
+
+        if not detected_editor:
+            return flags  # Unknown toolkit, can't determine mismatch
+
+        # Check if this editor is different from the Producer/Creator
+        # If the Producer already says "Adobe", then Acrobat in xmptk is expected
+        producer_lower = (producer or "").lower()
+        creator_lower = (creator or "").lower()
+        editor_lower = detected_editor.lower()
+
+        # No mismatch if producer/creator already mentions the same software
+        editor_keyword = editor_lower.split()[0]  # "adobe", "microsoft", etc.
+        if editor_keyword in producer_lower or editor_keyword in creator_lower:
+            return flags  # No mismatch — same software
+
+        # Mismatch detected!
+        original_tool = producer or creator or "unknown"
+
+        # Check if the original producer/creator is a scanner
+        # Scanning → opening in Acrobat is a normal workflow, not tampering
+        combined_lower = f"{producer_lower} {creator_lower}"
+        is_scanner = any(sig in combined_lower for sig in SCANNER_SIGNATURES)
+
+        if is_scanner:
+            # Lower severity: scan → Acrobat is expected
+            flags.append(Flag(
+                severity="medium",
+                code="STRUCT_XMP_EDITOR_MISMATCH",
+                message=f"Scanned document ({original_tool}) later opened in {detected_editor}",
+                details={
+                    "original_producer": producer,
+                    "original_creator": creator,
+                    "xmp_toolkit": xmptk,
+                    "detected_editor": detected_editor,
+                    "is_scanned": True,
+                    "explanation": f"This document was created by a scanner ({original_tool}) and "
+                                  f"later opened in {detected_editor}. This is a common workflow "
+                                  f"(scan → OCR or view in Acrobat) and is usually not suspicious.",
+                }
+            ))
+        else:
+            flags.append(Flag(
+                severity="high",
+                code="STRUCT_XMP_EDITOR_MISMATCH",
+                message=f"Document created by {original_tool} but later modified with {detected_editor}",
+                details={
+                    "original_producer": producer,
+                    "original_creator": creator,
+                    "xmp_toolkit": xmptk,
+                    "detected_editor": detected_editor,
+                    "is_scanned": False,
+                    "explanation": f"The XMP metadata reveals that {detected_editor} was used to edit "
+                                  f"this document, even though the Producer field still says '{original_tool}'. "
+                                  f"This is a strong indicator of post-creation editing.",
+                }
+            ))
+
+    except Exception as e:
+        logger.error(f"Error checking XMP toolkit: {e}")
+
+    return flags
 
 
 # =============================================================================
@@ -791,6 +1743,20 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
     all_flags.extend(check_embedded_files(pdf_data.file_path))
     all_flags.extend(check_acroform(pdf_data.file_path))
     all_flags.extend(check_object_streams(pdf_data.file_path, has_trusted_signature))
+
+    # Check creation vs modification time gap
+    # A legitimate document is generated once — any modification is suspicious
+    all_flags.extend(check_dates(
+        pdf_data.metadata.creation_date,
+        pdf_data.metadata.mod_date
+    ))
+
+    # Check if XMP toolkit reveals a hidden editor
+    all_flags.extend(check_xmp_toolkit_mismatch(
+        pdf_data.file_path,
+        pdf_data.metadata.producer,
+        pdf_data.metadata.creator,
+    ))
 
     # Calculate score
     score = 100

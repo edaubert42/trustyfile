@@ -11,6 +11,9 @@ venv/
 # Test documents (peuvent contenir des infos sensibles)
 samples/
 
+# Streamlit secrets (API keys)
+.streamlit/secrets.toml
+
 # OS
 .DS_Store
 Thumbs.db

@@ -367,6 +367,148 @@ def check_mixed_subset_fonts(fonts: list[FontInfo]) -> list[Flag]:
     return flags
 
 
+def check_midline_font_changes(pdf_path: str) -> list[Flag]:
+    """
+    Detect font changes within the same line of text.
+
+    When someone edits a PDF (e.g., changes a date or amount), they often
+    use a slightly different font than the original. This function detects
+    lines where the font family changes mid-line.
+
+    How it works:
+    1. Extract all text spans with their font and position
+    2. Group spans by line (same y-coordinate within tolerance)
+    3. For each line, check if the font family changes between spans
+    4. Flag lines where a different font family appears (not just Bold/Italic)
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        List of flags for mid-line font switches
+
+    Example:
+        A line like "Date de naissance : 19/08/2001" where
+        "Date de naissance : 19/08/" is in NimbusSans-Bold and
+        "2001" is in NimbusSanL-Bol → flagged as suspicious
+    """
+    flags = []
+
+    try:
+        doc = fitz.open(pdf_path)
+    except Exception as e:
+        logger.error(f"Could not open PDF for font analysis: {e}")
+        return []
+
+    suspicious_lines = []
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        text_dict = page.get_text("dict")
+
+        for block in text_dict.get("blocks", []):
+            if "lines" not in block:
+                continue  # Skip image blocks
+
+            for line in block["lines"]:
+                spans = line.get("spans", [])
+                if len(spans) < 2:
+                    continue  # Need at least 2 spans to compare
+
+                # Extract font family for each span
+                # Font family = base name without style suffix (-Bold, -Italic, etc.)
+                # and without subset prefix (ABCDEF+)
+                # We also normalize common aliases (ArialMT = Arial, etc.)
+                FAMILY_ALIASES = {
+                    "arialmt": "arial",
+                    "timesnewroman": "times",
+                    "times": "times",
+                    "couriernew": "courier",
+                    "couriermt": "courier",
+                    "helveticaneue": "helvetica",
+                }
+
+                def get_family(font_name: str) -> str:
+                    """Extract font family, ignoring style, subset prefix, and aliases."""
+                    # Remove subset prefix
+                    base, _ = extract_base_font_name(font_name)
+                    # Remove common style suffixes
+                    family = re.split(r"[-,]", base)[0].strip().lower()
+                    # Skip generic CID font names (CIDFont+F1, etc.)
+                    # These are auto-generated and don't represent real font families
+                    if family.startswith("cidfont"):
+                        return "_cidfont"
+                    # Normalize known aliases
+                    return FAMILY_ALIASES.get(family, family)
+
+                # Get families for all spans that have actual text
+                span_families = []
+                for span in spans:
+                    text = span.get("text", "").strip()
+                    if not text:
+                        continue
+                    font = span.get("font", "")
+                    family = get_family(font)
+                    span_families.append({
+                        "text": text,
+                        "font": font,
+                        "family": family,
+                    })
+
+                if len(span_families) < 2:
+                    continue
+
+                # Check if font family changes within this line
+                # Exclude generic CID font names — they're not real families
+                families_on_line = set(
+                    s["family"] for s in span_families
+                    if s["family"] != "_cidfont"
+                )
+
+                if len(families_on_line) > 1:
+                    # Font family changes mid-line — suspicious!
+                    # Reconstruct the line text for the message
+                    line_text = " ".join(s["text"] for s in span_families)
+                    fonts_used = list(set(s["font"] for s in span_families))
+
+                    suspicious_lines.append({
+                        "page": page_num + 1,
+                        "text": line_text[:100],
+                        "fonts": fonts_used,
+                        "families": list(families_on_line),
+                    })
+
+    doc.close()
+
+    if suspicious_lines:
+        # Severity depends on how many lines are affected
+        if len(suspicious_lines) >= 3:
+            severity = "high"
+        else:
+            severity = "medium"
+
+        # Build a clear message showing the most suspicious line
+        first = suspicious_lines[0]
+        message = (
+            f"Font changes mid-line on page {first['page']}: "
+            f"'{first['text'][:60]}' uses {len(first['fonts'])} different fonts"
+        )
+
+        flags.append(Flag(
+            severity=severity,
+            code="FONTS_MIDLINE_CHANGE",
+            message=message,
+            details={
+                "suspicious_lines": suspicious_lines[:5],  # Limit to 5
+                "total_suspicious_lines": len(suspicious_lines),
+                "explanation": "Different font families on the same line suggest "
+                              "text was edited after the document was created.",
+            }
+        ))
+
+    return flags
+
+
 # =============================================================================
 # SEVERITY POINTS
 # =============================================================================
@@ -412,6 +554,7 @@ def analyze_fonts(pdf_data: PDFData) -> ModuleResult:
     all_flags.extend(check_system_fonts(fonts))
     all_flags.extend(check_font_embedding(fonts))
     all_flags.extend(check_mixed_subset_fonts(fonts))
+    all_flags.extend(check_midline_font_changes(pdf_data.file_path))
 
     # Calculate score
     score = 100

@@ -266,12 +266,12 @@ def check_dates(
             # Someone downloaded/received the PDF and then edited it
             if time_difference > timedelta(days=1):
                 days = time_difference.days
-                message = f"Document was modified {days} days after creation - likely tampered"
+                message = f"Document was modified {days} days after creation"
             else:
                 hours = int(time_difference.total_seconds() / 3600)
                 minutes = int((time_difference.total_seconds() % 3600) / 60)
                 if hours > 0:
-                    message = f"Document was modified {hours}h {minutes}min after creation - likely tampered"
+                    message = f"Document was modified {hours}h {minutes}min after creation"
                 else:
                     message = f"Document was modified {minutes} minutes after creation - possibly tampered"
 
@@ -375,10 +375,8 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
         pdf_data.metadata.creator
     ))
 
-    all_flags.extend(check_dates(
-        pdf_data.metadata.creation_date,
-        pdf_data.metadata.mod_date
-    ))
+    # Date checks (creation vs modification gap) are now in structure module
+    # because they relate to document modifications, not metadata quality
 
     all_flags.extend(check_missing_metadata(pdf_data.raw_metadata))
 

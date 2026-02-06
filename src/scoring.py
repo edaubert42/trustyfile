@@ -187,8 +187,14 @@ def create_analysis_result(
         # Any critical flag = at least HIGH risk
         if risk_level == "LOW" or risk_level == "MEDIUM":
             risk_level = "HIGH"
-        # Cap the score at 49 (HIGH threshold) if there's a critical flag
-        trust_score = min(trust_score, 49)
+        # Base cap at 40 for a single critical flag
+        trust_score = min(trust_score, 40)
+
+        # High flags further reduce the cap (-5 each)
+        trust_score -= flag_counts["high"] * 5
+        # Medium flags slightly reduce (-2 each)
+        trust_score -= flag_counts["medium"] * 2
+        trust_score = max(trust_score, 5)
 
     if flag_counts["critical"] >= 2:
         # Multiple critical flags = CRITICAL risk

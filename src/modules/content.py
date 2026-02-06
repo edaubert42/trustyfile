@@ -1127,10 +1127,15 @@ def extract_siret(text: str) -> list[tuple[str, bool, str]]:
     results = []
 
     # SIRET patterns: 14 digits, possibly with spaces
-    # Common formats: 552 081 317 66522, 55208131766522
+    # Common formats:
+    #   55208131766522          (no spaces)
+    #   552 081 317 66522       (3+3+3+5 grouping)
+    #   791 199 193 000 16      (3+3+3+3+2 grouping — official INSEE format)
     patterns = [
+        r"siret\s*:?\s*(\d{3}\s?\d{3}\s?\d{3}\s?\d{3}\s?\d{2})",
         r"siret\s*:?\s*(\d{3}\s?\d{3}\s?\d{3}\s?\d{5})",
         r"siret\s*:?\s*(\d{14})",
+        r"n[°o]\s*siret\s*:?\s*(\d{3}\s?\d{3}\s?\d{3}\s?\d{3}\s?\d{2})",
         r"n[°o]\s*siret\s*:?\s*(\d{3}\s?\d{3}\s?\d{3}\s?\d{5})",
         r"n[°o]\s*siret\s*:?\s*(\d{14})",
     ]

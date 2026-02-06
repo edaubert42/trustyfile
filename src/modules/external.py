@@ -320,20 +320,30 @@ def verify_vat_vies(vat_number: str) -> tuple[dict | None, str | None]:
         url = "https://ec.europa.eu/taxation_customs/vies/rest-api/ms/{}/vat/{}".format(
             country_code, vat_num
         )
-        response = requests.get(url, timeout=10)
 
-        if response.status_code == 200:
-            data = response.json()
-            return {
-                "valid": data.get("isValid", False),
-                "name": data.get("name"),
-                "address": data.get("address"),
-                "country_code": country_code,
-                "vat_number": vat_num,
-            }, None
-        else:
-            # Try the alternative check
-            return {"valid": False, "reason": "VIES lookup failed"}, None
+        # VIES is notoriously flaky — retry once if it returns invalid
+        import time
+        for attempt in range(2):
+            response = requests.get(url, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+                is_valid = data.get("isValid", False)
+
+                if is_valid or attempt == 1:
+                    return {
+                        "valid": is_valid,
+                        "name": data.get("name"),
+                        "address": data.get("address"),
+                        "country_code": country_code,
+                        "vat_number": vat_num,
+                    }, None
+
+                # First attempt returned invalid — wait and retry
+                # VIES often returns false negatives under load
+                time.sleep(1)
+            else:
+                return {"valid": False, "reason": "VIES lookup failed"}, None
 
     except requests.Timeout:
         return None, "VIES API timeout"
@@ -443,7 +453,7 @@ SEVERITY_POINTS = {
 
 def analyze_external(
     pdf_data: PDFData,
-    verify_vat: bool = True,
+    verify_vat: bool = False,
     verify_siret: bool = True,
     extracted_company_name: str | None = None,
 ) -> ModuleResult:
@@ -463,6 +473,7 @@ def analyze_external(
         ModuleResult with score, flags, and confidence
     """
     all_flags = []
+    verified_companies = []  # Collect verified CompanyInfo for display
     verifications_attempted = 0
     verifications_successful = 0
 
@@ -503,6 +514,7 @@ def analyze_external(
                     ))
             elif company_info:
                 verifications_successful += 1
+                verified_companies.append(company_info)
 
                 # Check if company is closed
                 if company_info.status == "closed":
@@ -563,6 +575,7 @@ def analyze_external(
                     ))
             elif company_info:
                 verifications_successful += 1
+                verified_companies.append(company_info)
 
                 # Check if company is closed
                 if company_info.status == "closed":
@@ -594,6 +607,7 @@ def analyze_external(
                 logger.debug(f"Potential SIREN {potential_siren} not found: {error}")
             elif company_info:
                 verifications_successful += 1
+                verified_companies.append(company_info)
                 logger.info(f"Found valid SIREN via pattern matching: {potential_siren} ({company_info.name})")
 
                 if company_info.status == "closed":
@@ -632,7 +646,7 @@ def analyze_external(
                     # VAT is valid - could also check company name match here
                 else:
                     all_flags.append(Flag(
-                        severity="critical",
+                        severity="high",
                         code="EXTERNAL_VAT_INVALID",
                         message=f"VAT number {vat} is not valid according to VIES",
                         details={"vat": vat, "vies_response": result}
@@ -652,9 +666,23 @@ def analyze_external(
     else:
         confidence = 0.5 + (0.5 * verifications_successful / verifications_attempted)
 
+    # Serialize verified companies for display in UI
+    companies_data = []
+    for c in verified_companies:
+        companies_data.append({
+            "name": c.name,
+            "siren": c.siren,
+            "siret": c.siret,
+            "address": f"{c.address}, {c.postal_code} {c.city}" if c.address else None,
+            "status": c.status,
+            "legal_form": c.legal_form,
+            "creation_date": c.creation_date,
+        })
+
     return ModuleResult(
         module="external",
         flags=all_flags,
         score=score,
         confidence=confidence,
+        details={"verified_companies": companies_data},
     )
