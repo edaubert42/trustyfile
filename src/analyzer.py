@@ -27,6 +27,7 @@ from src.modules.fonts import analyze_fonts
 from src.modules.images import analyze_images
 from src.modules.structure import analyze_structure
 from src.modules.external import analyze_external
+from src.modules.forensics import analyze_forensics
 from src.scoring import create_analysis_result, generate_summary
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,10 @@ class TrustyFileAnalyzer:
         # Module E: Structure Analysis
         logger.debug("Running structure analysis...")
         module_results.append(analyze_structure(pdf_data))
+
+        # Module H: Forensic Analysis (ELA)
+        logger.debug("Running forensic analysis...")
+        module_results.append(analyze_forensics(file_path))
 
         # Module G: External Verification (optional)
         if self.enable_external:

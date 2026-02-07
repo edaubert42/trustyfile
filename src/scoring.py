@@ -28,6 +28,7 @@ MODULE_WEIGHTS = {
     "visual": 0.8,      # QR codes & watermarks
     "fonts": 0.9,       # Font consistency
     "images": 0.8,      # Embedded images
+    "forensics": 0.9,   # Image forensics (ELA)
     "structure": 1.3,   # PDF structure (incremental updates, JS, etc.) - very reliable
     "external": 1.5,    # External verification (very reliable when available)
 }

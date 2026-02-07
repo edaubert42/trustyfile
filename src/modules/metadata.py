@@ -168,6 +168,45 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
     creator_lower = (creator or "").lower()
     combined = f"{producer_lower} {creator_lower}"
 
+    # Check for image editors — a PDF produced by an image editor is very suspicious
+    # for official documents. It means someone opened/modified an image then exported as PDF.
+    IMAGE_EDITORS = [
+        "paint.net", "paint net", "photoshop", "gimp", "krita", "pixlr",
+        "affinity photo", "corel photo", "photopea", "canva",
+        "paint shop pro", "acorn", "pixelmator",
+    ]
+    for editor in IMAGE_EDITORS:
+        if editor in combined:
+            flags.append(Flag(
+                severity="high",
+                code="META_IMAGE_EDITOR",
+                message=f"Document was produced by image editor: {editor}",
+                details={
+                    "producer": producer,
+                    "creator": creator,
+                    "detected_tool": editor,
+                    "explanation": "Official documents are never created with image editors. "
+                                   "This strongly suggests the document was visually modified.",
+                }
+            ))
+            return flags  # No need to check further
+
+    # Check for image-to-PDF conversion (scans, mobile apps, conversion tools)
+    # Less suspicious — scans are legitimate, but worth noting.
+    IMAGE_CONVERSION_KEYWORDS = ["image conversion", "image to pdf", "img2pdf", "photo to pdf"]
+    for keyword in IMAGE_CONVERSION_KEYWORDS:
+        if keyword in combined:
+            flags.append(Flag(
+                severity="low",
+                code="META_IMAGE_CONVERSION",
+                message="Document was created by converting an image to PDF (possible scan)",
+                details={
+                    "producer": producer,
+                    "creator": creator,
+                }
+            ))
+            break
+
     # Check for AI/LLM tools first (most suspicious for invoices)
     for ai_tool in AI_LLM_PRODUCERS:
         if ai_tool in combined:
@@ -270,10 +309,13 @@ def check_dates(
             else:
                 hours = int(time_difference.total_seconds() / 3600)
                 minutes = int((time_difference.total_seconds() % 3600) / 60)
+                seconds = int(time_difference.total_seconds())
                 if hours > 0:
                     message = f"Document was modified {hours}h {minutes}min after creation"
+                elif minutes > 0:
+                    message = f"Document was modified {minutes} minute(s) after creation - possibly tampered"
                 else:
-                    message = f"Document was modified {minutes} minutes after creation - possibly tampered"
+                    message = f"Document was modified {seconds} second(s) after creation - possibly tampered"
 
             flags.append(Flag(
                 severity="critical",

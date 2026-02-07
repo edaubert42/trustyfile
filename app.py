@@ -419,6 +419,16 @@ if uploaded_file is not None:
             </div>
             """
 
+            # Show Creator if different from Producer (often contains device/app info)
+            creator = meta.creator or ""
+            if creator and creator.lower() != (meta.producer or "").lower():
+                file_rows += f"""
+            <div style="{row_style}">
+                <span style="{label_style}">Creator</span>
+                <span style="{value_style}" title="{creator}">{creator}</span>
+            </div>
+            """
+
             # Only show Editor line if a different software modified the PDF
             if editor_name:
                 file_rows += f"""
@@ -705,8 +715,10 @@ if uploaded_file is not None:
                                 time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h after creation"
                             elif hours >= 1:
                                 time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min after creation"
-                            else:
+                            elif int(hours * 60) > 0:
                                 time_info += f" — +{int(hours * 60)}min after creation"
+                            else:
+                                time_info += f" — +{int(delta.total_seconds())}s after creation"
 
                     # Build change lines (limited to max_lines)
                     changes_html = ""
@@ -886,8 +898,10 @@ if uploaded_file is not None:
                         delta_str = f"+{int(hours // 24)}d {int(hours % 24)}h"
                     elif hours >= 1:
                         delta_str = f"+{int(hours)}h{int((hours % 1) * 60)}min"
-                    else:
+                    elif int(hours * 60) > 0:
                         delta_str = f"+{int(hours * 60)}min"
+                    else:
+                        delta_str = f"+{int(delta.total_seconds())}s"
                     v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">Date</span>'
                                f'<span style="{_mval}">{pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")} '
                                f'<span style="color:#e06060;">({delta_str} after creation)</span></span></div>')
