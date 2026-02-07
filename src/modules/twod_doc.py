@@ -50,6 +50,9 @@ except ImportError:
     PIL_AVAILABLE = False
     Image = None  # type: ignore
 
+import cv2
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -698,7 +701,7 @@ def scan_datamatrix_from_image(image: "Image.Image") -> list[DataMatrixResult]:
     try:
         # pylibdmtx.decode returns a list of Decoded namedtuples
         # Each has: data, rect (left, top, width, height)
-        decoded = decode_datamatrix(image)
+        decoded = decode_datamatrix(image, timeout=1500)
 
         for barcode in decoded:
             # Decode bytes to string (2D-DOC uses ASCII/Latin-1)
@@ -719,20 +722,68 @@ def scan_datamatrix_from_image(image: "Image.Image") -> list[DataMatrixResult]:
     return results
 
 
+def _has_datamatrix_candidate(pil_image: "Image.Image", min_size: int = 60, max_size: int = 300) -> bool:
+    """
+    Fast visual pre-filter: check if an image region might contain a DataMatrix barcode.
+
+    DataMatrix barcodes are dense squares of black/white modules. We detect them
+    by looking for dark rectangular regions with the right size, aspect ratio,
+    and pixel density. This runs in ~5-10ms and avoids the expensive pylibdmtx
+    decode (~1.5s timeout) when there's clearly no barcode.
+
+    The min_size of 60px (at 100 DPI pre-filter resolution) filters out small
+    logos that would otherwise trigger false positives. Real 2D-DOC barcodes
+    are typically 80-120px at this resolution.
+
+    Args:
+        pil_image: PIL Image to check (typically a quadrant of a page)
+        min_size: Minimum width/height in pixels for a candidate region
+        max_size: Maximum width/height in pixels
+
+    Returns:
+        True if a DataMatrix candidate was found, False otherwise
+    """
+    gray = np.array(pil_image.convert("L"))
+
+    # Threshold: pixels darker than 80 are considered "black"
+    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+
+    # Find contours of dark regions
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        if w < min_size or h < min_size or w > max_size or h > max_size:
+            continue
+        # DataMatrix is roughly square (aspect ratio 0.6 to 1.7)
+        aspect = w / h if h > 0 else 0
+        if not (0.6 < aspect < 1.7):
+            continue
+        # DataMatrix is ~30-60% filled with dark pixels
+        roi = binary[y:y + h, x:x + w]
+        density = np.sum(roi > 0) / (w * h)
+        if 0.25 < density < 0.70:
+            return True
+
+    return False
+
+
 def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
     """
     Scan a PDF file for 2D-DOC barcodes and parse them.
 
-    This function:
-    1. Renders each page of the PDF as an image
-    2. Scans each image for DataMatrix barcodes
-    3. Filters for valid 2D-DOC barcodes (starting with "DC")
-    4. Parses each 2D-DOC into structured data
+    Uses a two-phase strategy for speed:
+    1. Pre-filter (fast, ~10ms): render page 1 at low DPI and check each
+       quadrant for DataMatrix-like visual patterns using OpenCV.
+    2. Decode (slower, ~1.5s): only run pylibdmtx on quadrants that passed
+       the pre-filter.
+
+    This avoids wasting ~1.5s per quadrant on PDFs without any barcode.
 
     Args:
         pdf_path: Path to the PDF file
-        dpi: Resolution for rendering pages (higher = better detection but slower)
-             Default 200 is usually sufficient for most documents.
+        dpi: Resolution for the decode phase (higher = better detection but slower).
+             Default 200 is usually sufficient.
 
     Returns:
         List of TwoDocData objects for each valid 2D-DOC found.
@@ -759,40 +810,67 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
     results = []
 
     try:
-        # Open PDF
         doc = fitz.open(pdf_path)
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
+        # Only scan page 1 — 2D-DOC barcodes are always on the first page
+        page = doc[0]
 
-            # Render page to image
-            # Matrix for scaling: 72 DPI is default, so scale factor = dpi/72
-            zoom = dpi / 72
-            matrix = fitz.Matrix(zoom, zoom)
-            pixmap = page.get_pixmap(matrix=matrix)
+        # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
+        # Render at 100 DPI just for the visual check
+        pf_zoom = 100 / 72
+        pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
+        pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
+        pf_w, pf_h = pf_img.size
 
-            # Convert to PIL Image
-            img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+        # Check each quadrant for DataMatrix-like patterns
+        quadrant_defs = [
+            ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
+            ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
+        ]
 
-            # Scan for DataMatrix barcodes
-            barcodes = scan_datamatrix_from_image(img)
+        candidate_quadrants = []
+        for quad_name, box in quadrant_defs:
+            if _has_datamatrix_candidate(pf_img.crop(box)):
+                candidate_quadrants.append(quad_name)
+
+        if not candidate_quadrants:
+            logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
+            doc.close()
+            return []
+
+        logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
+
+        # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
+        zoom = dpi / 72
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+        full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+        img_w, img_h = full_img.size
+
+        quad_boxes = {
+            "top-left": (0, 0, img_w // 2, img_h // 2),
+            "top-right": (img_w // 2, 0, img_w, img_h // 2),
+        }
+
+        for quad_name in candidate_quadrants:
+            crop = full_img.crop(quad_boxes[quad_name])
+            barcodes = scan_datamatrix_from_image(crop)
 
             for barcode in barcodes:
-                # Check if it's a 2D-DOC (starts with "DC")
                 if not barcode.data.startswith(HEADER_MARKER):
                     continue
 
-                # Parse the 2D-DOC
                 parsed = parse_twod_doc(barcode.data)
                 if parsed:
-                    # Store which page it was found on
-                    # (TwoDocData doesn't have a page field, but we could add one)
                     results.append(parsed)
                     logger.info(
-                        f"Found 2D-DOC on page {page_num + 1}: "
+                        f"Found 2D-DOC in {quad_name} of page 1: "
                         f"type={parsed.header.document_type}, "
                         f"name={parsed.beneficiary_name}"
                     )
+
+            # Stop if we found a 2D-DOC
+            if results:
+                break
 
         doc.close()
 
@@ -891,6 +969,18 @@ class TwoDocVerifiedData:
     invoice_number: str | None = None
     invoice_amount: float | None = None
 
+    # Identity fields (driving license, ID card, etc.)
+    last_name: str | None = None          # DI 6G or 62 — Nom de famille
+    first_names: str | None = None        # DI 60 — Prénoms
+    civility: str | None = None           # DI 6H — Civilité (MONSIEUR/MADAME)
+    sex: str | None = None                # DI 68 — Sexe (M/F)
+    nationality: str | None = None        # DI 67 — Nationalité
+    birth_date: str | None = None         # DI 69 — Date de naissance (DDMMYYYY)
+    birth_place: str | None = None        # DI 6A — Lieu de naissance
+    document_number: str | None = None    # DI 65 — N° de document (CNI, passeport)
+    permit_number: str | None = None      # DI AC — Numéro de permis
+    permit_categories: str | None = None  # DI E4 — Catégories et détails
+
     # Raw 2D-DOC for reference
     raw_fields: list = None
 
@@ -926,6 +1016,35 @@ def extract_verified_data(twod_doc: TwoDocData) -> TwoDocVerifiedData:
             match = re.search(r'[A-Z][A-Z\s]+$', field_44)
             if match:
                 name = match.group().strip()
+
+    # Identity document fields (driving license, ID card, passport)
+    last_name = twod_doc.get_field("6G") or twod_doc.get_field("62")  # Nom de famille
+    first_names_raw = twod_doc.get_field("60")     # Prénoms (may use / as separator)
+    civility = twod_doc.get_field("6H")            # MONSIEUR/MADAME
+    sex = twod_doc.get_field("68")                 # M/F
+    nationality = twod_doc.get_field("67")         # FR, etc.
+    birth_date_raw = twod_doc.get_field("69")      # DDMMYYYY
+    birth_place = twod_doc.get_field("6A")         # Lieu de naissance
+    document_number = twod_doc.get_field("65")     # N° de document (CNI, passeport)
+    permit_number = twod_doc.get_field("AC")       # Numéro de permis
+    permit_categories = twod_doc.get_field("E4")   # Catégories et détails
+
+    # Normalize first names: replace "/" separator with spaces
+    first_names = first_names_raw.replace("/", " ") if first_names_raw else None
+
+    # Format birth date from DDMMYYYY to DD/MM/YYYY
+    birth_date = None
+    if birth_date_raw and len(birth_date_raw) == 8:
+        birth_date = f"{birth_date_raw[:2]}/{birth_date_raw[2:4]}/{birth_date_raw[4:]}"
+
+    # Build name from identity fields if not already set
+    if not name and (last_name or first_names):
+        parts_name = []
+        if last_name:
+            parts_name.append(last_name)
+        if first_names:
+            parts_name.append(first_names)
+        name = " ".join(parts_name)
 
     # Extract tax amounts
     tax_str = twod_doc.get_field("4V")
@@ -975,6 +1094,16 @@ def extract_verified_data(twod_doc: TwoDocData) -> TwoDocVerifiedData:
         estimated_income_max=estimated_max,
         invoice_number=twod_doc.invoice_number,
         invoice_amount=invoice_amount,
+        last_name=last_name,
+        first_names=first_names,
+        civility=civility,
+        sex=sex,
+        nationality=nationality,
+        birth_date=birth_date,
+        birth_place=birth_place,
+        document_number=document_number,
+        permit_number=permit_number,
+        permit_categories=permit_categories,
         raw_fields=twod_doc.fields,
     )
 

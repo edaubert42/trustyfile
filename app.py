@@ -19,6 +19,7 @@ from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGH
 from src.summary import generate_rich_summary
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.structure import get_modification_history
+from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
 
 
 # =============================================================================
@@ -332,6 +333,12 @@ if uploaded_file is not None:
             )
             result = analyzer.analyze(tmp_path)
             summary = generate_rich_summary(result)
+
+        # Scan for 2D-DOC barcodes (French government signed barcodes)
+        twod_doc_results = []
+        if PYLIBDMTX_AVAILABLE:
+            with st.spinner("Scanning for 2D-DOC barcodes..."):
+                twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
@@ -1127,6 +1134,161 @@ if uploaded_file is not None:
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                 f'{entities_html}'
+                f'</div></details>',
+                unsafe_allow_html=True,
+            )
+
+        # 2D-DOC Verified Data panel
+        if twod_doc_results:
+            import html as html_mod_2d
+
+            twod_content = ""
+            for twod_doc_data in twod_doc_results:
+                verified = extract_verified_data(twod_doc_data)
+
+                _2d_row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
+                _2d_key = "color:#888; font-size:0.75rem; width:160px; flex-shrink:0;"
+                _2d_val = "color:#ccc; font-size:0.75rem;"
+                _2d_val_bold = "color:white; font-size:0.75rem; font-weight:bold;"
+
+                rows_2d = ""
+                rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Document type</span>'
+                            f'<span style="{_2d_val}">{html_mod_2d.escape(verified.document_type)} '
+                            f'({html_mod_2d.escape(verified.document_type_name)})</span></div>')
+
+                # Track which DIs we display so we can show remaining as raw
+                shown_dis = set()
+
+                # --- Identity fields (shared across document types) ---
+                if verified.name:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Name</span>'
+                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.name)}</span></div>')
+                    shown_dis.update({"10", "12", "13", "44", "6G", "60"})
+
+                # --- Driving license fields (type AB) ---
+                if verified.civility:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Civility</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.civility)}</span></div>')
+                    shown_dis.add("6H")
+
+                if verified.sex:
+                    sex_label = {"M": "Male", "F": "Female"}.get(verified.sex, verified.sex)
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Sex</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(sex_label)}</span></div>')
+                    shown_dis.add("68")
+
+                if verified.nationality:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Nationality</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.nationality)}</span></div>')
+                    shown_dis.update({"67", "6C"})
+
+                if verified.birth_date:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Date of birth</span>'
+                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.birth_date)}</span></div>')
+                    shown_dis.add("69")
+
+                if verified.birth_place:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Place of birth</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.birth_place)}</span></div>')
+                    shown_dis.add("6A")
+
+                if verified.document_number:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Document number</span>'
+                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.document_number)}</span></div>')
+                    shown_dis.add("65")
+
+                if verified.permit_number:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Permit number</span>'
+                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.permit_number)}</span></div>')
+                    shown_dis.add("AC")
+
+                if verified.permit_categories:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Permit categories</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.permit_categories)}</span></div>')
+                    shown_dis.add("E4")
+
+                # --- Tax fields ---
+                if verified.fiscal_number:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Tax ID</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.fiscal_number)}</span></div>')
+                    shown_dis.add("47")
+
+                if verified.address or verified.postal_code or verified.city:
+                    addr_parts = []
+                    if verified.address:
+                        addr_parts.append(verified.address)
+                    if verified.postal_code or verified.city:
+                        addr_parts.append(f"{verified.postal_code or ''} {verified.city or ''}".strip())
+                    addr = ", ".join(addr_parts)
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Address</span>'
+                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(addr)}</span></div>')
+                    shown_dis.update({"22", "24", "25"})
+
+                if verified.reference_income is not None:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Reference income</span>'
+                                f'<span style="{_2d_val_bold}">{verified.reference_income:,.0f} &euro;</span></div>')
+                    shown_dis.add("41")
+
+                if verified.tax_amount is not None:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Income tax</span>'
+                                f'<span style="{_2d_val_bold}">{verified.tax_amount:,.0f} &euro;</span></div>')
+                    shown_dis.add("4V")
+
+                if verified.withheld_amount is not None:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Withholding tax</span>'
+                                f'<span style="{_2d_val}">{verified.withheld_amount:,.0f} &euro;</span></div>')
+                    shown_dis.add("4X")
+
+                if verified.calculated_balance is not None:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Calculated balance</span>'
+                                f'<span style="{_2d_val_bold}">{verified.calculated_balance:,.0f} &euro;</span></div>')
+
+                if verified.household_parts and verified.household_parts != 1.0:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Household parts</span>'
+                                f'<span style="{_2d_val}">{verified.household_parts}</span></div>')
+                    shown_dis.add("43")
+
+                # --- Invoice fields ---
+                if verified.invoice_number:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Invoice number</span>'
+                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.invoice_number)}</span></div>')
+
+                if verified.invoice_amount is not None:
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Invoice amount</span>'
+                                f'<span style="{_2d_val_bold}">{verified.invoice_amount:,.2f} &euro;</span></div>')
+
+                # Show remaining unmapped fields as raw
+                extra_fields = ""
+                for field in twod_doc_data.fields:
+                    if field.di in shown_dis:
+                        continue
+                    field_val = html_mod_2d.escape(str(field.value))
+                    extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">Field {field.di}</span>'
+                                     f'<span style="{_2d_val}">{field_val}</span></div>')
+
+                if extra_fields:
+                    rows_2d += (f'<div style="margin-top:8px; padding-top:6px; border-top:1px solid #2a2a2a;">'
+                                f'<span style="color:#888; font-size:0.7rem; font-weight:bold;">Raw signed fields</span>'
+                                f'</div>{extra_fields}')
+
+                twod_content += (
+                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                    f'padding:12px 16px; margin-bottom:8px;">'
+                    f'{rows_2d}</div>'
+                )
+
+            st.markdown(
+                f'<details open style="background:#0a2e1a; border:1px solid #28a745; '
+                f'border-radius:8px; padding:0; margin-bottom:8px;">'
+                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
+                f'display:flex; align-items:center; gap:10px;">'
+                f'<span style="color:#eee; font-size:0.85rem;">2D-DOC</span>'
+                f'<span style="background:#28a745; color:white; font-size:0.68rem; font-weight:bold; '
+                f'padding:2px 10px; border-radius:10px;">Verified</span>'
+                f'<span style="color:#888; font-size:0.72rem;">Compare with visible PDF content</span>'
+                f'</summary>'
+                f'<div style="padding:14px; border-top:1px solid #28a745;">'
+                f'{twod_content}'
                 f'</div></details>',
                 unsafe_allow_html=True,
             )
