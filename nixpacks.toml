@@ -1,2 +1,5 @@
 [phases.setup]
-nixPkgs = ["tesseract", "zbar", "libdmtx", "libGL"]
+nixPkgs = ["tesseract", "zbar", "libdmtx", "opencv", "xorg.libxcb", "xorg.libX11", "xorg.libXext", "glib"]
+
+[phases.install]
+cmds = ["pip install -r requirements.txt"]
