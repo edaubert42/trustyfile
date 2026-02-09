@@ -132,6 +132,8 @@ st.set_page_config(
 # CUSTOM CSS
 # =============================================================================
 
+st.markdown('<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">', unsafe_allow_html=True)
+
 st.markdown("""
 <style>
     /* Hide Streamlit branding */
