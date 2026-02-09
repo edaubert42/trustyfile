@@ -134,6 +134,11 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
