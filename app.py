@@ -132,7 +132,17 @@ st.set_page_config(
 # CUSTOM CSS
 # =============================================================================
 
-st.markdown('<meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">', unsafe_allow_html=True)
+st.markdown("""
+<script>
+    // Move CSP meta tag to <head> so the browser respects it
+    if (!document.querySelector('meta[http-equiv="Content-Security-Policy"]')) {
+        const meta = document.createElement('meta');
+        meta.httpEquiv = 'Content-Security-Policy';
+        meta.content = 'upgrade-insecure-requests';
+        document.head.appendChild(meta);
+    }
+</script>
+""", unsafe_allow_html=True)
 
 st.markdown("""
 <style>
