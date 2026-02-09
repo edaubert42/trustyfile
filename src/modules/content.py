@@ -1538,25 +1538,6 @@ def check_legal_mentions(text: str) -> list[Flag]:
                 }
             ))
 
-    # Check for missing legal mentions (only flag if document looks like a French invoice)
-    # We check for French invoice keywords to avoid false positives on non-French documents
-    french_invoice_keywords = ["facture", "siret", "tva", "€", "eur"]
-    text_lower = text.lower()
-    is_likely_french_invoice = any(kw in text_lower for kw in french_invoice_keywords)
-
-    if is_likely_french_invoice:
-        # Accept SIRET, SIREN, or RCS as valid company identification
-        # RCS (Registre du Commerce et des Sociétés) contains the SIREN number
-        has_company_id = bool(sirets) or bool(sirens) or bool(rcs_list)
-
-        if not has_company_id:
-            flags.append(Flag(
-                severity="medium",
-                code="CONTENT_MISSING_COMPANY_ID",
-                message="No company identifier found (SIRET, SIREN, or RCS required for French invoices)",
-                details={}
-            ))
-
     return flags
 
 
