@@ -371,7 +371,7 @@ if uploaded_file is not None:
         page_count = get_pdf_page_count(tmp_path)
 
         # Display results with PDF preview
-        st.markdown("---")
+        st.markdown('<hr style="margin:0.5rem 0;">', unsafe_allow_html=True)
 
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
@@ -380,6 +380,7 @@ if uploaded_file is not None:
         # LEFT COLUMN: PDF Preview
         # =================================================================
         with preview_col:
+            st.markdown('<span style="color:#888; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">Preview</span>', unsafe_allow_html=True)
             # Page navigation if multiple pages
             if page_count > 1:
                 st.selectbox(
@@ -553,7 +554,7 @@ if uploaded_file is not None:
             center = size // 2
 
             st.markdown(f"""
-            <div style="text-align: center; padding: 1rem 0 0 0;">
+            <div style="text-align: center; padding: 0;">
                 <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
                     <!-- Background circle (gray track) -->
                     <circle cx="{center}" cy="{center}" r="{radius}"
@@ -700,6 +701,7 @@ if uploaded_file is not None:
                 <p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>
                 {flags_list_html}
             </div>
+            <div style="margin-bottom:1.5rem;"></div>
             """, unsafe_allow_html=True)
 
         # Modification history (only shown if PDF has multiple versions)
