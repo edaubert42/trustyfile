@@ -1310,7 +1310,7 @@ st.markdown("""
 <div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
     padding:0.8rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
     <span style="color:#555; font-size:0.75rem;">
-        TrustyFile — Open-source document fraud detection · Made with Streamlit
+        TrustyFile — Document fraud detection
     </span>
 </div>
 """, unsafe_allow_html=True)
