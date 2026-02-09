@@ -154,10 +154,10 @@ st.markdown("""
     div[data-testid="stDecoration"] {display: none;}
     div[data-testid="stStatusWidget"] {display: none;}
 
-    /* Mobile: show score/summary before preview */
-    @media (max-width: 768px) {
+    /* Desktop: reverse column order so preview stays on left */
+    @media (min-width: 769px) {
         [data-testid="stColumns"] {
-            flex-direction: column-reverse !important;
+            flex-direction: row-reverse !important;
         }
     }
 
@@ -374,7 +374,7 @@ if uploaded_file is not None:
         st.markdown("---")
 
         # Two-column layout: Preview | Results
-        preview_col, results_col = st.columns([2, 3])
+        results_col, preview_col = st.columns([3, 2])
 
         # =================================================================
         # LEFT COLUMN: PDF Preview
