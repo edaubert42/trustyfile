@@ -20,6 +20,8 @@ from src.summary import generate_rich_summary
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.structure import get_modification_history
 from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+import logging
+logging.warning(f"PYLIBDMTX_AVAILABLE = {PYLIBDMTX_AVAILABLE}")
 
 
 # =============================================================================
@@ -352,7 +354,7 @@ st.markdown(f"""<style>
     }}
     /* "Drop your PDF here" + "or" text */
     [data-testid="stFileUploaderDropzoneInstructions"]::after {{
-        content: "Drop your PDF here\A or";
+        content: "Drop your PDF here\\A or";
         display: block;
         white-space: pre;
         text-align: center;
