@@ -1346,6 +1346,33 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
         }
     ))
 
+    # Check if ModDate was NOT updated despite incremental updates.
+    # A legitimate editor (Adobe, LibreOffice) always updates ModDate.
+    # If the file was modified but ModDate == CreationDate, the editor
+    # deliberately hid the modification — very suspicious.
+    try:
+        doc = fitz.open(pdf_path)
+        meta = doc.metadata
+        doc.close()
+        raw_creation = meta.get("creationDate", "")
+        raw_mod = meta.get("modDate", "")
+        if raw_creation and raw_mod and raw_creation == raw_mod:
+            flags.append(Flag(
+                severity="high",
+                code="STRUCT_HIDDEN_MODIFICATION",
+                message="PDF was modified but modification date was not updated (editor hid its traces)",
+                details={
+                    "creation_date": raw_creation,
+                    "mod_date": raw_mod,
+                    "incremental_updates": effective_edits,
+                    "explanation": "The PDF has incremental updates (proof of editing) "
+                                  "but the modification date is identical to the creation date. "
+                                  "A legitimate editor always updates the modification date.",
+                }
+            ))
+    except Exception:
+        pass  # Don't crash if metadata can't be read
+
     return flags
 
 
