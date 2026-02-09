@@ -136,8 +136,11 @@ st.markdown("""
 <style>
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
+    header[data-testid="stHeader"] {visibility: hidden;}
     footer {visibility: hidden;}
+    .stAppDeployButton {display: none;}
+    div[data-testid="stDecoration"] {display: none;}
+    div[data-testid="stStatusWidget"] {display: none;}
 
     .main-header {
         font-size: 2.5rem;
