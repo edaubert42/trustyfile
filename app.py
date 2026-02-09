@@ -154,6 +154,13 @@ st.markdown("""
     div[data-testid="stDecoration"] {display: none;}
     div[data-testid="stStatusWidget"] {display: none;}
 
+    /* Mobile: show score/summary before preview */
+    @media (max-width: 768px) {
+        [data-testid="stColumns"] {
+            flex-direction: column-reverse !important;
+        }
+    }
+
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
