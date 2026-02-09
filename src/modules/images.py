@@ -267,8 +267,8 @@ def check_heavy_compression(images: list[ImageInfo]) -> list[Flag]:
         uncompressed_size = img.width * img.height * 3
         compression_ratio = uncompressed_size / img.size_bytes if img.size_bytes > 0 else 0
 
-        # Very high compression ratio (>50:1) suggests heavy compression
-        if compression_ratio > 50:
+        # Very high compression ratio (>80:1) suggests heavy compression / multiple re-saves
+        if compression_ratio > 80:
             flags.append(Flag(
                 severity="medium",
                 code="IMAGES_HEAVY_COMPRESSION",
