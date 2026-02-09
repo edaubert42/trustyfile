@@ -345,6 +345,30 @@ DATE_CONTEXT_KEYWORDS = {
         "printed on",
     ],
 
+    # document: Date of the letter/document itself (not invoice-specific)
+    # Matches patterns like "À Paris, le 06/03/2026", "Fait à Lyon, le ..."
+    "document": [
+        # French letter date patterns
+        "fait à",
+        "fait le",
+        "fait a",
+        ", le",
+        "établi le",
+        "établi à",
+        "rédigé le",
+        "rédigé à",
+        "le présent",
+        "en date du",
+        "certifié le",
+        "délivré le",
+        "délivré à",
+        "notifié le",
+        # English terms
+        "issued at",
+        "issued on",
+        "dated at",
+    ],
+
     # order: Original order date
     "order": [
         # French terms
@@ -609,27 +633,32 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     return flags
 
 
-def check_future_invoice_date(dates: list[ExtractedDate]) -> list[Flag]:
+def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     """
-    Check if the invoice date is in the future.
+    Check if the document/invoice/letter date is in the future.
 
-    An invoice dated in the future is very suspicious -
-    it suggests the date was manually changed.
+    A document dated in the future is very suspicious -
+    it suggests the date was manually set or fabricated.
+
+    We check dates of type "invoice", "document", and "creation".
     """
     flags = []
     now = datetime.now()
 
-    invoice_dates = [d for d in dates if d.date_type == "invoice"]
+    # Check document-level dates: invoice, document (letter), creation
+    doc_dates = [d for d in dates if d.date_type in ("invoice", "document", "creation")]
 
-    for inv in invoice_dates:
+    for d in doc_dates:
         # Allow 1 day tolerance for timezone differences
-        if inv.date > now + timedelta(days=1):
+        if d.date > now + timedelta(days=1):
             flags.append(Flag(
                 severity="critical",
-                code="CONTENT_FUTURE_INVOICE_DATE",
-                message=f"Invoice date is in the future: {inv.date.strftime('%Y-%m-%d')}",
+                code="CONTENT_FUTURE_DOCUMENT_DATE",
+                message=f"Document date is in the future: {d.date.strftime('%Y-%m-%d')}",
                 details={
-                    "invoice_date": inv.date.isoformat(),
+                    "date": d.date.isoformat(),
+                    "date_type": d.date_type,
+                    "context": d.context,
                     "current_date": now.isoformat(),
                 }
             ))
@@ -1513,7 +1542,7 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
     # Run date checks
     all_flags.extend(check_impossible_dates(dates))
     all_flags.extend(check_date_logic(dates))
-    all_flags.extend(check_future_invoice_date(dates))
+    all_flags.extend(check_future_document_date(dates))
 
     # Run amount checks
     all_flags.extend(check_duplicate_amounts(full_text))

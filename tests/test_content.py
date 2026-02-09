@@ -25,7 +25,7 @@ from src.modules.content import (
     # Date validation
     check_impossible_dates,
     check_date_logic,
-    check_future_invoice_date,
+    check_future_document_date,
     # Amounts
     extract_amounts,
     check_duplicate_amounts,
@@ -478,7 +478,7 @@ class TestCheckDateLogic:
 
 
 # =============================================================================
-# TEST check_future_invoice_date
+# TEST check_future_document_date
 # =============================================================================
 
 class TestCheckFutureInvoiceDate:
@@ -487,22 +487,22 @@ class TestCheckFutureInvoiceDate:
     def test_future_invoice_flagged(self):
         future = datetime.now() + timedelta(days=30)
         dates = [make_extracted_date(future, date_type="invoice")]
-        flags = check_future_invoice_date(dates)
+        flags = check_future_document_date(dates)
         assert len(flags) == 1
-        assert flags[0].code == "CONTENT_FUTURE_INVOICE_DATE"
+        assert flags[0].code == "CONTENT_FUTURE_DOCUMENT_DATE"
         assert flags[0].severity == "critical"
 
     def test_past_invoice_ok(self):
         past = datetime.now() - timedelta(days=30)
         dates = [make_extracted_date(past, date_type="invoice")]
-        flags = check_future_invoice_date(dates)
+        flags = check_future_document_date(dates)
         assert len(flags) == 0
 
     def test_no_invoice_date_no_flag(self):
         """Non-invoice dates in the future should not trigger this check."""
         future = datetime.now() + timedelta(days=30)
         dates = [make_extracted_date(future, date_type="due")]
-        flags = check_future_invoice_date(dates)
+        flags = check_future_document_date(dates)
         assert len(flags) == 0
 
 

@@ -48,6 +48,13 @@ SUSPICIOUS_PRODUCERS = [
     "pdfelement",
     "master pdf editor",
 
+    # Mobile PDF editors
+    "files editor",
+    "pdf expert",
+    "pdf editor",
+    "xodo",
+    "pdf extra",
+
     # Online office tools (suspicious if invoice claims to be from billing system)
     "google docs",
 ]
