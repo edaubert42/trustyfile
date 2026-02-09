@@ -611,11 +611,19 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
         elif ed.date < very_old:
             if ed.date_type == "reference_date":
                 continue
-            # Check context for birth-related keywords
-            ctx = ed.context.lower()
+            # Check context for keywords that justify an old date
+            # Normalize non-breaking spaces (\xa0) to regular spaces
+            ctx = ed.context.lower().replace('\xa0', ' ')
+            # Birth dates
             birth_keywords = ["né ", "née ", "né(e)", "born", "birth", "naissance",
                               "date de naissance", "date of birth", "dob"]
             if any(kw in ctx for kw in birth_keywords):
+                continue
+            # Legal references (law articles, decrees, etc.)
+            legal_keywords = ["loi ", "loi n°", "article ", "décret", "decret",
+                              "arrêté", "arrete", "ordonnance n°", "directive",
+                              "règlement", "reglement", "code ", "l. ", "r. "]
+            if any(kw in ctx for kw in legal_keywords):
                 continue
 
             flags.append(Flag(
