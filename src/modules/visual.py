@@ -425,8 +425,10 @@ def analyze_visual(
     all_flags = []
     full_text = "\n".join(pdf_data.text_by_page)
 
-    # Check watermarks in text
-    all_flags.extend(check_watermarks(full_text))
+    # Check converter watermarks only (iLovePDF, trial version, etc.)
+    # Status watermarks (COPY, SPECIMEN, DRAFT) are disabled because
+    # these words appear too often in normal document text (e.g. "Duplicata"
+    # on a driving license) causing false positives.
     all_flags.extend(check_converter_watermarks(full_text))
 
     # Check QR codes
