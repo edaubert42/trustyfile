@@ -358,7 +358,6 @@ DATE_CONTEXT_KEYWORDS = {
         "rédigé le",
         "rédigé à",
         "le présent",
-        "en date du",
         "certifié le",
         "délivré le",
         "délivré à",
@@ -662,6 +661,70 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
                     "current_date": now.isoformat(),
                 }
             ))
+
+    return flags
+
+
+def check_date_vs_creation(
+    dates: list[ExtractedDate],
+    creation_date: datetime | None,
+) -> list[Flag]:
+    """
+    Compare document/letter dates with the PDF creation date.
+
+    A letter dated "PARIS, le 06 janvier 2026" should have a PDF creation
+    date very close to January 6, 2026. If the PDF was created months
+    before or after, the content was likely tampered with.
+
+    We only check dates of type "document" (letter dates) and "invoice",
+    because these represent the date the document was supposedly produced.
+
+    Args:
+        dates: All extracted dates from the document text
+        creation_date: PDF metadata creation date
+
+    Returns:
+        List of Flag objects for suspicious gaps
+    """
+    if not creation_date:
+        return []
+
+    flags = []
+
+    # Only check document-level dates (letter dates, invoice dates)
+    doc_dates = [d for d in dates if d.date_type in ("document", "invoice")]
+
+    for d in doc_dates:
+        # Calculate the gap between the document date and the PDF creation date
+        gap = abs((d.date - creation_date).days)
+
+        if gap > 180:
+            # More than 6 months gap — very suspicious
+            severity = "critical"
+        elif gap > 30:
+            # More than 1 month gap — suspicious for a letter
+            severity = "high"
+        elif gap > 7:
+            # More than 1 week — worth noting for letters
+            severity = "medium"
+        else:
+            continue
+
+        flags.append(Flag(
+            severity=severity,
+            code="CONTENT_DATE_CREATION_MISMATCH",
+            message=(
+                f"Document date ({d.date.strftime('%Y-%m-%d')}) is "
+                f"{gap} days away from PDF creation date "
+                f"({creation_date.strftime('%Y-%m-%d')})"
+            ),
+            details={
+                "document_date": d.date.isoformat(),
+                "creation_date": creation_date.isoformat(),
+                "gap_days": gap,
+                "context": d.context,
+            }
+        ))
 
     return flags
 
@@ -1543,6 +1606,9 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
     all_flags.extend(check_impossible_dates(dates))
     all_flags.extend(check_date_logic(dates))
     all_flags.extend(check_future_document_date(dates))
+
+    # Check document date vs PDF creation date
+    all_flags.extend(check_date_vs_creation(dates, pdf_data.metadata.creation_date))
 
     # Run amount checks
     all_flags.extend(check_duplicate_amounts(full_text))
