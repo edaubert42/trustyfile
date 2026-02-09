@@ -345,8 +345,9 @@ DATE_CONTEXT_KEYWORDS = {
         "printed on",
     ],
 
-    # document: Date of the letter/document itself (not invoice-specific)
-    # Matches patterns like "À Paris, le 06/03/2026", "Fait à Lyon, le ..."
+    # document: Date the letter/document was produced (establishment date).
+    # ONLY patterns that mean "this document was written/made on this date".
+    # Used by check_date_vs_creation to compare with PDF creation date.
     "document": [
         # French letter date patterns
         "fait à",
@@ -358,14 +359,32 @@ DATE_CONTEXT_KEYWORDS = {
         "rédigé le",
         "rédigé à",
         "le présent",
+    ],
+
+    # reference_date: Dates that appear in the document content but do NOT
+    # represent when this document was produced. Examples: date of birth,
+    # date a license was issued, expiry date, notification date, etc.
+    # These are NOT compared against PDF creation date.
+    "reference_date": [
         "certifié le",
         "délivré le",
         "délivré à",
         "notifié le",
-        # English terms
+        "valable jusqu",
+        "expire le",
+        "date de naissance",
+        "né le",
+        "née le",
+        "né(e) le",
+        "date d'expiration",
+        "date de validité",
+        "date de délivrance",
         "issued at",
         "issued on",
         "dated at",
+        "valid until",
+        "expiry date",
+        "date of birth",
     ],
 
     # order: Original order date
@@ -394,6 +413,10 @@ def identify_date_type(context: str) -> str | None:
     For example, "date de la commande" should match "order" not "invoice"
     (even though it contains "date").
 
+    Special case: if a city name appears before ", le" and the date,
+    it's almost certainly the establishment date of a letter/document.
+    Example: "Paris, le 06/01/2026", "À Marseille, le 3 mars 2026"
+
     Args:
         context: Text around the date (typically 60 chars before and after)
 
@@ -403,10 +426,16 @@ def identify_date_type(context: str) -> str | None:
     Example:
         >>> identify_date_type("Date de facture: 15 janvier 2024")
         "invoice"
-        >>> identify_date_type("Commande du 10 janvier 2024")
-        "order"
+        >>> identify_date_type("Paris, le 06/01/2024")
+        "document"
     """
     context_lower = context.lower()
+
+    # Special case: City + ", le" pattern → establishment date
+    # Matches: "Paris, le", "À Lyon, le", "Fait à Marseille, le"
+    # A capitalized word (city) followed by ", le" right before the date
+    if re.search(r"[A-ZÀ-Ü][a-zà-ÿ]+,\s*le\s*$", context.rstrip()):
+        return "document"
 
     # Sort keywords by length (longest first) to match specific phrases before generic ones
     # This prevents "date" from matching before "date de commande"
@@ -453,18 +482,29 @@ def extract_dates_from_text(text: str) -> list[ExtractedDate]:
         seen_dates.add(key)
 
         # Get context: find where this date appears and grab text BEFORE it
-        # We only look before because labels like "Date de facture:" come before the date
-        # Looking after would capture unrelated keywords from the next line
+        # We include the previous line too, because in PDFs the label
+        # (e.g. "Né le") is often on the line above the date value.
         try:
             pos = text.lower().find(source_text.lower())
             if pos >= 0:
-                # Only take text BEFORE the date (up to 60 chars or start of line)
-                start = max(0, pos - 60)
-                # Find the start of the current line for cleaner context
-                line_start = text.rfind('\n', start, pos)
-                if line_start > start:
-                    start = line_start + 1
-                # Context = text before + the date itself
+                # Find start of current line
+                current_line_start = text.rfind('\n', 0, pos)
+                if current_line_start < 0:
+                    current_line_start = 0
+                else:
+                    current_line_start += 1  # skip the \n itself
+
+                # Find start of previous line (label might be there)
+                prev_line_start = text.rfind('\n', 0, max(0, current_line_start - 1))
+                if prev_line_start < 0:
+                    prev_line_start = 0
+                else:
+                    prev_line_start += 1
+
+                # Use previous line start, but cap at 120 chars before date
+                start = max(prev_line_start, pos - 120)
+
+                # Context = previous line + current line up to date
                 end = pos + len(source_text)
                 context = text[start:end]
             else:
@@ -534,9 +574,28 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
     one_year_future = now + timedelta(days=365)
     very_old = datetime(2000, 1, 1)
 
+    # Broad keywords for dates that can naturally be far in the future.
+    # Used to SKIP the "far future" flag (permissive — better to miss a flag
+    # than false-positive on a valid expiry date like a driving license).
+    future_ok_keywords = ["jusqu'au", "jusqu'a", "valable", "validité", "expire",
+                          "expiration", "valid until", "expiry", "expires"]
+
+    # Strict keywords for expired document check.
+    # Only flag expiry when the context clearly indicates document validity,
+    # not generic deadlines like "reply before..." or billing periods.
+    expiry_keywords = ["valable jusqu", "validité", "expire le", "date d'expiration",
+                       "valid until", "expiry date", "expires on"]
+
     for ed in dates:
         # Check for future dates (more than 1 year ahead)
         if ed.date > one_year_future:
+            # Skip reference dates and expiry/validity dates — naturally far future
+            if ed.date_type == "reference_date":
+                continue
+            ctx = ed.context.lower()
+            if any(kw in ctx for kw in future_ok_keywords):
+                continue
+
             flags.append(Flag(
                 severity="critical",
                 code="CONTENT_FAR_FUTURE_DATE",
@@ -548,7 +607,17 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
             ))
 
         # Check for very old dates (might be typo or manipulation)
+        # Skip dates that are likely birth dates — these are naturally old
         elif ed.date < very_old:
+            if ed.date_type == "reference_date":
+                continue
+            # Check context for birth-related keywords
+            ctx = ed.context.lower()
+            birth_keywords = ["né ", "née ", "né(e)", "born", "birth", "naissance",
+                              "date de naissance", "date of birth", "dob"]
+            if any(kw in ctx for kw in birth_keywords):
+                continue
+
             flags.append(Flag(
                 severity="medium",
                 code="CONTENT_VERY_OLD_DATE",
@@ -559,6 +628,23 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
                 }
             ))
 
+    # Check for expired documents: expiry date is in the past
+    for ed in dates:
+        ctx = ed.context.lower()
+        if any(kw in ctx for kw in expiry_keywords):
+            if ed.date < now:
+                days_expired = (now - ed.date).days
+                flags.append(Flag(
+                    severity="medium",
+                    code="CONTENT_EXPIRED_DOCUMENT",
+                    message=f"Document appears expired since {ed.date.strftime('%Y-%m-%d')} ({days_expired} days ago)",
+                    details={
+                        "expiry_date": ed.date.isoformat(),
+                        "days_expired": days_expired,
+                        "context": ed.context,
+                    }
+                ))
+
     return flags
 
 
@@ -566,36 +652,24 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     """
     Check if dates are logically consistent with each other.
 
+    Only runs coherence checks when we're confident the document is an invoice
+    (i.e. we found an invoice date). For letters or other documents, these
+    checks are not relevant.
+
     Rules:
-    - Invoice date should be >= service end date (can't invoice before service)
     - Due date should be >= invoice date (can't be due before invoiced)
     - Order date should be <= invoice date (order comes before invoice)
-
-    This is where we detect anachronisms!
     """
     flags = []
 
     # Find dates by type
     invoice_dates = [d for d in dates if d.date_type == "invoice"]
-    service_dates = [d for d in dates if d.date_type == "service"]
     due_dates = [d for d in dates if d.date_type == "due"]
     order_dates = [d for d in dates if d.date_type == "order"]
 
-    # Check: Invoice date vs Service date
-    # If service date is AFTER invoice date, that's suspicious
-    if invoice_dates and service_dates:
-        invoice_date = invoice_dates[0].date
-        for sd in service_dates:
-            if sd.date > invoice_date + timedelta(days=1):  # 1 day tolerance
-                flags.append(Flag(
-                    severity="high",
-                    code="CONTENT_ANACHRONISM_SERVICE",
-                    message=f"Service date ({sd.date.strftime('%Y-%m-%d')}) is after invoice date ({invoice_date.strftime('%Y-%m-%d')})",
-                    details={
-                        "invoice_date": invoice_date.isoformat(),
-                        "service_date": sd.date.isoformat(),
-                    }
-                ))
+    # Only run checks if we identified an invoice date (confirms it's an invoice)
+    if not invoice_dates:
+        return flags
 
     # Check: Due date vs Invoice date
     # Due date should not be before invoice date
@@ -1580,16 +1654,22 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
             confidence=0.1,  # Very low confidence - we couldn't analyze anything
         )
 
-    # Extract all dates
+    # Extract all dates from full document
     dates = extract_dates_from_text(full_text)
+
+    # Extract dates from first page only for establishment date checks.
+    # The establishment date (e.g. "Paris, le 06/01/2026") is always on page 1.
+    # Using all pages would flag irrelevant dates (birth dates, old issue dates).
+    first_page_text = pdf_data.text_by_page[0] if pdf_data.text_by_page else ""
+    first_page_dates = extract_dates_from_text(first_page_text)
 
     # Run date checks
     all_flags.extend(check_impossible_dates(dates))
     all_flags.extend(check_date_logic(dates))
-    all_flags.extend(check_future_document_date(dates))
+    all_flags.extend(check_future_document_date(first_page_dates))
 
-    # Check document date vs PDF creation date
-    all_flags.extend(check_date_vs_creation(dates, pdf_data.metadata.creation_date))
+    # Check document date vs PDF creation date (first page only)
+    all_flags.extend(check_date_vs_creation(first_page_dates, pdf_data.metadata.creation_date))
 
     # Run amount checks
     all_flags.extend(check_duplicate_amounts(full_text))
