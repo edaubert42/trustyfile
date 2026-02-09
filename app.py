@@ -154,6 +154,20 @@ st.markdown("""
     div[data-testid="stDecoration"] {display: none;}
     div[data-testid="stStatusWidget"] {display: none;}
 
+    /* Tighten h2 section headers (Detected Issues, More Details) */
+    h2 {
+        margin-top: -0.5rem !important;
+        padding-top: 0 !important;
+    }
+
+    /* Reduce gap between Preview title and image below */
+    .preview-title {
+        margin-bottom: 0.7rem !important;
+    }
+    .preview-title + div {
+        margin-top: 0 !important;
+    }
+
     /* Desktop: reverse column order so preview stays on left */
     @media (min-width: 769px) {
         [data-testid="stColumns"] {
@@ -178,12 +192,12 @@ st.markdown("""
         margin: 1rem 0;
     }
     .score-low { background-color: #198754; border: 2px solid #146c43; color: white; }
-    .score-medium { background-color: #fd7e14; border: 2px solid #dc6a10; color: white; }
-    .score-high { background-color: #dc3545; border: 2px solid #b02a37; color: white; }
-    .score-critical { background-color: #721c24; border: 2px solid #4a1119; color: white; }
-    .flag-critical { color: #721c24; font-weight: bold; }
-    .flag-high { color: #dc3545; }
-    .flag-medium { color: #fd7e14; }
+    .score-medium { background-color: #ffb627; border: 2px solid #dc6a10; color: white; }
+    .score-high { background-color: #ff6b35; border: 2px solid #e55a25; color: white; }
+    .score-critical { background-color: #ef233c; border: 2px solid #4a1119; color: white; }
+    .flag-critical { color: #ef233c; font-weight: bold; }
+    .flag-high { color: #ff6b35; }
+    .flag-medium { color: #ffb627; }
     .flag-low { color: #6c757d; }
 
     /* Label with hover tooltip */
@@ -259,33 +273,96 @@ with open("static/logotf_small.png", "rb") as _logo_file:
 with open("static/upload_icon_medium.png", "rb") as _upload_file:
     _upload_b64 = base64.b64encode(_upload_file.read()).decode()
 
-st.markdown("""<style>
-    .block-container { padding-top: 1.5rem !important; }
-    /* Clean up the dropzone: no border, centered content */
-    [data-testid="stFileUploaderDropzone"] {
-        border: none !important;
+st.markdown(f"""<style>
+    .block-container {{ padding-top: 0 !important; }}
+    /* Landing page: style the dropzone as a dashed border zone */
+    [data-testid="stFileUploaderDropzone"] {{
+        border: 2px dashed #444 !important;
+        border-radius: 16px !important;
         background: transparent !important;
-        padding: 0 !important;
+        padding: 2rem 2rem 1rem 2rem !important;
         text-align: center !important;
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
-    }
+        justify-content: center !important;
+        transition: border-color 0.3s, background 0.3s;
+        max-width: 420px !important;
+        min-height: 380px !important;
+        margin: 0 auto !important;
+        aspect-ratio: 1 / 1;
+    }}
+    [data-testid="stFileUploaderDropzone"]:hover {{
+        border-color: #888 !important;
+        background: rgba(255,255,255,0.03) !important;
+    }}
     /* Hide the label */
-    [data-testid="stFileUploader"] label {
+    [data-testid="stFileUploader"] label {{
         display: none !important;
-    }
-    /* Hide the "Drag and drop file here" and limit text */
-    [data-testid="stFileUploaderDropzone"] > div > span,
-    [data-testid="stFileUploaderDropzone"] > div > small,
-    [data-testid="stFileUploaderDropzoneInstructions"] {
+    }}
+    /* Hide ALL default dropzone content (text, icon, small print) */
+    [data-testid="stFileUploaderDropzoneInstructions"] > div {{
         display: none !important;
-    }
-    /* Style the browse button */
-    [data-testid="baseButton-secondary"] {
-        padding: 0.6rem 2.5rem !important;
+    }}
+    [data-testid="stFileUploaderDropzoneInstructions"] svg {{
+        display: none !important;
+    }}
+    /* Restyle the native browse button as "Browse file" */
+    [data-testid="stFileUploaderDropzone"] button {{
+        order: 3 !important;
+        border: 1.5px solid #666 !important;
         border-radius: 8px !important;
-    }
+        padding: 0.4rem 1.5rem !important;
+        color: #bbb !important;
+        background: transparent !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        margin-top: 0 !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] button:hover {{
+        border-color: #999 !important;
+        color: #eee !important;
+    }}
+    /* Hide the default button text and replace with "Browse file" */
+    [data-testid="stFileUploaderDropzone"] button span {{
+        font-size: 0 !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] button span::after {{
+        content: "Browse file";
+        font-size: 0.9rem;
+    }}
+    /* Make instructions a flex column so ::before (icon) is on top, ::after (text) below */
+    [data-testid="stFileUploaderDropzoneInstructions"] {{
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 100% !important;
+    }}
+    /* Custom upload icon */
+    [data-testid="stFileUploaderDropzoneInstructions"]::before {{
+        content: "";
+        display: block;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto 1rem auto;
+        background: url("data:image/png;base64,{_upload_b64}") center/contain no-repeat;
+        opacity: 0.85;
+        order: 1;
+    }}
+    /* "Drop your PDF here" + "or" text */
+    [data-testid="stFileUploaderDropzoneInstructions"]::after {{
+        content: "Drop your PDF here\A or";
+        display: block;
+        white-space: pre;
+        text-align: center;
+        order: 2;
+        color: #bbb;
+        font-size: 1.05rem;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        line-height: 2;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -311,11 +388,9 @@ with upload_container:
                 <strong style="font-size:1.8rem;">Detect if a document is fraud instantly.</strong><br>
                 <span style="font-weight:normal; font-size:1.1rem; color:white;">TrustyFile spots clever edits and hidden changes inside documents.</span>
             </p>
-            <div style="text-align:center; margin-bottom:1.5rem;">
-                <img src="data:image/png;base64,{_upload_b64}" style="height:160px; opacity:0.85;">
-            </div>
         </div>
         """, unsafe_allow_html=True)
+        # file_uploader dropzone overlaps the landing image via CSS
         uploaded_file = st.file_uploader(
             "Choose file",
             type=["pdf"],
@@ -324,8 +399,8 @@ with upload_container:
         st.markdown("""
         <div id="landing-disclaimer">
             <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:0.8rem;">
-                By uploading a file, you agree that your document will be analyzed locally.
-                No data is sent to external servers.
+                Your document is analyzed locally. Only the file hash and company identifiers
+                may be sent to external APIs (VirusTotal, INSEE, EU DSS) for verification.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -339,10 +414,10 @@ if uploaded_file is not None:
             display: none !important;
         }
         [data-testid="stFileUploader"] {
-            margin-bottom: -0.5rem !important;
+            margin-bottom: -2.5rem !important;
         }
         /* Keep original top padding for logo */
-        .block-container { padding-top: 1.5rem !important; }
+        .block-container { padding-top: 0 !important; }
     </style>""", unsafe_allow_html=True)
 
 if uploaded_file is not None:
@@ -371,7 +446,7 @@ if uploaded_file is not None:
         page_count = get_pdf_page_count(tmp_path)
 
         # Display results with PDF preview
-        st.markdown('<hr style="margin:0.5rem 0;">', unsafe_allow_html=True)
+        st.markdown('<hr style="margin:0.5rem 0 1.5rem 0;">', unsafe_allow_html=True)
 
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
@@ -380,7 +455,9 @@ if uploaded_file is not None:
         # LEFT COLUMN: PDF Preview
         # =================================================================
         with preview_col:
-            st.markdown('<span style="color:#888; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.5px;">Preview</span>', unsafe_allow_html=True)
+            st.markdown("""<div class="preview-title"><span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
+                letter-spacing:0.5px;">Preview</span>
+                <hr style="border:none; border-top:1px solid #2a2a2a; margin:2px 0 0 0;"></div>""", unsafe_allow_html=True)
             # Page navigation if multiple pages
             if page_count > 1:
                 st.selectbox(
@@ -417,17 +494,18 @@ if uploaded_file is not None:
             def format_date(dt):
                 return dt.strftime("%Y-%m-%d %H:%M") if dt else "—"
 
-            # Extract stated date from document text (letter/invoice date)
+            # Extract stated date from first page only (letter/invoice date)
+            # The establishment date is always on the first page
             from src.modules.content import extract_dates_from_text
-            full_text = "\n".join(pdf_data.text_by_page)
-            all_dates = extract_dates_from_text(full_text)
-            doc_dates = [d for d in all_dates if d.date_type in ("document", "invoice")]
+            first_page_text = pdf_data.text_by_page[0] if pdf_data.text_by_page else ""
+            first_page_dates = extract_dates_from_text(first_page_text)
+            doc_dates = [d for d in first_page_dates if d.date_type in ("document", "invoice")]
             stated_date = doc_dates[0].date if doc_dates else None
 
             def red_pill(text):
-                return (f'<span style="background:#dc3545; color:white; padding:2px 8px; '
+                return (f'<span style="background:#ef233c; color:white; padding:2px 8px; '
                         f'border-radius:10px; font-size:0.7rem; font-weight:bold; '
-                        f'margin-left:8px;">{text}</span>')
+                        f'margin-left:auto; white-space:nowrap;">{text}</span>')
 
             label_style = "color:#888; font-size:0.8rem; width:120px; flex-shrink:0;"
             value_style = "color:#eee; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
@@ -543,7 +621,7 @@ if uploaded_file is not None:
                 elif vt_result["status"] == "malicious":
                     vt_pill = (
                         f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
-                        f'<span style="background:#dc3545; color:white; padding:3px 10px; '
+                        f'<span style="background:#ef233c; color:white; padding:3px 10px; '
                         f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
                         f'{vt_result["malicious"]}/{vt_result["total"]} engines detected threats</span></a>'
                     )
@@ -563,7 +641,7 @@ if uploaded_file is not None:
             """
 
             st.markdown(f"""
-            <div style="margin-top:1.5rem;">
+            <div style="margin-top:0.5rem;">
                 <span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
                     letter-spacing:0.5px;">File Properties</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
@@ -583,11 +661,11 @@ if uploaded_file is not None:
             if score >= 80:
                 gauge_color = "#28a745"
             elif score >= 50:
-                gauge_color = "#fd7e14"
+                gauge_color = "#ffb627"
             elif score >= 20:
-                gauge_color = "#dc3545"
+                gauge_color = "#ef233c"
             else:
-                gauge_color = "#721c24"
+                gauge_color = "#ef233c"
 
             # SVG circular gauge (full donut ring)
             # Uses a circle with stroke-dasharray to fill proportionally
@@ -667,11 +745,11 @@ if uploaded_file is not None:
                 if group_score >= 80:
                     bar_color = "#28a745"
                 elif group_score >= 50:
-                    bar_color = "#fd7e14"
+                    bar_color = "#ffb627"
                 elif group_score >= 20:
-                    bar_color = "#dc3545"
+                    bar_color = "#ef233c"
                 else:
-                    bar_color = "#721c24"
+                    bar_color = "#ef233c"
 
                 bars_html += f'''
                 <div style="display:flex; align-items:center; margin-bottom:6px;">
@@ -695,13 +773,13 @@ if uploaded_file is not None:
             # Issues pills (right below the circle)
             pills_html = ""
             if counts["critical"]:
-                pills_html += f'<span style="background:#721c24; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["critical"]} Critical</span> '
+                pills_html += f'<span style="background:#ef233c; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["critical"]} Critical</span> '
             if counts["high"]:
-                pills_html += f'<span style="background:#dc3545; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["high"]} High</span> '
+                pills_html += f'<span style="background:#ff6b35; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["high"]} High</span> '
             if counts["medium"]:
-                pills_html += f'<span style="background:#fd7e14; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["medium"]} Medium</span> '
+                pills_html += f'<span style="background:#ffb627; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["medium"]} Medium</span> '
             if counts["low"]:
-                pills_html += f'<span style="background:#555; color:#ccc; padding:4px 10px; border-radius:12px; font-size:0.8rem;">{counts["low"]} Low</span> '
+                pills_html += f'<span style="background:#555; color:#ccc; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["low"]} Low</span> '
 
             if not any(counts.values()):
                 pills_html = '<span style="background:#28a745; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">No issues found</span>'
@@ -716,9 +794,9 @@ if uploaded_file is not None:
 
             # Summary block — verdict + flag list with pills
             _sev_colors = {
-                "critical": "#721c24",
-                "high": "#dc3545",
-                "medium": "#fd7e14",
+                "critical": "#ef233c",
+                "high": "#ff6b35",
+                "medium": "#ffb627",
                 "low": "#555",
             }
 
@@ -858,9 +936,9 @@ if uploaded_file is not None:
             st.markdown("## Detected Issues")
 
             severity_colors = {
-                "critical": "#721c24",
-                "high": "#dc3545",
-                "medium": "#fd7e14",
+                "critical": "#ef233c",
+                "high": "#ff6b35",
+                "medium": "#ffb627",
                 "low": "#555",
             }
 
@@ -1017,7 +1095,7 @@ if uploaded_file is not None:
                 hist_content += (
                     f'<div style="{_card}">'
                     f'<p style="{_vlabel}">Version {to_v} '
-                    f'<span style="background:#dc3545; color:white; font-size:0.68rem; font-weight:bold; '
+                    f'<span style="background:#ef233c; color:white; font-size:0.68rem; font-weight:bold; '
                     f'padding:2px 10px; border-radius:10px; margin-left:6px;">MODIFIED</span></p>'
                     f'{v_meta}{diff_html}{obj_html}</div>'
                 )
@@ -1049,11 +1127,11 @@ if uploaded_file is not None:
             if mod_score >= 80:
                 sc_color = "#28a745"
             elif mod_score >= 50:
-                sc_color = "#fd7e14"
+                sc_color = "#ffb627"
             elif mod_score >= 20:
-                sc_color = "#dc3545"
+                sc_color = "#ef233c"
             else:
-                sc_color = "#721c24"
+                sc_color = "#ef233c"
 
             mod_name = module.module.capitalize()
             flag_count = len(module.flags)
@@ -1166,7 +1244,7 @@ if uploaded_file is not None:
                     status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
                                    'font-weight:bold; padding:2px 8px; border-radius:8px;">Active</span>')
                 elif status == "closed":
-                    status_pill = ('<span style="background:#dc3545; color:white; font-size:0.62rem; '
+                    status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
                                    'font-weight:bold; padding:2px 8px; border-radius:8px;">Closed</span>')
                 else:
                     status_pill = ""
