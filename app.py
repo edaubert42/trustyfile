@@ -124,7 +124,7 @@ def get_pdf_page_count(pdf_path: str) -> int:
 
 st.set_page_config(
     page_title="TrustyFile - Document Fraud Detector",
-    page_icon="static/logotf_small.png",
+    page_icon="static/upload_icon_medium.png",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -159,7 +159,7 @@ enable_iban_check = bool(iban_api_key)
 # =============================================================================
 
 import base64
-with open("static/logotf_small.png", "rb") as _logo_file:
+with open("static/upload_icon_medium.png", "rb") as _logo_file:
     _logo_b64 = base64.b64encode(_logo_file.read()).decode()
 with open("static/upload_icon_medium.png", "rb") as _upload_file:
     _upload_b64 = base64.b64encode(_upload_file.read()).decode()
@@ -210,7 +210,7 @@ st.markdown(f"""
         height: 36px;
         width: 36px;
         object-fit: contain;
-        margin-right: 12px;
+        margin-right: 6px;
     }}
     .custom-header .title {{
         font-size: 1.4rem;
@@ -283,15 +283,38 @@ st.markdown(f"""
             padding-top: 0 !important;
         }}
         #landing-content p {{
-            margin-top: 1.5rem !important;
-            margin-bottom: 1.5rem !important;
+            margin-top: 1rem !important;
+            margin-bottom: 1rem !important;
+            font-size: 1.5rem !important;
+        }}
+        #landing-tagline p {{
+            font-size: 0.85rem !important;
+            margin-top: 0.8rem !important;
+        }}
+        [data-testid="stFileUploader"] {{
+            max-width: 65% !important;
+            margin: 0 auto !important;
         }}
         [data-testid="stFileUploaderDropzone"] {{
             max-width: 100% !important;
-            min-height: auto !important;
-            padding: 1rem !important;
-            aspect-ratio: auto !important;
+            min-height: 0 !important;
+            padding: 0.5rem 0.8rem 0.3rem 0.8rem !important;
             box-sizing: border-box !important;
+            margin: 0 auto !important;
+            height: auto !important;
+            max-height: fit-content !important;
+        }}
+        [data-testid="stFileUploader"] > div {{
+            height: auto !important;
+        }}
+        /* Smaller upload icon on mobile */
+        [data-testid="stFileUploaderDropzoneInstructions"]::before {{
+            width: 80px !important;
+            height: 80px !important;
+            margin-bottom: 0.5rem !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"]::after {{
+            font-size: 0.9rem !important;
         }}
         /* Shrink content that may overflow */
         [data-testid="stImage"],
@@ -383,9 +406,8 @@ st.markdown(f"""
         justify-content: center !important;
         transition: border-color 0.3s, background 0.3s;
         max-width: 420px !important;
-        min-height: 380px !important;
+        min-height: 340px !important;
         margin: 0 auto !important;
-        aspect-ratio: 1 / 1;
     }}
     [data-testid="stFileUploaderDropzone"]:hover {{
         border-color: #888 !important;
@@ -414,6 +436,7 @@ st.markdown(f"""
         font-weight: 600 !important;
         cursor: pointer !important;
         margin-top: 0 !important;
+        margin-bottom: 2rem !important;
     }}
     [data-testid="stFileUploaderDropzone"] button:hover {{
         border-color: #999 !important;
@@ -474,11 +497,10 @@ with upload_container:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
         # Landing page content (hidden via CSS when file is uploaded)
-        st.markdown(f"""
+        st.markdown("""
         <div id="landing-content">
-            <p style="color:white; font-size:1.6rem; text-align:center; margin:3rem auto 2rem auto; max-width:600px;">
-                <strong style="font-size:1.8rem;">Detect if a document is fraud instantly.</strong><br>
-                <span style="font-weight:normal; font-size:1.1rem; color:white;">TrustyFile spots clever edits and hidden changes inside documents.</span>
+            <p style="color:white; font-size:2.2rem; text-align:center; margin:3rem auto 1.5rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
+                Don't trust. Verify.
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -489,6 +511,11 @@ with upload_container:
             label_visibility="collapsed",
         )
         st.markdown("""
+        <div id="landing-tagline">
+            <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
+                TrustyFile spots clever edits and hidden changes inside documents.
+            </p>
+        </div>
         <div id="landing-disclaimer">
             <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:0.8rem;">
                 Your document is analyzed locally and never stored. Only the file hash and company identifiers
@@ -500,7 +527,7 @@ with upload_container:
 # Hide landing content and minimize uploader when a file is uploaded
 if uploaded_file is not None:
     st.markdown("""<style>
-        #landing-content, #landing-disclaimer { display: none !important; }
+        #landing-content, #landing-tagline, #landing-disclaimer { display: none !important; }
         /* Hide the dropzone, keep only the filename bar */
         [data-testid="stFileUploaderDropzone"] {
             display: none !important;
@@ -1797,7 +1824,7 @@ st.markdown("""
 <div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
     padding:0.3rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
     <span style="color:#555; font-size:0.65rem;">
-        TrustyFile — Document fraud detection
+        TrustyFile - Document Fraud Detector
     </span>
 </div>
 """, unsafe_allow_html=True)
