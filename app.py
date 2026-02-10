@@ -535,7 +535,16 @@ if uploaded_file is not None:
         [data-testid="stFileUploader"] {
             margin-bottom: -2.5rem !important;
         }
-        /* Keep header offset */
+        /* Collapse the 3-column landing layout so it takes no vertical space */
+        [data-testid="stColumns"]:first-of-type {
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            gap: 0 !important;
+        }
+        [data-testid="stColumns"]:first-of-type [data-testid="stColumn"]:first-child,
+        [data-testid="stColumns"]:first-of-type [data-testid="stColumn"]:last-child {
+            display: none !important;
+        }
     </style>""", unsafe_allow_html=True)
 
 if uploaded_file is not None:
