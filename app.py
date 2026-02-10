@@ -10,6 +10,7 @@ Run with: streamlit run app.py
 import streamlit as st
 import tempfile
 import os
+import re
 from pathlib import Path
 import fitz  # PyMuPDF
 import requests
@@ -1241,8 +1242,12 @@ if uploaded_file is not None:
         found_rcs = extract_rcs(full_text)
 
         # Collect identifiers already covered by verified companies
+        # Include SIRENs derived from verified SIRETs to avoid duplicates
         verified_sirets = {c.get("siret", "") for c in verified_companies}
         verified_sirens = {c.get("siren", "") for c in verified_companies}
+        for vs in list(verified_sirets):
+            if vs and len(vs) == 14:
+                verified_sirens.add(vs[:9])
 
         # Build entities HTML
         entities_html = ""
@@ -1292,69 +1297,111 @@ if uploaded_file is not None:
             )
             entity_count += 1
 
-        # 2) Unverified identifiers (found in text but not in verified companies)
+        # 2) Unverified entities: group all identifiers by SIREN into one card per entity
         not_verified_pill = ('<span style="background:#555; color:#ccc; font-size:0.62rem; '
                              'font-weight:bold; padding:2px 8px; border-radius:8px;">Not verified</span>')
         _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
         _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
         _val = "color:#ccc; font-size:0.75rem;"
-        _ctx = "color:#666; font-size:0.68rem; font-style:italic;"
 
-        # Group unverified identifiers by SIRET (prefer SIRET as main identifier)
-        unverified_entries = []
-        seen_unverified = set()
+        # Build one entity per unique SIREN, attaching all related identifiers
+        # Key = SIREN (9 digits), Value = dict with all identifiers
+        unverified_by_siren: dict[str, dict] = {}
 
         for siret, is_valid, context in found_sirets:
-            if siret not in verified_sirets and siret not in seen_unverified:
-                seen_unverified.add(siret)
-                # Derive SIREN from SIRET (first 9 digits)
-                siren_from_siret = siret[:9]
-                unverified_entries.append({
-                    "label": f"SIRET {siret}",
-                    "rows": [("SIRET", siret), ("SIREN", siren_from_siret)],
-                    "context": context,
-                    "valid": is_valid,
-                })
+            siren_key = siret[:9]
+            if siren_key in verified_sirens or siret in verified_sirets:
+                continue
+            if siren_key not in unverified_by_siren:
+                unverified_by_siren[siren_key] = {"siren": siren_key, "siret": None, "vat": None, "rcs": None}
+            unverified_by_siren[siren_key]["siret"] = siret
 
         for siren, is_valid, context in found_sirens:
-            # Skip if already covered by a SIRET entry
-            if siren not in verified_sirens and siren not in seen_unverified:
-                seen_unverified.add(siren)
-                unverified_entries.append({
-                    "label": f"SIREN {siren}",
-                    "rows": [("SIREN", siren)],
-                    "context": context,
-                    "valid": is_valid,
-                })
+            if siren in verified_sirens:
+                continue
+            if siren not in unverified_by_siren:
+                unverified_by_siren[siren] = {"siren": siren, "siret": None, "vat": None, "rcs": None}
 
         for vat, is_valid, context in found_vats:
-            if vat not in seen_unverified:
-                seen_unverified.add(vat)
-                unverified_entries.append({
-                    "label": f"VAT {vat}",
-                    "rows": [("VAT", vat)],
-                    "context": context,
-                    "valid": is_valid,
-                })
+            # Extract SIREN from VAT: FR + 2 check digits + 9 digit SIREN
+            vat_siren = vat[4:] if len(vat) == 13 else None
+            if vat_siren and vat_siren in unverified_by_siren:
+                unverified_by_siren[vat_siren]["vat"] = vat
+            elif vat_siren and vat_siren not in verified_sirens:
+                unverified_by_siren[vat_siren] = {"siren": vat_siren, "siret": None, "vat": vat, "rcs": None}
 
         for rcs_string, context in found_rcs:
-            if rcs_string not in seen_unverified:
-                seen_unverified.add(rcs_string)
-                unverified_entries.append({
-                    "label": rcs_string,
-                    "rows": [("RCS", rcs_string)],
-                    "context": context,
-                    "valid": None,
-                })
+            # Try to match RCS number (9 digits) to a known SIREN
+            rcs_digits = re.sub(r"\D", "", rcs_string)
+            rcs_siren = rcs_digits[:9] if len(rcs_digits) >= 9 else None
+            if rcs_siren and rcs_siren in unverified_by_siren:
+                unverified_by_siren[rcs_siren]["rcs"] = rcs_string
+            elif rcs_siren and rcs_siren not in verified_sirens:
+                unverified_by_siren[rcs_siren] = {"siren": rcs_siren, "siret": None, "vat": None, "rcs": rcs_string}
 
-        for entry in unverified_entries:
-            label = html_mod_ent.escape(entry["label"])
+        # Try to extract company name and address from text for each entity
+        def _extract_entity_name(text: str) -> str | None:
+            """Find company name with legal form (SAS, SARL, etc.) in text."""
+            legal_forms = r"(?:SAS|SARL|EURL|SASU|SCI|SNC|SCOP|SELARL|SEL|SELAFA)"
+            # Pattern 1: "ACME SOLUTIONS SAS" — uppercase words followed by legal form
+            # Must start with uppercase letter, not a digit (avoids matching addresses)
+            patterns = [
+                rf"([A-ZÀ-Ÿ][A-ZÀ-Ÿ\s&\-']+?)\s+({legal_forms})\b",
+                rf"\b({legal_forms})\s+([A-ZÀ-Ÿ][A-ZÀ-Ÿ\s&\-']+?)(?:\s*[-–—,.\n]|\s+(?:au capital|RCS|SIRET|SIREN|TVA|\d))",
+            ]
+            for pat in patterns:
+                m = re.search(pat, text)
+                if m:
+                    groups = m.groups()
+                    # Reconstruct name: put legal form after company name
+                    if re.match(legal_forms, groups[0]):
+                        name = f"{groups[1].strip()} {groups[0]}"
+                    else:
+                        name = f"{groups[0].strip()} {groups[1]}"
+                    name = name.strip()
+                    # Skip if too short (likely a false match) or too long
+                    if len(name) > 60:
+                        name = name[:60].rsplit(" ", 1)[0]
+                    if len(name) > 5:
+                        return name
+            return None
+
+        def _extract_entity_address(text: str) -> str | None:
+            """Find a French postal address in text (street + postal code + city)."""
+            # Pattern: optional street line, then 5-digit postal code + city name
+            # City: letters only (stops before keywords like SIRET, SIREN, TVA, etc.)
+            m = re.search(
+                r"(\d{1,4}[\s,]+(?:rue|avenue|boulevard|bd|av|place|chemin|impasse|allée|route|passage)"
+                r"[^,\n]{3,50}[\s,]+)?(\d{5})\s+([A-ZÀ-Ÿa-zà-ÿ][a-zà-ÿA-ZÀ-Ÿ\s\-]*[a-zà-ÿA-ZÀ-Ÿ])",
+                text, re.IGNORECASE
+            )
+            if m:
+                street = (m.group(1) or "").strip().rstrip(",").strip()
+                postal = m.group(2)
+                # Clean city: stop at known keywords that might follow
+                city = re.split(r"\s+(?:SIRET|SIREN|TVA|RCS|Tel|Fax|Cedex\b)", m.group(3), flags=re.IGNORECASE)[0].strip()
+                if street:
+                    return f"{street}, {postal} {city}"
+                return f"{postal} {city}"
+            return None
+
+        entity_name = _extract_entity_name(full_text)
+        entity_address = _extract_entity_address(full_text)
+
+        for siren_key, idents in unverified_by_siren.items():
+            # Entity label: use company name if found, otherwise "SIREN XXXXXXXXX"
+            label = html_mod_ent.escape(entity_name) if entity_name else f"SIREN {siren_key}"
+
             rows = ""
-            for key, val in entry["rows"]:
-                rows += f'<div style="{_row}"><span style="{_key}">{key}</span><span style="{_val}">{val}</span></div>'
-            if entry["context"]:
-                ctx = html_mod_ent.escape(entry["context"])
-                rows += f'<div style="{_row}"><span style="{_key}">Context</span><span style="{_ctx}">{ctx}</span></div>'
+            if idents["siret"]:
+                rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{idents["siret"]}</span></div>'
+            rows += f'<div style="{_row}"><span style="{_key}">SIREN</span><span style="{_val}">{siren_key}</span></div>'
+            if idents["vat"]:
+                rows += f'<div style="{_row}"><span style="{_key}">VAT</span><span style="{_val}">{idents["vat"]}</span></div>'
+            if idents["rcs"]:
+                rows += f'<div style="{_row}"><span style="{_key}">RCS</span><span style="{_val}">{idents["rcs"]}</span></div>'
+            if entity_address:
+                rows += f'<div style="{_row}"><span style="{_key}">Address</span><span style="{_val}">{html_mod_ent.escape(entity_address)}</span></div>'
 
             entities_html += (
                 f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
