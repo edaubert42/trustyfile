@@ -285,7 +285,7 @@ st.markdown(f"""
         #landing-content p {{
             margin-top: 1rem !important;
             margin-bottom: 1rem !important;
-            font-size: 1.5rem !important;
+            font-size: 2.5rem !important;
         }}
         #landing-tagline p {{
             font-size: 0.85rem !important;
