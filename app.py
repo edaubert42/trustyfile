@@ -19,16 +19,7 @@ from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGH
 from src.summary import generate_rich_summary
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.structure import get_modification_history
-import subprocess
-result = subprocess.run(["find", "/", "-name", "libdmtx*", "-type", "f"], capture_output=True, text=True, timeout=10)
-print(f"[DEBUG] libdmtx files: {result.stdout.strip()}", flush=True)
-try:
-    from pylibdmtx import pylibdmtx as _dmtx_mod
-    print(f"[DEBUG] pylibdmtx tries to load: {_dmtx_mod.EXTERNAL_LIBRARY._name}", flush=True)
-except Exception as e:
-    print(f"[DEBUG] pylibdmtx load error: {e}", flush=True)
 from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
-print(f"[DEBUG] PYLIBDMTX_AVAILABLE = {PYLIBDMTX_AVAILABLE}", flush=True)
 
 
 # =============================================================================
@@ -334,10 +325,10 @@ st.markdown(f"""<style>
         color: #eee !important;
     }}
     /* Hide the default button text and replace with "Browse file" */
-    [data-testid="stFileUploaderDropzone"] button span {{
+    [data-testid="stFileUploaderDropzone"] button {{
         font-size: 0 !important;
     }}
-    [data-testid="stFileUploaderDropzone"] button span::after {{
+    [data-testid="stFileUploaderDropzone"] button::after {{
         content: "Browse file";
         font-size: 0.9rem;
     }}
@@ -408,7 +399,7 @@ with upload_container:
         st.markdown("""
         <div id="landing-disclaimer">
             <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:0.8rem;">
-                Your document is analyzed locally. Only the file hash and company identifiers
+                Your document is analyzed locally and never stored. Only the file hash and company identifiers
                 may be sent to external APIs (VirusTotal, INSEE, EU DSS) for verification.
             </p>
         </div>
