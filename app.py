@@ -1224,57 +1224,152 @@ if uploaded_file is not None:
             unsafe_allow_html=True,
         )
 
-        # More Details — Entities block (verified companies from external module)
+        # More Details — Entities block (verified companies + unverified identifiers)
         external_module = next((m for m in result.modules if m.module == "external"), None)
+        verified_companies = []
         if external_module and external_module.details.get("verified_companies"):
-            companies = external_module.details["verified_companies"]
-            import html as html_mod_ent
+            verified_companies = external_module.details["verified_companies"]
 
-            entities_html = ""
-            for comp in companies:
-                name = html_mod_ent.escape(comp.get("name") or "Unknown")
-                siren = comp.get("siren") or ""
-                siret = comp.get("siret") or ""
-                address = html_mod_ent.escape(comp.get("address") or "")
-                status = comp.get("status", "")
-                creation = comp.get("creation_date") or ""
+        # Extract identifiers from full document text
+        from src.modules.content import extract_siret, extract_siren, extract_french_vat, extract_rcs
+        import html as html_mod_ent
 
-                # Status pill
-                if status == "active":
-                    status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
-                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Active</span>')
-                elif status == "closed":
-                    status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
-                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Closed</span>')
-                else:
-                    status_pill = ""
+        full_text = "\n".join(pdf_data.text_by_page) if pdf_data.text_by_page else ""
+        found_sirets = extract_siret(full_text)
+        found_sirens = extract_siren(full_text)
+        found_vats = extract_french_vat(full_text)
+        found_rcs = extract_rcs(full_text)
 
-                _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-                _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
-                _val = "color:#ccc; font-size:0.75rem;"
+        # Collect identifiers already covered by verified companies
+        verified_sirets = {c.get("siret", "") for c in verified_companies}
+        verified_sirens = {c.get("siren", "") for c in verified_companies}
 
-                rows = ""
-                if siren:
-                    rows += f'<div style="{_row}"><span style="{_key}">SIREN</span><span style="{_val}">{siren}</span></div>'
-                if siret:
-                    rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{siret}</span></div>'
-                if address and address != "None, None None":
-                    rows += f'<div style="{_row}"><span style="{_key}">Address</span><span style="{_val}">{address}</span></div>'
-                if creation:
-                    rows += f'<div style="{_row}"><span style="{_key}">Created</span><span style="{_val}">{creation}</span></div>'
+        # Build entities HTML
+        entities_html = ""
+        entity_count = 0
 
-                entities_html += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:8px;">'
-                    f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{name}</span>'
-                    f'{status_pill}'
-                    f'</div>'
-                    f'{rows}'
-                    f'</div>'
-                )
+        # 1) Verified companies (with Active/Closed pills)
+        for comp in verified_companies:
+            name = html_mod_ent.escape(comp.get("name") or "Unknown")
+            siren = comp.get("siren") or ""
+            siret = comp.get("siret") or ""
+            address = html_mod_ent.escape(comp.get("address") or "")
+            status = comp.get("status", "")
+            creation = comp.get("creation_date") or ""
 
-            entity_count = len(companies)
+            if status == "active":
+                status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
+                               'font-weight:bold; padding:2px 8px; border-radius:8px;">Active</span>')
+            elif status == "closed":
+                status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
+                               'font-weight:bold; padding:2px 8px; border-radius:8px;">Closed</span>')
+            else:
+                status_pill = ""
+
+            _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
+            _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
+            _val = "color:#ccc; font-size:0.75rem;"
+
+            rows = ""
+            if siren:
+                rows += f'<div style="{_row}"><span style="{_key}">SIREN</span><span style="{_val}">{siren}</span></div>'
+            if siret:
+                rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{siret}</span></div>'
+            if address and address != "None, None None":
+                rows += f'<div style="{_row}"><span style="{_key}">Address</span><span style="{_val}">{address}</span></div>'
+            if creation:
+                rows += f'<div style="{_row}"><span style="{_key}">Created</span><span style="{_val}">{creation}</span></div>'
+
+            entities_html += (
+                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                f'padding:12px 16px; margin-bottom:8px;">'
+                f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
+                f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{name}</span>'
+                f'{status_pill}'
+                f'</div>'
+                f'{rows}'
+                f'</div>'
+            )
+            entity_count += 1
+
+        # 2) Unverified identifiers (found in text but not in verified companies)
+        not_verified_pill = ('<span style="background:#555; color:#ccc; font-size:0.62rem; '
+                             'font-weight:bold; padding:2px 8px; border-radius:8px;">Not verified</span>')
+        _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
+        _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
+        _val = "color:#ccc; font-size:0.75rem;"
+        _ctx = "color:#666; font-size:0.68rem; font-style:italic;"
+
+        # Group unverified identifiers by SIRET (prefer SIRET as main identifier)
+        unverified_entries = []
+        seen_unverified = set()
+
+        for siret, is_valid, context in found_sirets:
+            if siret not in verified_sirets and siret not in seen_unverified:
+                seen_unverified.add(siret)
+                # Derive SIREN from SIRET (first 9 digits)
+                siren_from_siret = siret[:9]
+                unverified_entries.append({
+                    "label": f"SIRET {siret}",
+                    "rows": [("SIRET", siret), ("SIREN", siren_from_siret)],
+                    "context": context,
+                    "valid": is_valid,
+                })
+
+        for siren, is_valid, context in found_sirens:
+            # Skip if already covered by a SIRET entry
+            if siren not in verified_sirens and siren not in seen_unverified:
+                seen_unverified.add(siren)
+                unverified_entries.append({
+                    "label": f"SIREN {siren}",
+                    "rows": [("SIREN", siren)],
+                    "context": context,
+                    "valid": is_valid,
+                })
+
+        for vat, is_valid, context in found_vats:
+            if vat not in seen_unverified:
+                seen_unverified.add(vat)
+                unverified_entries.append({
+                    "label": f"VAT {vat}",
+                    "rows": [("VAT", vat)],
+                    "context": context,
+                    "valid": is_valid,
+                })
+
+        for rcs_string, context in found_rcs:
+            if rcs_string not in seen_unverified:
+                seen_unverified.add(rcs_string)
+                unverified_entries.append({
+                    "label": rcs_string,
+                    "rows": [("RCS", rcs_string)],
+                    "context": context,
+                    "valid": None,
+                })
+
+        for entry in unverified_entries:
+            label = html_mod_ent.escape(entry["label"])
+            rows = ""
+            for key, val in entry["rows"]:
+                rows += f'<div style="{_row}"><span style="{_key}">{key}</span><span style="{_val}">{val}</span></div>'
+            if entry["context"]:
+                ctx = html_mod_ent.escape(entry["context"])
+                rows += f'<div style="{_row}"><span style="{_key}">Context</span><span style="{_ctx}">{ctx}</span></div>'
+
+            entities_html += (
+                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                f'padding:12px 16px; margin-bottom:8px;">'
+                f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
+                f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{label}</span>'
+                f'{not_verified_pill}'
+                f'</div>'
+                f'{rows}'
+                f'</div>'
+            )
+            entity_count += 1
+
+        # Show Entities panel if any entities were found
+        if entity_count > 0:
             st.markdown(
                 f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
