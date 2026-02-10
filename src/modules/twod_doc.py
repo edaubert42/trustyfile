@@ -27,6 +27,12 @@ from typing import Literal
 import logging
 
 # Try to import pylibdmtx — it may not be available if libdmtx system library is missing
+# On Python 3.13+, distutils was removed. setuptools provides it as a shim,
+# but must be imported first so that 'import distutils' works for pylibdmtx.
+try:
+    import setuptools  # noqa: F401 — activates distutils shim for Python 3.13+
+except ImportError:
+    pass
 try:
     from pylibdmtx.pylibdmtx import decode as decode_datamatrix
     PYLIBDMTX_AVAILABLE = True
