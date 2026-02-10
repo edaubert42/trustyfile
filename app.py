@@ -8,6 +8,7 @@ Run with: streamlit run app.py
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import tempfile
 import os
 import re
@@ -133,128 +134,6 @@ st.set_page_config(
 # CUSTOM CSS
 # =============================================================================
 
-st.markdown("""
-<script>
-    // Move CSP meta tag to <head> so the browser respects it
-    if (!document.querySelector('meta[http-equiv="Content-Security-Policy"]')) {
-        const meta = document.createElement('meta');
-        meta.httpEquiv = 'Content-Security-Policy';
-        meta.content = 'upgrade-insecure-requests';
-        document.head.appendChild(meta);
-    }
-</script>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    header[data-testid="stHeader"] {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display: none;}
-    div[data-testid="stDecoration"] {display: none;}
-    div[data-testid="stStatusWidget"] {display: none;}
-
-    /* Tighten h2 section headers (Detected Issues, More Details) */
-    h2 {
-        margin-top: -0.5rem !important;
-        padding-top: 0 !important;
-    }
-
-    /* Reduce gap between Preview title and image below */
-    .preview-title {
-        margin-bottom: 0.7rem !important;
-    }
-    .preview-title + div {
-        margin-top: 0 !important;
-    }
-
-    /* Desktop: reverse column order so preview stays on left */
-    @media (min-width: 769px) {
-        [data-testid="stColumns"] {
-            flex-direction: row-reverse !important;
-        }
-    }
-
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #666;
-        margin-bottom: 2rem;
-    }
-    .score-box {
-        padding: 1.5rem;
-        border-radius: 10px;
-        text-align: center;
-        margin: 1rem 0;
-    }
-    .score-low { background-color: #198754; border: 2px solid #146c43; color: white; }
-    .score-medium { background-color: #ffb627; border: 2px solid #dc6a10; color: white; }
-    .score-high { background-color: #ff6b35; border: 2px solid #e55a25; color: white; }
-    .score-critical { background-color: #ef233c; border: 2px solid #4a1119; color: white; }
-    .flag-critical { color: #ef233c; font-weight: bold; }
-    .flag-high { color: #ff6b35; }
-    .flag-medium { color: #ffb627; }
-    .flag-low { color: #6c757d; }
-
-    /* Label with hover tooltip */
-    .tf-label {
-        position: relative;
-        cursor: help;
-        font-size: 0.8rem;
-    }
-    .tf-label .tf-tip {
-        visibility: hidden;
-        opacity: 0;
-        position: absolute;
-        top: 100%;
-        left: 0;
-        transform: none;
-        margin-top: 4px;
-        background: #333;
-        color: #ccc;
-        font-size: 0.7rem;
-        padding: 4px 10px;
-        border-radius: 6px;
-        white-space: nowrap;
-        transition: opacity 0.2s;
-        pointer-events: none;
-        z-index: 10;
-    }
-    .tf-label:hover .tf-tip {
-        visibility: visible;
-        opacity: 1;
-    }
-
-    /* Styled expanders — dark card look */
-    [data-testid="stExpander"] {
-        background: #1a1a2e;
-        border: 1px solid #2a2a2a;
-        border-radius: 8px;
-        margin-bottom: 8px;
-    }
-    [data-testid="stExpander"] summary {
-        padding: 10px 14px;
-        font-size: 0.88rem;
-        font-weight: bold;
-        color: #eee;
-    }
-    [data-testid="stExpander"] summary:hover {
-        color: white;
-    }
-    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
-        border-top: 1px solid #2a2a2a;
-        padding: 14px;
-    }
-
-</style>
-""", unsafe_allow_html=True)
-
-
 # =============================================================================
 # SIDEBAR
 # =============================================================================
@@ -285,8 +164,212 @@ with open("static/logotf_small.png", "rb") as _logo_file:
 with open("static/upload_icon_medium.png", "rb") as _upload_file:
     _upload_b64 = base64.b64encode(_upload_file.read()).decode()
 
-st.markdown(f"""<style>
-    .block-container {{ padding-top: 0 !important; }}
+# Inject meta tags via components.html (st.markdown ignores <script> tags)
+components.html("""
+<script>
+    // Access parent document (Streamlit main frame)
+    const doc = window.parent.document;
+    if (!doc.querySelector('meta[http-equiv="Content-Security-Policy"]')) {
+        const meta = doc.createElement('meta');
+        meta.httpEquiv = 'Content-Security-Policy';
+        meta.content = 'upgrade-insecure-requests';
+        doc.head.appendChild(meta);
+    }
+    if (!doc.querySelector('meta[name="viewport"]')) {
+        const vp = doc.createElement('meta');
+        vp.name = 'viewport';
+        vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
+        doc.head.appendChild(vp);
+    }
+</script>
+""", height=0)
+
+# All CSS in ONE st.markdown to avoid empty flex gap elements
+st.markdown(f"""
+<style>
+    /* Hide the native Streamlit header entirely */
+    header[data-testid="stHeader"],
+    header.stAppHeader {{
+        display: none !important;
+    }}
+    /* Custom header bar */
+    .custom-header {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        background: #0e1117;
+        border-bottom: 1px solid #2a2a3e;
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+        z-index: 999;
+    }}
+    .custom-header img {{
+        height: 36px;
+        width: 36px;
+        object-fit: contain;
+        margin-right: 12px;
+    }}
+    .custom-header .title {{
+        font-size: 1.4rem;
+        font-weight: bold;
+        color: white;
+        margin-right: 12px;
+    }}
+    .custom-header .subtitle {{
+        font-size: 0.9rem;
+        color: #888;
+        font-weight: normal;
+    }}
+
+    #MainMenu {{display: none !important;}}
+    footer {{display: none !important;}}
+    .stAppDeployButton {{display: none !important;}}
+    div[data-testid="stDecoration"] {{display: none !important;}}
+    div[data-testid="stStatusWidget"] {{display: none !important;}}
+
+    /* Minimal top padding — content starts right below header */
+    .block-container {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
+    .stMainBlockContainer {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
+    .stAppViewBlockContainer {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
+    section.stMain .block-container {{padding-top: 0.5rem !important; margin-top: 0 !important; z-index: 1;}}
+    section.stMain {{padding-top: 0 !important; margin-top: 0 !important;}}
+    [data-testid="stAppViewContainer"] {{padding-top: 0 !important; margin-top: 0 !important;}}
+    [data-testid="stSidebarHeader"] {{height: 0 !important;}}
+
+    /* Tighten h2 section headers (Detected Issues, More Details) */
+    h2 {{
+        margin-top: -0.5rem !important;
+        padding-top: 0 !important;
+    }}
+
+    /* Reduce gap between Preview title and image below */
+    .preview-title {{
+        margin-bottom: 0.7rem !important;
+    }}
+    .preview-title + div {{
+        margin-top: 0 !important;
+    }}
+
+    /* Desktop: reverse column order so preview stays on left */
+    @media (min-width: 769px) {{
+        [data-testid="stColumns"] {{
+            flex-direction: row-reverse !important;
+        }}
+    }}
+
+    /* Prevent horizontal scroll */
+    html, body, [data-testid="stAppViewContainer"], .main {{
+        max-width: 100vw !important;
+        overflow-x: hidden !important;
+    }}
+
+    /* Mobile responsive adjustments */
+    @media (max-width: 480px) {{
+        .block-container,
+        .stMainBlockContainer,
+        .stAppViewBlockContainer {{
+            padding-left: 0.4rem !important;
+            padding-right: 0.4rem !important;
+            max-width: 100vw !important;
+            box-sizing: border-box !important;
+        }}
+        .block-container,
+        .stMainBlockContainer,
+        .stAppViewBlockContainer,
+        section.stMain .block-container {{
+            padding-top: 0 !important;
+        }}
+        #landing-content p {{
+            margin-top: 1.5rem !important;
+            margin-bottom: 1.5rem !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] {{
+            max-width: 100% !important;
+            min-height: auto !important;
+            padding: 1rem !important;
+            aspect-ratio: auto !important;
+            box-sizing: border-box !important;
+        }}
+        /* Shrink content that may overflow */
+        [data-testid="stImage"],
+        [data-testid="stExpander"],
+        [data-testid="stVerticalBlock"] {{
+            max-width: 100% !important;
+            overflow-x: hidden !important;
+        }}
+        img {{
+            max-width: 100% !important;
+            height: auto !important;
+        }}
+    }}
+    .score-box {{
+        padding: 1.5rem;
+        border-radius: 10px;
+        text-align: center;
+        margin: 1rem 0;
+    }}
+    .score-low {{ background-color: #198754; border: 2px solid #146c43; color: white; }}
+    .score-medium {{ background-color: #ffb627; border: 2px solid #dc6a10; color: white; }}
+    .score-high {{ background-color: #ff6b35; border: 2px solid #e55a25; color: white; }}
+    .score-critical {{ background-color: #ef233c; border: 2px solid #4a1119; color: white; }}
+    .flag-critical {{ color: #ef233c; font-weight: bold; }}
+    .flag-high {{ color: #ff6b35; }}
+    .flag-medium {{ color: #ffb627; }}
+    .flag-low {{ color: #6c757d; }}
+
+    /* Label with hover tooltip */
+    .tf-label {{
+        position: relative;
+        cursor: help;
+        font-size: 0.8rem;
+    }}
+    .tf-label .tf-tip {{
+        visibility: hidden;
+        opacity: 0;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        transform: none;
+        margin-top: 4px;
+        background: #333;
+        color: #ccc;
+        font-size: 0.7rem;
+        padding: 4px 10px;
+        border-radius: 6px;
+        white-space: nowrap;
+        transition: opacity 0.2s;
+        pointer-events: none;
+        z-index: 10;
+    }}
+    .tf-label:hover .tf-tip {{
+        visibility: visible;
+        opacity: 1;
+    }}
+
+    /* Styled expanders — dark card look */
+    [data-testid="stExpander"] {{
+        background: #1a1a2e;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }}
+    [data-testid="stExpander"] summary {{
+        padding: 10px 14px;
+        font-size: 0.88rem;
+        font-weight: bold;
+        color: #eee;
+    }}
+    [data-testid="stExpander"] summary:hover {{
+        color: white;
+    }}
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+        border-top: 1px solid #2a2a2a;
+        padding: 14px;
+    }}
+
     /* Landing page: style the dropzone as a dashed border zone */
     [data-testid="stFileUploaderDropzone"] {{
         border: 2px dashed #444 !important;
@@ -376,13 +459,10 @@ st.markdown(f"""<style>
         line-height: 2;
     }}
 </style>
-""", unsafe_allow_html=True)
-
-st.markdown(f"""
-<div style="display:flex; align-items:center; gap:14px;">
-    <img src="data:image/png;base64,{_logo_b64}" style="height:52px;">
-    <span style="font-size:1.9rem; font-weight:bold; color:white;">TrustyFile</span>
-    <span style="font-size:1.05rem; color:#888; margin-left:4px;">Document Fraud Detector</span>
+<div class="custom-header">
+    <img src="data:image/png;base64,{_logo_b64}" alt="logo">
+    <span class="title">TrustyFile</span>
+    <span class="subtitle">Document Fraud Detector</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -428,8 +508,7 @@ if uploaded_file is not None:
         [data-testid="stFileUploader"] {
             margin-bottom: -2.5rem !important;
         }
-        /* Keep original top padding for logo */
-        .block-container { padding-top: 0 !important; }
+        /* Keep header offset */
     </style>""", unsafe_allow_html=True)
 
 if uploaded_file is not None:
@@ -1716,8 +1795,8 @@ if uploaded_file is not None:
 # Footer
 st.markdown("""
 <div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
-    padding:0.8rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
-    <span style="color:#555; font-size:0.75rem;">
+    padding:0.3rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
+    <span style="color:#555; font-size:0.65rem;">
         TrustyFile — Document fraud detection
     </span>
 </div>
