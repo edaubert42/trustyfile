@@ -197,14 +197,6 @@ def extract_text(doc: fitz.Document) -> list[str]:
 
     Returns:
         List of strings, one per page. Empty string if page has no text.
-
-    Note:
-        If a page returns empty text, it might be:
-        - Actually empty
-        - A scanned image (needs OCR)
-        - Text rendered as vector graphics
-
-        We'll handle OCR fallback separately in the ocr.py module.
     """
     text_by_page = []
 
@@ -213,7 +205,6 @@ def extract_text(doc: fitz.Document) -> list[str]:
 
         # get_text() extracts all text from the page
         # The default format is "text" (plain text with line breaks)
-        # Other options: "html", "dict" (structured), "blocks", "words"
         text = page.get_text("text")
 
         text_by_page.append(text)

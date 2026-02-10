@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Optional
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
-from src.modules.content import extract_siret, extract_french_vat, extract_siren, validate_siren_checksum
+from src.modules.content import extract_siret, extract_french_vat, extract_siren, validate_siren_checksum, extract_iban
 
 logger = logging.getLogger(__name__)
 
@@ -354,6 +354,120 @@ def verify_vat_vies(vat_number: str) -> tuple[dict | None, str | None]:
 
 
 # =============================================================================
+# IBAN VERIFICATION
+# =============================================================================
+
+# Common French bank codes (first 4 chars of BIC/SWIFT)
+# Used to resolve the actual bank name from BIC since the API's "name" field
+# returns the account holder name, not the bank name
+BANK_CODES = {
+    "SOGE": "Société Générale",
+    "AGRI": "Crédit Agricole",
+    "BNPA": "BNP Paribas",
+    "CMCI": "Crédit Mutuel - CIC",
+    "CRLY": "Crédit Lyonnais (LCL)",
+    "CEPA": "Caisse d'Épargne",
+    "BPCE": "BPCE (Banque Populaire)",
+    "PSSTFRPP": "La Banque Postale",
+    "CCBP": "Banque Populaire",
+    "BRED": "BRED Banque Populaire",
+    "REVO": "Revolut",
+    "TRZO": "Wise (TransferWise)",
+    "CMCIFR2A": "Crédit Mutuel",
+    "COBADEFF": "Commerzbank",
+    "DEUTDE": "Deutsche Bank",
+    "INGB": "ING",
+    "ABNA": "ABN AMRO",
+    "BOUS": "Boursorama",
+    "AXAB": "AXA Banque",
+    "MOEY": "Monabanq",
+    "NORT": "Banque du Nord",
+    "HSBC": "HSBC",
+    "BARCGB": "Barclays",
+}
+
+
+def _resolve_bank_name(bic_data: dict) -> str | None:
+    """
+    Resolve the actual bank name from BIC/SWIFT data.
+
+    The API's "name" field returns the account holder, not the bank.
+    We use the bankCode (first 4 chars of BIC) to look up the real bank name.
+
+    Args:
+        bic_data: BIC object from the IBAN API response
+
+    Returns:
+        Bank name if found, None otherwise
+    """
+    bic = (bic_data.get("bic") or "").upper()
+    bank_code = bic_data.get("bankCode", "").upper()
+
+    # Try exact BIC match first (e.g. PSSTFRPP for La Banque Postale)
+    if bic in BANK_CODES:
+        return BANK_CODES[bic]
+
+    # Try BIC prefix match (e.g. BARCGB for Barclays)
+    for code, name in BANK_CODES.items():
+        if len(code) > 4 and bic.startswith(code):
+            return name
+
+    # Try 4-letter bank code (most common)
+    if bank_code in BANK_CODES:
+        return BANK_CODES[bank_code]
+
+    return None
+
+
+def verify_iban_api(iban: str, api_key: str) -> tuple[dict | None, str | None]:
+    """
+    Verify an IBAN number against the anyapi.io IBAN validation API.
+
+    The API checks:
+    - Whether the IBAN format and checksum are valid
+    - The associated bank (BIC/SWIFT code)
+    - The country
+
+    Args:
+        iban: IBAN in electronic format (no spaces), e.g. "FR7630006000011234567890189"
+        api_key: API key for anyapi.io
+
+    Returns:
+        Tuple of (result_dict, error_message)
+        - If success: ({"valid": True/False, "iban": "...", "bic": {...}, ...}, None)
+        - If error: (None, error_message)
+    """
+    try:
+        import requests
+    except ImportError:
+        return None, "requests library not installed"
+
+    try:
+        response = requests.get(
+            "https://anyapi.io/api/v1/iban",
+            params={"iban": iban, "apiKey": api_key},
+            timeout=10,
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            return data, None
+        elif response.status_code == 401:
+            return None, "Invalid API key for IBAN verification"
+        elif response.status_code == 429:
+            return None, "IBAN API rate limit exceeded"
+        else:
+            return None, f"IBAN API returned status {response.status_code}"
+
+    except requests.Timeout:
+        return None, "IBAN API timeout"
+    except requests.RequestException as e:
+        return None, f"IBAN API request failed: {e}"
+    except Exception as e:
+        return None, f"IBAN verification error: {e}"
+
+
+# =============================================================================
 # COMPANY NAME MATCHING
 # =============================================================================
 
@@ -455,6 +569,8 @@ def analyze_external(
     pdf_data: PDFData,
     verify_vat: bool = False,
     verify_siret: bool = True,
+    verify_iban: bool = False,
+    iban_api_key: str | None = None,
     extracted_company_name: str | None = None,
 ) -> ModuleResult:
     """
@@ -652,6 +768,53 @@ def analyze_external(
                         details={"vat": vat, "vies_response": result}
                     ))
 
+    # Verify IBAN numbers via anyapi.io
+    verified_ibans = []
+    if verify_iban and iban_api_key:
+        ibans = extract_iban(full_text)
+
+        for iban, is_checksum_valid, context in ibans:
+            verifications_attempted += 1
+            result, error = verify_iban_api(iban, iban_api_key)
+
+            if error:
+                logger.warning(f"IBAN verification failed: {error}")
+                all_flags.append(Flag(
+                    severity="low",
+                    code="EXTERNAL_IBAN_VERIFICATION_FAILED",
+                    message=f"Could not verify IBAN {iban[:4]}...{iban[-4:]}: {error}",
+                    details={"iban_partial": f"{iban[:4]}...{iban[-4:]}", "error": error}
+                ))
+            elif result:
+                if result.get("valid"):
+                    verifications_successful += 1
+                    # Extract bank info from BIC data
+                    bic_data = result.get("bic") or {}
+                    verified_ibans.append({
+                        "iban": result.get("iban", iban),
+                        "valid": True,
+                        "country_code": result.get("countryCode", iban[:2]),
+                        "bic": bic_data.get("bic", "")[:8],  # Short format (without branch)
+                        "bank_name": _resolve_bank_name(bic_data),
+                        "branch_name": bic_data.get("name"),
+                    })
+                else:
+                    # IBAN format is invalid according to API
+                    all_flags.append(Flag(
+                        severity="high",
+                        code="EXTERNAL_IBAN_INVALID",
+                        message=f"IBAN {iban[:4]}...{iban[-4:]} is not valid",
+                        details={"iban_partial": f"{iban[:4]}...{iban[-4:]}"}
+                    ))
+                    verified_ibans.append({
+                        "iban": iban,
+                        "valid": False,
+                        "country_code": iban[:2],
+                        "bic": None,
+                        "bank_name": None,
+                        "bank_short_name": None,
+                    })
+
     # Calculate score
     score = 100
     for flag in all_flags:
@@ -684,5 +847,8 @@ def analyze_external(
         flags=all_flags,
         score=score,
         confidence=confidence,
-        details={"verified_companies": companies_data},
+        details={
+            "verified_companies": companies_data,
+            "verified_ibans": verified_ibans,
+        },
     )

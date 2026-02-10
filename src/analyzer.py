@@ -55,6 +55,8 @@ class TrustyFileAnalyzer:
         self,
         enable_external: bool = False,
         enable_qr_scan: bool = True,
+        enable_iban_check: bool = False,
+        iban_api_key: str | None = None,
     ):
         """
         Initialize the analyzer.
@@ -62,9 +64,13 @@ class TrustyFileAnalyzer:
         Args:
             enable_external: Enable external API verification (requires internet)
             enable_qr_scan: Enable QR code scanning (slower but recommended)
+            enable_iban_check: Enable IBAN verification via anyapi.io
+            iban_api_key: API key for anyapi.io IBAN validation
         """
         self.enable_external = enable_external
         self.enable_qr_scan = enable_qr_scan
+        self.enable_iban_check = enable_iban_check
+        self.iban_api_key = iban_api_key
 
     def analyze(
         self,
@@ -138,7 +144,11 @@ class TrustyFileAnalyzer:
         # Module G: External Verification (optional)
         if self.enable_external:
             logger.debug("Running external verification...")
-            module_results.append(analyze_external(pdf_data))
+            module_results.append(analyze_external(
+                pdf_data,
+                verify_iban=self.enable_iban_check,
+                iban_api_key=self.iban_api_key,
+            ))
 
         # Calculate analysis time
         elapsed_ms = int((time.time() - start_time) * 1000)

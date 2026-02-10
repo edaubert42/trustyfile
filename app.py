@@ -263,6 +263,14 @@ st.markdown("""
 enable_external = True
 enable_qr = True
 
+# IBAN verification: API key from Streamlit secrets or environment variable
+# In Streamlit Cloud: add IBAN_API_KEY in Settings > Secrets
+# Locally: set IBAN_API_KEY environment variable or add to .streamlit/secrets.toml
+iban_api_key = st.secrets.get("IBAN_API_KEY") if hasattr(st, "secrets") else None
+if not iban_api_key:
+    iban_api_key = os.environ.get("IBAN_API_KEY")
+enable_iban_check = bool(iban_api_key)
+
 
 # =============================================================================
 # MAIN CONTENT
@@ -433,6 +441,8 @@ if uploaded_file is not None:
             analyzer = TrustyFileAnalyzer(
                 enable_external=enable_external,
                 enable_qr_scan=enable_qr,
+                enable_iban_check=enable_iban_check,
+                iban_api_key=iban_api_key,
             )
             result = analyzer.analyze(tmp_path)
             summary = generate_rich_summary(result)
@@ -1431,6 +1441,115 @@ if uploaded_file is not None:
                 f'</div></details>',
                 unsafe_allow_html=True,
             )
+
+        # Bank Information panel (IBAN verification results)
+        verified_ibans = []
+        if external_module and external_module.details.get("verified_ibans"):
+            verified_ibans = external_module.details["verified_ibans"]
+
+        # Also show IBANs found in text even without API verification
+        from src.modules.content import extract_iban
+        found_ibans = extract_iban(full_text)
+
+        if verified_ibans or found_ibans:
+            bank_html = ""
+            bank_count = 0
+            shown_ibans = set()
+
+            _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
+            _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
+            _val = "color:#ccc; font-size:0.75rem;"
+
+            # 1) API-verified IBANs
+            for iban_data in verified_ibans:
+                iban_str = iban_data.get("iban", "")
+                iban_clean = iban_str.replace(" ", "")
+                shown_ibans.add(iban_clean)
+                bank_count += 1
+
+                is_valid = iban_data.get("valid", False)
+                if is_valid:
+                    status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
+                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Valid</span>')
+                else:
+                    status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
+                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Invalid</span>')
+
+                # Format IBAN with spaces for readability (groups of 4)
+                iban_display = " ".join([iban_clean[i:i+4] for i in range(0, len(iban_clean), 4)])
+
+                rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
+                bic = iban_data.get("bic", "")
+                if bic:
+                    rows += f'<div style="{_row}"><span style="{_key}">BIC</span><span style="{_val}">{bic}</span></div>'
+                bank_name = iban_data.get("bank_name") or ""
+                if bank_name:
+                    rows += f'<div style="{_row}"><span style="{_key}">Bank</span><span style="{_val}">{html_mod_ent.escape(bank_name)}</span></div>'
+                branch_name = iban_data.get("branch_name") or ""
+                if branch_name:
+                    rows += f'<div style="{_row}"><span style="{_key}">Branch</span><span style="{_val}">{html_mod_ent.escape(branch_name)}</span></div>'
+                country = iban_data.get("country_code", "")
+                if country:
+                    rows += f'<div style="{_row}"><span style="{_key}">Country</span><span style="{_val}">{country}</span></div>'
+
+                import unicodedata
+                title_raw = unicodedata.normalize("NFD", bank_name)
+                title_raw = "".join(c for c in title_raw if unicodedata.category(c) != "Mn")
+                title = html_mod_ent.escape(title_raw).upper() if bank_name else "BANK ACCOUNT"
+                bank_html += (
+                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                    f'padding:12px 16px; margin-bottom:8px;">'
+                    f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
+                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">'
+                    f'{title}</span>'
+                    f'{status_pill}'
+                    f'</div>'
+                    f'{rows}'
+                    f'</div>'
+                )
+
+            # 2) IBANs found in text but not API-verified
+            not_verified_pill = ('<span style="background:#555; color:#ccc; font-size:0.62rem; '
+                                 'font-weight:bold; padding:2px 8px; border-radius:8px;">Not verified</span>')
+            for iban_str, is_checksum_valid, context in found_ibans:
+                if iban_str in shown_ibans:
+                    continue
+                shown_ibans.add(iban_str)
+                bank_count += 1
+
+                iban_display = " ".join([iban_str[i:i+4] for i in range(0, len(iban_str), 4)])
+                checksum_note = "Valid checksum" if is_checksum_valid else "Invalid checksum"
+
+                rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">Country</span><span style="{_val}">{iban_str[:2]}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">Check</span><span style="{_val}">{checksum_note}</span></div>'
+
+                bank_html += (
+                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                    f'padding:12px 16px; margin-bottom:8px;">'
+                    f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
+                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">Bank account</span>'
+                    f'{not_verified_pill}'
+                    f'</div>'
+                    f'{rows}'
+                    f'</div>'
+                )
+
+            if bank_count > 0:
+                st.markdown(
+                    f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
+                    f'border-radius:8px; padding:0; margin-bottom:8px;">'
+                    f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
+                    f'display:flex; align-items:center; gap:10px;">'
+                    f'<span style="color:#eee; font-size:0.85rem;">Bank Information</span>'
+                    f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
+                    f'padding:2px 10px; border-radius:10px;">{bank_count} account{"s" if bank_count > 1 else ""}</span>'
+                    f'</summary>'
+                    f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
+                    f'{bank_html}'
+                    f'</div></details>',
+                    unsafe_allow_html=True,
+                )
 
         # 2D-DOC Verified Data panel
         if twod_doc_results:

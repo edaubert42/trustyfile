@@ -1528,6 +1528,106 @@ def extract_capital_social(text: str) -> list[tuple[str, str]]:
     return results
 
 
+def validate_iban_checksum(iban: str) -> bool:
+    """
+    Validate an IBAN using the modulo 97 algorithm (ISO 13616).
+
+    How it works:
+    1. Move the first 4 characters (country code + check digits) to the end
+    2. Convert each letter to a number: A=10, B=11, ..., Z=35
+    3. The resulting number modulo 97 must equal 1
+
+    Example with FR7630006000011234567890189:
+    - Rearrange: 30006000011234567890189FR76
+    - Convert letters: 30006000011234567890189153276
+    - 30006000011234567890189153276 % 97 == 1 → valid
+
+    Args:
+        iban: IBAN string without spaces, uppercase
+
+    Returns:
+        True if checksum is valid
+    """
+    # Move first 4 chars to the end
+    rearranged = iban[4:] + iban[:4]
+
+    # Convert letters to numbers (A=10, B=11, ..., Z=35)
+    numeric_str = ""
+    for char in rearranged:
+        if char.isdigit():
+            numeric_str += char
+        else:
+            numeric_str += str(ord(char) - ord("A") + 10)
+
+    # Check modulo 97
+    return int(numeric_str) % 97 == 1
+
+
+def extract_iban(text: str) -> list[tuple[str, bool, str]]:
+    """
+    Extract all IBAN numbers from text.
+
+    An IBAN consists of:
+    - 2 letter country code (FR, DE, BE, GB, etc.)
+    - 2 check digits
+    - 10-30 alphanumeric characters (BBAN = national account number)
+
+    Common formats in documents:
+    - "IBAN : FR76 1234 5678 9012 3456 7890 123"
+    - "IBAN: FR7612345678901234567890123"
+    - "FR76 1234 5678 9012 3456 7890 123" (without label)
+
+    Args:
+        text: Full document text
+
+    Returns:
+        List of (iban, is_valid, context) tuples where:
+        - iban: the IBAN in electronic format (no spaces)
+        - is_valid: True if modulo 97 checksum passes
+        - context: surrounding text (±20 chars)
+    """
+    results = []
+
+    # IBAN pattern: 2 uppercase letters + 2 digits + 10-30 alphanumeric chars
+    # Supports spaces between groups of 4 characters
+    # We use a single broad pattern and rely on format validation + checksum to filter
+    patterns = [
+        # With explicit IBAN label (captures everything after "IBAN:" until a non-IBAN char)
+        r"iban\s*:?\s*([A-Z]{2}\s?\d{2}(?:\s?[\dA-Z]{4}){2,7}(?:\s?[\dA-Z]{1,4})?)",
+        # Without label — standalone IBAN (2 letters + 2 digits + groups of digits)
+        r"\b([A-Z]{2}\d{2}(?:\s?\d{4}){2,7}(?:\s?\d{1,4})?)\b",
+    ]
+
+    seen = set()
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, re.IGNORECASE):
+            raw = match.group(1).strip()
+            # Remove spaces to get electronic format
+            iban = raw.replace(" ", "").upper()
+
+            # Skip duplicates early (before validation)
+            if iban in seen:
+                continue
+
+            # Validate length (15-34 chars) and format
+            if len(iban) < 15 or len(iban) > 34:
+                continue
+            if not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]+$", iban):
+                continue
+
+            is_valid = validate_iban_checksum(iban)
+            seen.add(iban)
+
+            # Get context (surrounding text)
+            start = max(0, match.start() - 20)
+            end = min(len(text), match.end() + 20)
+            context = text[start:end].strip()
+
+            results.append((iban, is_valid, context))
+
+    return results
+
+
 def check_legal_mentions(text: str) -> list[Flag]:
     """
     Check for presence and validity of French legal mentions.
