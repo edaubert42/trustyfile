@@ -266,7 +266,10 @@ enable_qr = True
 # IBAN verification: API key from Streamlit secrets or environment variable
 # In Streamlit Cloud: add IBAN_API_KEY in Settings > Secrets
 # Locally: set IBAN_API_KEY environment variable or add to .streamlit/secrets.toml
-iban_api_key = st.secrets.get("IBAN_API_KEY") if hasattr(st, "secrets") else None
+try:
+    iban_api_key = st.secrets.get("IBAN_API_KEY")
+except Exception:
+    iban_api_key = None
 if not iban_api_key:
     iban_api_key = os.environ.get("IBAN_API_KEY")
 enable_iban_check = bool(iban_api_key)
