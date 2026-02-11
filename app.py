@@ -13,15 +13,6 @@ import tempfile
 import os
 import re
 from pathlib import Path
-import fitz  # PyMuPDF
-import requests
-
-from src.analyzer import TrustyFileAnalyzer
-from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGHTS, DEFAULT_WEIGHT
-from src.summary import generate_rich_summary
-from src.extractors.pdf_extractor import extract_pdf_data
-from src.modules.structure import get_modification_history
-from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
 
 
 # =============================================================================
@@ -47,6 +38,7 @@ def check_virustotal(sha256: str) -> dict | None:
         or None if the API call failed (no key, network error, etc.)
     """
     try:
+        import requests
         api_key = st.secrets.get("VIRUSTOTAL_API_KEY", "")
         if not api_key:
             return None
@@ -94,6 +86,7 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5) -> byte
     Returns:
         PNG image bytes
     """
+    import fitz
     doc = fitz.open(pdf_path)
     page = doc[page_num]
 
@@ -112,6 +105,7 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5) -> byte
 
 def get_pdf_page_count(pdf_path: str) -> int:
     """Get the number of pages in a PDF."""
+    import fitz
     doc = fitz.open(pdf_path)
     count = len(doc)
     doc.close()
@@ -159,12 +153,16 @@ enable_iban_check = bool(iban_api_key)
 # =============================================================================
 
 import base64
-with open("static/upload_icon_medium.png", "rb") as _logo_file:
-    _logo_b64 = base64.b64encode(_logo_file.read()).decode()
-with open("static/upload_icon_medium.png", "rb") as _upload_file:
-    _upload_b64 = base64.b64encode(_upload_file.read()).decode()
 
-# Inject meta tags via components.html (st.markdown ignores <script> tags)
+@st.cache_data
+def _load_icon_b64():
+    with open("static/upload_icon_medium.png", "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+_logo_b64 = _load_icon_b64()
+_upload_b64 = _logo_b64  # same file, no need to read twice
+
+# Inject meta tags + hide content until loaded via components.html
 components.html("""
 <script>
     // Access parent document (Streamlit main frame)
@@ -180,6 +178,32 @@ components.html("""
         vp.name = 'viewport';
         vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
         doc.head.appendChild(vp);
+    }
+    if (!doc.querySelector('script[data-website-id="50120522-6e98-4433-9238-81c6ba8358c1"]')) {
+        const umami = doc.createElement('script');
+        umami.defer = true;
+        umami.src = 'https://cloud.umami.is/script.js';
+        umami.dataset.websiteId = '50120522-6e98-4433-9238-81c6ba8358c1';
+        doc.head.appendChild(umami);
+    }
+
+    // IMMEDIATELY hide content in parent document to prevent flash
+    if (!doc.getElementById('tf-hide-flash')) {
+        const style = doc.createElement('style');
+        style.id = 'tf-hide-flash';
+        style.textContent = 'section.stMain { opacity: 0 !important; }';
+        doc.head.appendChild(style);
+    }
+
+    // Reveal content after Streamlit finishes rendering
+    const reveal = () => {
+        const s = doc.getElementById('tf-hide-flash');
+        if (s) s.textContent = 'section.stMain { opacity: 1 !important; transition: opacity 0.15s ease-in; }';
+    };
+    if (window.parent.requestIdleCallback) {
+        window.parent.requestIdleCallback(reveal, { timeout: 800 });
+    } else {
+        setTimeout(reveal, 400);
     }
 </script>
 """, height=0)
@@ -205,6 +229,12 @@ st.markdown(f"""
         align-items: center;
         padding: 0 24px;
         z-index: 999;
+    }}
+    .custom-header a.home-link {{
+        display: flex;
+        align-items: center;
+        text-decoration: none;
+        cursor: pointer;
     }}
     .custom-header img {{
         height: 36px;
@@ -502,8 +532,10 @@ st.markdown(f"""
     }}
 </style>
 <div class="custom-header">
-    <img src="data:image/png;base64,{_logo_b64}" alt="logo">
-    <span class="title">TrustyFile</span>
+    <a class="home-link" href="/" target="_parent">
+        <img src="data:image/png;base64,{_logo_b64}" alt="logo">
+        <span class="title">TrustyFile</span>
+    </a>
     <span class="subtitle">Document Fraud Detector</span>
 </div>
 """, unsafe_allow_html=True)
@@ -564,6 +596,14 @@ if uploaded_file is not None:
     </style>""", unsafe_allow_html=True)
 
 if uploaded_file is not None:
+    # Lazy imports: only load heavy analysis modules when a file is uploaded
+    from src.analyzer import TrustyFileAnalyzer
+    from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGHTS, DEFAULT_WEIGHT
+    from src.summary import generate_rich_summary
+    from src.extractors.pdf_extractor import extract_pdf_data
+    from src.modules.structure import get_modification_history
+    from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+
     # Save to temp file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.getvalue())
@@ -648,10 +688,11 @@ if uploaded_file is not None:
             doc_dates = [d for d in first_page_dates if d.date_type in ("document", "invoice")]
             stated_date = doc_dates[0].date if doc_dates else None
 
-            def red_pill(text):
-                return (f'<span style="background:#ef233c; color:white; padding:2px 8px; '
+            def red_pill(text, tooltip=""):
+                title_attr = f' title="{tooltip}"' if tooltip else ""
+                return (f'<span{title_attr} style="background:#ef233c; color:white; padding:2px 8px; '
                         f'border-radius:10px; font-size:0.7rem; font-weight:bold; '
-                        f'margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">{text}</span>')
+                        f'margin-left:8px; white-space:nowrap; cursor:default;">{text}</span>')
 
             label_style = "color:#888; font-size:0.8rem; width:120px; flex-shrink:0;"
             value_style = "color:#eee; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
@@ -680,13 +721,13 @@ if uploaded_file is not None:
                 mod_gap = abs((meta.mod_date - meta.creation_date).total_seconds())
                 if mod_gap > 86400:
                     days = int(mod_gap // 86400)
-                    mod_pill = red_pill(f"+{days}d")
+                    mod_pill = red_pill(f"+{days}d", f"Modified {days} days after creation")
 
             # Pill on stated date vs creation date if gap > 7 days
             if stated_date and meta.creation_date:
                 stated_gap = abs((stated_date - meta.creation_date).days)
                 if stated_gap > 7:
-                    stated_pill = red_pill(f"+{stated_gap}d")
+                    stated_pill = red_pill(f"+{stated_gap}d", f"Created {stated_gap} days after the date stated in the document")
 
             def label_with_tip(label, tip):
                 return (f'<span class="tf-label" style="{label_style}">'
