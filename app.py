@@ -230,11 +230,26 @@ st.markdown(f"""
     div[data-testid="stDecoration"] {{display: none !important;}}
     div[data-testid="stStatusWidget"] {{display: none !important;}}
 
-    /* Minimal top padding — content starts right below header */
-    .block-container {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
-    .stMainBlockContainer {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
-    .stAppViewBlockContainer {{padding-top: 0.5rem !important; margin-top: 0 !important;}}
-    section.stMain .block-container {{padding-top: 0.5rem !important; margin-top: 0 !important; z-index: 1;}}
+    /* Single scroll context: only section.stMain scrolls */
+    html, body, [data-testid="stAppViewContainer"], .main {{
+        overflow: visible !important;
+        height: auto !important;
+        scroll-snap-type: none !important;
+        scroll-padding-top: 0 !important;
+        -webkit-overflow-scrolling: touch !important;
+    }}
+    section.stMain {{
+        scroll-snap-type: none !important;
+        scroll-padding-top: 0 !important;
+        scroll-behavior: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }}
+
+    /* Content starts right below the fixed header (56px) */
+    .block-container {{padding-top: 64px !important; margin-top: 0 !important;}}
+    .stMainBlockContainer {{padding-top: 64px !important; margin-top: 0 !important;}}
+    .stAppViewBlockContainer {{padding-top: 64px !important; margin-top: 0 !important;}}
+    section.stMain .block-container {{padding-top: 64px !important; margin-top: 0 !important; z-index: 1;}}
     section.stMain {{padding-top: 0 !important; margin-top: 0 !important;}}
     [data-testid="stAppViewContainer"] {{padding-top: 0 !important; margin-top: 0 !important;}}
     [data-testid="stSidebarHeader"] {{height: 0 !important;}}
@@ -247,6 +262,7 @@ st.markdown(f"""
 
     /* Reduce gap between Preview title and image below */
     .preview-title {{
+        margin-top: 1rem !important;
         margin-bottom: 0.7rem !important;
     }}
     .preview-title + div {{
@@ -260,10 +276,9 @@ st.markdown(f"""
         }}
     }}
 
-    /* Prevent horizontal scroll */
-    html, body, [data-testid="stAppViewContainer"], .main {{
-        max-width: 100vw !important;
-        overflow-x: hidden !important;
+    /* Prevent horizontal overflow without affecting vertical scroll */
+    .block-container, [data-testid="stAppViewContainer"] {{
+        overflow-x: clip !important;
     }}
 
     /* Mobile responsive adjustments */
@@ -280,7 +295,7 @@ st.markdown(f"""
         .stMainBlockContainer,
         .stAppViewBlockContainer,
         section.stMain .block-container {{
-            padding-top: 0 !important;
+            padding-top: 64px !important;
         }}
         #landing-content p {{
             margin-top: 1rem !important;
@@ -321,11 +336,15 @@ st.markdown(f"""
         [data-testid="stExpander"],
         [data-testid="stVerticalBlock"] {{
             max-width: 100% !important;
-            overflow-x: hidden !important;
+            overflow-x: clip !important;
         }}
         img {{
             max-width: 100% !important;
             height: auto !important;
+        }}
+        /* On mobile: hide the entire preview column (PDF + file properties) */
+        [data-testid="stColumns"] [data-testid="stColumn"]:last-child {{
+            display: none !important;
         }}
     }}
     .score-box {{
@@ -489,28 +508,23 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Uploader — use a container so we can control what shows around it
-upload_container = st.container()
-with upload_container:
-    # Tagline + icon only shown on landing page (no file yet)
-    # We render uploader inside a centered column regardless
+# File uploader — always rendered at top level (outside landing columns)
+uploaded_file = st.file_uploader(
+    "Choose file",
+    type=["pdf"],
+    label_visibility="collapsed",
+)
+
+# Landing page content — only rendered when no file is uploaded
+if uploaded_file is None:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
-        # Landing page content (hidden via CSS when file is uploaded)
         st.markdown("""
         <div id="landing-content">
-            <p style="color:white; font-size:2.2rem; text-align:center; margin:3rem auto 1.5rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
+            <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 1.5rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
                 Don't trust. Verify.
             </p>
         </div>
-        """, unsafe_allow_html=True)
-        # file_uploader dropzone overlaps the landing image via CSS
-        uploaded_file = st.file_uploader(
-            "Choose file",
-            type=["pdf"],
-            label_visibility="collapsed",
-        )
-        st.markdown("""
         <div id="landing-tagline">
             <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
                 TrustyFile spots clever edits and hidden changes inside documents.
@@ -527,23 +541,25 @@ with upload_container:
 # Hide landing content and minimize uploader when a file is uploaded
 if uploaded_file is not None:
     st.markdown("""<style>
-        #landing-content, #landing-tagline, #landing-disclaimer { display: none !important; }
         /* Hide the dropzone, keep only the filename bar */
         [data-testid="stFileUploaderDropzone"] {
             display: none !important;
         }
+        /* File uploader: no extra space, visible file icon */
         [data-testid="stFileUploader"] {
-            margin-bottom: -2.5rem !important;
-        }
-        /* Collapse the 3-column landing layout so it takes no vertical space */
-        [data-testid="stColumns"]:first-of-type {
-            margin-top: 0 !important;
             margin-bottom: 0 !important;
-            gap: 0 !important;
+            overflow: visible !important;
         }
-        [data-testid="stColumns"]:first-of-type [data-testid="stColumn"]:first-child,
-        [data-testid="stColumns"]:first-of-type [data-testid="stColumn"]:last-child {
-            display: none !important;
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+            overflow: visible !important;
+        }
+        [data-testid="stElementContainer"]:has([data-testid="stFileUploader"]) {
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
+        }
+        /* Tight gap between all elements */
+        .block-container > [data-testid="stVerticalBlock"] {
+            gap: 0.5rem !important;
         }
     </style>""", unsafe_allow_html=True)
 
@@ -575,7 +591,7 @@ if uploaded_file is not None:
         page_count = get_pdf_page_count(tmp_path)
 
         # Display results with PDF preview
-        st.markdown('<hr style="margin:0.5rem 0 1.5rem 0;">', unsafe_allow_html=True)
+        st.markdown('<hr style="margin:0 0 0.3rem 0;">', unsafe_allow_html=True)
 
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
@@ -593,7 +609,8 @@ if uploaded_file is not None:
                     "Page",
                     range(1, page_count + 1),
                     format_func=lambda x: f"Page {x} / {page_count}",
-                    key="page_selector"
+                    key="page_selector",
+                    label_visibility="collapsed"
                 )
                 page_index = st.session_state.page_selector - 1
             else:
@@ -634,7 +651,7 @@ if uploaded_file is not None:
             def red_pill(text):
                 return (f'<span style="background:#ef233c; color:white; padding:2px 8px; '
                         f'border-radius:10px; font-size:0.7rem; font-weight:bold; '
-                        f'margin-left:auto; white-space:nowrap;">{text}</span>')
+                        f'margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;">{text}</span>')
 
             label_style = "color:#888; font-size:0.8rem; width:120px; flex-shrink:0;"
             value_style = "color:#eee; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
@@ -655,23 +672,21 @@ if uploaded_file is not None:
                     editor_name = to_tool.split("→ modified with ")[-1]
 
             # Compute pills for date anomalies
-            creation_pill = ""
             mod_pill = ""
             stated_pill = ""
 
-            # Pill on creation vs modification date if gap > 1 day
+            # Pill on modification date if gap > 1 day from creation
             if meta.creation_date and meta.mod_date:
                 mod_gap = abs((meta.mod_date - meta.creation_date).total_seconds())
                 if mod_gap > 86400:
                     days = int(mod_gap // 86400)
-                    mod_pill = red_pill(f"modified {days} days after creation")
-                    creation_pill = mod_pill
+                    mod_pill = red_pill(f"+{days}d")
 
             # Pill on stated date vs creation date if gap > 7 days
             if stated_date and meta.creation_date:
                 stated_gap = abs((stated_date - meta.creation_date).days)
                 if stated_gap > 7:
-                    stated_pill = red_pill(f"{stated_gap} days after creation")
+                    stated_pill = red_pill(f"+{stated_gap}d")
 
             def label_with_tip(label, tip):
                 return (f'<span class="tf-label" style="{label_style}">'
@@ -682,7 +697,7 @@ if uploaded_file is not None:
                 stated_row = f"""
             <div style="{row_style}">
                 {label_with_tip("Stated date", "Date written in the document text (e.g. &quot;Paris, le 06/01/2026&quot;)")}
-                <span style="{value_style}">{stated_date.strftime("%Y-%m-%d")}</span>{stated_pill}
+                <span style="{value_style} flex-shrink:0;">{stated_date.strftime("%Y-%m-%d")}</span>{stated_pill}
             </div>
             """
 
@@ -694,11 +709,11 @@ if uploaded_file is not None:
             {stated_row}
             <div style="{row_style}">
                 {label_with_tip("Creation date", "Date the PDF file was originally generated by the software")}
-                <span style="{value_style}" title="{format_date(meta.creation_date)}">{format_date(meta.creation_date)}</span>{creation_pill}
+                <span style="{value_style}" title="{format_date(meta.creation_date)}">{format_date(meta.creation_date)}</span>
             </div>
             <div style="{row_style}">
                 {label_with_tip("Modification date", "Date the PDF was last saved or edited.<br>Should be identical to creation date for untouched documents")}
-                <span style="{value_style}" title="{format_date(meta.mod_date)}">{format_date(meta.mod_date)}</span>{mod_pill}
+                <span style="{value_style} flex-shrink:0;" title="{format_date(meta.mod_date)}">{format_date(meta.mod_date)}</span>{mod_pill}
             </div>
             <div style="{row_style}">
                 <span style="{label_style}">Producer</span>
@@ -951,9 +966,10 @@ if uploaded_file is not None:
                     letter-spacing:0.5px; display:block; text-align:center;">Summary</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
                 <p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>
+                <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">
                 {flags_list_html}
             </div>
-            <div style="margin-bottom:1.5rem;"></div>
+            <div style="margin-bottom:0.5rem;"></div>
             """, unsafe_allow_html=True)
 
         # Modification history (only shown if PDF has multiple versions)
