@@ -179,6 +179,70 @@ components.html("""
         vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
         doc.head.appendChild(vp);
     }
+    // SEO: meta description
+    if (!doc.querySelector('meta[name="description"]')) {
+        const desc = doc.createElement('meta');
+        desc.name = 'description';
+        desc.content = 'Free online document fraud detector. Upload a PDF or image and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.';
+        doc.head.appendChild(desc);
+    }
+    // SEO: Open Graph tags (social media previews)
+    const ogTags = {
+        'og:title': 'TrustyFile - Document Fraud Detector',
+        'og:description': 'Upload a PDF or image and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies and more.',
+        'og:type': 'website',
+        'og:url': 'https://trustyfile.com',
+        'og:image': 'https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png',
+        'og:site_name': 'TrustyFile'
+    };
+    for (const [prop, content] of Object.entries(ogTags)) {
+        if (!doc.querySelector(`meta[property="${prop}"]`)) {
+            const tag = doc.createElement('meta');
+            tag.setAttribute('property', prop);
+            tag.content = content;
+            doc.head.appendChild(tag);
+        }
+    }
+    // SEO: Twitter card tags
+    const twTags = {
+        'twitter:card': 'summary',
+        'twitter:title': 'TrustyFile - Document Fraud Detector',
+        'twitter:description': 'Free online document fraud detector. Upload a PDF and get an instant trust score.'
+    };
+    for (const [name, content] of Object.entries(twTags)) {
+        if (!doc.querySelector(`meta[name="${name}"]`)) {
+            const tag = doc.createElement('meta');
+            tag.name = name;
+            tag.content = content;
+            doc.head.appendChild(tag);
+        }
+    }
+    // SEO: canonical URL (avoid duplicate content)
+    if (!doc.querySelector('link[rel="canonical"]')) {
+        const link = doc.createElement('link');
+        link.rel = 'canonical';
+        link.href = 'https://trustyfile.com';
+        doc.head.appendChild(link);
+    }
+    // SEO: language attribute
+    doc.documentElement.lang = 'en';
+    // SEO: JSON-LD structured data (rich snippets)
+    if (!doc.querySelector('script[type="application/ld+json"]')) {
+        const ld = doc.createElement('script');
+        ld.type = 'application/ld+json';
+        ld.textContent = JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "TrustyFile",
+            "url": "https://trustyfile.com",
+            "description": "Free online document fraud detector. Upload a PDF or image and get an instant trust score.",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Any",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "image": "https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png"
+        });
+        doc.head.appendChild(ld);
+    }
     if (!doc.querySelector('script[data-website-id="50120522-6e98-4433-9238-81c6ba8358c1"]')) {
         const umami = doc.createElement('script');
         umami.defer = true;
