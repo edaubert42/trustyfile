@@ -1971,8 +1971,6 @@ if uploaded_file is not None:
 st.markdown("""
 <div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
     padding:0.3rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
-    <span style="color:#555; font-size:0.65rem;">
-        TrustyFile - Document Fraud Detector
-    </span>
+    <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;">Questions or feedback? <span style="text-decoration:underline;">contact@trustyfile.com</span></a>
 </div>
 """, unsafe_allow_html=True)
