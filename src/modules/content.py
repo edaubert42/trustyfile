@@ -261,7 +261,6 @@ DATE_CONTEXT_KEYWORDS = {
     # invoice: Date of the document itself
     "invoice": [
         # French terms
-        "date",
         "date facture",
         "date de facture",
         "date de la facture",
@@ -773,8 +772,18 @@ def check_date_vs_creation(
 
     flags = []
 
-    # Only check document-level dates (letter dates, invoice dates)
-    doc_dates = [d for d in dates if d.date_type in ("document", "invoice")]
+    # Only check the PRIMARY date of each type — the first "document" date
+    # (e.g. "PARIS, le 27 juin 2024") and the first "invoice" date.
+    # Comparing ALL dates of these types causes false positives on informational
+    # dates (tax declaration periods, etc.) that happen to be classified as
+    # "invoice" or "document".
+    doc_dates = []
+    first_document = next((d for d in dates if d.date_type == "document"), None)
+    first_invoice = next((d for d in dates if d.date_type == "invoice"), None)
+    if first_document:
+        doc_dates.append(first_document)
+    if first_invoice:
+        doc_dates.append(first_invoice)
 
     for d in doc_dates:
         # Calculate the gap between the document date and the PDF creation date

@@ -311,8 +311,17 @@ st.markdown(f"""
         overflow-x: clip !important;
     }}
 
+    /* Responsive pill text: show short version on mobile, long on desktop */
+    .pill-long {{ display: inline; }}
+    .pill-short {{ display: none; }}
+
     /* Mobile responsive adjustments */
     @media (max-width: 480px) {{
+        .pill-long {{ display: none !important; }}
+        .pill-short {{ display: inline !important; }}
+        /* More space between collapsible sections on mobile */
+        details {{ margin-bottom: 8px !important; }}
+
         .block-container,
         .stMainBlockContainer,
         .stAppViewBlockContainer {{
@@ -721,13 +730,21 @@ if uploaded_file is not None:
                 mod_gap = abs((meta.mod_date - meta.creation_date).total_seconds())
                 if mod_gap > 86400:
                     days = int(mod_gap // 86400)
-                    mod_pill = red_pill(f"+{days}d", f"Modified {days} days after creation")
+                    mod_pill = red_pill(
+                        f'<span class="pill-short">+{days} days</span>'
+                        f'<span class="pill-long">+{days} days since creation</span>',
+                        f"Modified {days} days after creation"
+                    )
 
             # Pill on stated date vs creation date if gap > 7 days
             if stated_date and meta.creation_date:
                 stated_gap = abs((stated_date - meta.creation_date).days)
                 if stated_gap > 7:
-                    stated_pill = red_pill(f"+{stated_gap}d", f"Created {stated_gap} days after the date stated in the document")
+                    stated_pill = red_pill(
+                        f'<span class="pill-short">+{stated_gap} days</span>'
+                        f'<span class="pill-long">+{stated_gap} days since creation</span>',
+                        f"PDF created {stated_gap} days after the date stated in the document"
+                    )
 
             def label_with_tip(label, tip):
                 return (f'<span class="tf-label" style="{label_style}">'
@@ -1168,7 +1185,7 @@ if uploaded_file is not None:
 
                 issues_html += (
                     f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-                    f'border-radius:8px; padding:0; margin-bottom:6px;">'
+                    f'border-radius:8px; padding:0; margin-bottom:8px;">'
                     f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                     f'display:flex; align-items:center; gap:10px;">'
                     f'<span style="background:{color}; color:white; font-size:0.68rem; '
@@ -1187,13 +1204,15 @@ if uploaded_file is not None:
         st.markdown("---")
         st.markdown("## More Details")
 
+        more_details_html = ""
+
         # Full modification history (collapsible)
         if history["version_count"] > 1 and history.get("diffs"):
             import html as html_mod
 
             # Reusable styles
             _card = ("background:#111; border:1px solid #2a2a2a; border-radius:8px; "
-                     "padding:14px 18px; margin-bottom:10px;")
+                     "padding:14px 18px; margin-bottom:8px;")
             _vlabel = "font-size:0.85rem; font-weight:bold; color:white; margin:0 0 8px 0;"
             _mrow = "display:flex; gap:6px; align-items:center; margin-bottom:4px;"
             _mkey = "color:#888; font-size:0.78rem; width:70px; flex-shrink:0;"
@@ -1287,7 +1306,7 @@ if uploaded_file is not None:
                 )
 
             version_count = history["version_count"]
-            st.markdown(
+            more_details_html += (
                 f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
@@ -1298,8 +1317,7 @@ if uploaded_file is not None:
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                 f'{hist_content}'
-                f'</div></details>',
-                unsafe_allow_html=True,
+                f'</div></details>'
             )
 
         # Raw analysis data (collapsible)
@@ -1395,7 +1413,7 @@ if uploaded_file is not None:
 
         # Analysis Details — collapsible block with per-module raw data
         module_count = len(result.modules)
-        st.markdown(
+        more_details_html += (
             f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
             f'border-radius:8px; padding:0; margin-bottom:8px;">'
             f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
@@ -1406,8 +1424,7 @@ if uploaded_file is not None:
             f'</summary>'
             f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
             f'{raw_content}'
-            f'</div></details>',
-            unsafe_allow_html=True,
+            f'</div></details>'
         )
 
         # More Details — Entities block (verified companies + unverified identifiers)
@@ -1602,7 +1619,7 @@ if uploaded_file is not None:
 
         # Show Entities panel if any entities were found
         if entity_count > 0:
-            st.markdown(
+            more_details_html += (
                 f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
@@ -1613,8 +1630,7 @@ if uploaded_file is not None:
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                 f'{entities_html}'
-                f'</div></details>',
-                unsafe_allow_html=True,
+                f'</div></details>'
             )
 
         # Bank Information panel (IBAN verification results)
@@ -1711,7 +1727,7 @@ if uploaded_file is not None:
                 )
 
             if bank_count > 0:
-                st.markdown(
+                more_details_html += (
                     f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                     f'border-radius:8px; padding:0; margin-bottom:8px;">'
                     f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
@@ -1722,8 +1738,7 @@ if uploaded_file is not None:
                     f'</summary>'
                     f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                     f'{bank_html}'
-                    f'</div></details>',
-                    unsafe_allow_html=True,
+                    f'</div></details>'
                 )
 
         # 2D-DOC Verified Data panel
@@ -1865,7 +1880,7 @@ if uploaded_file is not None:
                     f'{rows_2d}</div>'
                 )
 
-            st.markdown(
+            more_details_html += (
                 f'<details open style="background:#0a2e1a; border:1px solid #28a745; '
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
@@ -1877,9 +1892,12 @@ if uploaded_file is not None:
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #28a745;">'
                 f'{twod_content}'
-                f'</div></details>',
-                unsafe_allow_html=True,
+                f'</div></details>'
             )
+
+        # Render all More Details sections in a single st.markdown
+        if more_details_html:
+            st.markdown(more_details_html, unsafe_allow_html=True)
 
     finally:
         # Cleanup temp file
