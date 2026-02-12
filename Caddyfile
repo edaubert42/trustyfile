@@ -1,0 +1,34 @@
+# Caddy reverse proxy for SEO
+# - Crawlers (Googlebot, etc.) get a static HTML page with meta tags
+# - Real users get proxied to Streamlit (transparent)
+
+:{$PORT}
+
+# Match crawler user-agents (case-insensitive)
+@crawler header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
+
+# Static files served to everyone (robots.txt, sitemap.xml, static assets)
+handle /robots.txt {
+	root * /app
+	file_server
+}
+handle /sitemap.xml {
+	root * /app
+	file_server
+}
+handle /static/* {
+	root * /app
+	file_server
+}
+
+# Crawlers -> static SEO page
+handle @crawler {
+	root * /app
+	rewrite * /seo.html
+	file_server
+}
+
+# Everyone else -> Streamlit
+handle {
+	reverse_proxy localhost:8501
+}
