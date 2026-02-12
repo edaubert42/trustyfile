@@ -16,8 +16,9 @@ handle /sitemap.xml {
 	root * /app
 	file_server
 }
-handle /static/* {
-	root * /app
+handle /og-image.png {
+	root * /app/static
+	rewrite * /upload_icon_medium.png
 	file_server
 }
 
