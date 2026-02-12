@@ -191,7 +191,7 @@ components.html("""
         'og:title': 'TrustyFile - Document Fraud Detector',
         'og:description': 'Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies and more.',
         'og:type': 'website',
-        'og:url': 'https://trustyfile.com',
+        'og:url': 'https://www.trustyfile.com',
         'og:image': 'https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png',
         'og:site_name': 'TrustyFile'
     };
@@ -221,7 +221,7 @@ components.html("""
     if (!doc.querySelector('link[rel="canonical"]')) {
         const link = doc.createElement('link');
         link.rel = 'canonical';
-        link.href = 'https://trustyfile.com';
+        link.href = 'https://www.trustyfile.com';
         doc.head.appendChild(link);
     }
     // SEO: language attribute
@@ -234,7 +234,7 @@ components.html("""
             "@context": "https://schema.org",
             "@type": "WebApplication",
             "name": "TrustyFile",
-            "url": "https://trustyfile.com",
+            "url": "https://www.trustyfile.com",
             "description": "Free online document fraud detector. Upload a PDF and get an instant trust score.",
             "applicationCategory": "SecurityApplication",
             "operatingSystem": "Any",

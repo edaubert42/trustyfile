@@ -1,3 +1,3 @@
 User-agent: *
 Allow: /
-Sitemap: https://trustyfile.com/sitemap.xml
+Sitemap: https://www.trustyfile.com/sitemap.xml
