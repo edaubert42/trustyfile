@@ -183,13 +183,13 @@ components.html("""
     if (!doc.querySelector('meta[name="description"]')) {
         const desc = doc.createElement('meta');
         desc.name = 'description';
-        desc.content = 'Free online document fraud detector. Upload a PDF or image and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.';
+        desc.content = 'Free online document fraud detector. Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.';
         doc.head.appendChild(desc);
     }
     // SEO: Open Graph tags (social media previews)
     const ogTags = {
         'og:title': 'TrustyFile - Document Fraud Detector',
-        'og:description': 'Upload a PDF or image and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies and more.',
+        'og:description': 'Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies and more.',
         'og:type': 'website',
         'og:url': 'https://trustyfile.com',
         'og:image': 'https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png',
@@ -235,7 +235,7 @@ components.html("""
             "@type": "WebApplication",
             "name": "TrustyFile",
             "url": "https://trustyfile.com",
-            "description": "Free online document fraud detector. Upload a PDF or image and get an instant trust score.",
+            "description": "Free online document fraud detector. Upload a PDF and get an instant trust score.",
             "applicationCategory": "SecurityApplication",
             "operatingSystem": "Any",
             "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
