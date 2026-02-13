@@ -228,6 +228,25 @@ components.html(f"""
         link.href = 'https://www.trustyfile.com';
         doc.head.appendChild(link);
     }}
+    // Override Streamlit's default favicon with our own
+    doc.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(el => el.remove());
+    const fav48 = doc.createElement('link');
+    fav48.rel = 'icon';
+    fav48.type = 'image/png';
+    fav48.sizes = '48x48';
+    fav48.href = '/favicon-48x48.png';
+    doc.head.appendChild(fav48);
+    const fav192 = doc.createElement('link');
+    fav192.rel = 'icon';
+    fav192.type = 'image/png';
+    fav192.sizes = '192x192';
+    fav192.href = '/favicon-192x192.png';
+    doc.head.appendChild(fav192);
+    const favIco = doc.createElement('link');
+    favIco.rel = 'icon';
+    favIco.type = 'image/x-icon';
+    favIco.href = '/favicon.ico';
+    doc.head.appendChild(favIco);
     // SEO: language attribute
     doc.documentElement.lang = '{t("html_lang")}';
     // SEO: JSON-LD structured data (rich snippets)

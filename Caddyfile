@@ -20,6 +20,18 @@ handle /favicon.ico {
 	root * /app/static
 	file_server
 }
+handle /favicon-48x48.png {
+	root * /app/static
+	file_server
+}
+handle /favicon-192x192.png {
+	root * /app/static
+	file_server
+}
+handle /apple-touch-icon.png {
+	root * /app/static
+	file_server
+}
 handle /og-image.png {
 	root * /app/static
 	rewrite * /upload_icon_medium.png
