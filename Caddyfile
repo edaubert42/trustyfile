@@ -38,18 +38,21 @@ handle /og-image.png {
 	file_server
 }
 
-# Crawlers requesting /en -> English SEO page
+# Crawler requesting /en -> English SEO page
+@crawler_en {
+	header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
+	path /en
+}
+handle @crawler_en {
+	root * /app
+	rewrite * /seo-en.html
+	file_server
+}
+
+# All other crawler requests -> French SEO page (default)
 handle @crawler {
 	root * /app
-
-	# /en path -> English version
-	@en_path path /en
-	rewrite @en_path /seo-en.html
-
-	# Everything else -> French version (default, primary audience)
-	@not_en not path /en
-	rewrite @not_en /seo-fr.html
-
+	rewrite * /seo-fr.html
 	file_server
 }
 
