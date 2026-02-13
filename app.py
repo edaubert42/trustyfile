@@ -648,13 +648,6 @@ st.markdown(f"""
         <span class="title">TrustyFile</span>
     </a>
     <span class="subtitle">{t("subtitle")}</span>
-    <span class="lang-toggle" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
-        <a href="?lang=fr" style="color:{'white' if _current_lang == 'fr' else '#555'}; text-decoration:none;
-            font-size:0.8rem; font-weight:{'bold' if _current_lang == 'fr' else 'normal'}; padding:4px 6px;">FR</a>
-        <span style="color:#444;">|</span>
-        <a href="?lang=en" style="color:{'white' if _current_lang == 'en' else '#555'}; text-decoration:none;
-            font-size:0.8rem; font-weight:{'bold' if _current_lang == 'en' else 'normal'}; padding:4px 6px;">EN</a>
-    </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -665,13 +658,20 @@ uploaded_file = st.file_uploader(
     label_visibility="collapsed",
 )
 
+if uploaded_file is None:
+    st.markdown(f"""
+    <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:-0.5rem;">
+        {t("disclaimer_upload")}
+    </p>
+    """, unsafe_allow_html=True)
+
 # Landing page content — only rendered when no file is uploaded
 if uploaded_file is None:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
         st.markdown(f"""
         <div id="landing-content">
-            <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 1.5rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
+            <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 0.8rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
                 {t("landing_headline")}
             </p>
         </div>
@@ -679,10 +679,8 @@ if uploaded_file is None:
             <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
                 {t("landing_tagline")}
             </p>
-        </div>
-        <div id="landing-disclaimer">
-            <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:0.8rem;">
-                {t("landing_disclaimer")}
+            <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:0.3rem;">
+                {t("disclaimer_api")}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -2014,8 +2012,10 @@ if uploaded_file is not None:
 
 # Footer
 st.markdown(f"""
-<div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
-    padding:0.3rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
+<div style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
+    padding:0.3rem 1rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
     <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;">{t("footer_contact")} <span style="text-decoration:underline;">contact@trustyfile.com</span></a>
+    <a href="?lang={'en' if _current_lang == 'fr' else 'fr'}" style="position:absolute; right:1rem;
+        color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{'EN' if _current_lang == 'fr' else 'FR'}</a>
 </div>
 """, unsafe_allow_html=True)

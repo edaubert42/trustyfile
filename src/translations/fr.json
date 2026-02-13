@@ -1,15 +1,16 @@
 {
-    "page_title": "TrustyFile - Analyse de fiabilité de documents",
-    "subtitle": "Analyse de fiabilité de documents",
-    "meta_description": "Analyse de fiabilité de documents PDF gratuite en ligne. Déposez un PDF et obtenez un score de confiance instantané. Détecte les falsifications, incohérences de polices, anomalies de dates et plus encore.",
+    "page_title": "TrustyFile - Analyse de documents",
+    "subtitle": "Analyse de documents",
+    "meta_description": "Analyse de documents PDF gratuite en ligne. Déposez un PDF et obtenez un score de confiance instantané. Détecte les falsifications, incohérences de polices, anomalies de dates et plus encore.",
     "og_description": "Déposez un PDF et obtenez un score de confiance instantané. Détecte les falsifications, incohérences de polices et anomalies de dates.",
-    "twitter_description": "Analyse de fiabilité de documents PDF gratuite. Déposez un PDF et obtenez un score de confiance instantané.",
-    "json_ld_description": "Analyse de fiabilité de documents PDF gratuite. Déposez un PDF et obtenez un score de confiance instantané.",
+    "twitter_description": "Analyse de documents PDF gratuite. Déposez un PDF et obtenez un score de confiance instantané.",
+    "json_ld_description": "Analyse de documents PDF gratuite. Déposez un PDF et obtenez un score de confiance instantané.",
     "html_lang": "fr",
 
     "landing_headline": "Vous avez un doute ? Vérifiez.",
     "landing_tagline": "Analysez vos documents PDF en quelques secondes et détectez toute trace de modification.",
-    "landing_disclaimer": "Votre document est analysé localement et ne sera jamais stocké. Seuls le hash du fichier et les identifiants d'entreprise peuvent être envoyés à des API externes (VirusTotal, INSEE, EU DSS) à des fins de vérification du document.",
+    "disclaimer_upload": "Votre document est analysé localement et ne sera jamais conservé.",
+    "disclaimer_api": "Seuls le hash du fichier et les identifiants d'entreprise peuvent être envoyés à des API externes (VirusTotal, INSEE, EU DSS) à des fins de vérification de fiabilité du document.",
     "browse_file": "Parcourir",
     "drop_pdf_here": "Déposez votre PDF ici\\A ou",
 
