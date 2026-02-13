@@ -13,6 +13,7 @@ import tempfile
 import os
 import re
 from pathlib import Path
+from src.i18n import t, get_lang, SUPPORTED_LANGS
 
 
 # =============================================================================
@@ -117,7 +118,7 @@ def get_pdf_page_count(pdf_path: str) -> int:
 # =============================================================================
 
 st.set_page_config(
-    page_title="TrustyFile - Document Fraud Detector",
+    page_title=t("page_title"),
     page_icon="static/upload_icon_medium.png",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -162,113 +163,131 @@ def _load_icon_b64():
 _logo_b64 = _load_icon_b64()
 _upload_b64 = _logo_b64  # same file, no need to read twice
 
+# Current language for JS injection
+_current_lang = get_lang()
+
 # Inject meta tags + hide content until loaded via components.html
-components.html("""
+components.html(f"""
 <script>
     // Access parent document (Streamlit main frame)
     const doc = window.parent.document;
-    if (!doc.querySelector('meta[http-equiv="Content-Security-Policy"]')) {
+    if (!doc.querySelector('meta[http-equiv="Content-Security-Policy"]')) {{
         const meta = doc.createElement('meta');
         meta.httpEquiv = 'Content-Security-Policy';
         meta.content = 'upgrade-insecure-requests';
         doc.head.appendChild(meta);
-    }
-    if (!doc.querySelector('meta[name="viewport"]')) {
+    }}
+    if (!doc.querySelector('meta[name="viewport"]')) {{
         const vp = doc.createElement('meta');
         vp.name = 'viewport';
         vp.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
         doc.head.appendChild(vp);
-    }
+    }}
     // SEO: meta description
-    if (!doc.querySelector('meta[name="description"]')) {
+    if (!doc.querySelector('meta[name="description"]')) {{
         const desc = doc.createElement('meta');
         desc.name = 'description';
-        desc.content = 'Free online document fraud detector. Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.';
+        desc.content = '{t("meta_description")}';
         doc.head.appendChild(desc);
-    }
+    }}
     // SEO: Open Graph tags (social media previews)
-    const ogTags = {
-        'og:title': 'TrustyFile - Document Fraud Detector',
-        'og:description': 'Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies and more.',
+    const ogTags = {{
+        'og:title': '{t("page_title")}',
+        'og:description': '{t("og_description")}',
         'og:type': 'website',
         'og:url': 'https://www.trustyfile.com',
         'og:image': 'https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png',
         'og:site_name': 'TrustyFile'
-    };
-    for (const [prop, content] of Object.entries(ogTags)) {
-        if (!doc.querySelector(`meta[property="${prop}"]`)) {
+    }};
+    for (const [prop, content] of Object.entries(ogTags)) {{
+        if (!doc.querySelector(`meta[property="${{prop}}"]`)) {{
             const tag = doc.createElement('meta');
             tag.setAttribute('property', prop);
             tag.content = content;
             doc.head.appendChild(tag);
-        }
-    }
+        }}
+    }}
     // SEO: Twitter card tags
-    const twTags = {
+    const twTags = {{
         'twitter:card': 'summary',
-        'twitter:title': 'TrustyFile - Document Fraud Detector',
-        'twitter:description': 'Free online document fraud detector. Upload a PDF and get an instant trust score.'
-    };
-    for (const [name, content] of Object.entries(twTags)) {
-        if (!doc.querySelector(`meta[name="${name}"]`)) {
+        'twitter:title': '{t("page_title")}',
+        'twitter:description': '{t("twitter_description")}'
+    }};
+    for (const [name, content] of Object.entries(twTags)) {{
+        if (!doc.querySelector(`meta[name="${{name}}"]`)) {{
             const tag = doc.createElement('meta');
             tag.name = name;
             tag.content = content;
             doc.head.appendChild(tag);
-        }
-    }
+        }}
+    }}
     // SEO: canonical URL (avoid duplicate content)
-    if (!doc.querySelector('link[rel="canonical"]')) {
+    if (!doc.querySelector('link[rel="canonical"]')) {{
         const link = doc.createElement('link');
         link.rel = 'canonical';
         link.href = 'https://www.trustyfile.com';
         doc.head.appendChild(link);
-    }
+    }}
     // SEO: language attribute
-    doc.documentElement.lang = 'en';
+    doc.documentElement.lang = '{t("html_lang")}';
     // SEO: JSON-LD structured data (rich snippets)
-    if (!doc.querySelector('script[type="application/ld+json"]')) {
+    if (!doc.querySelector('script[type="application/ld+json"]')) {{
         const ld = doc.createElement('script');
         ld.type = 'application/ld+json';
-        ld.textContent = JSON.stringify({
+        ld.textContent = JSON.stringify({{
             "@context": "https://schema.org",
             "@type": "WebApplication",
             "name": "TrustyFile",
             "url": "https://www.trustyfile.com",
-            "description": "Free online document fraud detector. Upload a PDF and get an instant trust score.",
+            "description": "{t("json_ld_description")}",
             "applicationCategory": "SecurityApplication",
             "operatingSystem": "Any",
-            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "inLanguage": "{_current_lang}",
+            "offers": {{ "@type": "Offer", "price": "0", "priceCurrency": "EUR" }},
             "image": "https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png"
-        });
+        }});
         doc.head.appendChild(ld);
-    }
-    if (!doc.querySelector('script[data-website-id="50120522-6e98-4433-9238-81c6ba8358c1"]')) {
+    }}
+    if (!doc.querySelector('script[data-website-id="50120522-6e98-4433-9238-81c6ba8358c1"]')) {{
         const umami = doc.createElement('script');
         umami.defer = true;
         umami.src = 'https://cloud.umami.is/script.js';
         umami.dataset.websiteId = '50120522-6e98-4433-9238-81c6ba8358c1';
         doc.head.appendChild(umami);
-    }
+    }}
+
+    // Auto-detect browser language and set ?lang= if not already set
+    (function() {{
+        const url = new URL(window.parent.location.href);
+        if (!url.searchParams.has('lang')) {{
+            const browserLang = (navigator.language || '').substring(0, 2).toLowerCase();
+            const supported = {list(SUPPORTED_LANGS)};
+            const lang = supported.includes(browserLang) ? browserLang : 'fr';
+            if (lang !== 'fr') {{
+                url.searchParams.set('lang', lang);
+                window.parent.history.replaceState(null, '', url.toString());
+            }}
+        }}
+    }})();
 
     // IMMEDIATELY hide content in parent document to prevent flash
-    if (!doc.getElementById('tf-hide-flash')) {
+    if (!doc.getElementById('tf-hide-flash')) {{
         const style = doc.createElement('style');
         style.id = 'tf-hide-flash';
-        style.textContent = 'section.stMain { opacity: 0 !important; }';
+        style.textContent = 'section.stMain {{ opacity: 0 !important; }}';
         doc.head.appendChild(style);
-    }
+    }}
 
     // Reveal content after Streamlit finishes rendering
-    const reveal = () => {
+    const reveal = () => {{
         const s = doc.getElementById('tf-hide-flash');
-        if (s) s.textContent = 'section.stMain { opacity: 1 !important; transition: opacity 0.15s ease-in; }';
-    };
-    if (window.parent.requestIdleCallback) {
-        window.parent.requestIdleCallback(reveal, { timeout: 800 });
-    } else {
+        if (s) s.textContent = 'section.stMain {{ opacity: 1 !important; transition: opacity 0.15s ease-in; }}';
+    }};
+    if (window.parent.requestIdleCallback) {{
+        window.parent.requestIdleCallback(reveal, {{ timeout: 800 }});
+    }} else {{
         setTimeout(reveal, 400);
-    }
+    }}
 </script>
 """, height=0)
 
@@ -569,7 +588,7 @@ st.markdown(f"""
         font-size: 0 !important;
     }}
     [data-testid="stFileUploaderDropzone"] button::after {{
-        content: "Browse file";
+        content: "{t("browse_file")}";
         font-size: 0.9rem;
     }}
     /* Make instructions a flex column so ::before (icon) is on top, ::after (text) below */
@@ -592,7 +611,7 @@ st.markdown(f"""
     }}
     /* "Drop your PDF here" + "or" text */
     [data-testid="stFileUploaderDropzoneInstructions"]::after {{
-        content: "Drop your PDF here\\A or";
+        content: "{t("drop_pdf_here")}";
         display: block;
         white-space: pre;
         text-align: center;
@@ -609,7 +628,14 @@ st.markdown(f"""
         <img src="data:image/png;base64,{_logo_b64}" alt="logo">
         <span class="title">TrustyFile</span>
     </a>
-    <span class="subtitle">Document Fraud Detector</span>
+    <span class="subtitle">{t("subtitle")}</span>
+    <span class="lang-toggle" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
+        <a href="?lang=fr" style="color:{'white' if _current_lang == 'fr' else '#555'}; text-decoration:none;
+            font-size:0.8rem; font-weight:{'bold' if _current_lang == 'fr' else 'normal'}; padding:4px 6px;">FR</a>
+        <span style="color:#444;">|</span>
+        <a href="?lang=en" style="color:{'white' if _current_lang == 'en' else '#555'}; text-decoration:none;
+            font-size:0.8rem; font-weight:{'bold' if _current_lang == 'en' else 'normal'}; padding:4px 6px;">EN</a>
+    </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -624,21 +650,20 @@ uploaded_file = st.file_uploader(
 if uploaded_file is None:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
-        st.markdown("""
+        st.markdown(f"""
         <div id="landing-content">
             <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 1.5rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
-                Don't trust. Verify.
+                {t("landing_headline")}
             </p>
         </div>
         <div id="landing-tagline">
             <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
-                TrustyFile spots clever edits and hidden changes inside documents.
+                {t("landing_tagline")}
             </p>
         </div>
         <div id="landing-disclaimer">
             <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:0.8rem;">
-                Your document is analyzed locally and never stored. Only the file hash and company identifiers
-                may be sent to external APIs (VirusTotal, INSEE, EU DSS) for verification.
+                {t("landing_disclaimer")}
             </p>
         </div>
         """, unsafe_allow_html=True)
@@ -684,7 +709,7 @@ if uploaded_file is not None:
 
     try:
         # Run analysis
-        with st.spinner("Analyzing document..."):
+        with st.spinner(t("analyzing")):
             analyzer = TrustyFileAnalyzer(
                 enable_external=enable_external,
                 enable_qr_scan=enable_qr,
@@ -697,7 +722,7 @@ if uploaded_file is not None:
         # Scan for 2D-DOC barcodes (French government signed barcodes)
         twod_doc_results = []
         if PYLIBDMTX_AVAILABLE:
-            with st.spinner("Scanning for 2D-DOC barcodes..."):
+            with st.spinner(t("scanning_2d_doc")):
                 twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
         # Get page count for navigation
@@ -713,15 +738,15 @@ if uploaded_file is not None:
         # LEFT COLUMN: PDF Preview
         # =================================================================
         with preview_col:
-            st.markdown("""<div class="preview-title"><span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
-                letter-spacing:0.5px;">Preview</span>
+            st.markdown(f"""<div class="preview-title"><span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
+                letter-spacing:0.5px;">{t("preview")}</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:2px 0 0 0;"></div>""", unsafe_allow_html=True)
             # Page navigation if multiple pages
             if page_count > 1:
                 st.selectbox(
-                    "Page",
+                    t("label_page"),
                     range(1, page_count + 1),
-                    format_func=lambda x: f"Page {x} / {page_count}",
+                    format_func=lambda x: t("page_x_of_y").format(x=x, y=page_count),
                     key="page_selector",
                     label_visibility="collapsed"
                 )
@@ -734,7 +759,7 @@ if uploaded_file is not None:
                 img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0)
                 st.image(img_bytes, width="stretch")
             except Exception as e:
-                st.error(f"Could not render PDF preview: {e}")
+                st.error(t("could_not_render").format(error=e))
 
             # File properties block
             pdf_data = extract_pdf_data(tmp_path)
@@ -795,9 +820,9 @@ if uploaded_file is not None:
                 if mod_gap > 86400:
                     days = int(mod_gap // 86400)
                     mod_pill = red_pill(
-                        f'<span class="pill-short">+{days} days</span>'
-                        f'<span class="pill-long">+{days} days since creation</span>',
-                        f"Modified {days} days after creation"
+                        f'<span class="pill-short">{t("pill_days_short").format(days=days)}</span>'
+                        f'<span class="pill-long">{t("pill_days_long").format(days=days)}</span>',
+                        t("pill_mod_tooltip").format(days=days)
                     )
 
             # Pill on stated date vs creation date if gap > 7 days
@@ -805,9 +830,9 @@ if uploaded_file is not None:
                 stated_gap = abs((stated_date - meta.creation_date).days)
                 if stated_gap > 7:
                     stated_pill = red_pill(
-                        f'<span class="pill-short">+{stated_gap} days</span>'
-                        f'<span class="pill-long">+{stated_gap} days since creation</span>',
-                        f"PDF created {stated_gap} days after the date stated in the document"
+                        f'<span class="pill-short">{t("pill_days_short").format(days=stated_gap)}</span>'
+                        f'<span class="pill-long">{t("pill_days_long").format(days=stated_gap)}</span>',
+                        t("pill_stated_tooltip").format(days=stated_gap)
                     )
 
             def label_with_tip(label, tip):
@@ -818,27 +843,27 @@ if uploaded_file is not None:
             if stated_date:
                 stated_row = f"""
             <div style="{row_style}">
-                {label_with_tip("Stated date", "Date written in the document text (e.g. &quot;Paris, le 06/01/2026&quot;)")}
+                {label_with_tip(t("label_stated_date"), t("tip_stated_date"))}
                 <span style="{value_style} flex-shrink:0;">{stated_date.strftime("%Y-%m-%d")}</span>{stated_pill}
             </div>
             """
 
             file_rows = f"""
             <div style="{row_style}">
-                <span style="{label_style}">Name</span>
+                <span style="{label_style}">{t("label_name")}</span>
                 <span style="{value_style}" title="{uploaded_file.name}">{uploaded_file.name}</span>
             </div>
             {stated_row}
             <div style="{row_style}">
-                {label_with_tip("Creation date", "Date the PDF file was originally generated by the software")}
+                {label_with_tip(t("label_creation_date"), t("tip_creation_date"))}
                 <span style="{value_style}" title="{format_date(meta.creation_date)}">{format_date(meta.creation_date)}</span>
             </div>
             <div style="{row_style}">
-                {label_with_tip("Modification date", "Date the PDF was last saved or edited.<br>Should be identical to creation date for untouched documents")}
+                {label_with_tip(t("label_modification_date"), t("tip_modification_date"))}
                 <span style="{value_style} flex-shrink:0;" title="{format_date(meta.mod_date)}">{format_date(meta.mod_date)}</span>{mod_pill}
             </div>
             <div style="{row_style}">
-                <span style="{label_style}">Producer</span>
+                <span style="{label_style}">{t("label_producer")}</span>
                 <span style="{value_style}" title="{producer}">{producer}</span>
             </div>
             """
@@ -848,7 +873,7 @@ if uploaded_file is not None:
             if creator and creator.lower() != (meta.producer or "").lower():
                 file_rows += f"""
             <div style="{row_style}">
-                <span style="{label_style}">Creator</span>
+                <span style="{label_style}">{t("label_creator")}</span>
                 <span style="{value_style}" title="{creator}">{creator}</span>
             </div>
             """
@@ -857,18 +882,18 @@ if uploaded_file is not None:
             if editor_name:
                 file_rows += f"""
             <div style="{row_style}">
-                <span style="{label_style}">Editor</span>
+                <span style="{label_style}">{t("label_editor")}</span>
                 <span style="{value_style}" title="{editor_name}">{editor_name}</span>
             </div>
             """
 
             file_rows += f"""
             <div style="{row_style}">
-                <span style="{label_style}">Signed by</span>
+                <span style="{label_style}">{t("label_signed_by")}</span>
                 <span style="{value_style}" title="{sig}">{sig}</span>
             </div>
             <div style="display:flex; align-items:center; padding:6px 0;">
-                <span style="{label_style}">SHA256</span>
+                <span style="{label_style}">{t("label_sha256")}</span>
                 <span style="{value_style} font-size:0.75rem;" title="{result.file_hash}">{result.file_hash}</span>
             </div>
             """
@@ -882,14 +907,14 @@ if uploaded_file is not None:
                         f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
                         f'<span style="background:#28a745; color:white; padding:3px 10px; '
                         f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
-                        f'Verified — No threats</span></a>'
+                        f'{t("vt_no_threats")}</span></a>'
                     )
                 elif vt_result["status"] == "malicious":
                     vt_pill = (
                         f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
                         f'<span style="background:#ef233c; color:white; padding:3px 10px; '
                         f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
-                        f'{vt_result["malicious"]}/{vt_result["total"]} engines detected threats</span></a>'
+                        f'{t("vt_threats").format(malicious=vt_result["malicious"], total=vt_result["total"])}</span></a>'
                     )
                 else:
                     # "unknown" — file not in VT database
@@ -897,11 +922,11 @@ if uploaded_file is not None:
                         f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
                         f'<span style="background:#555; color:#ccc; padding:3px 10px; '
                         f'border-radius:12px; font-size:0.78rem;">'
-                        f'Not in VirusTotal database</span></a>'
+                        f'{t("vt_unknown")}</span></a>'
                     )
                 file_rows += f"""
             <div style="display:flex; align-items:center; padding:6px 0;">
-                <span style="{label_style}">VirusTotal</span>
+                <span style="{label_style}">{t("label_virustotal")}</span>
                 {vt_pill}
             </div>
             """
@@ -909,7 +934,7 @@ if uploaded_file is not None:
             st.markdown(f"""
             <div style="margin-top:0.5rem;">
                 <span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
-                    letter-spacing:0.5px;">File Properties</span>
+                    letter-spacing:0.5px;">{t("file_properties")}</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
                 {file_rows}
             </div>
@@ -960,7 +985,7 @@ if uploaded_file is not None:
                         font-size="48" font-weight="bold" fill="white">{score}</text>
                     <text x="{center}" y="{center + 22}" text-anchor="middle"
                         font-size="14" fill="{gauge_color}" font-weight="bold">
-                        {"TRUSTED" if score >= 95 else f"{risk_level} RISK"}</text>
+                        {t("trusted") if score >= 95 else f"{risk_level} {t('risk_suffix')}"}</text>
                 </svg>
             </div>
             """, unsafe_allow_html=True)
@@ -971,10 +996,10 @@ if uploaded_file is not None:
 
             # Define the 4 groups: (label, list of module names, tooltip)
             groups = [
-                ("Modifications", ["structure"], "Detects if the PDF was edited after creation"),
-                ("Consistency", ["content"], "Checks dates, amounts and references for contradictions"),
-                ("Tampering", ["images", "fonts", "visual", "metadata"], "Detects visual edits, font swaps and image manipulation"),
-                ("Authenticity", ["external"], "Verifies the originator's identity (SIRET, VAT)<br><i style='color:#888;'>Internet connection needed</i>"),
+                (t("group_modifications"), ["structure"], t("tip_modifications")),
+                (t("group_consistency"), ["content"], t("tip_consistency")),
+                (t("group_tampering"), ["images", "fonts", "visual", "metadata"], t("tip_tampering")),
+                (t("group_authenticity"), ["external"], t("tip_authenticity")),
             ]
 
             bars_html = ""
@@ -1039,19 +1064,19 @@ if uploaded_file is not None:
             # Issues pills (right below the circle)
             pills_html = ""
             if counts["critical"]:
-                pills_html += f'<span style="background:#ef233c; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["critical"]} Critical</span> '
+                pills_html += f'<span style="background:#ef233c; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["critical"]} {t("severity_critical")}</span> '
             if counts["high"]:
-                pills_html += f'<span style="background:#ff6b35; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["high"]} High</span> '
+                pills_html += f'<span style="background:#ff6b35; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["high"]} {t("severity_high")}</span> '
             if counts["medium"]:
-                pills_html += f'<span style="background:#ffb627; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["medium"]} Medium</span> '
+                pills_html += f'<span style="background:#ffb627; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["medium"]} {t("severity_medium")}</span> '
             if counts["low"]:
-                pills_html += f'<span style="background:#555; color:#ccc; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["low"]} Low</span> '
+                pills_html += f'<span style="background:#555; color:#ccc; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["low"]} {t("severity_low")}</span> '
 
             if not any(counts.values()):
-                pills_html = '<span style="background:#28a745; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">No issues found</span>'
+                pills_html = f'<span style="background:#28a745; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{t("no_issues")}</span>'
 
             st.markdown(f'<div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:0.3rem;">{pills_html}</div>'
-                        f'<p style="text-align:center; font-size:0.7rem; color:#888; margin-top:0.4rem;">Analysis completed in {result.analysis_time_ms}ms</p>',
+                        f'<p style="text-align:center; font-size:0.7rem; color:#888; margin-top:0.4rem;">{t("analysis_completed").format(ms=result.analysis_time_ms)}</p>',
                         unsafe_allow_html=True)
 
             # Module score bars
@@ -1085,7 +1110,7 @@ if uploaded_file is not None:
             st.markdown(f"""
             <div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">
                 <span style="color:white; font-size:1.3rem; font-weight:bold; text-transform:uppercase;
-                    letter-spacing:0.5px; display:block; text-align:center;">Summary</span>
+                    letter-spacing:0.5px; display:block; text-align:center;">{t("summary")}</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
                 <p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">
@@ -1113,12 +1138,12 @@ if uploaded_file is not None:
                     first_software = history["diffs"][0].get("from_tool", "")
 
                 if pdf_data.metadata.creation_date:
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">Producer: {html_mod.escape(first_software)}</div>' if first_software else ""
+                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
                     history_rows += (
                         f'<div style="{row_style}">'
-                        f'<span style="{label_style}">Version 1</span>'
+                        f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
                         f'<div style="{value_style}">'
-                        f'<div>{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")} — Original document</div>'
+                        f'<div>{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")} — {t("original_document")}</div>'
                         f'{software_html}'
                         f'</div></div>'
                     )
@@ -1137,14 +1162,15 @@ if uploaded_file is not None:
                             time_info = pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")
                             delta = pdf_data.metadata.mod_date - pdf_data.metadata.creation_date
                             hours = delta.total_seconds() / 3600
+                            _ac = t("after_creation")
                             if hours >= 24:
-                                time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h after creation"
+                                time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h {_ac}"
                             elif hours >= 1:
-                                time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min after creation"
+                                time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min {_ac}"
                             elif int(hours * 60) > 0:
-                                time_info += f" — +{int(hours * 60)}min after creation"
+                                time_info += f" — +{int(hours * 60)}min {_ac}"
                             else:
-                                time_info += f" — +{int(delta.total_seconds())}s after creation"
+                                time_info += f" — +{int(delta.total_seconds())}s {_ac}"
 
                     # Build change lines (limited to max_lines)
                     changes_html = ""
@@ -1169,16 +1195,16 @@ if uploaded_file is not None:
 
                         if total_lines > max_lines:
                             remaining = total_lines - max_lines
-                            changes_html += f'<div style="color:#888; font-size:0.7rem; font-style:italic;">... and {remaining} more lines</div>'
+                            changes_html += f'<div style="color:#888; font-size:0.7rem; font-style:italic;">{t("and_n_more_lines").format(n=remaining)}</div>'
                     else:
-                        changes_html = '<div style="color:#888; font-size:0.75rem;">Non-text changes</div>'
+                        changes_html = f'<div style="color:#888; font-size:0.75rem;">{t("non_text_changes")}</div>'
 
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">Editor: {html_mod.escape(version_software)}</div>' if version_software else ""
+                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_editor")}: {html_mod.escape(version_software)}</div>' if version_software else ""
                     history_rows += (
                         f'<div style="{row_style}">'
-                        f'<span style="{label_style}">Version {version_num}</span>'
+                        f'<span style="{label_style}">{t("version_n").format(n=version_num)}</span>'
                         f'<div style="{value_style}">'
-                        f'<div>{time_info if time_info else "Unknown time"}</div>'
+                        f'<div>{time_info if time_info else t("unknown_time")}</div>'
                         f'{software_html}'
                         f'{changes_html}'
                         f'</div></div>'
@@ -1187,7 +1213,7 @@ if uploaded_file is not None:
                 st.markdown(
                     f'<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">'
                     f'<span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;'
-                    f' letter-spacing:0.5px;">Modification History</span>'
+                    f' letter-spacing:0.5px;">{t("full_modification_history")}</span>'
                     f'<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">'
                     f'{history_rows}'
                     f'</div>',
@@ -1200,7 +1226,7 @@ if uploaded_file is not None:
             import html as html_mod_flags
 
             st.markdown("---")
-            st.markdown("## Detected Issues")
+            st.markdown(f"## {t('detected_issues')}")
 
             severity_colors = {
                 "critical": "#ef233c",
@@ -1266,7 +1292,7 @@ if uploaded_file is not None:
             st.markdown(issues_html, unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("## More Details")
+        st.markdown(f"## {t('more_details')}")
 
         more_details_html = ""
 
@@ -1296,17 +1322,17 @@ if uploaded_file is not None:
             first_sw = history["diffs"][0].get("from_tool", "") if history["diffs"] else ""
             v1_meta = ""
             if pdf_data.metadata.creation_date:
-                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">Date</span>'
+                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_date")}</span>'
                             f'<span style="{_mval}">{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")}</span></div>')
             if first_sw:
-                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">Producer</span>'
+                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_producer")}</span>'
                             f'<span style="{_mval}">{html_mod.escape(first_sw)}</span></div>')
 
             hist_content += (
                 f'<div style="{_card}">'
-                f'<p style="{_vlabel}">Version 1 '
+                f'<p style="{_vlabel}">{t("version_n").format(n=1)} '
                 f'<span style="background:#28a745; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px; margin-left:6px;">ORIGINAL</span></p>'
+                f'padding:2px 10px; border-radius:10px; margin-left:6px;">{t("original")}</span></p>'
                 f'{v1_meta}</div>'
             )
 
@@ -1330,18 +1356,18 @@ if uploaded_file is not None:
                         delta_str = f"+{int(hours * 60)}min"
                     else:
                         delta_str = f"+{int(delta.total_seconds())}s"
-                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">Date</span>'
+                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_date")}</span>'
                                f'<span style="{_mval}">{pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")} '
-                               f'<span style="color:#e06060;">({delta_str} after creation)</span></span></div>')
+                               f'<span style="color:#e06060;">({delta_str} {t("after_creation")})</span></span></div>')
 
                 if to_sw and to_sw != from_sw:
-                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">Editor</span>'
+                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_editor")}</span>'
                                f'<span style="{_mval}">{html_mod.escape(to_sw)}</span></div>')
 
                 diff_html = ""
                 if diff["changes"]:
                     for change in diff["changes"]:
-                        diff_html += f'<div style="color:#888; font-size:0.7rem; margin-bottom:4px;">Page {change["page"]}</div>'
+                        diff_html += f'<div style="color:#888; font-size:0.7rem; margin-bottom:4px;">{t("label_page")} {change["page"]}</div>'
                         for line in change.get("removed", []):
                             if line.strip():
                                 diff_html += f'<div style="color:#e06060;">- {html_mod.escape(line)}</div>'
@@ -1350,7 +1376,7 @@ if uploaded_file is not None:
                                 diff_html += f'<div style="color:#60c060;">+ {html_mod.escape(line)}</div>'
                     diff_html = f'<div style="{_diff}">{diff_html}</div>'
                 else:
-                    diff_html = '<div style="color:#888; font-size:0.78rem; font-style:italic; margin-top:8px;">No text changes detected</div>'
+                    diff_html = f'<div style="color:#888; font-size:0.78rem; font-style:italic; margin-top:8px;">{t("no_text_changes")}</div>'
 
                 obj_html = ""
                 obj_changes = diff.get("object_changes", [])
@@ -1358,14 +1384,14 @@ if uploaded_file is not None:
                     by_type: dict[str, list] = {}
                     for oc in obj_changes:
                         by_type.setdefault(oc.get("type", "unknown"), []).append(oc)
-                    badges = "".join(f'<span style="{_badge}">{t} ({len(items)})</span>' for t, items in by_type.items())
-                    obj_html = f'<div style="margin-top:10px;"><span style="color:#888; font-size:0.7rem;">Modified objects: </span>{badges}</div>'
+                    badges = "".join(f'<span style="{_badge}">{obj_t} ({len(items)})</span>' for obj_t, items in by_type.items())
+                    obj_html = f'<div style="margin-top:10px;"><span style="color:#888; font-size:0.7rem;">{t("modified_objects")}</span>{badges}</div>'
 
                 hist_content += (
                     f'<div style="{_card}">'
-                    f'<p style="{_vlabel}">Version {to_v} '
+                    f'<p style="{_vlabel}">{t("version_n").format(n=to_v)} '
                     f'<span style="background:#ef233c; color:white; font-size:0.68rem; font-weight:bold; '
-                    f'padding:2px 10px; border-radius:10px; margin-left:6px;">MODIFIED</span></p>'
+                    f'padding:2px 10px; border-radius:10px; margin-left:6px;">{t("modified")}</span></p>'
                     f'{v_meta}{diff_html}{obj_html}</div>'
                 )
 
@@ -1375,9 +1401,9 @@ if uploaded_file is not None:
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                 f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">Full Modification History</span>'
+                f'<span style="color:#eee; font-size:0.85rem;">{t("full_modification_history")}</span>'
                 f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{version_count} versions</span>'
+                f'padding:2px 10px; border-radius:10px;">{t("n_versions").format(n=version_count)}</span>'
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                 f'{hist_content}'
@@ -1455,7 +1481,7 @@ if uploaded_file is not None:
                         f'</div>'
                     )
             else:
-                flags_html = '<div style="color:#666; font-size:0.78rem; padding:4px 0;">No flags</div>'
+                flags_html = f'<div style="color:#666; font-size:0.78rem; padding:4px 0;">{t("no_flags")}</div>'
 
             raw_content += (
                 f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
@@ -1482,9 +1508,9 @@ if uploaded_file is not None:
             f'border-radius:8px; padding:0; margin-bottom:8px;">'
             f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
             f'display:flex; align-items:center; gap:10px;">'
-            f'<span style="color:#eee; font-size:0.85rem;">Analysis Details</span>'
+            f'<span style="color:#eee; font-size:0.85rem;">{t("analysis_details")}</span>'
             f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-            f'padding:2px 10px; border-radius:10px;">{module_count} modules</span>'
+            f'padding:2px 10px; border-radius:10px;">{t("n_modules").format(n=module_count)}</span>'
             f'</summary>'
             f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
             f'{raw_content}'
@@ -1529,11 +1555,11 @@ if uploaded_file is not None:
             creation = comp.get("creation_date") or ""
 
             if status == "active":
-                status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
-                               'font-weight:bold; padding:2px 8px; border-radius:8px;">Active</span>')
+                status_pill = (f'<span style="background:#28a745; color:white; font-size:0.62rem; '
+                               f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_active")}</span>')
             elif status == "closed":
-                status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
-                               'font-weight:bold; padding:2px 8px; border-radius:8px;">Closed</span>')
+                status_pill = (f'<span style="background:#ef233c; color:white; font-size:0.62rem; '
+                               f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_closed")}</span>')
             else:
                 status_pill = ""
 
@@ -1564,8 +1590,8 @@ if uploaded_file is not None:
             entity_count += 1
 
         # 2) Unverified entities: group all identifiers by SIREN into one card per entity
-        not_verified_pill = ('<span style="background:#555; color:#ccc; font-size:0.62rem; '
-                             'font-weight:bold; padding:2px 8px; border-radius:8px;">Not verified</span>')
+        not_verified_pill = (f'<span style="background:#555; color:#ccc; font-size:0.62rem; '
+                             f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_not_verified")}</span>')
         _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
         _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
         _val = "color:#ccc; font-size:0.75rem;"
@@ -1688,9 +1714,9 @@ if uploaded_file is not None:
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                 f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">Entities</span>'
+                f'<span style="color:#eee; font-size:0.85rem;">{t("entities")}</span>'
                 f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{entity_count} entities</span>'
+                f'padding:2px 10px; border-radius:10px;">{t("n_entities").format(n=entity_count)}</span>'
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                 f'{entities_html}'
@@ -1724,11 +1750,11 @@ if uploaded_file is not None:
 
                 is_valid = iban_data.get("valid", False)
                 if is_valid:
-                    status_pill = ('<span style="background:#28a745; color:white; font-size:0.62rem; '
-                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Valid</span>')
+                    status_pill = (f'<span style="background:#28a745; color:white; font-size:0.62rem; '
+                                   f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_valid")}</span>')
                 else:
-                    status_pill = ('<span style="background:#ef233c; color:white; font-size:0.62rem; '
-                                   'font-weight:bold; padding:2px 8px; border-radius:8px;">Invalid</span>')
+                    status_pill = (f'<span style="background:#ef233c; color:white; font-size:0.62rem; '
+                                   f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_invalid")}</span>')
 
                 # Format IBAN with spaces for readability (groups of 4)
                 iban_display = " ".join([iban_clean[i:i+4] for i in range(0, len(iban_clean), 4)])
@@ -1750,7 +1776,7 @@ if uploaded_file is not None:
                 import unicodedata
                 title_raw = unicodedata.normalize("NFD", bank_name)
                 title_raw = "".join(c for c in title_raw if unicodedata.category(c) != "Mn")
-                title = html_mod_ent.escape(title_raw).upper() if bank_name else "BANK ACCOUNT"
+                title = html_mod_ent.escape(title_raw).upper() if bank_name else t("bank_account").upper()
                 bank_html += (
                     f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
                     f'padding:12px 16px; margin-bottom:8px;">'
@@ -1764,8 +1790,8 @@ if uploaded_file is not None:
                 )
 
             # 2) IBANs found in text but not API-verified
-            not_verified_pill = ('<span style="background:#555; color:#ccc; font-size:0.62rem; '
-                                 'font-weight:bold; padding:2px 8px; border-radius:8px;">Not verified</span>')
+            not_verified_pill = (f'<span style="background:#555; color:#ccc; font-size:0.62rem; '
+                                 f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_not_verified")}</span>')
             for iban_str, is_checksum_valid, context in found_ibans:
                 if iban_str in shown_ibans:
                     continue
@@ -1773,7 +1799,7 @@ if uploaded_file is not None:
                 bank_count += 1
 
                 iban_display = " ".join([iban_str[i:i+4] for i in range(0, len(iban_str), 4)])
-                checksum_note = "Valid checksum" if is_checksum_valid else "Invalid checksum"
+                checksum_note = t("valid_checksum") if is_checksum_valid else t("invalid_checksum")
 
                 rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
                 rows += f'<div style="{_row}"><span style="{_key}">Country</span><span style="{_val}">{iban_str[:2]}</span></div>'
@@ -1783,7 +1809,7 @@ if uploaded_file is not None:
                     f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
                     f'padding:12px 16px; margin-bottom:8px;">'
                     f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">Bank account</span>'
+                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{t("bank_account")}</span>'
                     f'{not_verified_pill}'
                     f'</div>'
                     f'{rows}'
@@ -1796,9 +1822,9 @@ if uploaded_file is not None:
                     f'border-radius:8px; padding:0; margin-bottom:8px;">'
                     f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                     f'display:flex; align-items:center; gap:10px;">'
-                    f'<span style="color:#eee; font-size:0.85rem;">Bank Information</span>'
+                    f'<span style="color:#eee; font-size:0.85rem;">{t("bank_information")}</span>'
                     f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                    f'padding:2px 10px; border-radius:10px;">{bank_count} account{"s" if bank_count > 1 else ""}</span>'
+                    f'padding:2px 10px; border-radius:10px;">{t("n_accounts_plural").format(n=bank_count) if bank_count > 1 else t("n_accounts").format(n=bank_count)}</span>'
                     f'</summary>'
                     f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
                     f'{bank_html}'
@@ -1819,7 +1845,7 @@ if uploaded_file is not None:
                 _2d_val_bold = "color:white; font-size:0.75rem; font-weight:bold;"
 
                 rows_2d = ""
-                rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Document type</span>'
+                rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_doc_type")}</span>'
                             f'<span style="{_2d_val}">{html_mod_2d.escape(verified.document_type)} '
                             f'({html_mod_2d.escape(verified.document_type_name)})</span></div>')
 
@@ -1828,55 +1854,55 @@ if uploaded_file is not None:
 
                 # --- Identity fields (shared across document types) ---
                 if verified.name:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Name</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_name")}</span>'
                                 f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.name)}</span></div>')
                     shown_dis.update({"10", "12", "13", "44", "6G", "60"})
 
                 # --- Driving license fields (type AB) ---
                 if verified.civility:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Civility</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_civility")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.civility)}</span></div>')
                     shown_dis.add("6H")
 
                 if verified.sex:
-                    sex_label = {"M": "Male", "F": "Female"}.get(verified.sex, verified.sex)
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Sex</span>'
+                    sex_label = {"M": t("twod_sex_male"), "F": t("twod_sex_female")}.get(verified.sex, verified.sex)
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_sex")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(sex_label)}</span></div>')
                     shown_dis.add("68")
 
                 if verified.nationality:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Nationality</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_nationality")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.nationality)}</span></div>')
                     shown_dis.update({"67", "6C"})
 
                 if verified.birth_date:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Date of birth</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_birth_date")}</span>'
                                 f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.birth_date)}</span></div>')
                     shown_dis.add("69")
 
                 if verified.birth_place:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Place of birth</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_birth_place")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.birth_place)}</span></div>')
                     shown_dis.add("6A")
 
                 if verified.document_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Document number</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_document_number")}</span>'
                                 f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.document_number)}</span></div>')
                     shown_dis.add("65")
 
                 if verified.permit_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Permit number</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_permit_number")}</span>'
                                 f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.permit_number)}</span></div>')
                     shown_dis.add("AC")
 
                 if verified.permit_categories:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Permit categories</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_permit_categories")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.permit_categories)}</span></div>')
                     shown_dis.add("E4")
 
                 # --- Tax fields ---
                 if verified.fiscal_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Tax ID</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_tax_id")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.fiscal_number)}</span></div>')
                     shown_dis.add("47")
 
@@ -1887,41 +1913,41 @@ if uploaded_file is not None:
                     if verified.postal_code or verified.city:
                         addr_parts.append(f"{verified.postal_code or ''} {verified.city or ''}".strip())
                     addr = ", ".join(addr_parts)
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Address</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_address")}</span>'
                                 f'<span style="{_2d_val_bold}">{html_mod_2d.escape(addr)}</span></div>')
                     shown_dis.update({"22", "24", "25"})
 
                 if verified.reference_income is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Reference income</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_reference_income")}</span>'
                                 f'<span style="{_2d_val_bold}">{verified.reference_income:,.0f} &euro;</span></div>')
                     shown_dis.add("41")
 
                 if verified.tax_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Income tax</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_income_tax")}</span>'
                                 f'<span style="{_2d_val_bold}">{verified.tax_amount:,.0f} &euro;</span></div>')
                     shown_dis.add("4V")
 
                 if verified.withheld_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Withholding tax</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_withholding_tax")}</span>'
                                 f'<span style="{_2d_val}">{verified.withheld_amount:,.0f} &euro;</span></div>')
                     shown_dis.add("4X")
 
                 if verified.calculated_balance is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Calculated balance</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_calculated_balance")}</span>'
                                 f'<span style="{_2d_val_bold}">{verified.calculated_balance:,.0f} &euro;</span></div>')
 
                 if verified.household_parts and verified.household_parts != 1.0:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Household parts</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_household_parts")}</span>'
                                 f'<span style="{_2d_val}">{verified.household_parts}</span></div>')
                     shown_dis.add("43")
 
                 # --- Invoice fields ---
                 if verified.invoice_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Invoice number</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_invoice_number")}</span>'
                                 f'<span style="{_2d_val}">{html_mod_2d.escape(verified.invoice_number)}</span></div>')
 
                 if verified.invoice_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">Invoice amount</span>'
+                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_invoice_amount")}</span>'
                                 f'<span style="{_2d_val_bold}">{verified.invoice_amount:,.2f} &euro;</span></div>')
 
                 # Show remaining unmapped fields as raw
@@ -1930,12 +1956,12 @@ if uploaded_file is not None:
                     if field.di in shown_dis:
                         continue
                     field_val = html_mod_2d.escape(str(field.value))
-                    extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">Field {field.di}</span>'
+                    extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_field").format(di=field.di)}</span>'
                                      f'<span style="{_2d_val}">{field_val}</span></div>')
 
                 if extra_fields:
                     rows_2d += (f'<div style="margin-top:8px; padding-top:6px; border-top:1px solid #2a2a2a;">'
-                                f'<span style="color:#888; font-size:0.7rem; font-weight:bold;">Raw signed fields</span>'
+                                f'<span style="color:#888; font-size:0.7rem; font-weight:bold;">{t("twod_raw_fields")}</span>'
                                 f'</div>{extra_fields}')
 
                 twod_content += (
@@ -1949,10 +1975,10 @@ if uploaded_file is not None:
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                 f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">2D-DOC</span>'
+                f'<span style="color:#eee; font-size:0.85rem;">{t("twod_doc")}</span>'
                 f'<span style="background:#28a745; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">Verified</span>'
-                f'<span style="color:#888; font-size:0.72rem;">Compare with visible PDF content</span>'
+                f'padding:2px 10px; border-radius:10px;">{t("twod_verified")}</span>'
+                f'<span style="color:#888; font-size:0.72rem;">{t("twod_compare")}</span>'
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #28a745;">'
                 f'{twod_content}'
@@ -1968,9 +1994,9 @@ if uploaded_file is not None:
         os.unlink(tmp_path)
 
 # Footer
-st.markdown("""
+st.markdown(f"""
 <div style="position:fixed; bottom:0; left:0; right:0; text-align:center;
     padding:0.3rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
-    <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;">Questions or feedback? <span style="text-decoration:underline;">contact@trustyfile.com</span></a>
+    <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;">{t("footer_contact")} <span style="text-decoration:underline;">contact@trustyfile.com</span></a>
 </div>
 """, unsafe_allow_html=True)

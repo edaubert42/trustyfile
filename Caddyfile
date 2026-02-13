@@ -26,10 +26,18 @@ handle /og-image.png {
 	file_server
 }
 
-# Crawlers -> static SEO page
+# Crawlers requesting /en -> English SEO page
 handle @crawler {
 	root * /app
-	rewrite * /seo.html
+
+	# /en path -> English version
+	@en_path path /en
+	rewrite @en_path /seo-en.html
+
+	# Everything else -> French version (default, primary audience)
+	@not_en not path /en
+	rewrite @not_en /seo-fr.html
+
 	file_server
 }
 
