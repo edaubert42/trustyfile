@@ -32,6 +32,10 @@ handle /apple-touch-icon.png {
 	root * /app/static
 	file_server
 }
+handle /site.webmanifest {
+	root * /app/static
+	file_server
+}
 handle /og-image.png {
 	root * /app/static
 	rewrite * /upload_icon_medium.png

@@ -129,6 +129,13 @@
     "twod_raw_fields": "Champs signés bruts",
     "twod_field": "Champ {di}",
 
+    "step1_title": "Déposez votre PDF",
+    "step1_desc": "Glissez-déposez ou parcourez vos fichiers",
+    "step2_title": "Analyse automatique",
+    "step2_desc": "Métadonnées, polices, images, dates...",
+    "step3_title": "Score de confiance",
+    "step3_desc": "Résultat détaillé avec les anomalies détectées",
+
     "footer_contact": "Questions ou suggestions ?",
 
     "label_date": "Date",

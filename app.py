@@ -679,11 +679,106 @@ if uploaded_file is None:
             <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
                 {t("landing_tagline")}
             </p>
-            <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:0.3rem;">
-                {t("disclaimer_api")}
-            </p>
         </div>
         """, unsafe_allow_html=True)
+
+    # "How it works" steps
+    st.markdown(f"""
+    <style>
+        .steps-row {{
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            margin: 2.5rem auto 0 auto;
+            gap: 0;
+        }}
+        .step-card {{
+            width: 180px;
+            flex-shrink: 0;
+            text-align: center;
+            padding: 1.2rem 1rem;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            transition: border-color 0.2s, background 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
+        .step-card:hover {{
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(255, 255, 255, 0.15);
+        }}
+        .step-arrow {{
+            color: rgba(255, 255, 255, 0.15);
+            font-size: 1.3rem;
+            padding: 0 0.6rem;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+        }}
+        .step-number {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.10);
+            color: #999;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 0.6rem;
+        }}
+        .step-title {{
+            color: #ddd;
+            font-size: 0.92rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }}
+        .step-desc {{
+            color: #777;
+            font-size: 0.76rem;
+            line-height: 1.4;
+        }}
+        @media (max-width: 600px) {{
+            .steps-row {{
+                flex-direction: column;
+                align-items: center;
+                gap: 0;
+            }}
+            .step-card {{
+                width: 220px;
+            }}
+            .step-arrow {{
+                transform: rotate(90deg);
+                padding: 0.3rem 0;
+            }}
+        }}
+    </style>
+    <div class="steps-row">
+        <div class="step-card">
+            <div class="step-number">1</div>
+            <div class="step-title">{t("step1_title")}</div>
+            <div class="step-desc">{t("step1_desc")}</div>
+        </div>
+        <div class="step-arrow">&#x276F;</div>
+        <div class="step-card">
+            <div class="step-number">2</div>
+            <div class="step-title">{t("step2_title")}</div>
+            <div class="step-desc">{t("step2_desc")}</div>
+        </div>
+        <div class="step-arrow">&#x276F;</div>
+        <div class="step-card">
+            <div class="step-number">3</div>
+            <div class="step-title">{t("step3_title")}</div>
+            <div class="step-desc">{t("step3_desc")}</div>
+        </div>
+    </div>
+    <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
+        {t("disclaimer_api")}
+    </p>
+    """, unsafe_allow_html=True)
 
 # Hide landing content and minimize uploader when a file is uploaded
 if uploaded_file is not None:

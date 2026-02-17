@@ -129,6 +129,13 @@
     "twod_raw_fields": "Raw signed fields",
     "twod_field": "Field {di}",
 
+    "step1_title": "Upload your PDF",
+    "step1_desc": "Drag and drop or browse your files",
+    "step2_title": "Automatic analysis",
+    "step2_desc": "Metadata, fonts, images, dates...",
+    "step3_title": "Trust score",
+    "step3_desc": "Detailed result with detected anomalies",
+
     "footer_contact": "Questions or feedback?",
 
     "label_date": "Date",
