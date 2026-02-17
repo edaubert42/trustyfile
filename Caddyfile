@@ -58,5 +58,5 @@ handle @crawler {
 
 # Everyone else -> Streamlit
 handle {
-	reverse_proxy localhost:8501
+	reverse_proxy 127.0.0.1:8501
 }
