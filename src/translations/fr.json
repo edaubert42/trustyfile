@@ -48,7 +48,7 @@
     "group_modifications": "Modifications",
     "group_consistency": "Cohérence",
     "group_tampering": "Falsification",
-    "group_authenticity": "Authenticité",
+    "group_authenticity": "Identité",
     "tip_modifications": "Détecte si le PDF a été modifié après sa création",
     "tip_consistency": "Vérifie les dates, montants et références pour détecter les contradictions",
     "tip_tampering": "Détecte les retouches visuelles, changements de polices et manipulations d'images",
@@ -139,5 +139,14 @@
     "footer_contact": "Questions ou suggestions ?",
 
     "label_date": "Date",
-    "label_page": "Page"
+    "label_page": "Page",
+
+    "label_address": "Adresse",
+    "label_country": "Pays",
+    "label_bank": "Banque",
+    "label_branch": "Agence",
+    "label_check": "Contrôle",
+    "label_confidence": "Fiabilité",
+    "label_weight": "Poids",
+    "label_flags": "Alertes"
 }

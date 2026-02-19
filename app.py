@@ -809,7 +809,7 @@ if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGHTS, DEFAULT_WEIGHT
-    from src.summary import generate_rich_summary
+    from src.summary import generate_rich_summary, get_flag_sentence
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
@@ -829,7 +829,7 @@ if uploaded_file is not None:
                 iban_api_key=iban_api_key,
             )
             result = analyzer.analyze(tmp_path)
-            summary = generate_rich_summary(result)
+            summary = generate_rich_summary(result, lang=get_lang())
 
         # Scan for 2D-DOC barcodes (French government signed barcodes)
         twod_doc_results = []
@@ -1212,8 +1212,8 @@ if uploaded_file is not None:
                         f'border-bottom:1px solid #2a2a2a;">'
                         f'<span style="background:{fc}; color:white; font-size:0.62rem; '
                         f'font-weight:bold; padding:2px 0; border-radius:8px; width:58px; '
-                        f'text-align:center; display:inline-block; flex-shrink:0;">{flag.severity.upper()}</span>'
-                        f'<span style="color:#ccc; font-size:0.85rem;">{flag.message}</span>'
+                        f'text-align:center; display:inline-block; flex-shrink:0;">{t(f"severity_{flag.severity}")}</span>'
+                        f'<span style="color:#ccc; font-size:0.85rem;">{get_flag_sentence(flag, get_lang())}</span>'
                         f'</div>'
                     )
             else:
@@ -1352,7 +1352,7 @@ if uploaded_file is not None:
             issues_html = ""
             for flag in all_flags:
                 color = severity_colors.get(flag.severity, "#555")
-                safe_msg = html_mod_flags.escape(flag.message)
+                safe_msg = html_mod_flags.escape(get_flag_sentence(flag, get_lang()))
                 safe_code = html_mod_flags.escape(flag.code)
 
                 # Details content — show as readable key/value rows
@@ -1393,7 +1393,7 @@ if uploaded_file is not None:
                     f'<span style="background:{color}; color:white; font-size:0.68rem; '
                     f'font-weight:bold; padding:2px 0; border-radius:10px; '
                     f'width:70px; text-align:center; flex-shrink:0; '
-                    f'display:inline-block;">{flag.severity.upper()}</span>'
+                    f'display:inline-block;">{t(f"severity_{flag.severity}")}</span>'
                     f'<span style="color:#eee; font-size:0.85rem;">{safe_msg}</span>'
                     f'</summary>'
                     f'<div style="padding:4px 14px 14px 14px; border-top:1px solid #2a2a2a;">'
@@ -1550,7 +1550,7 @@ if uploaded_file is not None:
                 for f in module.flags:
                     f_color = severity_colors.get(f.severity, "#555")
                     safe_code = html_mod_raw.escape(f.code)
-                    safe_msg = html_mod_raw.escape(f.message)
+                    safe_msg = html_mod_raw.escape(get_flag_sentence(f, get_lang()))
 
                     # Flag details as key/value rows
                     details_html = ""
@@ -1585,7 +1585,7 @@ if uploaded_file is not None:
                         f'<div style="display:flex; align-items:center; gap:8px;">'
                         f'<span style="background:{f_color}; color:white; font-size:0.62rem; '
                         f'font-weight:bold; padding:1px 0; border-radius:8px; width:58px; '
-                        f'text-align:center; display:inline-block; flex-shrink:0;">{f.severity.upper()}</span>'
+                        f'text-align:center; display:inline-block; flex-shrink:0;">{t(f"severity_{f.severity}")}</span>'
                         f'<span style="color:#ccc; font-size:0.78rem;">{safe_msg}</span>'
                         f'</div>'
                         f'<div style="color:#666; font-size:0.72rem; margin-top:3px; padding-left:66px;">{safe_code}</div>'
@@ -1605,9 +1605,9 @@ if uploaded_file is not None:
                 f'</div>'
                 f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
                 f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
-                f'<span>confidence: {module.confidence:.0%}</span>'
-                f'<span>weight: {mod_weight}</span>'
-                f'<span>flags: {len(module.flags)}</span>'
+                f'<span>{t("label_confidence")}: {module.confidence:.0%}</span>'
+                f'<span>{t("label_weight")}: {mod_weight}</span>'
+                f'<span>{t("label_flags")}: {len(module.flags)}</span>'
                 f'</div>'
                 f'{flags_html}'
                 f'</div>'
@@ -1685,9 +1685,9 @@ if uploaded_file is not None:
             if siret:
                 rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{siret}</span></div>'
             if address and address != "None, None None":
-                rows += f'<div style="{_row}"><span style="{_key}">Address</span><span style="{_val}">{address}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">{t("label_address")}</span><span style="{_val}">{address}</span></div>'
             if creation:
-                rows += f'<div style="{_row}"><span style="{_key}">Created</span><span style="{_val}">{creation}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">{t("label_creation_date")}</span><span style="{_val}">{creation}</span></div>'
 
             entities_html += (
                 f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
@@ -1805,7 +1805,7 @@ if uploaded_file is not None:
             if idents["rcs"]:
                 rows += f'<div style="{_row}"><span style="{_key}">RCS</span><span style="{_val}">{idents["rcs"]}</span></div>'
             if entity_address:
-                rows += f'<div style="{_row}"><span style="{_key}">Address</span><span style="{_val}">{html_mod_ent.escape(entity_address)}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">{t("label_address")}</span><span style="{_val}">{html_mod_ent.escape(entity_address)}</span></div>'
 
             entities_html += (
                 f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
@@ -1877,13 +1877,13 @@ if uploaded_file is not None:
                     rows += f'<div style="{_row}"><span style="{_key}">BIC</span><span style="{_val}">{bic}</span></div>'
                 bank_name = iban_data.get("bank_name") or ""
                 if bank_name:
-                    rows += f'<div style="{_row}"><span style="{_key}">Bank</span><span style="{_val}">{html_mod_ent.escape(bank_name)}</span></div>'
+                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_bank")}</span><span style="{_val}">{html_mod_ent.escape(bank_name)}</span></div>'
                 branch_name = iban_data.get("branch_name") or ""
                 if branch_name:
-                    rows += f'<div style="{_row}"><span style="{_key}">Branch</span><span style="{_val}">{html_mod_ent.escape(branch_name)}</span></div>'
+                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_branch")}</span><span style="{_val}">{html_mod_ent.escape(branch_name)}</span></div>'
                 country = iban_data.get("country_code", "")
                 if country:
-                    rows += f'<div style="{_row}"><span style="{_key}">Country</span><span style="{_val}">{country}</span></div>'
+                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_country")}</span><span style="{_val}">{country}</span></div>'
 
                 import unicodedata
                 title_raw = unicodedata.normalize("NFD", bank_name)
@@ -1914,8 +1914,8 @@ if uploaded_file is not None:
                 checksum_note = t("valid_checksum") if is_checksum_valid else t("invalid_checksum")
 
                 rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
-                rows += f'<div style="{_row}"><span style="{_key}">Country</span><span style="{_val}">{iban_str[:2]}</span></div>'
-                rows += f'<div style="{_row}"><span style="{_key}">Check</span><span style="{_val}">{checksum_note}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">{t("label_country")}</span><span style="{_val}">{iban_str[:2]}</span></div>'
+                rows += f'<div style="{_row}"><span style="{_key}">{t("label_check")}</span><span style="{_val}">{checksum_note}</span></div>'
 
                 bank_html += (
                     f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
