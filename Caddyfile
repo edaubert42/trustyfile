@@ -20,6 +20,11 @@ handle /favicon.ico {
 	root * /app/static
 	file_server
 }
+handle /favicon.png {
+	root * /app/static
+	rewrite * /favicon-48x48.png
+	file_server
+}
 handle /favicon-48x48.png {
 	root * /app/static
 	file_server

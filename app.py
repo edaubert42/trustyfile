@@ -119,7 +119,7 @@ def get_pdf_page_count(pdf_path: str) -> int:
 
 st.set_page_config(
     page_title=t("page_title"),
-    page_icon="static/upload_icon_medium.png",
+    page_icon="static/favicon-48x48.png",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
