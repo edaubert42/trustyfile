@@ -43,7 +43,10 @@
     "pill_stated_tooltip": "PDF created {days} days after the date stated in the document",
 
     "trusted": "TRUSTED",
-    "risk_suffix": "RISK",
+    "risk_LOW": "LOW RISK",
+    "risk_MEDIUM": "MEDIUM RISK",
+    "risk_HIGH": "HIGH RISK",
+    "risk_CRITICAL": "CRITICAL RISK",
 
     "group_modifications": "Modifications",
     "group_consistency": "Consistency",
@@ -61,7 +64,8 @@
     "detected_issues": "Detected Issues",
     "more_details": "More Details",
 
-    "full_modification_history": "Full Modification History",
+    "full_modification_history": "Modification History",
+    "detailed_modification_history": "Detailed Modification History",
     "n_versions": "{n} versions",
     "version_n": "Version {n}",
     "original": "ORIGINAL",

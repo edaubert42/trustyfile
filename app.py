@@ -1097,7 +1097,7 @@ if uploaded_file is not None:
                         font-size="48" font-weight="bold" fill="white">{score}</text>
                     <text x="{center}" y="{center + 22}" text-anchor="middle"
                         font-size="14" fill="{gauge_color}" font-weight="bold">
-                        {t("trusted") if score >= 95 else f"{risk_level} {t('risk_suffix')}"}</text>
+                        {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
             </div>
             """, unsafe_allow_html=True)
@@ -1513,7 +1513,7 @@ if uploaded_file is not None:
                 f'border-radius:8px; padding:0; margin-bottom:8px;">'
                 f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
                 f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">{t("full_modification_history")}</span>'
+                f'<span style="color:#eee; font-size:0.85rem;">{t("detailed_modification_history")}</span>'
                 f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
                 f'padding:2px 10px; border-radius:10px;">{t("n_versions").format(n=version_count)}</span>'
                 f'</summary>'

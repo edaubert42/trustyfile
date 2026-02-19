@@ -43,7 +43,10 @@
     "pill_stated_tooltip": "PDF créé {days} jours après la date indiquée dans le document",
 
     "trusted": "FIABLE",
-    "risk_suffix": "RISQUE",
+    "risk_LOW": "RISQUE FAIBLE",
+    "risk_MEDIUM": "RISQUE MOYEN",
+    "risk_HIGH": "RISQUE ÉLEVÉ",
+    "risk_CRITICAL": "RISQUE CRITIQUE",
 
     "group_modifications": "Modifications",
     "group_consistency": "Cohérence",
@@ -61,7 +64,8 @@
     "detected_issues": "Problèmes détectés",
     "more_details": "Plus de détails",
 
-    "full_modification_history": "Historique complet des modifications",
+    "full_modification_history": "Historique des modifications",
+    "detailed_modification_history": "Historique détaillé des modifications",
     "n_versions": "{n} versions",
     "version_n": "Version {n}",
     "original": "ORIGINAL",
