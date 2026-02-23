@@ -12,6 +12,22 @@ from typing import Literal
 # Severity levels for flags, from least to most concerning
 SeverityLevel = Literal["low", "medium", "high", "critical"]
 
+# Document type classification.
+# Primary types (invoice, identity, etc.) are the intended targets of TrustyFile.
+# Secondary types (scientific, legal_notice, unknown) get reduced module confidence
+# to avoid false positives from modules calibrated for financial/administrative docs.
+DocumentType = Literal[
+    "invoice",       # Facture (cible principale)
+    "identity",      # CNI, passeport, permis de conduire
+    "certificate",   # Certificat (médical, de conformité, etc.)
+    "attestation",   # Attestation (domicile, employeur, etc.)
+    "tax_document",  # Avis d'imposition, déclaration fiscale
+    "technical",     # Protocole technique, spécification, documentation API
+    "scientific",    # Article scientifique, revue, thèse
+    "legal_notice",  # Notice, CGV, mentions légales
+    "unknown",       # Pas de classification claire
+]
+
 
 @dataclass
 class Flag:
@@ -96,6 +112,7 @@ class AnalysisResult:
     file_hash: str
     trust_score: int
     risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    document_type: DocumentType = "unknown"  # Detected document type
     modules: list[ModuleResult] = field(default_factory=list)
     analysis_time_ms: int = 0
 

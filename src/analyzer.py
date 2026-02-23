@@ -30,6 +30,7 @@ from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
 from src.modules.twod_doc import PYLIBDMTX_AVAILABLE
 from src.scoring import create_analysis_result, generate_summary
+from src.document_type import detect_document_type
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,11 @@ class TrustyFileAnalyzer:
         logger.info(f"Analyzing: {file_path}")
         pdf_data = extract_pdf_data(file_path)
 
+        # Detect document type before running modules
+        # This determines which modules get reduced confidence (to avoid false positives)
+        doc_type = detect_document_type(pdf_data)
+        logger.info(f"Document type detected: {doc_type}")
+
         # Run all modules
         module_results = []
 
@@ -153,11 +159,12 @@ class TrustyFileAnalyzer:
         # Calculate analysis time
         elapsed_ms = int((time.time() - start_time) * 1000)
 
-        # Create final result
+        # Create final result (document_type used for confidence multipliers)
         result = create_analysis_result(
             file_hash=pdf_data.file_hash,
             module_results=module_results,
             analysis_time_ms=elapsed_ms,
+            document_type=doc_type,
         )
 
         logger.info(f"Analysis complete: score={result.trust_score}, risk={result.risk_level}")

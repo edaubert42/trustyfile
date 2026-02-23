@@ -152,5 +152,21 @@
     "label_check": "Check",
     "label_confidence": "Confidence",
     "label_weight": "Weight",
-    "label_flags": "Flags"
+    "label_flags": "Flags",
+
+    "doctype_label": "Document type",
+    "doctype_invoice": "Invoice",
+    "doctype_identity": "Identity document",
+    "doctype_certificate": "Certificate",
+    "doctype_attestation": "Attestation",
+    "doctype_tax_document": "Tax document",
+    "doctype_technical": "Technical document",
+    "doctype_scientific": "Scientific paper",
+    "doctype_legal_notice": "Legal notice / T&C",
+    "doctype_unknown": "Unknown type",
+
+    "doctype_banner_technical": "This document appears to be a technical specification or API documentation. TrustyFile is optimised for invoices and administrative documents. JavaScript and multiple revisions are normal for this document type.",
+    "doctype_banner_scientific": "This document appears to be a scientific or academic paper. TrustyFile is optimised for invoices, certificates and attestations. Results may not be meaningful for this document type.",
+    "doctype_banner_legal_notice": "This document appears to be a legal notice or terms and conditions. TrustyFile is optimised for invoices and administrative documents. Results may not be meaningful for this document type.",
+    "doctype_banner_unknown": "The document type could not be determined. TrustyFile is optimised for invoices, certificates and attestations. Interpret these results with caution."
 }

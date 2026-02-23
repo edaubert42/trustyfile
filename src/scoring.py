@@ -13,7 +13,7 @@ Risk levels:
 
 from dataclasses import dataclass
 from typing import Literal
-from src.models import ModuleResult, AnalysisResult, Flag
+from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
 
 
 # =============================================================================
@@ -35,6 +35,57 @@ MODULE_WEIGHTS = {
 
 # Default weight for unknown modules
 DEFAULT_WEIGHT = 1.0
+
+
+# =============================================================================
+# CONFIDENCE MULTIPLIERS BY DOCUMENT TYPE
+# =============================================================================
+
+# Some modules are calibrated for invoices and produce false positives on other
+# document types. For example:
+#   - fonts: a scientific paper legitimately uses many fonts (equations, figures)
+#   - content: invoice-specific date/amount logic is irrelevant in a legal notice
+#   - structure: papers often have many incremental revisions
+#
+# Instead of changing module scores (which would hide real findings), we reduce
+# their effective confidence so they weigh less in the final average.
+#
+# A multiplier of 0.15 means the module still runs and reports flags,
+# but its contribution to the final score is nearly silenced.
+#
+# Primary types (invoice, identity, certificate, attestation, tax_document)
+# have no adjustment — all modules run at full confidence.
+
+CONFIDENCE_MULTIPLIERS: dict[str, dict[str, float]] = {
+    "technical": {
+        "structure": 0.20,  # JS in forms/interactive specs is normal; many revisions expected
+        "content": 0.30,    # Invoice date/amount logic doesn't apply to API docs
+        "fonts": 0.40,      # Mixed typography common in technical docs (code, diagrams)
+    },
+    "scientific": {
+        "fonts": 0.15,      # Font diversity is normal in academic papers
+        "structure": 0.25,  # Papers often have many incremental updates
+        "content": 0.20,    # Invoice-specific date/amount checks don't apply
+        "images": 0.50,     # Screenshots/figures are expected
+    },
+    "legal_notice": {
+        "fonts": 0.30,      # Notices may use varied typography
+        "structure": 0.30,  # Legal docs may have many revisions
+        "content": 0.30,    # Notices may reference future-dated validity periods
+    },
+    # "unknown" deliberately gets NO multipliers (same as primary types).
+    # Reason: an unclassified document could be a suspicious invoice.
+    # Reducing confidence for unknown docs would let fraud slip through
+    # when the classifier fails to identify the document type.
+    # The UI still shows a warning banner for unknown docs.
+    "unknown": {},
+    # Primary document types: no adjustments (all multipliers = 1.0 implicitly)
+    "invoice": {},
+    "identity": {},
+    "certificate": {},
+    "attestation": {},
+    "tax_document": {},
+}
 
 
 # =============================================================================
@@ -71,21 +122,25 @@ def get_risk_level(score: int) -> Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
 # SCORE CALCULATION
 # =============================================================================
 
-def calculate_final_score(module_results: list[ModuleResult]) -> int:
+def calculate_final_score(
+    module_results: list[ModuleResult],
+    document_type: DocumentType = "unknown",
+) -> int:
     """
     Calculate the final trust score from all module results.
 
     The formula is a confidence-weighted average:
 
-    final_score = Σ(score_i × weight_i × confidence_i) / Σ(weight_i × confidence_i)
+    final_score = Σ(score_i × weight_i × effective_confidence_i) / Σ(weight_i × effective_confidence_i)
 
-    This means:
-    - Modules with higher confidence have more influence
-    - Modules with higher weight have more influence
-    - If a module has 0 confidence, it doesn't affect the score
+    For non-invoice document types, some modules have their confidence
+    multiplied by a factor < 1.0 so they contribute less to the final score.
+    This prevents false positives from modules calibrated for financial documents
+    when analyzing e.g. scientific papers or legal notices.
 
     Args:
         module_results: List of results from all analysis modules
+        document_type: Detected document type (affects confidence multipliers)
 
     Returns:
         Final trust score (0-100)
@@ -93,12 +148,18 @@ def calculate_final_score(module_results: list[ModuleResult]) -> int:
     if not module_results:
         return 100  # No analysis = assume innocent
 
+    # Get the multiplier table for this document type (empty dict = all 1.0)
+    multipliers = CONFIDENCE_MULTIPLIERS.get(document_type, {})
+
     weighted_sum = 0.0
     weight_total = 0.0
 
     for result in module_results:
         weight = MODULE_WEIGHTS.get(result.module, DEFAULT_WEIGHT)
-        effective_weight = weight * result.confidence
+
+        # Apply document-type confidence multiplier (default 1.0 = no change)
+        type_multiplier = multipliers.get(result.module, 1.0)
+        effective_weight = weight * result.confidence * type_multiplier
 
         weighted_sum += result.score * effective_weight
         weight_total += effective_weight
@@ -161,6 +222,7 @@ def create_analysis_result(
     file_hash: str,
     module_results: list[ModuleResult],
     analysis_time_ms: int = 0,
+    document_type: DocumentType = "unknown",
 ) -> AnalysisResult:
     """
     Create the final analysis result from all module results.
@@ -169,22 +231,32 @@ def create_analysis_result(
         file_hash: SHA256 hash of the analyzed file
         module_results: List of results from all analysis modules
         analysis_time_ms: Time taken for analysis in milliseconds
+        document_type: Detected document type (used for confidence adjustment)
 
     Returns:
-        AnalysisResult with final score, risk level, and all details
+        AnalysisResult with final score, risk level, document type, and details
     """
-    # Calculate final score
-    trust_score = calculate_final_score(module_results)
+    # Calculate final score with document-type-aware confidence multipliers
+    trust_score = calculate_final_score(module_results, document_type)
 
     # Determine risk level from score
     risk_level = get_risk_level(trust_score)
 
-    # Override risk level if there are critical flags
-    # A single critical flag means the document should NOT be trusted
+    # Override risk level if there are critical flags.
+    # For PRIMARY document types (invoices, identity, etc.) we apply hard caps
+    # because every module is meaningful for these docs.
+    # For SECONDARY types (scientific, legal_notice, unknown), the confidence
+    # multipliers already reduced module influence — don't also apply caps,
+    # which would double-penalise flags that may be false positives for those types.
+    # Apply hard flag caps for primary types AND unknown (conservative default).
+    # Only skip caps for types where we know modules produce false positives.
+    _skip_caps_types = {"scientific", "legal_notice", "technical"}
+    apply_flag_caps = document_type not in _skip_caps_types
+
     all_flags = collect_all_flags(module_results)
     flag_counts = count_flags_by_severity(all_flags)
 
-    if flag_counts["critical"] >= 1:
+    if apply_flag_caps and flag_counts["critical"] >= 1:
         # Any critical flag = at least HIGH risk
         if risk_level == "LOW" or risk_level == "MEDIUM":
             risk_level = "HIGH"
@@ -197,7 +269,7 @@ def create_analysis_result(
         trust_score -= flag_counts["medium"] * 2
         trust_score = max(trust_score, 5)
 
-    if flag_counts["critical"] >= 2:
+    if apply_flag_caps and flag_counts["critical"] >= 2:
         # Multiple critical flags = CRITICAL risk
         risk_level = "CRITICAL"
         trust_score = min(trust_score, 19)
@@ -206,6 +278,7 @@ def create_analysis_result(
         file_hash=file_hash,
         trust_score=trust_score,
         risk_level=risk_level,
+        document_type=document_type,
         modules=module_results,
         analysis_time_ms=analysis_time_ms,
     )

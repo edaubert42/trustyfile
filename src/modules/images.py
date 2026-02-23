@@ -149,8 +149,11 @@ SCREEN_RESOLUTIONS = [
     (2880, 1800),  # Retina MacBook
 ]
 
-# Tolerance for matching screen resolutions
-RESOLUTION_TOLERANCE = 50
+# Tolerance for matching screen resolutions (px).
+# Kept tight (20px) to avoid matching paper sizes.
+# Example false positive with 50px: 744×1052 (A4 at 90 PPI) matched iPad portrait
+# (768×1024) because both dimensions were within 50px. With 20px it no longer matches.
+RESOLUTION_TOLERANCE = 20
 
 
 def check_screenshot_dimensions(images: list[ImageInfo]) -> list[Flag]:

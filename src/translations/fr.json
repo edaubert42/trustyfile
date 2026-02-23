@@ -152,5 +152,21 @@
     "label_check": "Contrôle",
     "label_confidence": "Fiabilité",
     "label_weight": "Poids",
-    "label_flags": "Alertes"
+    "label_flags": "Alertes",
+
+    "doctype_label": "Type de document",
+    "doctype_invoice": "Facture",
+    "doctype_identity": "Document d'identité",
+    "doctype_certificate": "Certificat",
+    "doctype_attestation": "Attestation",
+    "doctype_tax_document": "Document fiscal",
+    "doctype_technical": "Document technique",
+    "doctype_scientific": "Article scientifique",
+    "doctype_legal_notice": "Notice / CGV",
+    "doctype_unknown": "Type inconnu",
+
+    "doctype_banner_technical": "Ce document semble être une documentation ou spécification technique. TrustyFile est optimisé pour les factures et documents administratifs. La présence de JavaScript ou de nombreuses révisions est normale pour ce type de document.",
+    "doctype_banner_scientific": "Ce document semble être un article scientifique ou académique. TrustyFile est optimisé pour analyser des factures, certificats et attestations. Les résultats peuvent ne pas être pertinents pour ce type de document.",
+    "doctype_banner_legal_notice": "Ce document semble être une notice ou des conditions générales. TrustyFile est optimisé pour analyser des factures et documents administratifs. Les résultats peuvent ne pas être pertinents pour ce type de document.",
+    "doctype_banner_unknown": "Le type de ce document n'a pas pu être déterminé. TrustyFile est optimisé pour les factures, certificats et attestations. Interprétez les résultats avec prudence."
 }

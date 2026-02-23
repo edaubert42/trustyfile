@@ -1102,6 +1102,8 @@ if uploaded_file is not None:
             </div>
             """, unsafe_allow_html=True)
 
+            _dt = result.document_type
+
             # Grouped score bars (4 categories instead of 7 modules)
             # Map module names to their results for easy lookup
             module_map = {m.module: m for m in result.modules}
@@ -1187,15 +1189,24 @@ if uploaded_file is not None:
             if not any(counts.values()):
                 pills_html = f'<span style="background:#28a745; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{t("no_issues")}</span>'
 
-            st.markdown(f'<div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:0.3rem;">{pills_html}</div>'
-                        f'<p style="text-align:center; font-size:0.7rem; color:#888; margin-top:0.4rem;">{t("analysis_completed").format(ms=result.analysis_time_ms)}</p>',
-                        unsafe_allow_html=True)
+            _dt_label = t(f"doctype_{_dt}")
+            st.markdown(
+                f'<div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:0.3rem;">{pills_html}</div>'
+                f'<p style="text-align:center; font-size:0.7rem; color:#888; margin-top:0.4rem;">{t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
+                f'<div style="text-align:center; margin-top:8px;">'
+                f'<span style="background:#1e1e1e; border:1px solid #333; border-radius:20px;'
+                f' padding:4px 14px; font-size:0.8rem; color:#aaa;">'
+                f'{t("doctype_label")}&nbsp;:&nbsp;'
+                f'<strong style="color:#e0e0e0;">{_dt_label}</strong>'
+                f'</span></div>',
+                unsafe_allow_html=True,
+            )
 
             # Module score bars
             st.markdown(f'<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">{bars_html}</div>',
                         unsafe_allow_html=True)
 
-            # Summary block — verdict + flag list with pills
+            # Summary block — verdict + flag list + document type
             _sev_colors = {
                 "critical": "#ef233c",
                 "high": "#ff6b35",
@@ -1216,8 +1227,16 @@ if uploaded_file is not None:
                         f'<span style="color:#ccc; font-size:0.85rem;">{get_flag_sentence(flag, get_lang())}</span>'
                         f'</div>'
                     )
-            else:
-                flags_list_html = ""
+
+            _secondary_types = {"scientific", "legal_notice", "technical", "unknown"}
+            _banner_html = ""
+            if _dt in _secondary_types:
+                _banner_html = (
+                    f'<div style="padding:8px 14px; margin:8px 0 0.8rem 0;'
+                    f' background:#1a2a3a; border-left:3px solid #4a9ade; border-radius:4px;">'
+                    f'<span style="font-size:0.75rem; color:#ffffff;">{t(f"doctype_banner_{_dt}")}</span>'
+                    f'</div>'
+                )
 
             st.markdown(f"""
             <div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">
@@ -1225,11 +1244,13 @@ if uploaded_file is not None:
                     letter-spacing:0.5px; display:block; text-align:center;">{t("summary")}</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
                 <p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>
+                {_banner_html}
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">
                 {flags_list_html}
             </div>
             <div style="margin-bottom:0.5rem;"></div>
             """, unsafe_allow_html=True)
+
 
         # Modification history (only shown if PDF has multiple versions)
         if history["version_count"] > 1 and history.get("diffs"):
