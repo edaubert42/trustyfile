@@ -813,29 +813,61 @@ if uploaded_file is not None:
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+    import hashlib
 
-    # Save to temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-        tmp_file.write(uploaded_file.getvalue())
-        tmp_path = tmp_file.name
+    # Compute a hash of the file bytes to detect if it's a new file
+    file_bytes = uploaded_file.getvalue()
+    file_hash = hashlib.md5(file_bytes).hexdigest()
+
+    # Only re-run the analysis if the file changed (different hash than last time)
+    if st.session_state.get("last_file_hash") != file_hash:
+        # Delete the previous temp file before creating a new one
+        old_tmp = st.session_state.get("cached_tmp_path")
+        if old_tmp and os.path.exists(old_tmp):
+            os.unlink(old_tmp)
+
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_file.write(file_bytes)
+            tmp_path = tmp_file.name
+
+        try:
+            # Run analysis
+            with st.spinner(t("analyzing")):
+                analyzer = TrustyFileAnalyzer(
+                    enable_external=enable_external,
+                    enable_qr_scan=enable_qr,
+                    enable_iban_check=enable_iban_check,
+                    iban_api_key=iban_api_key,
+                )
+                result = analyzer.analyze(tmp_path)
+                summary = generate_rich_summary(result, lang=get_lang())
+
+            # Scan for 2D-DOC barcodes (French government signed barcodes)
+            twod_doc_results = []
+            if PYLIBDMTX_AVAILABLE:
+                with st.spinner(t("scanning_2d_doc")):
+                    twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
+
+            # Cache everything in session_state so page navigation doesn't re-trigger analysis
+            st.session_state["last_file_hash"] = file_hash
+            st.session_state["cached_tmp_path"] = tmp_path
+            st.session_state["cached_result"] = result
+            st.session_state["cached_summary"] = summary
+            st.session_state["cached_twod_doc"] = twod_doc_results
+
+        except Exception as _cache_err:
+            # If analysis fails, clear cache and re-raise so the outer handler catches it
+            st.session_state.pop("last_file_hash", None)
+            raise _cache_err
+    else:
+        # Same file: reuse cached results (page navigation, language switch, etc.)
+        tmp_path = st.session_state["cached_tmp_path"]
+        result = st.session_state["cached_result"]
+        summary = st.session_state["cached_summary"]
+        twod_doc_results = st.session_state["cached_twod_doc"]
 
     try:
-        # Run analysis
-        with st.spinner(t("analyzing")):
-            analyzer = TrustyFileAnalyzer(
-                enable_external=enable_external,
-                enable_qr_scan=enable_qr,
-                enable_iban_check=enable_iban_check,
-                iban_api_key=iban_api_key,
-            )
-            result = analyzer.analyze(tmp_path)
-            summary = generate_rich_summary(result, lang=get_lang())
-
-        # Scan for 2D-DOC barcodes (French government signed barcodes)
-        twod_doc_results = []
-        if PYLIBDMTX_AVAILABLE:
-            with st.spinner(t("scanning_2d_doc")):
-                twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
@@ -2123,8 +2155,9 @@ if uploaded_file is not None:
             st.markdown(more_details_html, unsafe_allow_html=True)
 
     finally:
-        # Cleanup temp file
-        os.unlink(tmp_path)
+        # Don't delete tmp_path here — it's cached in session_state for page navigation.
+        # It will be deleted when a new file is uploaded (see above).
+        pass
 
 # Footer
 st.markdown(f"""
