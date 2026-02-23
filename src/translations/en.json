@@ -9,7 +9,7 @@
 
     "landing_headline": "Have a doubt? Verify.",
     "landing_tagline": "Analyze your PDF documents in seconds and detect any trace of modification.",
-    "disclaimer_upload": "Your document is analyzed locally and will never be stored.",
+    "disclaimer_upload": "Your document is processed temporarily. We guarantee that no data is stored, recorded or transmitted to third parties.",
     "disclaimer_api": "Only the file hash and company identifiers may be sent to external APIs (VirusTotal, INSEE, EU DSS) for document verification.",
     "browse_file": "Browse file",
     "drop_pdf_here": "Drop your PDF here\\A or",
