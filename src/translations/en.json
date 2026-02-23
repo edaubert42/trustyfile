@@ -21,6 +21,11 @@
     "file_properties": "File Properties",
     "page_x_of_y": "Page {x} / {y}",
     "could_not_render": "Could not render PDF preview: {error}",
+    "too_large_title": "File too large",
+    "too_large_message": "This file is {size} MB. TrustyFile accepts files up to 10 MB.",
+    "too_many_pages_title": "Document too long",
+    "too_many_pages_message": "This document has {count} pages. TrustyFile only analyzes documents up to 20 pages.",
+    "back_to_home": "Go back",
 
     "label_name": "Name",
     "label_stated_date": "Stated date",

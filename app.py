@@ -819,6 +819,56 @@ if uploaded_file is not None:
     file_bytes = uploaded_file.getvalue()
     file_hash = hashlib.md5(file_bytes).hexdigest()
 
+    # Check file size — reject documents over 10MB
+    _file_size_mb = len(file_bytes) / (1024 * 1024)
+    if _file_size_mb > 10:
+        st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
+            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
+            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("too_large_title")}</div>
+                </div>
+                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("too_large_message").format(size=f"{_file_size_mb:.1f}")}</div>
+            </div>
+            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
+                {t("back_to_home")}
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    # Check page count before analysis — reject documents over 20 pages
+    import fitz as _fitz
+    with _fitz.open(stream=file_bytes, filetype="pdf") as _doc:
+        _page_count = len(_doc)
+    if _page_count > 20:
+        st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
+            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
+            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("too_many_pages_title")}</div>
+                </div>
+                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("too_many_pages_message").format(count=_page_count)}</div>
+            </div>
+            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
+                {t("back_to_home")}
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
     # Only re-run the analysis if the file changed (different hash than last time)
     if st.session_state.get("last_file_hash") != file_hash:
         # Delete the previous temp file before creating a new one
