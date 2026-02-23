@@ -411,7 +411,7 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "META_IMPOSSIBLE_DATES": lambda f: (
         "La date de modification est antérieure à la date de création, "
-        "ce qui indique une falsification des métadonnées."
+        "ce qui indique une anomalie dans les métadonnées."
     ),
     "CONTENT_FAR_FUTURE_DATE": lambda f: (
         f"Une date lointaine dans le futur a été trouvée"
@@ -568,8 +568,8 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
 VERDICTS: dict[str, dict[str, str]] = {
     "CRITICAL": {
         "default": "Do not trust this document.",
-        "tampering": "Do not trust this document — it has been tampered with.",
-        "dates": "Do not trust this document — dates indicate fabrication.",
+        "tampering": "This document shows clear signs of modification.",
+        "dates": "Dates in this document indicate modifications after its creation.",
         "identity": "Do not trust this document — identity information is fraudulent.",
         "security": "Do not trust this document — it contains dangerous content.",
     },
@@ -594,8 +594,8 @@ VERDICTS: dict[str, dict[str, str]] = {
 VERDICTS_FR: dict[str, dict[str, str]] = {
     "CRITICAL": {
         "default": "Ne faites pas confiance à ce document.",
-        "tampering": "Ce document a été falsifié.",
-        "dates": "Les dates de ce document indiquent une falsification.",
+        "tampering": "Ce document présente des signes évidents de modification.",
+        "dates": "Les dates de ce document indiquent une ou des modifications ultérieures à la date de création.",
         "identity": "Les informations d'identité de ce document sont frauduleuses.",
         "security": "Ce document contient du contenu dangereux.",
     },
