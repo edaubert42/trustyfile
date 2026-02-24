@@ -51,6 +51,25 @@ TD1 (carte d'identité) - 3 lignes × 30 caractères :
   6         = checksum expiration
   <<<<<<<<<<<<<<  = données optionnelles (14 chars)
   4         = checksum composite final
+
+--- DOCUMENTS AMÉRICAINS SUPPORTÉS ---
+
+US Passport (passeport standard) :
+  Format TD3 standard (2×44 chars), préfixe "P<", émetteur "USA"
+  → Pris en charge sans modification (validation ICAO complète)
+
+US Passport Card :
+  Format TD1 (3×30 chars), mais préfixe "IP" au lieu de "IR" (France) ou "ID"
+  → "I" = Identity document, "P" = Passport (convention US)
+  → Émetteur attendu : "USA"
+  → Durée de validité : 10 ans (adultes ≥16 ans) ou 5 ans (mineurs <16 ans)
+
+Nouveaux codes de flag :
+  MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH (HIGH) :
+    Préfixe "IP" détecté mais émetteur ≠ "USA" → incohérence suspecte
+  MRZ_US_VALIDITY_PERIOD_UNEXPECTED (LOW) :
+    Durée de validité d'un document US ne correspond pas aux normes
+    (10 ans adulte / 5 ans mineur) — nécessite la date de délivrance
 """
 
 import io
@@ -249,6 +268,26 @@ TD1_LINE_LENGTH = 30  # CNI/permis : 3 lignes de 30 caractères
 # Le regex permet aussi des longueurs légèrement hors-norme à cause d'OCR imparfait
 # (on autorise 29-45 et 43-45 pour absorber une erreur de 1 char)
 MRZ_LINE_PATTERN = re.compile(r'^[A-Z0-9<]{29,45}$')
+
+
+# =============================================================================
+# CONSTANTES SPÉCIFIQUES AUX DOCUMENTS US
+# =============================================================================
+
+# La Passport Card américaine est un document TD1 dont le préfixe de type
+# est "IP" (I = Identity document, P = Passport — convention propre aux USA).
+# Tous les autres pays TD1 utilisent "I" ou "A" seul (ex : "IR" pour la France,
+# "ID" pour l'Allemagne). "IP" est donc un identifiant quasi-unique pour ce document.
+US_PASSPORT_CARD_PREFIX = "IP"   # Préfixe TD1 exclusif à la Passport Card américaine
+
+# Code ICAO 3 lettres pour les États-Unis
+US_ISSUER_CODE = "USA"
+
+# Durées de validité légales des passeports et Passport Cards US (loi fédérale) :
+#   - Titulaires de 16 ans et plus à la date de délivrance → 10 ans
+#   - Titulaires de moins de 16 ans à la date de délivrance → 5 ans
+US_PASSPORT_VALIDITY_ADULT = 10  # ans, pour les adultes (âge ≥ 16 à la délivrance)
+US_PASSPORT_VALIDITY_MINOR = 5   # ans, pour les mineurs (âge < 16 à la délivrance)
 
 
 # =============================================================================
@@ -996,6 +1035,26 @@ def _check_mrz_coherence(
             details={"issuer_found": issuer_clean},
         ))
 
+    # --- Cas particulier : US Passport Card (préfixe "IP") ---
+    # La Passport Card américaine est le seul document TD1 standard à utiliser
+    # le préfixe "IP". Si on le détecte, on :
+    #   1. Enrichit le dict coherence avec le sous-type exact (pour l'affichage UI)
+    #   2. Vérifie que l'émetteur est bien "USA" — si ce n'est pas le cas, c'est
+    #      soit un document frauduleux, soit une erreur OCR grave → flag HIGH
+    # Note : issuer_clean est maintenant défini (Vérification 2 ci-dessus)
+    if not is_td3 and doc_type_prefix == US_PASSPORT_CARD_PREFIX:
+        coherence["document_subtype"] = "US Passport Card"
+        if issuer_clean != US_ISSUER_CODE:
+            flags.append(Flag(
+                severity="high",
+                code="MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH",
+                message=(
+                    f"US Passport Card détectée (préfixe 'IP') mais l'émetteur est "
+                    f"'{issuer_clean}' au lieu de 'USA' — incohérence suspecte"
+                ),
+                details={"expected_issuer": US_ISSUER_CODE, "found_issuer": issuer_clean},
+            ))
+
     # --- Vérification spécifique CNI française (issuer = "FRA") ---
     if not is_td3 and issuer_clean == "FRA":
         # Fix 2 : pour une CNI française, le préfixe type doit être "IR" (norme ICAO + règle française)
@@ -1025,6 +1084,62 @@ def _check_mrz_coherence(
                         ),
                         details={"optional2_found": optional2},
                     ))
+
+    # --- Vérification spécifique documents US (passeport et Passport Card) ---
+    # La loi fédérale américaine fixe des durées de validité précises selon l'âge
+    # du titulaire à la date de délivrance :
+    #   - Adulte (≥ 16 ans) → 10 ans
+    #   - Mineur (< 16 ans) → 5 ans
+    #
+    # On peut calculer cette durée si on dispose de issuance_date (date de délivrance).
+    # Sans elle, on ne flag rien pour éviter les faux positifs.
+    #
+    # Pourquoi HIGH n'est pas utilisé ici ?
+    # La date de délivrance vient d'un OCR qui peut se tromper → on reste en LOW.
+    if issuer_clean == US_ISSUER_CODE:
+        # Note : la clé dans fields est "date_of_birth" (posée par _validate_mrz_structure_only)
+        # et "expiry_date" (idem) — on lit directement ici car expiry_str n'est pas encore déclaré
+        dob_str = fields.get("date_of_birth")
+        us_expiry_str = fields.get("expiry_date")
+        if issuance_date and dob_str and us_expiry_str:
+            try:
+                from datetime import date as _date
+                dob = _date.fromisoformat(dob_str)
+                issuance = _date.fromisoformat(issuance_date)
+                expiry_us = _date.fromisoformat(us_expiry_str)
+
+                # Âge du titulaire à la date de délivrance (en années, approximatif)
+                age_at_issuance = (issuance - dob).days / 365.25
+
+                # Durée légale attendue selon l'âge
+                expected_years = (
+                    US_PASSPORT_VALIDITY_MINOR if age_at_issuance < 16
+                    else US_PASSPORT_VALIDITY_ADULT
+                )
+
+                # Durée réelle mesurée (expiration - délivrance)
+                actual_years = (expiry_us - issuance).days / 365.25
+
+                # Tolérance de ±1.5 an pour absorber les dates arrondies au mois
+                if abs(actual_years - expected_years) > 1.5:
+                    flags.append(Flag(
+                        severity="low",
+                        code="MRZ_US_VALIDITY_PERIOD_UNEXPECTED",
+                        message=(
+                            f"Document US : durée de validité inhabituelle "
+                            f"({actual_years:.1f} ans) — attendu {expected_years} ans "
+                            f"pour un titulaire de {age_at_issuance:.0f} ans à la délivrance"
+                        ),
+                        details={
+                            "actual_years": round(actual_years, 1),
+                            "expected_years": expected_years,
+                            "age_at_issuance": round(age_at_issuance, 1),
+                            "issuance_date": issuance_date,
+                            "expiry_date": us_expiry_str,
+                        },
+                    ))
+            except (ValueError, TypeError):
+                pass  # Dates non parsables → déjà signalé ailleurs
 
     # --- Vérification 3 : format nationalité ---
     nat_format_valid = (
