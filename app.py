@@ -893,9 +893,18 @@ if uploaded_file is not None:
                 result = analyzer.analyze(tmp_path)
                 summary = generate_rich_summary(result, lang=get_lang())
 
-            # Scan for 2D-DOC barcodes (French government signed barcodes)
+            # Scan for 2D-DOC barcodes (French government signed barcodes).
+            # Le 2D-Doc n'existe que sur les CNI (TD1) — pas sur les passeports (TD3).
+            # On détecte le format MRZ depuis le module identity pour éviter un scan inutile.
+            _identity_mod = next(
+                (m for m in result.modules if m.module == "identity"), None
+            )
+            _mrz_lines = (_identity_mod.details or {}).get("mrz_lines") if _identity_mod else None
+            # ICAO 9303 : première lettre 'P' = passeport. Le 2D-Doc n'existe que sur les CNI.
+            _is_passport = bool(_mrz_lines and _mrz_lines[0].startswith("P"))
+
             twod_doc_results = []
-            if PYLIBDMTX_AVAILABLE:
+            if PYLIBDMTX_AVAILABLE and not _is_passport:
                 with st.spinner(t("scanning_2d_doc")):
                     twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
@@ -1322,18 +1331,19 @@ if uploaded_file is not None:
                     f'</div>'
                 )
 
-            st.markdown(f"""
-            <div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">
-                <span style="color:white; font-size:1.3rem; font-weight:bold; text-transform:uppercase;
-                    letter-spacing:0.5px; display:block; text-align:center;">{t("summary")}</span>
-                <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
-                <p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>
-                {_banner_html}
-                <hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">
-                {flags_list_html}
-            </div>
-            <div style="margin-bottom:0.5rem;"></div>
-            """, unsafe_allow_html=True)
+            _summary_html = (
+                '<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">'
+                f'<span style="color:white; font-size:1.3rem; font-weight:bold; text-transform:uppercase;'
+                f' letter-spacing:0.5px; display:block; text-align:center;">{t("summary")}</span>'
+                '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">'
+                f'<p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>'
+                f'{_banner_html}'
+                '<hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">'
+                f'{flags_list_html}'
+                '</div>'
+                '<div style="margin-bottom:0.5rem;"></div>'
+            )
+            st.markdown(_summary_html, unsafe_allow_html=True)
 
 
         # Modification history (only shown if PDF has multiple versions)
@@ -2199,6 +2209,261 @@ if uploaded_file is not None:
                 f'</summary>'
                 f'<div style="padding:14px; border-top:1px solid #28a745;">'
                 f'{twod_content}'
+                f'</div></details>'
+            )
+
+        # MRZ Zone panel (identity documents)
+        identity_mod = next((m for m in result.modules if m.module == "identity"), None)
+        if identity_mod and identity_mod.details.get("mrz_found"):
+            import html as html_mrz
+            from datetime import date as _d
+
+            det = identity_mod.details
+            mrz_format = det.get("mrz_format", "")
+            # Label du type de document selon le format MRZ
+            if mrz_format == "TD3":
+                doc_type_label = t("mrz_type_passport")
+            elif mrz_format == "TD1":
+                doc_type_label = t("mrz_type_id_card")
+            else:
+                doc_type_label = mrz_format
+
+            # --- Badge selon les flags du module identity ---
+            identity_flags = identity_mod.flags
+            has_high = any(f.severity in ("high", "critical") for f in identity_flags)
+            has_medium = any(f.severity == "medium" for f in identity_flags)
+            if has_high:
+                badge_bg = "#ef233c"
+                badge_label = t("mrz_badge_suspect")
+            elif has_medium:
+                badge_bg = "#f59e0b"
+                badge_label = t("mrz_badge_warning")
+            else:
+                badge_bg = "#28a745"
+                badge_label = t("mrz_badge_valid")
+
+            _mrz_row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
+            _mrz_key = "color:#888; font-size:0.75rem; width:160px; flex-shrink:0;"
+            _mrz_val = "color:#ccc; font-size:0.75rem;"
+            _mrz_val_bold = "color:white; font-size:0.75rem; font-weight:bold;"
+            _mrz_ok = "color:#28a745; margin-right:4px;"
+            _mrz_warn = "color:#f59e0b; margin-right:4px;"
+            _mrz_bad = "color:#ef233c; margin-right:4px;"
+
+            # --- Champs principaux MRZ ---
+            mrz_rows = ""
+
+            # Nom
+            if det.get("name"):
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_name")}</span>'
+                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(det["name"])}</span>'
+                    f'</div>'
+                )
+
+            # Date de naissance + âge
+            if det.get("date_of_birth"):
+                try:
+                    dob = _d.fromisoformat(det["date_of_birth"])
+                    age = (_d.today() - dob).days // 365
+                    dob_str = f"{dob.strftime('%d/%m/%Y')} ({age} {t('mrz_years')})"
+                except Exception:
+                    dob_str = det["date_of_birth"]
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_dob")}</span>'
+                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(dob_str)}</span>'
+                    f'</div>'
+                )
+
+            # Nationalité
+            if det.get("nationality"):
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_nationality")}</span>'
+                    f'<span style="{_mrz_val}">{html_mrz.escape(det["nationality"])}</span>'
+                    f'</div>'
+                )
+
+            # Sexe
+            if det.get("sex"):
+                sex_map = {"M": t("mrz_sex_male"), "F": t("mrz_sex_female"), "<": t("mrz_sex_unspecified")}
+                sex_label = sex_map.get(det["sex"], det["sex"])
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_sex")}</span>'
+                    f'<span style="{_mrz_val}">{html_mrz.escape(sex_label)}</span>'
+                    f'</div>'
+                )
+
+            # Numéro de document
+            if det.get("doc_number"):
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_doc_number")}</span>'
+                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(det["doc_number"])}</span>'
+                    f'</div>'
+                )
+
+            # Date de délivrance (extraite par OCR pleine page — non encodée dans la MRZ)
+            if det.get("issuance_date"):
+                try:
+                    from datetime import date as _d_iso
+                    issuance_display = _d_iso.fromisoformat(det["issuance_date"]).strftime('%d/%m/%Y')
+                except Exception:
+                    issuance_display = det["issuance_date"]
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_issuance")}</span>'
+                    f'<span style="{_mrz_val}">{html_mrz.escape(issuance_display)}</span>'
+                    f'</div>'
+                )
+
+            # Date d'expiration + badge VALIDE/EXPIRÉ
+            if det.get("expiry_date"):
+                try:
+                    expiry = _d.fromisoformat(det["expiry_date"])
+                    expiry_str = expiry.strftime('%d/%m/%Y')
+                    if expiry >= _d.today():
+                        exp_badge = (
+                            f'<span style="background:#28a745; color:white; font-size:0.65rem; '
+                            f'font-weight:bold; padding:1px 8px; border-radius:8px; margin-left:6px;">'
+                            f'{t("mrz_valid")}</span>'
+                        )
+                    else:
+                        exp_badge = (
+                            f'<span style="background:#ef233c; color:white; font-size:0.65rem; '
+                            f'font-weight:bold; padding:1px 8px; border-radius:8px; margin-left:6px;">'
+                            f'{t("mrz_expired")}</span>'
+                        )
+                except Exception:
+                    expiry_str = det["expiry_date"]
+                    exp_badge = ""
+                mrz_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_expiry")}</span>'
+                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(expiry_str)}{exp_badge}</span>'
+                    f'</div>'
+                )
+
+            # --- Section cohérence MRZ ---
+            coherence = det.get("mrz_coherence", {})
+            coherence_rows = ""
+            if coherence:
+                # Type document
+                dt_valid = coherence.get("doc_type_valid", True)
+                dt_prefix = coherence.get("doc_type_prefix", "")
+                dt_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if dt_valid else f'<span style="{_mrz_warn}">&#9651;</span>'
+                dt_text = t("mrz_type_passport") if mrz_format == "TD3" else t("mrz_type_id_card")
+                coherence_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_coherence_doc_type")}</span>'
+                    f'<span style="{_mrz_val}">{dt_icon}{html_mrz.escape(dt_text)} ({html_mrz.escape(dt_prefix)})</span>'
+                    f'</div>'
+                )
+
+                # Code émetteur
+                issuer = coherence.get("issuer", "")
+                issuer_valid = coherence.get("issuer_format_valid", True)
+                is_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if issuer_valid else f'<span style="{_mrz_warn}">&#9651;</span>'
+                if issuer:
+                    coherence_rows += (
+                        f'<div style="{_mrz_row}">'
+                        f'<span style="{_mrz_key}">{t("mrz_coherence_issuer")}</span>'
+                        f'<span style="{_mrz_val}">{is_icon}{html_mrz.escape(issuer.replace("<", ""))} '
+                        f'({t("mrz_format_valid") if issuer_valid else t("mrz_format_invalid")})</span>'
+                        f'</div>'
+                    )
+
+                # Période de validité
+                validity_years = coherence.get("validity_period_years")
+                validity_ok = coherence.get("validity_plausible", True)
+                if validity_years is not None:
+                    vp_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if validity_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
+                    expected_range = "5–10 " + t("mrz_years") if mrz_format == "TD3" else "10–15 " + t("mrz_years")
+                    coherence_rows += (
+                        f'<div style="{_mrz_row}">'
+                        f'<span style="{_mrz_key}">{t("mrz_coherence_validity")}</span>'
+                        f'<span style="{_mrz_val}">{vp_icon}{validity_years} {t("mrz_years")} '
+                        f'({t("mrz_expected")}: {expected_range})</span>'
+                        f'</div>'
+                    )
+
+            # --- Section authenticité du scan ---
+            photo = det.get("photo_analysis", {})
+            photo_rows = ""
+            if photo.get("ela_run"):
+                ela_ok = not photo.get("is_ela_suspicious", False)
+                ela_ratio_pct = photo.get("suspicious_ratio", 0) * 100
+                ela_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if ela_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
+                ela_text = (
+                    t("mrz_ela_ok").format(pct=f"{ela_ratio_pct:.0f}")
+                    if ela_ok
+                    else t("mrz_ela_suspect").format(pct=f"{ela_ratio_pct:.0f}")
+                )
+                photo_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">ELA</span>'
+                    f'<span style="{_mrz_val}">{ela_icon}{html_mrz.escape(ela_text)}</span>'
+                    f'</div>'
+                )
+
+                noise_ok = photo.get("noise_uniform", True)
+                noise_cv = photo.get("noise_cv", 0)
+                noise_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if noise_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
+                noise_text = (
+                    t("mrz_noise_ok")
+                    if noise_ok
+                    else t("mrz_noise_suspect").format(cv=f"{noise_cv:.2f}")
+                )
+                photo_rows += (
+                    f'<div style="{_mrz_row}">'
+                    f'<span style="{_mrz_key}">{t("mrz_noise")}</span>'
+                    f'<span style="{_mrz_val}">{noise_icon}{html_mrz.escape(noise_text)}</span>'
+                    f'</div>'
+                )
+
+            # --- Assembler le panneau complet ---
+            mrz_inner = (
+                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                f'padding:12px 16px; margin-bottom:8px;">'
+                f'{mrz_rows}'
+                f'</div>'
+            )
+
+            if coherence_rows:
+                mrz_inner += (
+                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                    f'padding:12px 16px; margin-bottom:8px;">'
+                    f'<p style="color:#888; font-size:0.72rem; font-weight:bold; margin:0 0 6px 0;">'
+                    f'{t("mrz_coherence_title")}</p>'
+                    f'{coherence_rows}'
+                    f'</div>'
+                )
+
+            if photo_rows:
+                mrz_inner += (
+                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+                    f'padding:12px 16px; margin-bottom:0;">'
+                    f'<p style="color:#888; font-size:0.72rem; font-weight:bold; margin:0 0 6px 0;">'
+                    f'{t("mrz_scan_auth_title")}</p>'
+                    f'{photo_rows}'
+                    f'</div>'
+                )
+
+            more_details_html += (
+                f'<details open style="background:#0a1e3a; border:1px solid #2563eb; '
+                f'border-radius:8px; padding:0; margin-bottom:8px;">'
+                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
+                f'display:flex; align-items:center; gap:10px;">'
+                f'<span style="color:#eee; font-size:0.85rem;">{t("mrz_zone_title")}</span>'
+                f'<span style="background:{badge_bg}; color:white; font-size:0.68rem; font-weight:bold; '
+                f'padding:2px 10px; border-radius:10px;">{badge_label}</span>'
+                f'<span style="color:#888; font-size:0.72rem;">{html_mrz.escape(doc_type_label)}</span>'
+                f'</summary>'
+                f'<div style="padding:14px; border-top:1px solid #2563eb;">'
+                f'{mrz_inner}'
                 f'</div></details>'
             )
 

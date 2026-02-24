@@ -42,13 +42,17 @@ KEYWORDS: dict[str, list[str]] = {
         "billing address", "purchase order", "remittance",
     ],
     "identity": [
+        # Termes exclusifs aux pièces d'identité officielles — ne pas ajouter ici
+        # des termes génériques ("date de naissance", "nationalité", "nationality",
+        # "date of birth"...) qui apparaissent aussi dans les CVs, formulaires, etc.
         # French
-        "carte nationale d'identité", "carte nationale", "passeport", "passport",
-        "permis de conduire", "titre de séjour", "date de naissance",
-        "lieu de naissance", "nationalité", "délivré le",
+        "carte nationale d'identité", "passeport",
+        "permis de conduire", "titre de séjour",
         # English
-        "national id", "driving licence", "driving license", "date of birth",
-        "place of birth", "nationality", "issued on",
+        "national identity card", "national id card",
+        "driving licence", "driving license",
+        # Marqueurs MRZ — impossibles dans tout autre contexte
+        "machine readable zone", "<<<<<",
     ],
     "certificate": [
         # French

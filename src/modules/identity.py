@@ -145,9 +145,10 @@ def _has_face_photo(pdf_data: PDFData) -> bool:
         logger.warning("Haar cascade introuvable — détection de visage désactivée")
         return False
 
-    # Rendre les premières pages à basse résolution (vitesse > qualité)
-    # 100 DPI : une CNI (85×54mm) donne ~335×213 pixels — suffisant pour Haar
-    scale = 100 / 72  # 100 DPI → facteur ~1.39
+    # 72 DPI = résolution native PDF : image la plus petite possible
+    # Une CNI (85×54mm) → ~240×152 pixels, suffisant pour Haar
+    # (on cherche juste un visage, pas à le reconnaître)
+    scale = 72 / 72  # 72 DPI → facteur 1.0 (pas de zoom)
     mat = fitz.Matrix(scale, scale)
 
     try:
@@ -166,14 +167,15 @@ def _has_face_photo(pdf_data: PDFData) -> bool:
                 )
 
                 # Paramètres Haar cascade :
-                # scaleFactor=1.05 : réduction plus fine → moins de faux négatifs
-                # minNeighbors=4   : nombre minimum de détections voisines requises
-                # minSize=(30,30)  : ignorer les visages de moins de 30×30 pixels
+                # scaleFactor=1.3  : défaut OpenCV — 14 passes au lieu de 71 (1.05)
+                #                    → ~5× plus rapide, suffisant pour détecter un visage
+                # minNeighbors=3   : légèrement plus permissif (on veut éviter les faux négatifs)
+                # minSize=(20,20)  : seuil plus bas car image plus petite (72 DPI)
                 faces = face_cascade.detectMultiScale(
                     img,
-                    scaleFactor=1.05,
-                    minNeighbors=4,
-                    minSize=(30, 30),
+                    scaleFactor=1.3,
+                    minNeighbors=3,
+                    minSize=(20, 20),
                 )
 
                 if len(faces) > 0:
@@ -198,7 +200,11 @@ def is_likely_identity_doc(pdf_data: PDFData) -> bool:
 
     Ordre des vérifications (du plus rapide au plus lent) :
     1. Mots-clés dans le texte  → µs, zéro I/O
-    2. Détection de visage      → ~50-200ms, rendu 100 DPI + Haar cascade
+    2. Détection de visage      → ~50-200ms, rendu 72 DPI + Haar cascade
+       UNIQUEMENT si le PDF n'a pas de couche texte.
+       Raisonnement : une vraie pièce d'identité numérisée est un scan (pas de texte).
+       Si le PDF a du texte mais aucun mot-clé identité → c'est un CV, une facture, etc.
+       On évite ainsi de lancer le Haar cascade sur des CVs avec photo de profil.
 
     Si l'une des deux vérifications passe → True.
 
@@ -210,17 +216,23 @@ def is_likely_identity_doc(pdf_data: PDFData) -> bool:
 
     Example:
         >>> is_likely_identity_doc(pdf_data)
-        True  # si "passport" trouvé dans le texte, ou si un visage est détecté
+        True  # si "passport" trouvé dans le texte, ou si scan sans texte avec visage
     """
     # 1. Vérification rapide : mots-clés dans le texte
     if _has_identity_keywords(pdf_data):
         logger.debug("is_likely_identity_doc : mots-clés identité trouvés")
         return True
 
-    # 2. Vérification visuelle : photo de visage (utile pour les PDFs scannés)
-    if _has_face_photo(pdf_data):
-        logger.debug("is_likely_identity_doc : visage détecté dans le document")
-        return True
+    # 2. Vérification visuelle : SEULEMENT si le PDF n'a pas de couche texte.
+    # Un CV, un rapport ou une facture peut avoir une photo de visage — ce n'est
+    # pas pour autant une pièce d'identité. La détection de visage est réservée
+    # aux PDFs scannés (pas de texte extractible), qui sont les seuls cas où
+    # une pièce d'identité peut exister sans mots-clés.
+    full_text = " ".join(pdf_data.text_by_page).strip()
+    if not full_text:
+        if _has_face_photo(pdf_data):
+            logger.debug("is_likely_identity_doc : scan sans texte + visage détecté")
+            return True
 
     return False
 
@@ -854,6 +866,378 @@ def _validate_mrz_structure_only(mrz_lines: list[str]) -> tuple[list[Flag], dict
 
 
 # =============================================================================
+# COHÉRENCE CROSS-CHAMPS MRZ
+# =============================================================================
+
+def _check_mrz_coherence(
+    mrz_lines: list[str],
+    fields: dict,
+    issuance_date: str | None = None,
+) -> tuple[list[Flag], dict]:
+    """
+    Vérifie la cohérence des champs MRZ entre eux (cross-field validation).
+
+    Contrairement aux checksums ICAO (inutilisables sur OCR), ces vérifications
+    sont robustes aux petites erreurs OCR : elles portent sur des formats larges
+    (3 lettres pour le pays) et des plages raisonnables (1-20 ans de validité).
+
+    Vérifications effectuées :
+    - Type de document : TD3 → ligne1[0] doit être 'P' ; TD1 → ligne1[0:2] doit être 'I' ou 'A'
+    - Code pays émetteur : 3 lettres majuscules A-Z (pas de chiffres)
+    - Nationalité : idem
+    - Numéro de document : uniquement [A-Z0-9], pas de '<' au milieu
+    - Période de validité : expiry.year - issuance_date.year doit être dans [1, 20]
+      (uniquement si issuance_date est fourni — sinon pas de flag)
+    - Format du nom : la ligne de nom doit contenir '<<' (séparateur nom/prénom)
+
+    Génère uniquement des flags LOW ou MEDIUM (jamais HIGH/CRITICAL) car l'OCR
+    peut introduire des erreurs qui invalideraient des documents authentiques.
+
+    Args:
+        mrz_lines: 2 lignes (TD3) ou 3 lignes (TD1) de la MRZ
+        fields: Champs déjà extraits par _validate_mrz_structure_only()
+        issuance_date: Date de délivrance au format ISO "YYYY-MM-DD", ou None.
+            Si fournie, utilisée pour calculer la durée de validité (expiry - issuance).
+            Si None, la vérification de validité est ignorée (pas de faux positif).
+
+    Returns:
+        Tuple (liste de flags LOW/MEDIUM, dict de résultats de cohérence)
+
+    Example:
+        >>> flags, coherence = _check_mrz_coherence(mrz_lines, fields, "2021-08-09")
+        >>> coherence["doc_type_valid"]
+        True
+        >>> coherence["validity_period_years"]
+        10  # expiry 2031 - issuance 2021 = 10 ans ✓
+    """
+    flags: list[Flag] = []
+    coherence: dict = {}
+
+    mrz_format = fields.get("mrz_format", "")
+    is_td3 = mrz_format == "TD3"
+
+    # --- Extraction des champs bruts depuis les lignes MRZ ---
+    line1 = mrz_lines[0]
+
+    if is_td3:
+        # TD3 : ligne1[0:2] = type doc (ex. "P<", "PO", "PD"), ligne1[2:5] = pays émetteur
+        doc_type_prefix = line1[0:2] if len(line1) >= 2 else (line1[0] if line1 else "")
+        issuer = line1[2:5] if len(line1) >= 5 else ""
+        name_field = line1[5:] if len(line1) > 5 else ""
+    else:
+        # TD1 : ligne1[0:2] = type doc, ligne1[2:5] = pays émetteur
+        doc_type_prefix = line1[0:2] if len(line1) >= 2 else ""
+        issuer = line1[2:5] if len(line1) >= 5 else ""
+        # Pour TD1 : le nom est sur la ligne 3
+        name_field = mrz_lines[2] if len(mrz_lines) >= 3 else ""
+
+    nationality = fields.get("nationality", "")
+    doc_number = fields.get("doc_number", "")
+
+    coherence["doc_type_prefix"] = doc_type_prefix
+    coherence["issuer"] = issuer
+
+    # --- Vérification 1 : type de document ---
+    if is_td3:
+        # Passeport TD3 : le premier caractère doit être 'P'
+        # Le second caractère qualifie le type : '<' = standard, 'O' = officiel, 'D' = diplomatique
+        doc_type_valid = doc_type_prefix[0:1] == "P"
+        coherence["doc_type_valid"] = doc_type_valid
+        if not doc_type_valid:
+            flags.append(Flag(
+                severity="low",
+                code="MRZ_DOC_TYPE_UNEXPECTED",
+                message=(
+                    f"MRZ TD3 : préfixe type document inattendu ('{doc_type_prefix}', attendu 'P<') "
+                    f"— possible erreur OCR"
+                ),
+                details={"found": doc_type_prefix, "expected": "P<"},
+            ))
+        else:
+            # Vérification du second caractère : doit être '<', 'O', ou 'D' (ICAO 9303)
+            second_char = doc_type_prefix[1:2] if len(doc_type_prefix) >= 2 else ""
+            if second_char and second_char not in ("<", "O", "D"):
+                flags.append(Flag(
+                    severity="low",
+                    code="MRZ_PASSPORT_TYPE_UNUSUAL",
+                    message=(
+                        f"MRZ passeport : second caractère inhabituel ('{doc_type_prefix}', attendu 'P<') "
+                        f"— possible erreur OCR ou passeport diplomatique"
+                    ),
+                    details={"doc_type_found": doc_type_prefix},
+                ))
+    else:
+        # Carte TD1 : les deux premiers caractères doivent être 'I' ou 'A' (selon le pays)
+        doc_type_valid = doc_type_prefix[0:1] in ("I", "A") if doc_type_prefix else False
+        coherence["doc_type_valid"] = doc_type_valid
+        if not doc_type_valid:
+            flags.append(Flag(
+                severity="low",
+                code="MRZ_DOC_TYPE_UNEXPECTED",
+                message=(
+                    f"MRZ TD1 : préfixe type document inattendu ('{doc_type_prefix}', attendu 'I' ou 'A') "
+                    f"— possible erreur OCR"
+                ),
+                details={"found": doc_type_prefix, "expected": "I ou A"},
+            ))
+
+    # --- Vérification 2 : format code pays émetteur (3 lettres A-Z) ---
+    issuer_clean = issuer.replace("<", "")
+    issuer_format_valid = bool(issuer_clean) and re.match(r'^[A-Z]{1,3}$', issuer_clean) is not None
+    coherence["issuer_format_valid"] = issuer_format_valid
+    if not issuer_format_valid and issuer_clean:
+        flags.append(Flag(
+            severity="medium",
+            code="MRZ_ISSUER_FORMAT_INVALID",
+            message=(
+                f"MRZ : code pays émetteur invalide ('{issuer_clean}' — doit être 1-3 lettres A-Z) "
+                f"— possible chiffre mal lu par OCR"
+            ),
+            details={"issuer_found": issuer_clean},
+        ))
+
+    # --- Vérification spécifique CNI française (issuer = "FRA") ---
+    if not is_td3 and issuer_clean == "FRA":
+        # Fix 2 : pour une CNI française, le préfixe type doit être "IR" (norme ICAO + règle française)
+        if doc_type_valid and doc_type_prefix != "IR":
+            flags.append(Flag(
+                severity="low",
+                code="MRZ_CNI_TYPE_UNEXPECTED",
+                message=(
+                    f"CNI française : préfixe type inattendu ('{doc_type_prefix}', attendu 'IR') "
+                    f"— possible erreur OCR"
+                ),
+                details={"found": doc_type_prefix, "expected": "IR", "issuer": "FRA"},
+            ))
+
+        # Fix 3 : pour une CNI française, le champ optionnel 2 (line2[18:29]) doit être tout '<'
+        if len(mrz_lines) >= 2:
+            line2_local = mrz_lines[1]
+            if len(line2_local) >= 29:
+                optional2 = line2_local[18:29]
+                if optional2 and optional2 != "<" * len(optional2):
+                    flags.append(Flag(
+                        severity="low",
+                        code="MRZ_CNI_OPTIONAL2_NOT_EMPTY",
+                        message=(
+                            f"CNI française : champ optionnel 2 non vide ('{optional2}') "
+                            f"— devrait être '<' selon la norme"
+                        ),
+                        details={"optional2_found": optional2},
+                    ))
+
+    # --- Vérification 3 : format nationalité ---
+    nat_format_valid = (
+        not nationality or  # Champ vide = pas de données → pas d'erreur
+        bool(re.match(r'^[A-Z]{1,3}$', nationality))
+    )
+    coherence["nationality_format_valid"] = nat_format_valid
+    if not nat_format_valid:
+        flags.append(Flag(
+            severity="low",
+            code="MRZ_NATIONALITY_FORMAT_INVALID",
+            message=(
+                f"MRZ : code nationalité invalide ('{nationality}' — doit être 1-3 lettres A-Z) "
+                f"— possible erreur OCR"
+            ),
+            details={"nationality_found": nationality},
+        ))
+
+    # --- Vérification 4 : format numéro de document ---
+    # Le numéro ne doit contenir que [A-Z0-9], pas de '<' au milieu
+    # (sauf si c'est entièrement des '<', ce qui signifie champ vide)
+    doc_number_format_valid = True
+    if doc_number and doc_number != "<" * len(doc_number):
+        # Contient des données réelles → vérifier qu'il n'y a que [A-Z0-9]
+        doc_number_format_valid = bool(re.match(r'^[A-Z0-9]+$', doc_number))
+        if not doc_number_format_valid:
+            flags.append(Flag(
+                severity="low",
+                code="MRZ_DOC_NUMBER_FORMAT_INVALID",
+                message=(
+                    f"MRZ : numéro de document contient des caractères invalides "
+                    f"('{doc_number}' — attendu [A-Z0-9]) — probable erreur OCR"
+                ),
+                details={"doc_number_found": doc_number},
+            ))
+    coherence["doc_number_format_valid"] = doc_number_format_valid
+
+    # --- Vérification 5 : période de validité ---
+    # On calcule expiry - issuance_date (date de délivrance) pour obtenir la durée réelle.
+    # IMPORTANT : on n'utilise PAS la date de naissance (dob) ici — ce serait faux.
+    # Ex: DOB=1982, expiry=2031 → 49 ans (absurde)
+    #     issuance=2021, expiry=2031 → 10 ans ✓
+    # Si issuance_date n'est pas disponible (non trouvée par OCR), on ne flag rien
+    # pour éviter les faux positifs.
+    expiry_str = fields.get("expiry_date")
+    validity_years = None
+    validity_plausible = True  # défaut : pas de flag si on ne peut pas calculer
+
+    if issuance_date and expiry_str:
+        try:
+            from datetime import date as _date
+            issuance = _date.fromisoformat(issuance_date)
+            expiry = _date.fromisoformat(expiry_str)
+            validity_years = expiry.year - issuance.year
+            # Valeurs plausibles : 1 à 20 ans
+            # (5 ou 10 pour passeport ; 10 ou 15 pour CNI — on laisse de la marge)
+            validity_plausible = 1 <= validity_years <= 20
+            if not validity_plausible:
+                flags.append(Flag(
+                    severity="low",
+                    code="MRZ_VALIDITY_PERIOD_UNUSUAL",
+                    message=(
+                        f"MRZ : période de validité inhabituelle ({validity_years} ans) "
+                        f"— valeurs attendues : 5, 10 ou 15 ans. Possible erreur OCR."
+                    ),
+                    details={
+                        "validity_years": validity_years,
+                        "issuance_date": issuance_date,
+                        "expiry": expiry_str,
+                    },
+                ))
+        except (ValueError, TypeError):
+            pass  # Dates non parsables → déjà signalé ailleurs
+
+    coherence["validity_period_years"] = validity_years
+    coherence["validity_plausible"] = validity_plausible
+    coherence["issuance_date"] = issuance_date
+
+    # --- Vérification 6 : format du nom (doit contenir '<<') ---
+    name_format_valid = "<<" in name_field
+    coherence["name_format_valid"] = name_format_valid
+    if not name_format_valid and name_field:
+        flags.append(Flag(
+            severity="low",
+            code="MRZ_NAME_FORMAT_INVALID",
+            message=(
+                "MRZ : le champ nom ne contient pas le séparateur '<<' nom/prénom "
+                "— possible erreur OCR sur la ligne 1"
+            ),
+            details={"name_field_preview": name_field[:20]},
+        ))
+
+    return flags, coherence
+
+
+# =============================================================================
+# AUTHENTICITÉ DU SCAN
+# =============================================================================
+
+def _analyze_scan_authenticity(file_path: str, page_count: int) -> dict:
+    """
+    Analyse la première page d'un scan de pièce d'identité pour détecter des retouches.
+
+    Deux techniques complémentaires :
+
+    1. ELA (Error Level Analysis) :
+       Re-sauvegarde l'image en JPEG et compare avec l'original.
+       Les zones retouchées ont des niveaux d'erreur plus élevés
+       car elles n'ont pas subi autant de compressions que le reste.
+       → Seuil : si > 8% de l'image est suspecte → flag MEDIUM
+
+    2. Uniformité du bruit :
+       Une vraie photo a un bruit naturel (grain du capteur) relativement
+       uniforme. Un collage de zones provenant de sources différentes
+       crée des incohérences de bruit détectables.
+       → Grille 8×8 blocs, variance du Laplacien par bloc
+       → Coefficient de variation (std/mean) > 2.0 → bruit incohérent → flag LOW
+
+    Args:
+        file_path: Chemin vers le PDF de la pièce d'identité
+        page_count: Nombre de pages (non utilisé, on analyse toujours la page 1)
+
+    Returns:
+        Dict avec les résultats de l'analyse :
+        {
+            "ela_run": bool,          # False si erreur (dépendances manquantes, etc.)
+            "suspicious_ratio": float, # Ratio de pixels suspects ELA (0.0-1.0)
+            "suspicious_regions_count": int,
+            "is_ela_suspicious": bool,  # True si ratio > 8%
+            "noise_cv": float,         # Coefficient de variation du bruit
+            "noise_uniform": bool,     # True si bruit cohérent (cv <= 2.0)
+        }
+
+    Example:
+        >>> result = _analyze_scan_authenticity("cni.pdf", 1)
+        >>> result["is_ela_suspicious"]
+        False  # document authentique → peu de pixels suspects
+    """
+    try:
+        import cv2
+        import numpy as np
+        from src.extractors.ocr import render_page
+        from src.modules.forensics import compute_ela, detect_suspicious_regions
+    except ImportError as e:
+        logger.debug(f"_analyze_scan_authenticity : dépendance manquante ({e})")
+        return {"ela_run": False}
+
+    try:
+        # --- Rendu de la page 1 à 200 DPI ---
+        # 200 DPI = rapide + suffisant pour ELA (pas besoin de 300 DPI)
+        pil_img = render_page(file_path, 0, dpi=200)
+
+        # Convertir PIL (RGB) → numpy BGR (format OpenCV)
+        # PIL = R, G, B → OpenCV = B, G, R → on inverse avec [:, :, ::-1]
+        img_bgr = np.array(pil_img)[:, :, ::-1].copy()
+
+        # --- ELA ---
+        ela_img = compute_ela(img_bgr)
+        regions = detect_suspicious_regions(ela_img)
+
+        total_pixels = img_bgr.shape[0] * img_bgr.shape[1]
+        suspicious_area = sum(r["area"] for r in regions)
+        suspicious_ratio = suspicious_area / total_pixels if total_pixels > 0 else 0.0
+
+        # Seuil : 8% de l'image suspecte → flag MEDIUM
+        is_ela_suspicious = suspicious_ratio > 0.08
+
+        # --- Uniformité du bruit (grille 8×8) ---
+        # Convertir en niveaux de gris pour l'analyse du Laplacien
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        h, w = gray.shape
+
+        # Découper en blocs et calculer la variance du Laplacien dans chaque bloc
+        # Le Laplacien mesure les variations locales → corrèle avec le niveau de bruit
+        block_h = h // 8
+        block_w = w // 8
+        variances = []
+
+        for row in range(8):
+            for col in range(8):
+                # Extraire le bloc
+                y1, y2 = row * block_h, (row + 1) * block_h
+                x1, x2 = col * block_w, (col + 1) * block_w
+                block = gray[y1:y2, x1:x2]
+
+                # Variance du Laplacien : grande variance = beaucoup de bruit ou de détail
+                lap_var = cv2.Laplacian(block, cv2.CV_64F).var()
+                variances.append(lap_var)
+
+        variances_arr = np.array(variances)
+        noise_mean = float(np.mean(variances_arr))
+        noise_std = float(np.std(variances_arr))
+
+        # Coefficient de variation = std / mean (normalisé par la moyenne)
+        # > 2.0 = le bruit varie trop d'une zone à l'autre → suspect
+        noise_cv = (noise_std / noise_mean) if noise_mean > 0 else 0.0
+        noise_uniform = noise_cv <= 2.0
+
+        return {
+            "ela_run": True,
+            "suspicious_ratio": round(suspicious_ratio, 4),
+            "suspicious_regions_count": len(regions),
+            "is_ela_suspicious": is_ela_suspicious,
+            "noise_cv": round(noise_cv, 3),
+            "noise_uniform": noise_uniform,
+        }
+
+    except Exception as e:
+        logger.warning(f"_analyze_scan_authenticity : erreur ({e})")
+        return {"ela_run": False}
+
+
+# =============================================================================
 # FONCTION PRINCIPALE DU MODULE
 # =============================================================================
 
@@ -889,9 +1273,12 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
     # Toujours OCR — les IDs sont toujours des scans
     logger.info("Module identity : lancement OCR pour détection MRZ...")
     mrz_lines = None
+    mrz_page = 0
     try:
         from src.extractors.ocr import ocr_extract_mrz
-        mrz_lines = ocr_extract_mrz(pdf_data.file_path, pdf_data.page_count)
+        mrz_result = ocr_extract_mrz(pdf_data.file_path, pdf_data.page_count)
+        if mrz_result is not None:
+            mrz_lines, mrz_page = mrz_result
     except Exception as e:
         logger.warning(f"Module identity : OCR échoué ({e})")
 
@@ -912,12 +1299,29 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
     details["mrz_found"] = True
     details["mrz_format"] = "TD3" if len(mrz_lines) == 2 else "TD1"
     details["mrz_lines"] = mrz_lines
+    details["mrz_page"] = mrz_page
     details["note"] = "MRZ détectée par OCR — validation structurelle (dates, sexe). Checksums non vérifiables sur scan."
 
-    logger.info(f"Module identity : MRZ {details['mrz_format']} détectée")
+    logger.info(f"Module identity : MRZ {details['mrz_format']} détectée (page {mrz_page + 1})")
 
     flags, mrz_fields = _validate_mrz_structure_only(mrz_lines)
     details.update(mrz_fields)
+
+    # La date de délivrance (hors MRZ) nécessiterait un OCR pleine page (~5s/page).
+    # Supprimée du flux principal pour rester dans le budget de 3-4s.
+    # Les dates importantes (naissance, expiration) sont déjà dans la MRZ.
+    issuance_date = None
+    details["issuance_date"] = issuance_date
+
+    # --- Cohérence cross-champs MRZ ---
+    # On passe issuance_date pour corriger le calcul de durée de validité.
+    # Sans issuance_date, la vérification de durée est désactivée (pas de faux positif).
+    coherence_flags, coherence = _check_mrz_coherence(mrz_lines, details, issuance_date)
+    details["mrz_coherence"] = coherence
+    flags.extend(coherence_flags)
+
+    # L'ELA est gérée par le module forensics (évite un doublon à 8s).
+    details["photo_analysis"] = {"ela_run": False}
 
     score = 100
     for flag in flags:
