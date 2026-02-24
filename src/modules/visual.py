@@ -27,6 +27,12 @@ from src.extractors.pdf_extractor import PDFData
 
 logger = logging.getLogger(__name__)
 
+# TODO (next feature): QR code scanning via pyzbar
+# Requires: pip install pyzbar + sudo apt install libzbar0
+# See extract_qr_codes_from_pdf() below — currently disabled.
+PYZBAR_AVAILABLE = False
+_pyzbar = None
+
 
 # =============================================================================
 # QR CODE DETECTION
@@ -72,10 +78,7 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
     """
     qr_codes = []
 
-    try:
-        from pyzbar import pyzbar
-    except ImportError:
-        logger.error("pyzbar not installed. Run: pip install pyzbar")
+    if not PYZBAR_AVAILABLE:
         return []
 
     try:
@@ -101,7 +104,7 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
         img = Image.open(io.BytesIO(img_data))
 
         # Detect QR codes
-        decoded_objects = pyzbar.decode(img)
+        decoded_objects = _pyzbar.decode(img)
 
         for obj in decoded_objects:
             # obj.data is bytes, decode to string

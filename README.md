@@ -24,7 +24,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 |--------|-----------------|
 | **Metadata** | Online converters (iLovePDF, SmallPDF), AI-generated documents, image editors |
 | **Content** | Impossible dates, anachronisms, invalid SIRET/VAT numbers, inconsistent references |
-| **Visual** | QR codes pointing to wrong domains, converter watermarks, specimen marks |
+| **Visual** | Converter watermarks (iLovePDF, trial version), specimen/draft marks *(QR code scanning: next feature)* |
 | **Fonts** | Too many fonts, mid-line font changes, system fonts in "professional" docs |
 | **Images** | EXIF inconsistencies, resolution mismatches, compression artifacts |
 | **Structure** | Incremental updates (revision history), modification timeline, hidden JavaScript |
@@ -182,6 +182,7 @@ pytest tests/ --cov=src --cov-report=html
 - [x] VirusTotal hash lookup
 - [x] 2D-DOC barcode scanning (French government documents)
 - [x] Rich summary with verdict and bullet findings
+- [ ] QR code scanning (pyzbar — verify QR URLs match document sender)
 - [ ] Template matching (compare against known legitimate invoice layouts)
 - [ ] API endpoint (FastAPI)
 - [ ] Batch upload support

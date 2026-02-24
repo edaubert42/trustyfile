@@ -57,7 +57,7 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 - **PDF Parsing**: PyMuPDF (fitz) - preferred over PyPDF2 for speed and robustness
 - **Text Extraction**: pdfplumber (for structured text), pytesseract (OCR fallback)
 - **Date Parsing**: datefinder
-- **QR Code Reading**: pyzbar
+- **QR Code Reading**: pyzbar *(disabled — next feature, requires libzbar0 system dep)*
 - **Image Processing**: opencv-python (cv2), Pillow
 - **Web Interface**: Streamlit
 - **Testing**: pytest
@@ -126,9 +126,9 @@ trustyfile/
 - Detect duplicate/inconsistent amounts
 
 ### Module C: Visual Analysis (`src/modules/visual.py`) — MVP
-- Decode QR codes with pyzbar, verify domains match sender
 - Detect converter watermarks in text ("converted by", "trial version", "edited with")
 - Detect "SPECIMEN", "COPY", "DRAFT" watermarks
+- *(Next feature)* Decode QR codes with pyzbar, verify domains match sender
 
 ### Module D: Font Analysis (`src/modules/fonts.py`) — MVP
 - List all fonts used in document
