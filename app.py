@@ -1296,17 +1296,19 @@ if uploaded_file is not None:
                 "low": "#555",
             }
 
+            import html as _html_esc
             flags_list_html = ""
             if all_flags:
                 for flag in all_flags:
                     fc = _sev_colors.get(flag.severity, "#555")
+                    safe_sentence = _html_esc.escape(get_flag_sentence(flag, get_lang()))
                     flags_list_html += (
                         f'<div style="display:flex; align-items:center; gap:8px; padding:5px 0; '
                         f'border-bottom:1px solid #2a2a2a;">'
                         f'<span style="background:{fc}; color:white; font-size:0.62rem; '
                         f'font-weight:bold; padding:2px 0; border-radius:8px; width:58px; '
                         f'text-align:center; display:inline-block; flex-shrink:0;">{t(f"severity_{flag.severity}")}</span>'
-                        f'<span style="color:#ccc; font-size:0.85rem;">{get_flag_sentence(flag, get_lang())}</span>'
+                        f'<span style="color:#ccc; font-size:0.85rem;">{safe_sentence}</span>'
                         f'</div>'
                     )
 

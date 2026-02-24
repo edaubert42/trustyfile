@@ -28,6 +28,7 @@ from src.modules.images import analyze_images
 from src.modules.structure import analyze_structure
 from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
+from src.modules.identity import analyze_identity, is_likely_identity_doc
 from src.modules.twod_doc import PYLIBDMTX_AVAILABLE
 from src.scoring import create_analysis_result, generate_summary
 from src.document_type import detect_document_type
@@ -146,6 +147,24 @@ class TrustyFileAnalyzer:
         # Module H: Forensic Analysis (ELA)
         logger.debug("Running forensic analysis...")
         module_results.append(analyze_forensics(file_path))
+
+        # Module Identity: MRZ analysis (passports, ID cards).
+        # Triggered if:
+        #   - classifier already detected "identity" (doc has a text layer with ID keywords), OR
+        #   - doc is "unknown" AND passes the quick pre-check (identity keywords OR face photo).
+        #     Scanned IDs have no text → classifier returns "unknown" → pre-check saves the day.
+        # The pre-check (keywords + face detection at 100 DPI) is much faster than OCR itself.
+        _run_identity = doc_type == "identity" or (
+            doc_type == "unknown" and is_likely_identity_doc(pdf_data)
+        )
+        if _run_identity:
+            logger.debug("Running identity/MRZ analysis...")
+            module_results.append(analyze_identity(pdf_data))
+            # If the classifier missed it (returned "unknown" because the scan has no
+            # text layer), override so scoring uses identity-specific multipliers and caps.
+            if doc_type == "unknown":
+                doc_type = "identity"
+                logger.info("Document type overridden to 'identity' (face/keyword pre-check)")
 
         # Module G: External Verification (optional)
         if self.enable_external:

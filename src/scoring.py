@@ -31,6 +31,7 @@ MODULE_WEIGHTS = {
     "forensics": 0.9,   # Image forensics (ELA)
     "structure": 1.3,   # PDF structure (incremental updates, JS, etc.) - very reliable
     "external": 1.5,    # External verification (very reliable when available)
+    "identity": 1.5,   # MRZ check digit validation (cryptographically reliable)
 }
 
 # Default weight for unknown modules
@@ -79,9 +80,20 @@ CONFIDENCE_MULTIPLIERS: dict[str, dict[str, float]] = {
     # when the classifier fails to identify the document type.
     # The UI still shows a warning banner for unknown docs.
     "unknown": {},
-    # Primary document types: no adjustments (all multipliers = 1.0 implicitly)
+    # Primary document types: some have reduced confidence for modules that
+    # don't apply well to their format.
     "invoice": {},
-    "identity": {},
+    "identity": {
+        # Scanned ID documents legitimately have variable/OCR-extracted fonts.
+        # Font diversity is normal for scanned government docs → reduce penalty weight.
+        "fonts": 0.3,
+        # Invoice-specific checks (SIRET, amounts, due dates) don't apply to IDs.
+        # Reducing content module so it doesn't penalise lack of "facture" structure.
+        "content": 0.4,
+        # Scanned PDFs have minimal internal PDF structure (no incremental updates, no JS).
+        # Structure module will see a "simple" PDF and have low signal → reduce weight.
+        "structure": 0.5,
+    },
     "certificate": {},
     "attestation": {},
     "tax_document": {},
@@ -251,10 +263,46 @@ def create_analysis_result(
     # Apply hard flag caps for primary types AND unknown (conservative default).
     # Only skip caps for types where we know modules produce false positives.
     _skip_caps_types = {"scientific", "legal_notice", "technical"}
-    apply_flag_caps = document_type not in _skip_caps_types
 
     all_flags = collect_all_flags(module_results)
     flag_counts = count_flags_by_severity(all_flags)
+
+    if document_type == "identity":
+        # Scanned identity documents have one known false-positive CRITICAL:
+        # the scanner saves the PDF, then a viewer (Adobe, etc.) opens it within
+        # minutes → "META_DOCUMENT_MODIFIED" CRITICAL, even on authentic documents.
+        #
+        # Distinguishing scanner pipeline from real tampering: the time gap.
+        # < 30 minutes = plausible scanner-to-viewer workflow → skip this specific flag.
+        # ≥ 30 minutes = intentional modification long after creation → keep the cap.
+        #
+        # All other CRITICAL flags (forensics, identity MRZ, content dates…) always cap.
+        def _is_scanner_pipeline_critical(r: ModuleResult, f: Flag) -> bool:
+            """True if this CRITICAL is just a scanner saving then a viewer opening the PDF."""
+            if f.severity != "critical":
+                return False
+            if f.code != "META_DOCUMENT_MODIFIED":
+                return False
+            hours = (f.details or {}).get("time_difference_hours", 999)
+            return float(hours) < 0.5  # under 30 minutes
+
+        genuine_criticals = sum(
+            1
+            for r in module_results
+            for f in r.flags
+            if f.severity == "critical" and not _is_scanner_pipeline_critical(r, f)
+        )
+        apply_flag_caps = genuine_criticals >= 1
+
+        # Downgrade scanner-pipeline false-positive flags from "critical" to "low"
+        # so they don't appear as alarming in the UI for authentic scanned IDs.
+        # The score cap already ignores them; now the display should match.
+        for r in module_results:
+            for f in r.flags:
+                if _is_scanner_pipeline_critical(r, f):
+                    f.severity = "low"
+    else:
+        apply_flag_caps = document_type not in _skip_caps_types
 
     if apply_flag_caps and flag_counts["critical"] >= 1:
         # Any critical flag = at least HIGH risk

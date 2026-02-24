@@ -186,10 +186,13 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "META_DOCUMENT_MODIFIED": lambda f: (
         f"The document was modified "
-        f"{int(f.details['time_difference_hours'] // 24)} days after creation."
+        f"{int(f.details['time_difference_hours'] // 24)} day(s) after creation."
         if f.details and f.details.get('time_difference_hours', 0) >= 24
         else f"The document was modified "
         f"{round(f.details['time_difference_hours'], 1)}h after creation."
+        if f.details and f.details.get('time_difference_hours', 0) >= 1
+        else f"The document was modified "
+        f"{int(f.details['time_difference_hours'] * 60)} minute(s) after creation."
         if f.details and f.details.get('time_difference_hours')
         else "The document was modified after its initial creation."
     ),
@@ -402,10 +405,13 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "META_DOCUMENT_MODIFIED": lambda f: (
         f"Le document a été modifié "
-        f"{int(f.details['time_difference_hours'] // 24)} jours après sa création."
+        f"{int(f.details['time_difference_hours'] // 24)} jour(s) après sa création."
         if f.details and f.details.get('time_difference_hours', 0) >= 24
         else f"Le document a été modifié "
         f"{round(f.details['time_difference_hours'], 1)}h après sa création."
+        if f.details and f.details.get('time_difference_hours', 0) >= 1
+        else f"Le document a été modifié "
+        f"{int(f.details['time_difference_hours'] * 60)} minute(s) après sa création."
         if f.details and f.details.get('time_difference_hours')
         else "Le document a été modifié après sa création initiale."
     ),
