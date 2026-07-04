@@ -26,6 +26,8 @@ def run_evaluation(corpus_dir: str) -> dict:
         "flag_code_counts": {},
         "false_positives": 0,   # legitimate doc scored < 50
         "false_negatives": 0,   # suspicious doc scored >= 50
+        "band_counts": {},
+        "code_weights": {},
         "notes": notes,
     }
 
@@ -35,6 +37,7 @@ def run_evaluation(corpus_dir: str) -> dict:
 
     analyzer = TrustyFileAnalyzer(enable_external=False)
     flag_counter: Counter = Counter()
+    band_counter: Counter = Counter()
 
     for label, threshold_ok in (("legitimate", lambda s: s >= 50),
                                 ("suspicious", lambda s: s < 50)):
@@ -50,6 +53,7 @@ def run_evaluation(corpus_dir: str) -> dict:
                 continue
             report["total"] += 1
             report["by_label"][label] += 1
+            band_counter[result.band] += 1
             for m in result.modules:
                 for f in m.flags:
                     flag_counter[f.code] += 1
@@ -59,6 +63,13 @@ def run_evaluation(corpus_dir: str) -> dict:
                 report["false_negatives"] += 1
 
     report["flag_code_counts"] = dict(flag_counter)
+    report["band_counts"] = dict(band_counter)
+
+    from src.evidence import SEVERITY_WEIGHTS, HARD_NEGATIVE_CODES
+    report["code_weights"] = {
+        **{c: "HARD_NEG" for c in HARD_NEGATIVE_CODES},
+        "_soft_severity_weights": dict(SEVERITY_WEIGHTS),
+    }
     return report
 
 
@@ -73,6 +84,15 @@ def _print_report(report: dict) -> None:
         for code, n in sorted(report["flag_code_counts"].items(),
                               key=lambda kv: -kv[1]):
             print(f"  {n:5d}  {code}")
+    if report["band_counts"]:
+        print("Band distribution:")
+        for band, n in sorted(report["band_counts"].items(),
+                              key=lambda kv: -kv[1]):
+            print(f"  {n:5d}  {band}")
+    soft_weights = report["code_weights"].get("_soft_severity_weights")
+    if soft_weights:
+        weights_str = ", ".join(f"{sev}={w}" for sev, w in soft_weights.items())
+        print(f"Soft severity weights: {weights_str}")
     for note in report["notes"]:
         print(f"NOTE: {note}")
 
