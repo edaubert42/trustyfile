@@ -39,6 +39,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_COVER_AND_RETYPE_CONFIRMED": "tampering",
     "OVERLAY_OPAQUE_FILL_OVER_TEXT": "tampering",
     "OVERLAY_CONFLICTING_TEXT": "tampering",
+    "OVERLAY_REVISION_VALUE_CHANGED": "tampering",
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": "tampering",
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
@@ -211,6 +213,24 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "OVERLAY_CONFLICTING_TEXT": lambda f: (
         "Two conflicting values overlap at the same position, "
         "suggesting the original value was retyped."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED": lambda f: (
+        f"A value changed between two saved revisions of this document: "
+        f"\"{f.details.get('old_value', '')}\" became "
+        f"\"{f.details.get('new_value', '')}\"."
+        if f.details and f.details.get('old_value') is not None
+        else "A value changed between two saved revisions of this document."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": lambda f: (
+        f"A value changed between two saved revisions of this document: "
+        f"\"{f.details.get('old_value', '')}\" became "
+        f"\"{f.details.get('new_value', '')}\". This is corroborated by the "
+        f"revision that made the change having been saved by an interactive "
+        f"editing tool."
+        if f.details and f.details.get('old_value') is not None
+        else ("A value changed between two saved revisions of this document, "
+              "corroborated by the changing revision having been saved by an "
+              "interactive editing tool.")
     ),
 
     # --- dates ---
@@ -458,6 +478,25 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "OVERLAY_CONFLICTING_TEXT": lambda f: (
         "Deux valeurs contradictoires se superposent au même endroit, "
         "suggérant que la valeur d'origine a été ressaisie."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED": lambda f: (
+        f"Une valeur a changé entre deux versions enregistrées de ce document : "
+        f"« {f.details.get('old_value', '')} » est devenue "
+        f"« {f.details.get('new_value', '')} »."
+        if f.details and f.details.get('old_value') is not None
+        else "Une valeur a changé entre deux versions enregistrées de ce document."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": lambda f: (
+        f"Une valeur a changé entre deux versions enregistrées de ce document : "
+        f"« {f.details.get('old_value', '')} » est devenue "
+        f"« {f.details.get('new_value', '')} ». Ceci est corroboré par le fait "
+        f"que la version ayant introduit ce changement a été enregistrée par "
+        f"un outil d'édition interactif."
+        if f.details and f.details.get('old_value') is not None
+        else ("Une valeur a changé entre deux versions enregistrées de ce "
+              "document, corroboré par le fait que la version ayant introduit "
+              "ce changement a été enregistrée par un outil d'édition "
+              "interactif.")
     ),
 
     # --- dates ---

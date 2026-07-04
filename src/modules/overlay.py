@@ -502,6 +502,260 @@ def _corroboration(pdf_data, raw_bytes: bytes | None) -> dict:
 
 
 # =============================================================================
+# SIGNAL 4 (Task 5) — INCREMENTAL-REVISION ROLLBACK + VALUE DIFF
+# =============================================================================
+# Signals 1-3 only ever see the FINAL document. If a forger DELETES the
+# original value outright (e.g. via a real redaction that strips the
+# underlying text) instead of merely painting a box over it, there is no
+# ghost text left underneath and no covering box to find — Signals 1-3 are
+# structurally blind to this variant. PDF incremental saves make a rollback
+# possible: each "%%EOF" marker delimits a complete, independently-openable
+# prior version of the file (raw_bytes[:eof] IS that version), so we can
+# reopen the version that existed BEFORE the edit and diff its extracted
+# words, position-by-position, against the version AFTER.
+#
+# HARD vs SOFT mirrors Task 4's C2 gate exactly (see `_corroboration` above):
+# only an interactive-editor Producer/Creator on the revision that made the
+# change may escalate to a `_CONFIRMED` HARD code. The same document resaved
+# by the SAME non-editor tool (e.g. a report engine correcting a value across
+# sessions) must stay SOFT — never a fraud accusation for honest, ambiguous
+# multi-session edits.
+TOKEN_CENTRE_TOL = 3.0  # pt; PyMuPDF word-splitter jitter between independent revisions
+
+# Value-bearing categories worth flagging when they change across a revision
+# boundary: dates, IBAN, SIREN/SIRET/VAT-shaped digit runs, and (falling
+# through to the last, most permissive alternative) any bare run containing a
+# digit — which is what money amounts collapse to once currency symbols and
+# separators are stripped by norm(). A pure-prose change (e.g. a company name
+# typo fix) has no digit at all and never reaches this alternative.
+_VALUE_BEARING_RE = re.compile(
+    r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}"        # date: dd/mm/yyyy, dd-mm-yy, ...
+    r"|\d{4}-\d{2}-\d{2}"                         # ISO date: yyyy-mm-dd
+    r"|[A-Za-z]{2}\d{2}[A-Za-z0-9]{10,30}"          # IBAN-shaped
+    r"|\d{9}(?:\d{5})?"                            # SIREN (9 digits) / SIRET (14 digits)
+    r"|\d[\d\s\u202f\u00a0.,]*"                 # money / bare number run (most permissive)
+)
+
+
+def _is_value_bearing(text: str) -> bool:
+    """True if `text` looks like a value worth flagging when it changes across
+    a revision boundary, rather than incidental prose.
+
+    Examples:
+        >>> _is_value_bearing("1")            # bare digit — still value-bearing
+        True
+        >>> _is_value_bearing("9 200,00")     # money
+        True
+        >>> _is_value_bearing("ACME")         # prose, no digit
+        False
+    """
+    return bool(text) and bool(_VALUE_BEARING_RE.search(text))
+
+
+def _word_centre(word: tuple) -> tuple[float, float]:
+    x0, y0, x1, y1 = word[0], word[1], word[2], word[3]
+    return ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+
+
+def _word_line_key(word: tuple) -> tuple:
+    return (word[5], word[6])  # (block_no, line_no)
+
+
+def _match_revision_words(old_words: list[tuple], new_words: list[tuple],
+                          tol: float = TOKEN_CENTRE_TOL) -> list[tuple]:
+    """Pair each OLD word with its counterpart at (nearly) the same position
+    in the NEW revision, by bbox-centre proximity.
+
+    When several NEW words fall within tolerance of one OLD word — e.g. an
+    incremental save that APPENDS a corrected value on top of an original
+    that is still physically present in the content stream — the candidate
+    with IDENTICAL text is preferred. That "extra layer stacked at the same
+    spot, original still recoverable" pattern is Signal 3's job (paint-order
+    geometry); Signal 4 only needs to speak up when the OLD token has NO
+    surviving twin at all (it was actually deleted, e.g. via redaction). This
+    preference is what keeps the honest multi-session-correction fixture from
+    being mis-paired into a spurious change.
+    """
+    used_new: set[int] = set()
+    pairs = []
+    for ow in old_words:
+        ocx, ocy = _word_centre(ow)
+        candidates = []
+        for idx, nw in enumerate(new_words):
+            if idx in used_new:
+                continue
+            ncx, ncy = _word_centre(nw)
+            if abs(ocx - ncx) <= tol and abs(ocy - ncy) <= tol:
+                candidates.append((idx, nw))
+        if not candidates:
+            continue
+        exact = [c for c in candidates if norm(c[1][4]) == norm(ow[4])]
+        idx, nw = exact[0] if exact else candidates[0]
+        used_new.add(idx)
+        pairs.append((ow, nw))
+    return pairs
+
+
+def _neighbours_stable(ow: tuple, pairs_by_old_id: dict, old_words_by_line: dict) -> bool:
+    """Bbox-STABILITY guard: true iff every OTHER old word on ow's line has a
+    matched NEW counterpart with IDENTICAL text.
+
+    A genuine isolated tamper changes one value while everything around it
+    (labels, other digits, punctuation) stays exactly the same. A reflowed
+    revision (different layout, unrelated content) instead tends to leave
+    neighbours unmatched (no candidate within tolerance at all) or altered —
+    either of which fails this guard, preventing us from manufacturing a
+    change out of two tokens that only coincidentally landed near each other.
+    """
+    key = _word_line_key(ow)
+    siblings = [w for w in old_words_by_line.get(key, []) if w is not ow]
+    if not siblings:
+        return True  # isolated token on its own line — nothing to corroborate against
+    for sib in siblings:
+        match = pairs_by_old_id.get(id(sib))
+        if match is None:
+            return False  # a neighbour has no surviving counterpart -> unsafe to trust
+        _, nw = match
+        if norm(nw[4]) != norm(sib[4]):
+            return False  # a neighbour also changed -> not an isolated, targeted edit
+    return True
+
+
+def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed: bool) -> Flag:
+    """Build the Signal-4 flag, with a money delta when both sides parse as amounts.
+
+    `confirmed` picks the code exactly like `_cover_and_retype_flag`: the HARD
+    `OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED` iff the revision that changed
+    the value was saved by an interactive editor (C2), else the SOFT
+    `OVERLAY_REVISION_VALUE_CHANGED`.
+    """
+    old_v, new_v = _money_value(old_text), _money_value(new_text)
+    details = {"page": page_num, "old_value": old_text.strip(), "new_value": new_text.strip()}
+    if old_v is not None and new_v is not None:
+        delta = new_v - old_v
+        details["delta"] = delta
+        change_clause = f" (a change of {delta:+,.2f})"
+    else:
+        change_clause = ""
+
+    base_msg = (f"A value differs between two saved revisions of this PDF on "
+                f"page {page_num + 1}: \"{old_text.strip()}\" in the earlier "
+                f"revision became \"{new_text.strip()}\" in the later "
+                f"one{change_clause}. The earlier value was only recoverable "
+                f"by rolling back to a prior incremental revision.")
+
+    if confirmed:
+        code = "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED"
+        msg = (base_msg + " The revision that changed it was saved by an "
+               "interactive editing tool, corroborating that this was a "
+               "manual edit rather than template generation.")
+    else:
+        code = "OVERLAY_REVISION_VALUE_CHANGED"
+        msg = base_msg
+
+    return Flag(severity="critical", code=code, message=msg, details=details)
+
+
+def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> list[Flag]:
+    """Diff one page's words between two revisions and emit Signal-4 flags."""
+    old_words = old_page.get_text("words")
+    new_words = new_page.get_text("words")
+
+    pairs = _match_revision_words(old_words, new_words)
+    pairs_by_old_id = {id(ow): (ow, nw) for ow, nw in pairs}
+    old_words_by_line: dict = {}
+    for ow in old_words:
+        old_words_by_line.setdefault(_word_line_key(ow), []).append(ow)
+
+    flags: list[Flag] = []
+    for ow, nw in pairs:
+        old_text, new_text = ow[4], nw[4]
+        if norm(old_text) == norm(new_text):
+            continue                                          # unchanged
+        if not (_is_value_bearing(old_text) or _is_value_bearing(new_text)):
+            continue                                          # prose, not a value
+        if not _neighbours_stable(ow, pairs_by_old_id, old_words_by_line):
+            continue                                          # unsafe pairing (reflow)
+        flags.append(_revision_value_flag(old_text, new_text, page_num, confirmed))
+    return flags
+
+
+def _signal_revision_value_changed(pdf_data, raw_bytes: bytes | None) -> list[Flag]:
+    """Signal 4 — roll back through incremental PDF revisions and diff values.
+
+    Skips entirely (returns no flags) when the file has at most one %%EOF —
+    no incremental revisions exist to roll back to, so full-save forgeries
+    are left to Signals 1-3 (this is a bonus path, not a replacement).
+
+    For each consecutive revision pair, both truncations are opened
+    independently; a truncation that fails to open is skipped (self-
+    correcting against a stray "%%EOF" that appears inside a content stream
+    rather than at a real version boundary, per `find_eof_positions`'s
+    documented behaviour).
+
+    Never raises: any failure at any step yields no flag for that revision
+    pair rather than an exception (CLAUDE.md "never crash on malformed PDFs").
+    """
+    flags: list[Flag] = []
+    if raw_bytes is None:
+        return flags
+
+    try:
+        positions = find_eof_positions(raw_bytes)
+    except Exception as exc:
+        logger.warning("overlay: revision-diff EOF scan failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+        return flags
+
+    if len(positions) <= 1:
+        return flags  # no incremental revisions -> nothing to roll back to
+
+    for old_eof, new_eof in zip(positions, positions[1:]):
+        old_doc = None
+        new_doc = None
+        try:
+            try:
+                old_doc = fitz.open(stream=raw_bytes[:old_eof], filetype="pdf")
+            except Exception:
+                continue  # not a real prior-version boundary — skip this pair
+            try:
+                new_doc = fitz.open(stream=raw_bytes[:new_eof], filetype="pdf")
+            except Exception:
+                continue
+
+            old_meta, new_meta = old_doc.metadata or {}, new_doc.metadata or {}
+            old_producer = f"{old_meta.get('producer') or ''} {old_meta.get('creator') or ''}".casefold()
+            new_producer = f"{new_meta.get('producer') or ''} {new_meta.get('creator') or ''}".casefold()
+            # C2 ONLY, exactly like `_analyze_page`'s escalation: a same-producer
+            # (or non-editor) resave must never be reported as HARD.
+            confirmed = (new_producer != old_producer) and any(
+                p in new_producer for p in INTERACTIVE_EDITOR_PRODUCERS)
+
+            for page_num in range(min(old_doc.page_count, new_doc.page_count)):
+                try:
+                    flags.extend(_diff_revision_page(
+                        old_doc[page_num], new_doc[page_num], page_num, confirmed))
+                except Exception as exc:
+                    logger.warning("overlay: revision-diff page %d failed: %s", page_num, exc)
+        except Exception as exc:
+            logger.warning("overlay: revision-diff comparison failed for %s: %s",
+                           getattr(pdf_data, "file_path", "?"), exc)
+        finally:
+            if old_doc is not None:
+                try:
+                    old_doc.close()
+                except Exception:
+                    pass
+            if new_doc is not None:
+                try:
+                    new_doc.close()
+                except Exception:
+                    pass
+
+    return flags
+
+
+# =============================================================================
 # FLAG CONSTRUCTION
 # =============================================================================
 def _cover_and_retype_flag(hit: dict, page_num: int, confirmed: bool) -> Flag:
@@ -600,7 +854,8 @@ def analyze_overlay(pdf_data) -> ModuleResult:
         return ModuleResult(module="overlay", flags=[], score=100, confidence=0.5)
 
     # Read the raw bytes ONCE, guarded: used by _corroboration for the
-    # incremental-update count (context only, not an escalation driver).
+    # incremental-update count (context only, not an escalation driver) AND by
+    # Signal 4's revision rollback (the actual byte prefixes it reopens).
     raw_bytes = None
     try:
         with open(pdf_data.file_path, "rb") as fh:
@@ -631,6 +886,16 @@ def analyze_overlay(pdf_data) -> ModuleResult:
                 doc.close()
             except Exception:
                 pass
+
+    # Signal 4 (Task 5): bonus path for the "deleted, not covered" tamper
+    # variant. Belt-and-suspenders try/except even though the function itself
+    # never raises — a rollback/diff failure must yield no revision flag, not
+    # an exception.
+    try:
+        flags.extend(_signal_revision_value_changed(pdf_data, raw_bytes))
+    except Exception as exc:
+        logger.warning("overlay: revision-diff signal failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
 
     score = 100
     for f in flags:

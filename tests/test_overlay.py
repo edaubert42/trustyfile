@@ -92,3 +92,24 @@ def test_confirmed_codes_are_hard_negative():
     from src.evidence import HARD_NEGATIVE_CODES
     assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" in HARD_NEGATIVE_CODES
     assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" in HARD_NEGATIVE_CODES
+
+
+# =============================================================================
+# TASK 5: Signal 4 — incremental-revision rollback + value diff
+# =============================================================================
+def test_text_deleted_retyped_caught_by_revision_diff(corpus):
+    # Redaction removed the original "1 200,00" (no ghost text, no covering box
+    # left in the final document -- Signals 1-3 can't see it), then "9 200,00"
+    # was retyped and the file incrementally saved by Foxit. Only rolling back
+    # to the prior revision and diffing values can catch this variant. Foxit is
+    # an interactive editor, so this must be the CONFIRMED/HARD code.
+    codes = _codes(corpus["forged_text_deleted_retyped.pdf"])
+    assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" in codes
+
+
+def test_multisession_same_producer_not_hard(corpus):
+    # A real value changed across an incremental revision (1200 -> 1350), but
+    # both revisions were saved by the SAME non-editor (ReportLab) Producer.
+    # Same-producer edits are never HARD -- a SOFT revision flag is acceptable.
+    codes = _codes(corpus["legit_multisession_template_fill.pdf"])
+    assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" not in codes
