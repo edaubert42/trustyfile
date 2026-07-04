@@ -34,6 +34,11 @@ FLAG_THEME_MAP: dict[str, str] = {
     "FONTS_MIDLINE_CHANGE": "tampering",
     "IMAGES_PASTE_NOISE_ANOMALY": "tampering",
 
+    # tampering: opaque-box cover-and-retype / edit-trace overlays (Phase 2)
+    "OVERLAY_COVER_AND_RETYPE": "tampering",
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": "tampering",
+    "OVERLAY_CONFLICTING_TEXT": "tampering",
+
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
     "META_FUTURE_CREATION_DATE": "tampering",
@@ -177,6 +182,23 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "A region of the document shows abnormal noise patterns consistent "
         "with a copy-paste operation."
+    ),
+    "OVERLAY_COVER_AND_RETYPE": lambda f: (
+        f"A value appears to have been covered and replaced: "
+        f"\"{f.details.get('covered', '')}\" was hidden and "
+        f"\"{f.details.get('replacement', '')}\" placed over it."
+        if f.details and f.details.get('covered') is not None
+        else "A value appears to have been covered by a box and retyped over it."
+    ),
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
+        f"An opaque box covers still-present text "
+        f"(\"{f.details.get('hidden', '')}\"), which remains recoverable underneath."
+        if f.details and f.details.get('hidden')
+        else "An opaque box covers text that is still recoverable underneath it."
+    ),
+    "OVERLAY_CONFLICTING_TEXT": lambda f: (
+        "Two conflicting values overlap at the same position, "
+        "suggesting the original value was retyped."
     ),
 
     # --- dates ---
@@ -396,6 +418,23 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "Une zone du document présente des patterns de bruit anormaux "
         "cohérents avec une opération de copier-coller."
+    ),
+    "OVERLAY_COVER_AND_RETYPE": lambda f: (
+        f"Une valeur semble avoir été masquée puis remplacée : "
+        f"« {f.details.get('covered', '')} » a été cachée et "
+        f"« {f.details.get('replacement', '')} » placée par-dessus."
+        if f.details and f.details.get('covered') is not None
+        else "Une valeur semble avoir été masquée par un rectangle puis ressaisie par-dessus."
+    ),
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
+        f"Un rectangle opaque recouvre du texte toujours présent "
+        f"(« {f.details.get('hidden', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('hidden')
+        else "Un rectangle opaque recouvre du texte encore récupérable en dessous."
+    ),
+    "OVERLAY_CONFLICTING_TEXT": lambda f: (
+        "Deux valeurs contradictoires se superposent au même endroit, "
+        "suggérant que la valeur d'origine a été ressaisie."
     ),
 
     # --- dates ---

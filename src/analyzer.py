@@ -26,6 +26,7 @@ from src.modules.visual import analyze_visual
 from src.modules.fonts import analyze_fonts
 from src.modules.images import analyze_images
 from src.modules.structure import analyze_structure
+from src.modules.overlay import analyze_overlay
 from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
 from src.modules.identity import analyze_identity, is_likely_identity_doc
@@ -165,6 +166,10 @@ class TrustyFileAnalyzer:
         # Module E: Structure Analysis
         logger.debug("Running structure analysis...")
         module_results.append(analyze_structure(pdf_data))
+
+        # Module Overlay: cover-and-retype / edit-trace detection (Phase 2)
+        logger.debug("Running overlay analysis...")
+        module_results.append(analyze_overlay(pdf_data))
 
         # Module H: Forensic Analysis (ELA)
         logger.debug("Running forensic analysis...")
