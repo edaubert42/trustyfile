@@ -18,6 +18,18 @@ from src.models import Flag
 SEVERITY_WEIGHTS: dict[str, float] = {"low": 0.2, "medium": 0.7, "high": 1.5, "critical": 3.0}
 PRIOR_LOG_ODDS: float = -4.0
 
+# Codes that are cryptographic/arithmetic CERTAINTIES → hard evidence.
+# (Grows as later phases add signature/2D-Doc/Factur-X/MRZ-checksum codes.)
+HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
+    "EXTRACTION_FAILED",           # Phase 0: unreadable → not trustworthy
+    "CONTENT_SIREN_VAT_MISMATCH",  # deterministic FR VAT-key ↔ SIREN contradiction
+    "CONTENT_INVALID_SIRET",       # Luhn checksum failure on text-layer SIRET
+    "CONTENT_INVALID_SIREN",
+    "CONTENT_INVALID_VAT",
+})
+HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # populated in Phase 2/3 (signatures, Factur-X, 2D-Doc)
+GENUINE_CODES: frozenset[str] = frozenset(set())        # soft positive signals, populated later
+
 
 @dataclass
 class Evidence:
@@ -32,17 +44,20 @@ class Evidence:
 
 
 def flag_to_evidence(flag: Flag, module: str) -> Evidence:
-    """Adapt a legacy Flag to soft, tamper-direction Evidence (compatibility shim).
-
-    Hard-evidence and genuine-direction codes are reclassified in a later task
-    (see the hard/positive registry); by default a Flag is soft tamper evidence
-    weighted by its severity.
-    """
+    """Adapt a legacy Flag to Evidence, consulting the hard/positive registries."""
+    if flag.code in HARD_NEGATIVE_CODES:
+        kind, direction = "hard", "tamper"
+    elif flag.code in HARD_POSITIVE_CODES:
+        kind, direction = "hard", "genuine"
+    elif flag.code in GENUINE_CODES:
+        kind, direction = "soft", "genuine"
+    else:
+        kind, direction = "soft", "tamper"
     return Evidence(
         code=flag.code,
         weight=SEVERITY_WEIGHTS.get(flag.severity, SEVERITY_WEIGHTS["low"]),
-        kind="soft",
-        direction="tamper",
+        kind=kind,
+        direction=direction,
         group=module,
         message=flag.message,
         confidence=1.0,

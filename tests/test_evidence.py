@@ -126,3 +126,23 @@ def test_band_width_grows_with_low_confidence():
     high_conf = aggregate_evidence([_ev("X", 1.5, conf=1.0)])
     low_conf = aggregate_evidence([_ev("X", 1.5, conf=0.3)])
     assert (low_conf.score_high - low_conf.score_low) >= (high_conf.score_high - high_conf.score_low)
+
+
+from src.models import Flag
+from src.evidence import flag_to_evidence
+
+
+def test_extraction_failed_is_hard_negative():
+    e = flag_to_evidence(Flag("high", "EXTRACTION_FAILED", "x"), "extraction")
+    assert e.kind == "hard" and e.direction == "tamper"
+
+
+def test_siren_vat_mismatch_is_hard_negative():
+    # deterministic arithmetic contradiction between two fields
+    e = flag_to_evidence(Flag("critical", "CONTENT_SIREN_VAT_MISMATCH", "x"), "content")
+    assert e.kind == "hard" and e.direction == "tamper"
+
+
+def test_generic_flag_stays_soft_tamper():
+    e = flag_to_evidence(Flag("medium", "META_SUSPICIOUS_PRODUCER", "x"), "metadata")
+    assert e.kind == "soft" and e.direction == "tamper"
