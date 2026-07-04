@@ -292,6 +292,26 @@ class TestGenerateSummary:
         summary = generate_summary(result)
         assert "not trust" in summary.lower() or "fraud" in summary.lower()
 
+    def test_unverifiable_summary_is_not_mislabeled_medium(self):
+        # An extraction failure (encrypted/unreadable PDF) fails closed to
+        # score=0, band/risk_level="UNVERIFIABLE". This is a SEPARATE state
+        # from fraud: the summary must say "could not be verified", not fall
+        # through to the MEDIUM ("some concerns") verdict.
+        result = create_analysis_result("h", [
+            make_result(module="extraction", score=0, confidence=1.0,
+                        flags=[make_flag("high", "EXTRACTION_FAILED")]),
+        ])
+        assert result.risk_level == "UNVERIFIABLE"
+
+        summary = generate_summary(result)
+        summary_lower = summary.lower()
+        assert (
+            "could not be read" in summary_lower
+            or "not be read" in summary_lower
+            or "verified" in summary_lower
+        )
+        assert "some concerns" not in summary_lower
+
     def test_summary_includes_flag_descriptions(self):
         """Summary should describe the issues found (rich summary format)."""
         result = create_analysis_result("abc", [

@@ -105,13 +105,14 @@ class AnalysisResult:
     Attributes:
         file_hash: SHA256 hash of the analyzed file (for caching/reference)
         trust_score: Final combined score (0-100)
-        risk_level: Human-readable risk category
+        risk_level: Human-readable risk category (LOW, MEDIUM, HIGH, CRITICAL,
+            or UNVERIFIABLE when the document could not be read/verified)
         modules: List of individual module results
         analysis_time_ms: How long the analysis took in milliseconds
     """
     file_hash: str
     trust_score: int
-    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    risk_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL", "UNVERIFIABLE"]
     document_type: DocumentType = "unknown"  # Detected document type
     modules: list[ModuleResult] = field(default_factory=list)
     analysis_time_ms: int = 0

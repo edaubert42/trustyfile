@@ -1168,7 +1168,9 @@ if uploaded_file is not None:
             risk_level = result.risk_level
 
             # Color based on score
-            if score >= 80:
+            if risk_level == "UNVERIFIABLE":
+                gauge_color = "#6c757d"   # neutral grey: could not verify (not fraud)
+            elif score >= 80:
                 gauge_color = "#28a745"
             elif score >= 50:
                 gauge_color = "#ffb627"
