@@ -419,52 +419,24 @@ def _resolve_bank_name(bic_data: dict) -> str | None:
     return None
 
 
-def verify_iban_api(iban: str, api_key: str) -> tuple[dict | None, str | None]:
+def verify_iban_api(iban: str, api_key: str | None = None) -> tuple[dict, str | None]:
     """
-    Verify an IBAN number against the anyapi.io IBAN validation API.
-
-    The API checks:
-    - Whether the IBAN format and checksum are valid
-    - The associated bank (BIC/SWIFT code)
-    - The country
-
-    Args:
-        iban: IBAN in electronic format (no spaces), e.g. "FR7630006000011234567890189"
-        api_key: API key for anyapi.io
-
-    Returns:
-        Tuple of (result_dict, error_message)
-        - If success: ({"valid": True/False, "iban": "...", "bic": {...}, ...}, None)
-        - If error: (None, error_message)
+    Validate an IBAN LOCALLY (ISO 7064 mod-97). No network call — Phase 0
+    removes the anyapi.io upload that leaked banking data off the machine.
+    `api_key` is accepted for signature compatibility and ignored.
     """
+    cleaned = "".join(iban.split()).upper()
     try:
-        import requests
-    except ImportError:
-        return None, "requests library not installed"
-
-    try:
-        response = requests.get(
-            "https://anyapi.io/api/v1/iban",
-            params={"iban": iban, "apiKey": api_key},
-            timeout=10,
-        )
-
-        if response.status_code == 200:
-            data = response.json()
-            return data, None
-        elif response.status_code == 401:
-            return None, "Invalid API key for IBAN verification"
-        elif response.status_code == 429:
-            return None, "IBAN API rate limit exceeded"
-        else:
-            return None, f"IBAN API returned status {response.status_code}"
-
-    except requests.Timeout:
-        return None, "IBAN API timeout"
-    except requests.RequestException as e:
-        return None, f"IBAN API request failed: {e}"
-    except Exception as e:
-        return None, f"IBAN verification error: {e}"
+        # Move first 4 chars to the end, convert letters A=10..Z=35, mod 97 == 1.
+        rearranged = cleaned[4:] + cleaned[:4]
+        digits = "".join(str(int(c, 36)) if c.isalpha() else c for c in rearranged)
+        valid = int(digits) % 97 == 1
+    except (ValueError, TypeError):
+        valid = False
+    return (
+        {"valid": valid, "iban": cleaned, "countryCode": cleaned[:2], "bic": None},
+        None,
+    )
 
 
 # =============================================================================
@@ -768,7 +740,7 @@ def analyze_external(
                         details={"vat": vat, "vies_response": result}
                     ))
 
-    # Verify IBAN numbers via anyapi.io
+    # Verify IBAN numbers (local mod-97 check, no network call)
     verified_ibans = []
     if verify_iban and iban_api_key:
         ibans = extract_iban(full_text)
