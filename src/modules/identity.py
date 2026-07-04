@@ -156,9 +156,18 @@ def _has_face_photo(pdf_data: PDFData) -> bool:
         logger.debug(f"_has_face_photo : dépendance manquante ({e})")
         return False
 
-    # Charger le Haar cascade (fourni avec OpenCV, pas de téléchargement nécessaire)
-    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    face_cascade = cv2.CascadeClassifier(cascade_path)
+    # Charger le Haar cascade (fourni avec OpenCV, pas de téléchargement nécessaire).
+    # Certaines distributions n'exposent PAS cv2.CascadeClassifier / cv2.data :
+    # opencv-python-headless allégé, ou les builds preview OpenCV 5 (module
+    # objdetect retiré). L'accès à l'attribut lève alors AttributeError (pas
+    # ImportError) — on dégrade proprement en "détection indisponible" au lieu
+    # de faire planter analyze() sur tout PDF sans couche texte (scan/image).
+    try:
+        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+    except Exception as e:
+        logger.warning(f"Détection de visage indisponible ({e}) — désactivée")
+        return False
 
     if face_cascade.empty():
         logger.warning("Haar cascade introuvable — détection de visage désactivée")
