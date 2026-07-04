@@ -54,9 +54,11 @@ Pure helpers:
 
 **Core principle (from the adversarial critique, P0-1/P0-2):** the geometric signature of the attack is reproduced by legitimate generators — template/mail-merge overlay (placeholder → white box → real value), flattened AcroForms, and multi-session self-editing. Therefore **geometry alone is never HARD.** Geometry establishes REVIEW; only geometry **corroborated by tampering provenance** escalates to HARD.
 
-**HARD escalation corroborators** (at least one required to promote a geometry finding to HARD):
-- (C1) the edit crosses an **incremental-revision boundary** (Signal 4 fired at the same region), OR
-- (C2) the later-revision / document `Producer`/`Creator` is a **known interactive PDF editor** (Acrobat, Foxit, PDF-XChange, LibreOffice, …) rather than a report/authoring engine.
+**HARD escalation corroborator (C2 only — refined after the Task-1 review):** a geometry finding escalates to HARD only when the document's `Producer`/`Creator` is a **known interactive PDF editor** (Acrobat, Foxit, PDF-XChange, LibreOffice, …) rather than a report/authoring engine. This is positive provenance that the file passed through a hand-editing tool.
+
+A bare **incremental-revision boundary is NOT a HARD corroborator** — legitimate multi-session template tools save incrementally too, so treating "an incremental update exists" as fraud would false-accuse them. Incremental updates remain a SOFT context signal only.
+
+**Placeholder guard (refined after the Task-1 review):** a legitimate template/mail-merge tool reproduces the exact cover-and-retype signature, but covers a **placeholder** (`0,00`, `XXX`, zeros), whereas fraud covers a **real value**. Signals 1 and 3 do NOT fire when the covered/hidden text is a placeholder — so a template invoice covering `0,00` stays GENUINE while a covered real value fires. This is the discriminator that lets structurally-identical legit generation clear without perpetual REVIEW noise.
 
 ### Signal 1 — Opaque fill over still-live text
 `OVERLAY_OPAQUE_FILL_OVER_TEXT` · **SOFT** · **high** (1.5) · group `overlay`.
@@ -91,6 +93,7 @@ For each image placement `I`: `containment(covered live text T, I.bbox) ≥ 0.8`
 
 | Guard | Rule | Kills |
 |---|---|---|
+| **Placeholder** | Signals 1/3 skip when the covered/hidden text is a placeholder (`0,00`, zeros, `XXX`, blank) | template/mail-merge generation that stamps a value over a placeholder |
 | Different-glyph | Signals 2/3 require `norm(A)!=norm(B)`, same char class | faux-bold, render-mode-2 bold, drop-shadow, exact dupes |
 | 2-D IoU / fill-binding | overlap ≥ 0.6 both axes (S2); both tokens contained in fill (S3) | kerning/ligature tiling, dot leaders, currency thin-space |
 | Z-order (`seqno`) | fill hides text only if `seqno(text) < seqno(fill)`; S3 needs text<fill<replacement | zebra/cell backgrounds, footer/color bands, knockout headers, chips, guilloché (fill painted *before* text) |
@@ -101,7 +104,7 @@ For each image placement `I`: `containment(covered live text T, I.bbox) ≥ 0.8`
 | Render-mode | covered/conflicting text must be mode 0/2 | OCR "sandwich" searchable text over scans |
 | Rotation + size | conflicting tokens horizontal (±4°, page-rotation-normalized) & size ±10 % | diagonal watermark, superscript/ordinal/unit |
 | Combining marks | tokens with Unicode Mn/Mc excluded from S2/S3 | French accented prose |
-| **SOFT-by-default** | geometry alone never clamps; HARD needs a provenance corroborator | template-overlay generation, flattened AcroForms, multi-session self-edits |
+| **SOFT-by-default** | geometry alone never clamps; HARD needs the C2 editor-Producer corroborator | flattened AcroForms, multi-session self-edits (report-engine Producer) |
 
 ## 6. Evasions — in-scope residuals vs deferred
 

@@ -463,8 +463,10 @@ git add -A && git commit -m "feat(overlay): geometry/z-order primitives with FP 
 **Algorithm (per page):**
 1. `page_angle` from `page.rotation` (0/90/180/270 → baseline angle). Build extraction: `spans = page.get_texttrace()` (keep type∈{0,2} painted spans with their `seqno`, `bbox`, text via `span_text`, `size`, `dir`); `fills = [d for d in page.get_drawings() if d["type"] in ("f","fs") and d["fill"] is not None]`; `words`/provenance rects from `page.widgets()`+`page.annots()`; `median_line_h` = median painted-span height (fallback 12).
 2. Candidate fills = fills passing `is_opaque(d["fill_opacity"])` AND `color_matches_bg(d["fill"], bg)` AND `is_localized_fill(d["rect"], page.rect, median_line_h)` AND rect not contained in any provenance rect.
-3. **Signal 3 (cover-and-retype)** — for each candidate fill `F`, find painted spans A,B with: `containment(A.bbox, F.rect) ≥ CONTAINMENT_MIN` and `containment(B.bbox, F.rect) ≥ CONTAINMENT_MIN`; `A.seqno < F.seqno < B.seqno`; `norm(span_text(A)) != norm(span_text(B))`; `char_class == char_class` and not `"excluded"`; both `is_horizontal`; sizes within `SIZE_MATCH_FRAC`. If found → record a Signal-3 hit `{page, fill, under=A, over=B}` and mark A,B,F "consumed".
-4. **Signal 1 (opaque fill over live text)** — for each candidate fill not consumed by Signal 3, and each painted span T (not consumed) with `containment(T.bbox, F.rect) ≥ CONTAINMENT_MIN` and `T.seqno < F.seqno` → emit `OVERLAY_OPAQUE_FILL_OVER_TEXT` (recoverable-content phrasing).
+**PLACEHOLDER GUARD (design refinement from the Task-1 review — applies to Signals 1 and 3).** A legitimate template/mail-merge tool reproduces the EXACT cover-and-retype signature, covering a **placeholder** (`0,00`, `XXX`, zeros) rather than a real value. The reliable discriminator: fraud covers a **real value**; template generation covers a placeholder. Add a helper `is_placeholder(text) -> bool`: after `norm`, True if the string is empty, or consists only of zeros and separators (`re.fullmatch(r"[0.,\s€$£]*", norm_stripped)`), or is in `{"xxx", "x", "x.xx", "x,xx", "n/a", "na", "tbd", "-", "--", "---", "___"}`. When the **hidden/covered** text (span A in Signal 3, span T in Signal 1) `is_placeholder`, DO NOT flag (it is benign template scaffolding). This lets `legit_template_overlay` (covers `0,00`) stay GENUINE while a covered real value still fires.
+
+3. **Signal 3 (cover-and-retype)** — for each candidate fill `F`, find painted spans A,B with: `containment(A.bbox, F.rect) ≥ CONTAINMENT_MIN` and `containment(B.bbox, F.rect) ≥ CONTAINMENT_MIN`; `A.seqno < F.seqno < B.seqno`; `norm(span_text(A)) != norm(span_text(B))`; `char_class == char_class` and not `"excluded"`; both `is_horizontal`; sizes within `SIZE_MATCH_FRAC`; **and NOT `is_placeholder(span_text(A))`** (the covered/original value must be a real value, not a placeholder). If found → record a Signal-3 hit `{page, fill, under=A, over=B}` and mark A,B,F "consumed".
+4. **Signal 1 (opaque fill over live text)** — for each candidate fill not consumed by Signal 3, and each painted span T (not consumed) with `containment(T.bbox, F.rect) ≥ CONTAINMENT_MIN` and `T.seqno < F.seqno` **and NOT `is_placeholder(span_text(T))`** → emit `OVERLAY_OPAQUE_FILL_OVER_TEXT` (recoverable-content phrasing). (A covered placeholder is benign template scaffolding, not hidden content.)
 5. **Signal 2 (conflicting text)** — for painted-span pairs not consumed by Signal 3 with `iou ≥ CONFLICT_IOU_MIN`, `norm != norm`, same non-excluded char_class, sizes within frac, both horizontal → emit `OVERLAY_CONFLICTING_TEXT`.
 6. Signal 3 hits → emit `OVERLAY_COVER_AND_RETYPE` (severity critical) for this task (Task 4 decides base-vs-confirmed). Message includes both values + numeric delta when both match a money regex `r"\d[\d\s.,]*"`.
 
@@ -519,7 +521,7 @@ def test_analyze_overlay_never_raises_on_garbage(tmp_path):
     assert r.module == "overlay"
 ```
 
-Note: `legit_template_overlay.pdf` passing here (no flags) is the KEY equal-priority guard — it has the same seqno signature as the fraud, so Signal 3 WILL fire on it. **In Task 3 (SOFT only) it emits `OVERLAY_COVER_AND_RETYPE` — so this test will FAIL for the template fixture until Task 4 adds the corroboration gate that keeps geometry-only SOFT and Task 6/7 confirm the *scored* result stays GENUINE.** Therefore: in Task 3, EXCLUDE `legit_template_overlay.pdf` from the no-flag parametrize list (it legitimately fires the SOFT geometry signal); assert instead in Task 4/7 that it stays GENUINE because SOFT-not-corroborated → REVIEW-or-better and the *scored band* is what the acceptance gate checks. Add `legit_template_overlay.pdf` to a separate test asserting it emits `OVERLAY_COVER_AND_RETYPE` (SOFT) but NOT `OVERLAY_COVER_AND_RETYPE_CONFIRMED`.
+Note: `legit_template_overlay.pdf` producing NO flags is the KEY equal-priority guard. It has the same seqno signature as the fraud, so WITHOUT the placeholder guard Signal 3 would fire on it. But it covers a **placeholder** (`0,00`), so the **placeholder guard** (see the Algorithm section above) suppresses Signals 1 and 3 → zero flags → it stays in the no-flag parametrize list and lands GENUINE. This is the whole point of the placeholder discriminator: a legit template tool covering `0,00` clears, while fraud covering a real value fires. If your implementation flags `legit_template_overlay`, the placeholder guard is missing or wrong — fix the guard, not the test. (`legit_multisession_template_fill.pdf` is deliberately NOT in this list: it covers a *real* value change, so it correctly fires the SOFT signal — its "must-not-be-HARD" gate is checked in Task 4/7.)
 
 - [ ] **Step 2: Run to verify failure** — `analyze_overlay` undefined → FAIL.
 - [ ] **Step 3: Implement** the extraction + three signal functions + `analyze_overlay` per the algorithm. Add the import to `src/analyzer.py` (~L28, after the structure import) and `module_results.append(analyze_overlay(pdf_data))` right after the structure append (~L167). Add `OVERLAY_*` phrase entries to `src/summary.py` (mirror `IMAGES_PASTE_*`).
@@ -539,10 +541,12 @@ git add -A && git commit -m "feat(overlay): signals 1-3 (fill-over-text, conflic
 - Test: `tests/test_overlay.py` (append)
 
 **Interfaces:**
-- Produces: `_corroboration(pdf_data, raw_bytes) -> dict` with `{"has_incremental_updates": bool, "producer_is_editor": bool, "edit_revision_present": bool}`.
-- Modifies: Signal-3 emission chooses `OVERLAY_COVER_AND_RETYPE_CONFIRMED` (HARD) when a corroborator holds, else `OVERLAY_COVER_AND_RETYPE` (SOFT).
+- Produces: `_corroboration(pdf_data, raw_bytes) -> dict` with `{"producer_is_editor": bool, "has_incremental_updates": bool}`.
+- Modifies: Signal-3 emission chooses `OVERLAY_COVER_AND_RETYPE_CONFIRMED` (HARD) when the corroborator holds, else `OVERLAY_COVER_AND_RETYPE` (SOFT).
 
-Corroborators: **C1** = `len(find_eof_positions(raw)) > 1` (document has incremental updates — a full-save clean generation has exactly one `%%EOF` region for our purposes; treat >1 as "edited after creation"). **C2** = any of `INTERACTIVE_EDITOR_PRODUCERS` substrings appears (casefolded) in the doc's `Producer` or `Creator` metadata.
+**Corroboration policy (design refinement from the Task-1 review — READ THIS):** the ONLY HARD corroborator is **C2 = an interactive-editor Producer/Creator**: any `INTERACTIVE_EDITOR_PRODUCERS` substring appears (casefolded) in the doc's `Producer` or `Creator` metadata. This is positive provenance that the file passed through a hand-editing tool.
+
+**A bare incremental boundary (C1) is NOT a HARD corroborator on its own.** Legitimate multi-session template tools also save incrementally (see `legit_multisession_template_fill`, which changes a real value across a revision with a report-engine Producer and MUST stay out of HARD). `has_incremental_updates` (`len(find_eof_positions(raw)) > 1`) is computed and returned for context/messaging, but escalation to `_CONFIRMED` requires `producer_is_editor` to be true. Concretely: `confirmed = ctx["producer_is_editor"]`. (Do NOT `or` in `has_incremental_updates` — that is exactly the legit-multisession false-positive the review caught.)
 
 - [ ] **Step 1: Write the failing tests** (append to `tests/test_overlay.py`):
 
@@ -551,13 +555,17 @@ def test_incremental_overlay_is_confirmed_hard(corpus):
     assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" in _codes(corpus["forged_incremental_edit.pdf"])
 
 def test_full_save_overlay_stays_soft(corpus):
+    # Real value covered, but a non-editor (ReportLab) Producer and full save → no C2 → SOFT.
     codes = _codes(corpus["forged_amount_overlay.pdf"])
     assert "OVERLAY_COVER_AND_RETYPE" in codes
-    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # no corroborator on a full save
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # no editor Producer → not HARD
 
-def test_template_overlay_soft_not_confirmed(corpus):
-    codes = _codes(corpus["legit_template_overlay.pdf"])
-    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # legit → never HARD
+def test_multisession_real_value_change_soft_not_confirmed(corpus):
+    # legit multi-session correction: a REAL value changed across a revision, but with a
+    # report-engine Producer (no C2). It fires the SOFT geometry signal (→ REVIEW) but MUST
+    # NOT escalate to HARD — this is the C2-gate guard the Task-1 review demanded.
+    codes = _codes(corpus["legit_multisession_template_fill.pdf"])
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # same-producer edit → never HARD
 
 def test_confirmed_codes_are_hard_negative():
     from src.evidence import HARD_NEGATIVE_CODES
@@ -566,8 +574,8 @@ def test_confirmed_codes_are_hard_negative():
 ```
 
 - [ ] **Step 2: Run to verify failure.**
-- [ ] **Step 3: Implement** `_corroboration` (read raw bytes once in `analyze_overlay`, pass context down). In Signal-3 emission, pick the `_CONFIRMED` code iff `ctx["has_incremental_updates"] or ctx["producer_is_editor"]`. Add both `_CONFIRMED` codes to `HARD_NEGATIVE_CODES` in `src/evidence.py`.
-- [ ] **Step 4: Run tests** → PASS. `forged_incremental_edit` → CONFIRMED; `forged_amount_overlay` and `legit_template_overlay` → SOFT only.
+- [ ] **Step 3: Implement** `_corroboration` (read raw bytes once in `analyze_overlay`, pass context down). In Signal-3 emission, pick the `_CONFIRMED` code **iff `ctx["producer_is_editor"]` (C2 only — do NOT OR in `has_incremental_updates`, per the corroboration policy above)**. Add both `_CONFIRMED` codes to `HARD_NEGATIVE_CODES` in `src/evidence.py`.
+- [ ] **Step 4: Run tests** → PASS. `forged_incremental_edit` (Acrobat Producer) → CONFIRMED; `forged_amount_overlay` (ReportLab, full save) and `legit_multisession_template_fill` (ReportLab, incremental real-value change) → SOFT only, never CONFIRMED.
 - [ ] **Step 5: Full suite + commit**
 ```bash
 git add -A && git commit -m "feat(overlay): provenance corroboration escalates cover-and-retype to HARD (Phase 2 Task 4)"
@@ -667,14 +675,30 @@ def analyzed(tmp_path_factory):
     return {name: a.analyze(p) for name, p in by_name.items()}
 
 
-@pytest.mark.parametrize("name", [n for n, e in corpus_expectations.items() if e["label"] == "legit"])
-def test_legit_documents_stay_genuine(analyzed, name):
+_HARD_OVERLAY = {"OVERLAY_COVER_AND_RETYPE_CONFIRMED", "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED"}
+
+
+@pytest.mark.parametrize("name", [n for n, e in corpus_expectations.items()
+                                  if e["label"] == "legit" and e.get("expect_no_overlay")])
+def test_truly_benign_legit_stays_genuine(analyzed, name):
+    # expect_no_overlay fixtures cover no real value (or a placeholder) → zero overlay
+    # flags AND GENUINE. This is the strict equal-priority "clear legit files" gate.
     r = analyzed[name]
     overlay_flags = [f.code for m in r.modules if m.module == "overlay" for f in m.flags]
-    # equal-priority gate: no HARD overlay code, and the document clears
-    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in overlay_flags
-    assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" not in overlay_flags
-    assert r.band == "GENUINE", f"{name}: {r.band} score={r.trust_score} flags={overlay_flags}"
+    assert overlay_flags == [], f"{name}: unexpected overlay flags {overlay_flags}"
+    assert r.band == "GENUINE", f"{name}: {r.band} score={r.trust_score}"
+
+
+@pytest.mark.parametrize("name", [n for n, e in corpus_expectations.items()
+                                  if e["label"] == "legit" and e.get("expect_no_hard")])
+def test_ambiguous_legit_never_hard(analyzed, name):
+    # expect_no_hard fixtures legitimately changed a real value but WITHOUT editor
+    # provenance: a SOFT flag / REVIEW is acceptable (honest uncertainty), but a HARD
+    # *_CONFIRMED* code (a fraud accusation) must NEVER fire. No false accusations.
+    r = analyzed[name]
+    overlay_flags = {f.code for m in r.modules if m.module == "overlay" for f in m.flags}
+    assert not (_HARD_OVERLAY & overlay_flags), f"{name}: falsely HARD-flagged {overlay_flags}"
+    assert r.band != "SUSPICIOUS", f"{name}: {r.band} — legit doc must not be SUSPICIOUS"
 
 
 def test_incremental_forgery_is_critical(analyzed):
