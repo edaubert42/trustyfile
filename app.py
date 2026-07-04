@@ -9,11 +9,27 @@ Run with: streamlit run app.py
 
 import streamlit as st
 import streamlit.components.v1 as components
+import html
 import tempfile
 import os
 import re
 from pathlib import Path
 from src.i18n import t, get_lang, SUPPORTED_LANGS
+
+
+def esc(s) -> str:
+    """Escape a value for safe interpolation into unsafe_allow_html markdown.
+
+    PDF metadata (Producer, Creator, editor, signer) and the uploaded
+    filename are attacker-controlled: a malicious PDF can set these fields
+    to arbitrary strings. Because the file-properties block is rendered via
+    st.markdown(..., unsafe_allow_html=True), any unescaped value would be
+    interpreted as raw HTML, enabling stored XSS (e.g. a Producer of
+    "<img src=x onerror=alert(1)>"). Always wrap attacker-controlled values
+    with this helper before interpolating them into HTML, in both element
+    text and attribute (e.g. title="...") positions.
+    """
+    return html.escape(str(s if s is not None else ""), quote=True)
 
 
 # =============================================================================
@@ -1054,20 +1070,20 @@ if uploaded_file is not None:
             file_rows = f"""
             <div style="{row_style}">
                 <span style="{label_style}">{t("label_name")}</span>
-                <span style="{value_style}" title="{uploaded_file.name}">{uploaded_file.name}</span>
+                <span style="{value_style}" title="{esc(uploaded_file.name)}">{esc(uploaded_file.name)}</span>
             </div>
             {stated_row}
             <div style="{row_style}">
                 {label_with_tip(t("label_creation_date"), t("tip_creation_date"))}
-                <span style="{value_style}" title="{format_date(meta.creation_date)}">{format_date(meta.creation_date)}</span>
+                <span style="{value_style}" title="{esc(format_date(meta.creation_date))}">{esc(format_date(meta.creation_date))}</span>
             </div>
             <div style="{row_style}">
                 {label_with_tip(t("label_modification_date"), t("tip_modification_date"))}
-                <span style="{value_style} flex-shrink:0;" title="{format_date(meta.mod_date)}">{format_date(meta.mod_date)}</span>{mod_pill}
+                <span style="{value_style} flex-shrink:0;" title="{esc(format_date(meta.mod_date))}">{esc(format_date(meta.mod_date))}</span>{mod_pill}
             </div>
             <div style="{row_style}">
                 <span style="{label_style}">{t("label_producer")}</span>
-                <span style="{value_style}" title="{producer}">{producer}</span>
+                <span style="{value_style}" title="{esc(producer)}">{esc(producer)}</span>
             </div>
             """
 
@@ -1077,7 +1093,7 @@ if uploaded_file is not None:
                 file_rows += f"""
             <div style="{row_style}">
                 <span style="{label_style}">{t("label_creator")}</span>
-                <span style="{value_style}" title="{creator}">{creator}</span>
+                <span style="{value_style}" title="{esc(creator)}">{esc(creator)}</span>
             </div>
             """
 
@@ -1086,18 +1102,18 @@ if uploaded_file is not None:
                 file_rows += f"""
             <div style="{row_style}">
                 <span style="{label_style}">{t("label_editor")}</span>
-                <span style="{value_style}" title="{editor_name}">{editor_name}</span>
+                <span style="{value_style}" title="{esc(editor_name)}">{esc(editor_name)}</span>
             </div>
             """
 
             file_rows += f"""
             <div style="{row_style}">
                 <span style="{label_style}">{t("label_signed_by")}</span>
-                <span style="{value_style}" title="{sig}">{sig}</span>
+                <span style="{value_style}" title="{esc(sig)}">{esc(sig)}</span>
             </div>
             <div style="display:flex; align-items:center; padding:6px 0;">
                 <span style="{label_style}">{t("label_sha256")}</span>
-                <span style="{value_style} font-size:0.75rem;" title="{result.file_hash}">{result.file_hash}</span>
+                <span style="{value_style} font-size:0.75rem;" title="{esc(result.file_hash)}">{esc(result.file_hash)}</span>
             </div>
             """
 
