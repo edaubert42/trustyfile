@@ -26,6 +26,8 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     "CONTENT_INVALID_SIRET",       # Luhn checksum failure on text-layer SIRET
     "CONTENT_INVALID_SIREN",
     "CONTENT_INVALID_VAT",
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED",           # Phase 2 Task 4: geometry + editor Producer (C2)
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
 })
 HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # populated in Phase 2/3 (signatures, Factur-X, 2D-Doc)
 GENUINE_CODES: frozenset[str] = frozenset(set())        # soft positive signals, populated later

@@ -64,3 +64,31 @@ def test_analyze_overlay_never_raises_on_garbage(tmp_path):
     data = extract_pdf_data(str(bad))
     r = analyze_overlay(data)
     assert r.module == "overlay"
+
+
+# =============================================================================
+# TASK 4: provenance-gated HARD escalation (C2 = interactive-editor Producer)
+# =============================================================================
+def test_incremental_overlay_is_confirmed_hard(corpus):
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" in _codes(corpus["forged_incremental_edit.pdf"])
+
+
+def test_full_save_overlay_stays_soft(corpus):
+    # Real value covered, but a non-editor (ReportLab) Producer and full save → no C2 → SOFT.
+    codes = _codes(corpus["forged_amount_overlay.pdf"])
+    assert "OVERLAY_COVER_AND_RETYPE" in codes
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # no editor Producer → not HARD
+
+
+def test_multisession_real_value_change_soft_not_confirmed(corpus):
+    # legit multi-session correction: a REAL value changed across a revision, but with a
+    # report-engine Producer (no C2). It fires the SOFT geometry signal (→ REVIEW) but MUST
+    # NOT escalate to HARD — this is the C2-gate guard the Task-1 review demanded.
+    codes = _codes(corpus["legit_multisession_template_fill.pdf"])
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in codes  # same-producer edit → never HARD
+
+
+def test_confirmed_codes_are_hard_negative():
+    from src.evidence import HARD_NEGATIVE_CODES
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" in HARD_NEGATIVE_CODES
+    assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" in HARD_NEGATIVE_CODES

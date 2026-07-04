@@ -36,6 +36,7 @@ FLAG_THEME_MAP: dict[str, str] = {
 
     # tampering: opaque-box cover-and-retype / edit-trace overlays (Phase 2)
     "OVERLAY_COVER_AND_RETYPE": "tampering",
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": "tampering",
     "OVERLAY_OPAQUE_FILL_OVER_TEXT": "tampering",
     "OVERLAY_CONFLICTING_TEXT": "tampering",
 
@@ -189,6 +190,17 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"\"{f.details.get('replacement', '')}\" placed over it."
         if f.details and f.details.get('covered') is not None
         else "A value appears to have been covered by a box and retyped over it."
+    ),
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": lambda f: (
+        f"A value was covered and replaced: "
+        f"\"{f.details.get('covered', '')}\" was hidden and "
+        f"\"{f.details.get('replacement', '')}\" placed over it. This is "
+        f"corroborated by the document's Producer/Creator, which shows it "
+        f"was saved by an interactive editing tool."
+        if f.details and f.details.get('covered') is not None
+        else ("A value was covered by a box and retyped over it, corroborated "
+              "by the document's Producer/Creator showing an interactive "
+              "editing tool was used.")
     ),
     "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
         f"An opaque box covers still-present text "
@@ -425,6 +437,17 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"« {f.details.get('replacement', '')} » placée par-dessus."
         if f.details and f.details.get('covered') is not None
         else "Une valeur semble avoir été masquée par un rectangle puis ressaisie par-dessus."
+    ),
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": lambda f: (
+        f"Une valeur a été masquée puis remplacée : "
+        f"« {f.details.get('covered', '')} » a été cachée et "
+        f"« {f.details.get('replacement', '')} » placée par-dessus. Ceci est "
+        f"corroboré par les métadonnées Producer/Creator du document, qui "
+        f"indiquent qu'il a été enregistré par un outil d'édition interactif."
+        if f.details and f.details.get('covered') is not None
+        else ("Une valeur a été masquée par un rectangle puis ressaisie "
+              "par-dessus, corroboré par les métadonnées Producer/Creator du "
+              "document indiquant l'usage d'un outil d'édition interactif.")
     ),
     "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
         f"Un rectangle opaque recouvre du texte toujours présent "

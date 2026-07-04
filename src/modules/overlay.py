@@ -13,6 +13,7 @@ import unicodedata
 import fitz
 
 from src.models import Flag, ModuleResult
+from src.modules.structure import find_eof_positions
 
 logger = logging.getLogger(__name__)
 
@@ -449,10 +450,68 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
 
 
 # =============================================================================
-# FLAG CONSTRUCTION  (SOFT codes only — HARD escalation is Task 4)
+# CORROBORATION  (Task 4 — provenance-gated HARD escalation)
 # =============================================================================
-def _cover_and_retype_flag(hit: dict, page_num: int) -> Flag:
-    """Build the OVERLAY_COVER_AND_RETYPE flag, with a value delta when possible."""
+# Geometry alone (Signals 1-3) is a heuristic: it can look identical to honest
+# template scaffolding once the placeholder guard is defeated by coincidence.
+# Escalating a SOFT finding to a HARD one (which the evidence ledger clamps to
+# score <=15) requires actual corroborating evidence that the file passed
+# through a hand-editing tool — not just "the file has more than one revision",
+# because legitimate multi-session tools (report engines resaving the same PDF
+# to correct a value) ALSO produce incremental updates. So:
+#   C2 (HARD corroborator) = an interactive-editor Producer/Creator substring
+#   C1 (context only)      = more than one %%EOF (incremental update exists)
+# Only C2 may drive escalation. See docs/superpowers/specs/2026-07-04-phase2-
+# overlay-detector-design.md and the Task-1 design review for the rationale.
+def _corroboration(pdf_data, raw_bytes: bytes | None) -> dict:
+    """Gather HARD-escalation context: editor provenance and revision count.
+
+    `producer_is_editor` (C2) is the ONLY signal allowed to escalate a SOFT
+    overlay finding to a `_CONFIRMED` HARD code — see the module-level comment
+    above. `has_incremental_updates` is returned for context/messaging only;
+    callers must NOT OR it into the escalation decision.
+
+    Never raises: malformed metadata or unreadable bytes yield False, not an
+    exception (CLAUDE.md "never crash on malformed PDFs").
+    """
+    producer_is_editor = False
+    try:
+        doc = fitz.open(pdf_data.file_path)
+        try:
+            meta = doc.metadata or {}
+            haystack = f"{meta.get('producer') or ''} {meta.get('creator') or ''}".casefold()
+            producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
+        finally:
+            doc.close()
+    except Exception as exc:
+        logger.warning("overlay: corroboration metadata read failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+
+    has_incremental_updates = False
+    try:
+        if raw_bytes is not None:
+            has_incremental_updates = len(find_eof_positions(raw_bytes)) > 1
+    except Exception as exc:
+        logger.warning("overlay: corroboration EOF scan failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+
+    return {
+        "producer_is_editor": producer_is_editor,
+        "has_incremental_updates": has_incremental_updates,
+    }
+
+
+# =============================================================================
+# FLAG CONSTRUCTION
+# =============================================================================
+def _cover_and_retype_flag(hit: dict, page_num: int, confirmed: bool) -> Flag:
+    """Build the cover-and-retype flag, with a value delta when possible.
+
+    `confirmed` picks the code: `OVERLAY_COVER_AND_RETYPE_CONFIRMED` (HARD) iff
+    an interactive-editor Producer corroborates the geometry (C2), else the
+    plain `OVERLAY_COVER_AND_RETYPE` (SOFT). Exactly one of the two is ever
+    emitted for a given hit — never both.
+    """
     under_txt = span_text(hit["under"]).strip()
     over_txt = span_text(hit["over"]).strip()
     details = {"page": page_num, "covered": under_txt, "replacement": over_txt}
@@ -460,19 +519,28 @@ def _cover_and_retype_flag(hit: dict, page_num: int) -> Flag:
     if old_v is not None and new_v is not None:
         delta = new_v - old_v
         details["delta"] = delta
-        msg = (f"A value appears to have been covered and retyped on page "
-               f"{page_num + 1}: \"{under_txt}\" was hidden and \"{over_txt}\" "
-               f"placed over it (a change of {delta:+,.2f}).")
+        change_clause = f" (a change of {delta:+,.2f})"
     else:
-        msg = (f"A value appears to have been covered and retyped on page "
-               f"{page_num + 1}: \"{under_txt}\" was hidden and \"{over_txt}\" "
-               f"placed over it.")
-    return Flag(severity="critical", code="OVERLAY_COVER_AND_RETYPE",
-                message=msg, details=details)
+        change_clause = ""
+
+    base_msg = (f"A value appears to have been covered and retyped on page "
+                f"{page_num + 1}: \"{under_txt}\" was hidden and \"{over_txt}\" "
+                f"placed over it{change_clause}.")
+
+    if confirmed:
+        code = "OVERLAY_COVER_AND_RETYPE_CONFIRMED"
+        msg = (base_msg + " The document's Producer/Creator metadata shows it "
+               "was saved by an interactive editing tool, corroborating that "
+               "this was a manual edit rather than template generation.")
+    else:
+        code = "OVERLAY_COVER_AND_RETYPE"
+        msg = base_msg
+
+    return Flag(severity="critical", code=code, message=msg, details=details)
 
 
-def _analyze_page(page, page_angle: float, page_num: int) -> list[Flag]:
-    """Run the three signals on one page and turn the hits into SOFT flags."""
+def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -> list[Flag]:
+    """Run the three signals on one page and turn the hits into flags."""
     extracted = _extract_page(page, page_angle)
     spans, fills = extracted["spans"], extracted["fills"]
 
@@ -481,8 +549,12 @@ def _analyze_page(page, page_angle: float, page_num: int) -> list[Flag]:
     # Signal 3 first: it consumes the fills/spans it explains so Signals 1 and 2
     # don't re-report the same cover-and-retype event under a weaker code.
     hits3, consumed_spans, consumed_fills = _signal_cover_and_retype(fills, spans, page_angle)
+    # C2 ONLY. Do NOT `or` in corroboration["has_incremental_updates"] here —
+    # that reintroduces the legit-multisession false positive the Task-1
+    # design review caught (see module-level comment above `_corroboration`).
+    confirmed = corroboration["producer_is_editor"]
     for hit in hits3:
-        flags.append(_cover_and_retype_flag(hit, page_num))
+        flags.append(_cover_and_retype_flag(hit, page_num, confirmed))
 
     for hit in _signal_opaque_fill_over_text(fills, spans,
                                              consumed_spans, consumed_fills):
@@ -512,9 +584,11 @@ def _analyze_page(page, page_angle: float, page_num: int) -> list[Flag]:
 def analyze_overlay(pdf_data) -> ModuleResult:
     """Detect opaque-box cover-and-retype tampering from PDF structure alone.
 
-    SOFT (heuristic geometry) only — corroboration/HARD escalation is Task 4.
-    Never raises: a malformed / encrypted / textless PDF yields a partial
-    ModuleResult with reduced confidence instead of an exception (CLAUDE.md).
+    Geometry (Signals 1-3) is heuristic and stays SOFT on its own; it escalates
+    to a HARD `_CONFIRMED` code only when corroborated by an interactive-editor
+    Producer/Creator (C2 — see `_corroboration`). Never raises: a malformed /
+    encrypted / textless PDF yields a partial ModuleResult with reduced
+    confidence instead of an exception (CLAUDE.md).
     """
     flags: list[Flag] = []
     confidence = 1.0
@@ -525,13 +599,25 @@ def analyze_overlay(pdf_data) -> ModuleResult:
         # get a well-formed, low-confidence result (never a crash).
         return ModuleResult(module="overlay", flags=[], score=100, confidence=0.5)
 
+    # Read the raw bytes ONCE, guarded: used by _corroboration for the
+    # incremental-update count (context only, not an escalation driver).
+    raw_bytes = None
+    try:
+        with open(pdf_data.file_path, "rb") as fh:
+            raw_bytes = fh.read()
+    except Exception as exc:
+        logger.warning("overlay: raw byte read failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+
+    corroboration = _corroboration(pdf_data, raw_bytes)
+
     doc = None
     try:
         doc = fitz.open(pdf_data.file_path)
         for page_num in range(doc.page_count):
             try:
                 page = doc[page_num]
-                flags.extend(_analyze_page(page, _page_angle(page), page_num))
+                flags.extend(_analyze_page(page, _page_angle(page), page_num, corroboration))
             except Exception as exc:  # one bad page must not sink the whole module
                 logger.warning("overlay: page %d analysis failed: %s", page_num, exc)
                 confidence = min(confidence, 0.5)
