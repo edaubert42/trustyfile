@@ -284,7 +284,10 @@ def create_analysis_result(
             if f.code != "META_DOCUMENT_MODIFIED":
                 return False
             hours = (f.details or {}).get("time_difference_hours", 999)
-            return float(hours) < 0.5  # under 30 minutes
+            try:
+                return float(hours) < 0.5  # under 30 minutes
+            except (TypeError, ValueError):
+                return False  # unparseable → treat as a genuine critical, not exempt
 
         genuine_criticals = sum(
             1
