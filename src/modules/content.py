@@ -673,6 +673,7 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     invoice_dates = [d for d in dates if d.date_type == "invoice"]
     due_dates = [d for d in dates if d.date_type == "due"]
     order_dates = [d for d in dates if d.date_type == "order"]
+    service_dates = [d for d in dates if d.date_type == "service"]
 
     # Only run checks if we identified an invoice date (confirms it's an invoice)
     if not invoice_dates:
@@ -708,6 +709,26 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
                         "invoice_date": invoice_date.isoformat(),
                         "order_date": od.date.isoformat(),
                     }
+                ))
+
+    # Check: Service date vs Invoice date
+    # A service/delivery date materially AFTER the invoice date is an anachronism
+    # (you cannot invoice for a service not yet rendered). 1-day tolerance.
+    if invoice_dates and service_dates:
+        invoice_date = invoice_dates[0].date
+        for sd in service_dates:
+            if sd.date > invoice_date + timedelta(days=1):
+                flags.append(Flag(
+                    severity="high",
+                    code="CONTENT_ANACHRONISM_SERVICE",
+                    message=(
+                        f"Service date ({sd.date.strftime('%Y-%m-%d')}) is after "
+                        f"invoice date ({invoice_date.strftime('%Y-%m-%d')})"
+                    ),
+                    details={
+                        "invoice_date": invoice_date.isoformat(),
+                        "service_date": sd.date.isoformat(),
+                    },
                 ))
 
     return flags
