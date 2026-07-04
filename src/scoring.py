@@ -1,8 +1,11 @@
 """
 Scoring System - Combines all module results into a final trust score.
 
-The final score is a weighted average of all module scores,
-adjusted by each module's confidence level.
+`create_analysis_result` (the entry point) builds an evidence ledger from
+module FLAGS and aggregates it in log-odds space — see src/evidence.py for the
+math. Each flag becomes an Evidence item (`flag_to_evidence`), optionally
+down-weighted per document type (`apply_doc_type_suppression`), and the
+ledger is combined by `aggregate_evidence` to produce the final score.
 
 Risk levels:
 - LOW (80-100): Document appears legitimate
@@ -11,9 +14,41 @@ Risk levels:
 - CRITICAL (0-19): Strong evidence of fraud
 """
 
-from dataclasses import dataclass
+from dataclasses import replace
 from typing import Literal
 from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
+
+
+# =============================================================================
+# PER-(DOCUMENT TYPE, FLAG CODE) SOFT-WEIGHT MULTIPLIERS
+# =============================================================================
+
+# Per-(document_type, flag_code) soft-weight multipliers. Only FP-prone,
+# genre-specific codes appear here. Hard evidence and universally-suspicious
+# codes are NEVER in this table and always pass at full weight — so an attacker
+# cannot disable tamper detection by steering the (text-based) classifier.
+DOC_TYPE_CODE_MULTIPLIERS: dict[str, dict[str, float]] = {
+    "scientific": {"FONTS_HIGH_DIVERSITY": 0.15, "FONTS_EXCESSIVE_DIVERSITY": 0.15,
+                   "STRUCT_INCREMENTAL_UPDATES": 0.3, "IMAGES_SCREENSHOT_DETECTED": 0.4},
+    "technical": {"STRUCT_JAVASCRIPT_DETECTED": 1.0,  # explicit: NOT suppressed even here
+                  "STRUCT_ACROFORM_DETECTED": 0.3, "FONTS_HIGH_DIVERSITY": 0.4},
+    "legal_notice": {"FONTS_HIGH_DIVERSITY": 0.4, "STRUCT_INCREMENTAL_UPDATES": 0.4},
+    "identity": {"FONTS_HIGH_DIVERSITY": 0.3, "STRUCT_ACROFORM_DETECTED": 0.5},
+}
+
+
+def apply_doc_type_suppression(evidence, document_type: str):
+    """Down-weight genre-specific FP-prone SOFT codes for a document type.
+    Hard evidence is never touched. Returns Evidence, a down-weighted copy, or
+    None (fully suppressed, multiplier 0)."""
+    if evidence.kind == "hard":
+        return evidence
+    mult = DOC_TYPE_CODE_MULTIPLIERS.get(document_type, {}).get(evidence.code, 1.0)
+    if mult >= 1.0:
+        return evidence
+    if mult <= 0.0:
+        return None
+    return replace(evidence, weight=evidence.weight * mult)
 
 
 # =============================================================================
@@ -36,68 +71,6 @@ MODULE_WEIGHTS = {
 
 # Default weight for unknown modules
 DEFAULT_WEIGHT = 1.0
-
-
-# =============================================================================
-# CONFIDENCE MULTIPLIERS BY DOCUMENT TYPE
-# =============================================================================
-
-# Some modules are calibrated for invoices and produce false positives on other
-# document types. For example:
-#   - fonts: a scientific paper legitimately uses many fonts (equations, figures)
-#   - content: invoice-specific date/amount logic is irrelevant in a legal notice
-#   - structure: papers often have many incremental revisions
-#
-# Instead of changing module scores (which would hide real findings), we reduce
-# their effective confidence so they weigh less in the final average.
-#
-# A multiplier of 0.15 means the module still runs and reports flags,
-# but its contribution to the final score is nearly silenced.
-#
-# Primary types (invoice, identity, certificate, attestation, tax_document)
-# have no adjustment — all modules run at full confidence.
-
-CONFIDENCE_MULTIPLIERS: dict[str, dict[str, float]] = {
-    "technical": {
-        "structure": 0.20,  # JS in forms/interactive specs is normal; many revisions expected
-        "content": 0.30,    # Invoice date/amount logic doesn't apply to API docs
-        "fonts": 0.40,      # Mixed typography common in technical docs (code, diagrams)
-    },
-    "scientific": {
-        "fonts": 0.15,      # Font diversity is normal in academic papers
-        "structure": 0.25,  # Papers often have many incremental updates
-        "content": 0.20,    # Invoice-specific date/amount checks don't apply
-        "images": 0.50,     # Screenshots/figures are expected
-    },
-    "legal_notice": {
-        "fonts": 0.30,      # Notices may use varied typography
-        "structure": 0.30,  # Legal docs may have many revisions
-        "content": 0.30,    # Notices may reference future-dated validity periods
-    },
-    # "unknown" deliberately gets NO multipliers (same as primary types).
-    # Reason: an unclassified document could be a suspicious invoice.
-    # Reducing confidence for unknown docs would let fraud slip through
-    # when the classifier fails to identify the document type.
-    # The UI still shows a warning banner for unknown docs.
-    "unknown": {},
-    # Primary document types: some have reduced confidence for modules that
-    # don't apply well to their format.
-    "invoice": {},
-    "identity": {
-        # Scanned ID documents legitimately have variable/OCR-extracted fonts.
-        # Font diversity is normal for scanned government docs → reduce penalty weight.
-        "fonts": 0.3,
-        # Invoice-specific checks (SIRET, amounts, due dates) don't apply to IDs.
-        # Reducing content module so it doesn't penalise lack of "facture" structure.
-        "content": 0.4,
-        # Scanned PDFs have minimal internal PDF structure (no incremental updates, no JS).
-        # Structure module will see a "simple" PDF and have low signal → reduce weight.
-        "structure": 0.5,
-    },
-    "certificate": {},
-    "attestation": {},
-    "tax_document": {},
-}
 
 
 # =============================================================================
@@ -128,59 +101,6 @@ def get_risk_level(score: int) -> Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
         return "HIGH"
     else:
         return "CRITICAL"
-
-
-# =============================================================================
-# SCORE CALCULATION
-# =============================================================================
-
-def calculate_final_score(
-    module_results: list[ModuleResult],
-    document_type: DocumentType = "unknown",
-) -> int:
-    """
-    Calculate the final trust score from all module results.
-
-    The formula is a confidence-weighted average:
-
-    final_score = Σ(score_i × weight_i × effective_confidence_i) / Σ(weight_i × effective_confidence_i)
-
-    For non-invoice document types, some modules have their confidence
-    multiplied by a factor < 1.0 so they contribute less to the final score.
-    This prevents false positives from modules calibrated for financial documents
-    when analyzing e.g. scientific papers or legal notices.
-
-    Args:
-        module_results: List of results from all analysis modules
-        document_type: Detected document type (affects confidence multipliers)
-
-    Returns:
-        Final trust score (0-100)
-    """
-    if not module_results:
-        return 100  # No analysis = assume innocent
-
-    # Get the multiplier table for this document type (empty dict = all 1.0)
-    multipliers = CONFIDENCE_MULTIPLIERS.get(document_type, {})
-
-    weighted_sum = 0.0
-    weight_total = 0.0
-
-    for result in module_results:
-        weight = MODULE_WEIGHTS.get(result.module, DEFAULT_WEIGHT)
-
-        # Apply document-type confidence multiplier (default 1.0 = no change)
-        type_multiplier = multipliers.get(result.module, 1.0)
-        effective_weight = weight * result.confidence * type_multiplier
-
-        weighted_sum += result.score * effective_weight
-        weight_total += effective_weight
-
-    if weight_total == 0:
-        return 100  # No confidence in any module
-
-    final_score = weighted_sum / weight_total
-    return round(max(0, min(100, final_score)))
 
 
 def collect_all_flags(module_results: list[ModuleResult]) -> list[Flag]:
@@ -230,6 +150,23 @@ def count_flags_by_severity(flags: list[Flag]) -> dict[str, int]:
 # MAIN SCORING FUNCTION
 # =============================================================================
 
+def _is_scanner_pipeline_critical(flag: Flag) -> bool:
+    """True if this CRITICAL is the known scanner→viewer false positive.
+
+    Authentic scanned identity documents are saved by the scanner, then opened
+    minutes later by a viewer (Adobe, Preview…), which stamps a new ModDate and
+    trips META_DOCUMENT_MODIFIED as "critical". A gap under 30 minutes is a
+    plausible scan-then-view workflow, not tampering.
+    """
+    if flag.severity != "critical" or flag.code != "META_DOCUMENT_MODIFIED":
+        return False
+    hours = (flag.details or {}).get("time_difference_hours", 999)
+    try:
+        return float(hours) < 0.5  # under 30 minutes
+    except (TypeError, ValueError):
+        return False  # unparseable → treat as a genuine critical
+
+
 def create_analysis_result(
     file_hash: str,
     module_results: list[ModuleResult],
@@ -239,99 +176,68 @@ def create_analysis_result(
     """
     Create the final analysis result from all module results.
 
+    Builds an evidence ledger from the flags raised by each module and
+    aggregates it in log-odds space (see src/evidence.py) instead of taking a
+    confidence-weighted average of module scores. Modules score from their
+    FLAGS, not from their numeric `score` — the numeric score is only used to
+    detect an abstaining clean module (no flags AND score >= 100), which
+    contributes no evidence rather than nudging trust upward.
+
     Args:
         file_hash: SHA256 hash of the analyzed file
         module_results: List of results from all analysis modules
         analysis_time_ms: Time taken for analysis in milliseconds
-        document_type: Detected document type (used for confidence adjustment)
+        document_type: Detected document type (used for evidence suppression)
 
     Returns:
-        AnalysisResult with final score, risk level, document type, and details
+        AnalysisResult with final score, risk level, band, score range,
+        evidence ledger, document type, and module details.
     """
-    # Calculate final score with document-type-aware confidence multipliers
-    trust_score = calculate_final_score(module_results, document_type)
+    from src.evidence import flag_to_evidence, aggregate_evidence
 
-    # Determine risk level from score
-    risk_level = get_risk_level(trust_score)
+    # Fail-closed: an explicit extraction failure means the document could not be
+    # read, so it is UNVERIFIABLE — never a trusting high score.
+    analyzable = not any(
+        f.code == "EXTRACTION_FAILED" for r in module_results for f in r.flags
+    )
 
-    # Override risk level if there are critical flags.
-    # For PRIMARY document types (invoices, identity, etc.) we apply hard caps
-    # because every module is meaningful for these docs.
-    # For SECONDARY types (scientific, legal_notice, unknown), the confidence
-    # multipliers already reduced module influence — don't also apply caps,
-    # which would double-penalise flags that may be false positives for those types.
-    # Apply hard flag caps for primary types AND unknown (conservative default).
-    # Only skip caps for types where we know modules produce false positives.
-    _skip_caps_types = {"scientific", "legal_notice", "technical"}
-
-    all_flags = collect_all_flags(module_results)
-    flag_counts = count_flags_by_severity(all_flags)
-
+    # Known false positive on authentic SCANNED identity documents: downgrade the
+    # scanner→viewer META_DOCUMENT_MODIFIED critical to "low" so it contributes
+    # negligible evidence instead of a critical-weight tamper signal. (Preserved
+    # from the pre-ledger engine; the in-place mutation is a known smell to revisit
+    # when detail-aware suppression lands in a later phase.)
     if document_type == "identity":
-        # Scanned identity documents have one known false-positive CRITICAL:
-        # the scanner saves the PDF, then a viewer (Adobe, etc.) opens it within
-        # minutes → "META_DOCUMENT_MODIFIED" CRITICAL, even on authentic documents.
-        #
-        # Distinguishing scanner pipeline from real tampering: the time gap.
-        # < 30 minutes = plausible scanner-to-viewer workflow → skip this specific flag.
-        # ≥ 30 minutes = intentional modification long after creation → keep the cap.
-        #
-        # All other CRITICAL flags (forensics, identity MRZ, content dates…) always cap.
-        def _is_scanner_pipeline_critical(r: ModuleResult, f: Flag) -> bool:
-            """True if this CRITICAL is just a scanner saving then a viewer opening the PDF."""
-            if f.severity != "critical":
-                return False
-            if f.code != "META_DOCUMENT_MODIFIED":
-                return False
-            hours = (f.details or {}).get("time_difference_hours", 999)
-            try:
-                return float(hours) < 0.5  # under 30 minutes
-            except (TypeError, ValueError):
-                return False  # unparseable → treat as a genuine critical, not exempt
-
-        genuine_criticals = sum(
-            1
-            for r in module_results
-            for f in r.flags
-            if f.severity == "critical" and not _is_scanner_pipeline_critical(r, f)
-        )
-        apply_flag_caps = genuine_criticals >= 1
-
-        # Downgrade scanner-pipeline false-positive flags from "critical" to "low"
-        # so they don't appear as alarming in the UI for authentic scanned IDs.
-        # The score cap already ignores them; now the display should match.
         for r in module_results:
             for f in r.flags:
-                if _is_scanner_pipeline_critical(r, f):
+                if _is_scanner_pipeline_critical(f):
                     f.severity = "low"
-    else:
-        apply_flag_caps = document_type not in _skip_caps_types
 
-    if apply_flag_caps and flag_counts["critical"] >= 1:
-        # Any critical flag = at least HIGH risk
-        if risk_level == "LOW" or risk_level == "MEDIUM":
-            risk_level = "HIGH"
-        # Base cap at 40 for a single critical flag
-        trust_score = min(trust_score, 40)
+    # Build the evidence ledger. A module that found nothing (no flags AND
+    # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
+    # trust upward. Modules score from their FLAGS, not their numeric score.
+    evidence = []
+    for r in module_results:
+        if not r.flags and r.score >= 100:
+            continue
+        for f in r.flags:
+            ev = flag_to_evidence(f, r.module)
+            ev = apply_doc_type_suppression(ev, document_type)
+            if ev is not None:
+                evidence.append(ev)
 
-        # High flags further reduce the cap (-5 each)
-        trust_score -= flag_counts["high"] * 5
-        # Medium flags slightly reduce (-2 each)
-        trust_score -= flag_counts["medium"] * 2
-        trust_score = max(trust_score, 5)
-
-    if apply_flag_caps and flag_counts["critical"] >= 2:
-        # Multiple critical flags = CRITICAL risk
-        risk_level = "CRITICAL"
-        trust_score = min(trust_score, 19)
+    agg = aggregate_evidence(evidence, analyzable=analyzable)
 
     return AnalysisResult(
         file_hash=file_hash,
-        trust_score=trust_score,
-        risk_level=risk_level,
+        trust_score=agg.score,
+        risk_level=agg.risk_level,
         document_type=document_type,
         modules=module_results,
         analysis_time_ms=analysis_time_ms,
+        band=agg.band,
+        score_low=agg.score_low,
+        score_high=agg.score_high,
+        evidence_ledger=agg.ledger,
     )
 
 

@@ -15,3 +15,12 @@ def test_missing_corpus_dir_notes_it(tmp_path):
     report = run_evaluation(str(tmp_path / "does_not_exist"))
     assert report["total"] == 0
     assert any("no corpus" in n.lower() for n in report["notes"])
+
+
+def test_report_includes_band_counts_and_weights(tmp_path):
+    from scripts.eval_harness import run_evaluation
+    (tmp_path / "legitimate").mkdir(); (tmp_path / "suspicious").mkdir()
+    report = run_evaluation(str(tmp_path))
+    assert "band_counts" in report
+    assert isinstance(report["band_counts"], dict)
+    assert "code_weights" in report

@@ -52,6 +52,7 @@
     "risk_MEDIUM": "MEDIUM RISK",
     "risk_HIGH": "HIGH RISK",
     "risk_CRITICAL": "CRITICAL RISK",
+    "risk_UNVERIFIABLE": "UNVERIFIABLE",
 
     "group_modifications": "Modifications",
     "group_consistency": "Consistency",

@@ -595,6 +595,9 @@ VERDICTS: dict[str, dict[str, str]] = {
     "LOW": {
         "default": "This document appears legitimate. No issues detected.",
     },
+    "UNVERIFIABLE": {
+        "default": "This document could not be read or verified. Treat it with caution and request a valid original.",
+    },
 }
 
 VERDICTS_FR: dict[str, dict[str, str]] = {
@@ -620,6 +623,9 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
     },
     "LOW": {
         "default": "Ce document semble légitime. Aucun problème détecté.",
+    },
+    "UNVERIFIABLE": {
+        "default": "Ce document n'a pas pu être lu ou vérifié. Traitez-le avec prudence et demandez un original valide.",
     },
 }
 
@@ -719,7 +725,7 @@ def _build_verdict(risk_level: str, dominant_theme: str | None, lang: str = "en"
     Pick the most appropriate verdict based on risk level and dominant theme.
 
     Args:
-        risk_level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+        risk_level: "LOW", "MEDIUM", "HIGH", "CRITICAL", or "UNVERIFIABLE"
         dominant_theme: The most prominent theme, or None.
         lang: Language code ("en" or "fr").
 
