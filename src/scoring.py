@@ -1,11 +1,11 @@
 """
 Scoring System - Combines all module results into a final trust score.
 
-`create_analysis_result` (the entry point) now builds an evidence ledger from
+`create_analysis_result` (the entry point) builds an evidence ledger from
 module FLAGS and aggregates it in log-odds space — see src/evidence.py for the
-math. `calculate_final_score` (confidence-weighted average of module scores)
-is RETAINED for backward compatibility / tests but no longer drives the trust
-score.
+math. Each flag becomes an Evidence item (`flag_to_evidence`), optionally
+down-weighted per document type (`apply_doc_type_suppression`), and the
+ledger is combined by `aggregate_evidence` to produce the final score.
 
 Risk levels:
 - LOW (80-100): Document appears legitimate
@@ -14,14 +14,41 @@ Risk levels:
 - CRITICAL (0-19): Strong evidence of fraud
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal
 from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
 
 
-def apply_doc_type_suppression(evidence, document_type):
-    """Placeholder pass-through; real per-code suppression added in Task 7."""
-    return evidence
+# =============================================================================
+# PER-(DOCUMENT TYPE, FLAG CODE) SOFT-WEIGHT MULTIPLIERS
+# =============================================================================
+
+# Per-(document_type, flag_code) soft-weight multipliers. Only FP-prone,
+# genre-specific codes appear here. Hard evidence and universally-suspicious
+# codes are NEVER in this table and always pass at full weight — so an attacker
+# cannot disable tamper detection by steering the (text-based) classifier.
+DOC_TYPE_CODE_MULTIPLIERS: dict[str, dict[str, float]] = {
+    "scientific": {"FONTS_HIGH_DIVERSITY": 0.15, "FONTS_EXCESSIVE_DIVERSITY": 0.15,
+                   "STRUCT_INCREMENTAL_UPDATES": 0.3, "IMAGES_SCREENSHOT_DETECTED": 0.4},
+    "technical": {"STRUCT_JAVASCRIPT_DETECTED": 1.0,  # explicit: NOT suppressed even here
+                  "STRUCT_ACROFORM_DETECTED": 0.3, "FONTS_HIGH_DIVERSITY": 0.4},
+    "legal_notice": {"FONTS_HIGH_DIVERSITY": 0.4, "STRUCT_INCREMENTAL_UPDATES": 0.4},
+    "identity": {"FONTS_HIGH_DIVERSITY": 0.3, "STRUCT_ACROFORM_DETECTED": 0.5},
+}
+
+
+def apply_doc_type_suppression(evidence, document_type: str):
+    """Down-weight genre-specific FP-prone SOFT codes for a document type.
+    Hard evidence is never touched. Returns Evidence, a down-weighted copy, or
+    None (fully suppressed, multiplier 0)."""
+    if evidence.kind == "hard":
+        return evidence
+    mult = DOC_TYPE_CODE_MULTIPLIERS.get(document_type, {}).get(evidence.code, 1.0)
+    if mult >= 1.0:
+        return evidence
+    if mult <= 0.0:
+        return None
+    return replace(evidence, weight=evidence.weight * mult)
 
 
 # =============================================================================
@@ -44,68 +71,6 @@ MODULE_WEIGHTS = {
 
 # Default weight for unknown modules
 DEFAULT_WEIGHT = 1.0
-
-
-# =============================================================================
-# CONFIDENCE MULTIPLIERS BY DOCUMENT TYPE
-# =============================================================================
-
-# Some modules are calibrated for invoices and produce false positives on other
-# document types. For example:
-#   - fonts: a scientific paper legitimately uses many fonts (equations, figures)
-#   - content: invoice-specific date/amount logic is irrelevant in a legal notice
-#   - structure: papers often have many incremental revisions
-#
-# Instead of changing module scores (which would hide real findings), we reduce
-# their effective confidence so they weigh less in the final average.
-#
-# A multiplier of 0.15 means the module still runs and reports flags,
-# but its contribution to the final score is nearly silenced.
-#
-# Primary types (invoice, identity, certificate, attestation, tax_document)
-# have no adjustment — all modules run at full confidence.
-
-CONFIDENCE_MULTIPLIERS: dict[str, dict[str, float]] = {
-    "technical": {
-        "structure": 0.20,  # JS in forms/interactive specs is normal; many revisions expected
-        "content": 0.30,    # Invoice date/amount logic doesn't apply to API docs
-        "fonts": 0.40,      # Mixed typography common in technical docs (code, diagrams)
-    },
-    "scientific": {
-        "fonts": 0.15,      # Font diversity is normal in academic papers
-        "structure": 0.25,  # Papers often have many incremental updates
-        "content": 0.20,    # Invoice-specific date/amount checks don't apply
-        "images": 0.50,     # Screenshots/figures are expected
-    },
-    "legal_notice": {
-        "fonts": 0.30,      # Notices may use varied typography
-        "structure": 0.30,  # Legal docs may have many revisions
-        "content": 0.30,    # Notices may reference future-dated validity periods
-    },
-    # "unknown" deliberately gets NO multipliers (same as primary types).
-    # Reason: an unclassified document could be a suspicious invoice.
-    # Reducing confidence for unknown docs would let fraud slip through
-    # when the classifier fails to identify the document type.
-    # The UI still shows a warning banner for unknown docs.
-    "unknown": {},
-    # Primary document types: some have reduced confidence for modules that
-    # don't apply well to their format.
-    "invoice": {},
-    "identity": {
-        # Scanned ID documents legitimately have variable/OCR-extracted fonts.
-        # Font diversity is normal for scanned government docs → reduce penalty weight.
-        "fonts": 0.3,
-        # Invoice-specific checks (SIRET, amounts, due dates) don't apply to IDs.
-        # Reducing content module so it doesn't penalise lack of "facture" structure.
-        "content": 0.4,
-        # Scanned PDFs have minimal internal PDF structure (no incremental updates, no JS).
-        # Structure module will see a "simple" PDF and have low signal → reduce weight.
-        "structure": 0.5,
-    },
-    "certificate": {},
-    "attestation": {},
-    "tax_document": {},
-}
 
 
 # =============================================================================
@@ -136,59 +101,6 @@ def get_risk_level(score: int) -> Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
         return "HIGH"
     else:
         return "CRITICAL"
-
-
-# =============================================================================
-# SCORE CALCULATION
-# =============================================================================
-
-def calculate_final_score(
-    module_results: list[ModuleResult],
-    document_type: DocumentType = "unknown",
-) -> int:
-    """
-    Calculate the final trust score from all module results.
-
-    The formula is a confidence-weighted average:
-
-    final_score = Σ(score_i × weight_i × effective_confidence_i) / Σ(weight_i × effective_confidence_i)
-
-    For non-invoice document types, some modules have their confidence
-    multiplied by a factor < 1.0 so they contribute less to the final score.
-    This prevents false positives from modules calibrated for financial documents
-    when analyzing e.g. scientific papers or legal notices.
-
-    Args:
-        module_results: List of results from all analysis modules
-        document_type: Detected document type (affects confidence multipliers)
-
-    Returns:
-        Final trust score (0-100)
-    """
-    if not module_results:
-        return 100  # No analysis = assume innocent
-
-    # Get the multiplier table for this document type (empty dict = all 1.0)
-    multipliers = CONFIDENCE_MULTIPLIERS.get(document_type, {})
-
-    weighted_sum = 0.0
-    weight_total = 0.0
-
-    for result in module_results:
-        weight = MODULE_WEIGHTS.get(result.module, DEFAULT_WEIGHT)
-
-        # Apply document-type confidence multiplier (default 1.0 = no change)
-        type_multiplier = multipliers.get(result.module, 1.0)
-        effective_weight = weight * result.confidence * type_multiplier
-
-        weighted_sum += result.score * effective_weight
-        weight_total += effective_weight
-
-    if weight_total == 0:
-        return 100  # No confidence in any module
-
-    final_score = weighted_sum / weight_total
-    return round(max(0, min(100, final_score)))
 
 
 def collect_all_flags(module_results: list[ModuleResult]) -> list[Flag]:
@@ -309,7 +221,7 @@ def create_analysis_result(
             continue
         for f in r.flags:
             ev = flag_to_evidence(f, r.module)
-            ev = apply_doc_type_suppression(ev, document_type)  # Task 7 fills this in
+            ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:
                 evidence.append(ev)
 

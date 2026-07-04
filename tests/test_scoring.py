@@ -6,9 +6,9 @@ trust score (0-100) and risk level (LOW/MEDIUM/HIGH/CRITICAL).
 
 We test:
 1. Risk level thresholds (score → risk level)
-2. Weighted score calculation (the math)
+2. Evidence-ledger scoring (create_analysis_result end-to-end)
 3. Flag collection and sorting
-4. Critical flag overrides (business rules)
+4. Document-type suppression (per-flag-code down-weighting)
 5. Summary generation
 """
 
@@ -339,3 +339,27 @@ def test_scanner_pipeline_identity_stays_genuine():
              details={"time_difference_hours": 0.1})])
     res = create_analysis_result("h", [r], document_type="identity")
     assert res.band == "GENUINE" and res.trust_score >= 80
+
+
+class TestDocTypeSuppression:
+    def test_font_diversity_suppressed_for_scientific(self):
+        from src.scoring import apply_doc_type_suppression
+        from src.evidence import Evidence
+        e = Evidence("FONTS_HIGH_DIVERSITY", 1.5, "soft", "tamper", "fonts", "m")
+        out = apply_doc_type_suppression(e, "scientific")
+        assert out is None or out.weight < 1.5  # suppressed/down-weighted
+
+    def test_hard_evidence_never_suppressed(self):
+        from src.scoring import apply_doc_type_suppression
+        from src.evidence import Evidence
+        e = Evidence("CONTENT_SIREN_VAT_MISMATCH", 3.0, "hard", "tamper", "content", "m")
+        out = apply_doc_type_suppression(e, "scientific")
+        assert out is not None and out.kind == "hard" and out.weight == 3.0
+
+    def test_universal_code_never_suppressed_by_classifier(self):
+        from src.scoring import apply_doc_type_suppression
+        from src.evidence import Evidence
+        # A tampering code an attacker cannot dodge by reclassifying the doc.
+        e = Evidence("STRUCT_JAVASCRIPT_DETECTED", 3.0, "soft", "tamper", "structure", "m")
+        out = apply_doc_type_suppression(e, "technical")
+        assert out is not None and out.weight == 3.0
