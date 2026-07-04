@@ -1,8 +1,11 @@
 """
 Scoring System - Combines all module results into a final trust score.
 
-The final score is a weighted average of all module scores,
-adjusted by each module's confidence level.
+`create_analysis_result` (the entry point) now builds an evidence ledger from
+module FLAGS and aggregates it in log-odds space — see src/evidence.py for the
+math. `calculate_final_score` (confidence-weighted average of module scores)
+is RETAINED for backward compatibility / tests but no longer drives the trust
+score.
 
 Risk levels:
 - LOW (80-100): Document appears legitimate
@@ -14,6 +17,11 @@ Risk levels:
 from dataclasses import dataclass
 from typing import Literal
 from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
+
+
+def apply_doc_type_suppression(evidence, document_type):
+    """Placeholder pass-through; real per-code suppression added in Task 7."""
+    return evidence
 
 
 # =============================================================================
@@ -230,6 +238,23 @@ def count_flags_by_severity(flags: list[Flag]) -> dict[str, int]:
 # MAIN SCORING FUNCTION
 # =============================================================================
 
+def _is_scanner_pipeline_critical(flag: Flag) -> bool:
+    """True if this CRITICAL is the known scanner→viewer false positive.
+
+    Authentic scanned identity documents are saved by the scanner, then opened
+    minutes later by a viewer (Adobe, Preview…), which stamps a new ModDate and
+    trips META_DOCUMENT_MODIFIED as "critical". A gap under 30 minutes is a
+    plausible scan-then-view workflow, not tampering.
+    """
+    if flag.severity != "critical" or flag.code != "META_DOCUMENT_MODIFIED":
+        return False
+    hours = (flag.details or {}).get("time_difference_hours", 999)
+    try:
+        return float(hours) < 0.5  # under 30 minutes
+    except (TypeError, ValueError):
+        return False  # unparseable → treat as a genuine critical
+
+
 def create_analysis_result(
     file_hash: str,
     module_results: list[ModuleResult],
@@ -239,99 +264,68 @@ def create_analysis_result(
     """
     Create the final analysis result from all module results.
 
+    Builds an evidence ledger from the flags raised by each module and
+    aggregates it in log-odds space (see src/evidence.py) instead of taking a
+    confidence-weighted average of module scores. Modules score from their
+    FLAGS, not from their numeric `score` — the numeric score is only used to
+    detect an abstaining clean module (no flags AND score >= 100), which
+    contributes no evidence rather than nudging trust upward.
+
     Args:
         file_hash: SHA256 hash of the analyzed file
         module_results: List of results from all analysis modules
         analysis_time_ms: Time taken for analysis in milliseconds
-        document_type: Detected document type (used for confidence adjustment)
+        document_type: Detected document type (used for evidence suppression)
 
     Returns:
-        AnalysisResult with final score, risk level, document type, and details
+        AnalysisResult with final score, risk level, band, score range,
+        evidence ledger, document type, and module details.
     """
-    # Calculate final score with document-type-aware confidence multipliers
-    trust_score = calculate_final_score(module_results, document_type)
+    from src.evidence import flag_to_evidence, aggregate_evidence
 
-    # Determine risk level from score
-    risk_level = get_risk_level(trust_score)
+    # Fail-closed: an explicit extraction failure means the document could not be
+    # read, so it is UNVERIFIABLE — never a trusting high score.
+    analyzable = not any(
+        f.code == "EXTRACTION_FAILED" for r in module_results for f in r.flags
+    )
 
-    # Override risk level if there are critical flags.
-    # For PRIMARY document types (invoices, identity, etc.) we apply hard caps
-    # because every module is meaningful for these docs.
-    # For SECONDARY types (scientific, legal_notice, unknown), the confidence
-    # multipliers already reduced module influence — don't also apply caps,
-    # which would double-penalise flags that may be false positives for those types.
-    # Apply hard flag caps for primary types AND unknown (conservative default).
-    # Only skip caps for types where we know modules produce false positives.
-    _skip_caps_types = {"scientific", "legal_notice", "technical"}
-
-    all_flags = collect_all_flags(module_results)
-    flag_counts = count_flags_by_severity(all_flags)
-
+    # Known false positive on authentic SCANNED identity documents: downgrade the
+    # scanner→viewer META_DOCUMENT_MODIFIED critical to "low" so it contributes
+    # negligible evidence instead of a critical-weight tamper signal. (Preserved
+    # from the pre-ledger engine; the in-place mutation is a known smell to revisit
+    # when detail-aware suppression lands in a later phase.)
     if document_type == "identity":
-        # Scanned identity documents have one known false-positive CRITICAL:
-        # the scanner saves the PDF, then a viewer (Adobe, etc.) opens it within
-        # minutes → "META_DOCUMENT_MODIFIED" CRITICAL, even on authentic documents.
-        #
-        # Distinguishing scanner pipeline from real tampering: the time gap.
-        # < 30 minutes = plausible scanner-to-viewer workflow → skip this specific flag.
-        # ≥ 30 minutes = intentional modification long after creation → keep the cap.
-        #
-        # All other CRITICAL flags (forensics, identity MRZ, content dates…) always cap.
-        def _is_scanner_pipeline_critical(r: ModuleResult, f: Flag) -> bool:
-            """True if this CRITICAL is just a scanner saving then a viewer opening the PDF."""
-            if f.severity != "critical":
-                return False
-            if f.code != "META_DOCUMENT_MODIFIED":
-                return False
-            hours = (f.details or {}).get("time_difference_hours", 999)
-            try:
-                return float(hours) < 0.5  # under 30 minutes
-            except (TypeError, ValueError):
-                return False  # unparseable → treat as a genuine critical, not exempt
-
-        genuine_criticals = sum(
-            1
-            for r in module_results
-            for f in r.flags
-            if f.severity == "critical" and not _is_scanner_pipeline_critical(r, f)
-        )
-        apply_flag_caps = genuine_criticals >= 1
-
-        # Downgrade scanner-pipeline false-positive flags from "critical" to "low"
-        # so they don't appear as alarming in the UI for authentic scanned IDs.
-        # The score cap already ignores them; now the display should match.
         for r in module_results:
             for f in r.flags:
-                if _is_scanner_pipeline_critical(r, f):
+                if _is_scanner_pipeline_critical(f):
                     f.severity = "low"
-    else:
-        apply_flag_caps = document_type not in _skip_caps_types
 
-    if apply_flag_caps and flag_counts["critical"] >= 1:
-        # Any critical flag = at least HIGH risk
-        if risk_level == "LOW" or risk_level == "MEDIUM":
-            risk_level = "HIGH"
-        # Base cap at 40 for a single critical flag
-        trust_score = min(trust_score, 40)
+    # Build the evidence ledger. A module that found nothing (no flags AND
+    # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
+    # trust upward. Modules score from their FLAGS, not their numeric score.
+    evidence = []
+    for r in module_results:
+        if not r.flags and r.score >= 100:
+            continue
+        for f in r.flags:
+            ev = flag_to_evidence(f, r.module)
+            ev = apply_doc_type_suppression(ev, document_type)  # Task 7 fills this in
+            if ev is not None:
+                evidence.append(ev)
 
-        # High flags further reduce the cap (-5 each)
-        trust_score -= flag_counts["high"] * 5
-        # Medium flags slightly reduce (-2 each)
-        trust_score -= flag_counts["medium"] * 2
-        trust_score = max(trust_score, 5)
-
-    if apply_flag_caps and flag_counts["critical"] >= 2:
-        # Multiple critical flags = CRITICAL risk
-        risk_level = "CRITICAL"
-        trust_score = min(trust_score, 19)
+    agg = aggregate_evidence(evidence, analyzable=analyzable)
 
     return AnalysisResult(
         file_hash=file_hash,
-        trust_score=trust_score,
-        risk_level=risk_level,
+        trust_score=agg.score,
+        risk_level=agg.risk_level,
         document_type=document_type,
         modules=module_results,
         analysis_time_ms=analysis_time_ms,
+        band=agg.band,
+        score_low=agg.score_low,
+        score_high=agg.score_high,
+        evidence_ledger=agg.ledger,
     )
 
 

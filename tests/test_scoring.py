@@ -16,7 +16,6 @@ import pytest
 from src.models import Flag, ModuleResult, AnalysisResult
 from src.scoring import (
     get_risk_level,
-    calculate_final_score,
     collect_all_flags,
     count_flags_by_severity,
     create_analysis_result,
@@ -82,110 +81,6 @@ class TestGetRiskLevel:
     ])
     def test_thresholds(self, score, expected):
         assert get_risk_level(score) == expected
-
-
-# =============================================================================
-# TEST calculate_final_score
-# =============================================================================
-
-class TestCalculateFinalScore:
-    """
-    Tests for the weighted average calculation.
-
-    Formula: Σ(score × weight × confidence) / Σ(weight × confidence)
-    """
-
-    def test_empty_list_returns_100(self):
-        """No modules analyzed = assume document is innocent."""
-        assert calculate_final_score([]) == 100
-
-    def test_single_module_full_confidence(self):
-        """With one module at full confidence, the score IS the module score."""
-        results = [make_result(module="metadata", score=75, confidence=1.0)]
-        assert calculate_final_score(results) == 75
-
-    def test_single_module_zero_confidence(self):
-        """A module with zero confidence should be ignored entirely."""
-        results = [make_result(module="metadata", score=0, confidence=0.0)]
-        # Zero confidence = no data, so we assume innocent
-        assert calculate_final_score(results) == 100
-
-    def test_two_modules_equal_weight(self):
-        """
-        Two modules with weight 1.0 and full confidence = simple average.
-
-        metadata has weight 1.0, fonts has weight 0.9.
-        So the result is NOT a simple average — it's weighted.
-        Let's use metadata (1.0) and "unknown" (1.0 default) to get equal weights.
-        """
-        results = [
-            make_result(module="metadata", score=80, confidence=1.0),   # weight 1.0
-            make_result(module="unknown_module", score=60, confidence=1.0),  # weight 1.0 (default)
-        ]
-        # (80×1.0 + 60×1.0) / (1.0 + 1.0) = 140/2 = 70
-        assert calculate_final_score(results) == 70
-
-    def test_weights_affect_result(self):
-        """
-        Modules with higher weights pull the score more toward their value.
-
-        content has weight 1.2, visual has weight 0.8.
-        If content scores low and visual scores high,
-        the result should lean toward content's score.
-        """
-        results = [
-            make_result(module="content", score=40, confidence=1.0),   # weight 1.2
-            make_result(module="visual", score=100, confidence=1.0),   # weight 0.8
-        ]
-        # (40×1.2 + 100×0.8) / (1.2 + 0.8) = (48 + 80) / 2.0 = 64
-        assert calculate_final_score(results) == 64
-
-    def test_confidence_affects_result(self):
-        """
-        A module with low confidence should have less influence.
-
-        If metadata (score=30, confidence=0.1) and content (score=90, confidence=1.0),
-        the result should be close to 90 because metadata is barely trusted.
-        """
-        results = [
-            make_result(module="metadata", score=30, confidence=0.1),  # weight 1.0
-            make_result(module="content", score=90, confidence=1.0),   # weight 1.2
-        ]
-        # (30×1.0×0.1 + 90×1.2×1.0) / (1.0×0.1 + 1.2×1.0)
-        # = (3 + 108) / (0.1 + 1.2) = 111 / 1.3 ≈ 85.38 → 85
-        assert calculate_final_score(results) == 85
-
-    def test_score_clamped_to_0_100(self):
-        """Score should never go below 0 or above 100."""
-        # Score of 100 with full weight should stay at 100
-        results = [make_result(score=100, confidence=1.0)]
-        assert calculate_final_score(results) <= 100
-
-        # Score of 0 should stay at 0
-        results = [make_result(score=0, confidence=1.0)]
-        assert calculate_final_score(results) >= 0
-
-    def test_all_modules_perfect(self):
-        """All modules scoring 100 should give final score of 100."""
-        results = [
-            make_result(module="metadata", score=100),
-            make_result(module="content", score=100),
-            make_result(module="visual", score=100),
-            make_result(module="fonts", score=100),
-            make_result(module="images", score=100),
-        ]
-        assert calculate_final_score(results) == 100
-
-    def test_all_modules_zero(self):
-        """All modules scoring 0 should give final score of 0."""
-        results = [
-            make_result(module="metadata", score=0),
-            make_result(module="content", score=0),
-            make_result(module="visual", score=0),
-            make_result(module="fonts", score=0),
-            make_result(module="images", score=0),
-        ]
-        assert calculate_final_score(results) == 0
 
 
 # =============================================================================
@@ -267,79 +162,26 @@ class TestCountFlagsBySeverity:
 
 class TestCreateAnalysisResult:
     """
-    Tests for the final result builder.
-
-    The key business rules:
-    - 1 critical flag → risk level forced to at least HIGH, score capped at 49
-    - 2+ critical flags → risk level forced to CRITICAL, score capped at 19
+    Tests for the final result builder (file hash / timing passthrough, and the
+    baseline "clean document" case). Ledger-specific scoring behavior — how
+    flags translate into a score/band, hard-negative clamps, abstaining clean
+    modules, etc. — is covered by TestEvidenceLedgerScoring below.
     """
 
     def test_clean_document(self):
-        """A document with no flags should get 100/LOW."""
+        """A document with no flags should get a high score in the GENUINE band.
+
+        Under the evidence ledger a no-evidence document is not a flat 100 —
+        the prior log-odds (-4.0) puts it at ~98, still comfortably GENUINE/LOW.
+        """
         results = [
             make_result(module="metadata", score=100),
             make_result(module="content", score=100),
         ]
         analysis = create_analysis_result("abc123", results)
-        assert analysis.trust_score == 100
+        assert analysis.band == "GENUINE"
         assert analysis.risk_level == "LOW"
-
-    def test_one_critical_flag_caps_score(self):
-        """
-        Even if the weighted average gives a high score,
-        one critical flag should cap it at 49 (HIGH).
-
-        This prevents: "metadata found AI-generated content (critical),
-        but everything else looks fine, so overall score is 85 (LOW)."
-        That would be dangerous — one critical finding should NOT be diluted.
-        """
-        results = [
-            make_result(
-                module="metadata",
-                score=50,
-                flags=[make_flag("critical", "META_AI_GENERATED")],
-            ),
-            make_result(module="content", score=100),
-            make_result(module="visual", score=100),
-            make_result(module="fonts", score=100),
-        ]
-        analysis = create_analysis_result("abc123", results)
-        # Score should be capped at 49 regardless of weighted average
-        assert analysis.trust_score <= 49
-        # Risk level should be at least HIGH
-        assert analysis.risk_level in ("HIGH", "CRITICAL")
-
-    def test_two_critical_flags_force_critical(self):
-        """Two critical flags = CRITICAL risk, score capped at 19."""
-        results = [
-            make_result(
-                module="metadata",
-                score=60,
-                flags=[make_flag("critical", "CRIT_1")],
-            ),
-            make_result(
-                module="content",
-                score=60,
-                flags=[make_flag("critical", "CRIT_2")],
-            ),
-        ]
-        analysis = create_analysis_result("abc123", results)
-        assert analysis.trust_score <= 19
-        assert analysis.risk_level == "CRITICAL"
-
-    def test_non_critical_flags_dont_override(self):
-        """High/medium/low flags reduce score but don't trigger the override."""
-        results = [
-            make_result(
-                module="metadata",
-                score=70,
-                flags=[make_flag("high"), make_flag("medium"), make_flag("low")],
-            ),
-        ]
-        analysis = create_analysis_result("abc123", results)
-        # Score should be the actual calculated value, not overridden
-        assert analysis.trust_score == 70
-        assert analysis.risk_level == "MEDIUM"
+        assert analysis.trust_score >= 80
 
     def test_file_hash_preserved(self):
         """The file hash should be passed through to the result."""
@@ -350,6 +192,67 @@ class TestCreateAnalysisResult:
         """Analysis time should be passed through to the result."""
         analysis = create_analysis_result("abc", [], analysis_time_ms=1234)
         assert analysis.analysis_time_ms == 1234
+
+
+# =============================================================================
+# TEST the evidence ledger (replaces the old weighted-average + hard-cap tests)
+# =============================================================================
+
+class TestEvidenceLedgerScoring:
+    """The evidence ledger replaces the confidence-weighted average.
+
+    Under the Phase-1 constants (prior log-odds -4.0; soft weights
+    low .2/med .7/high 1.5/critical 3.0), a no-evidence document scores ~98
+    (GENUINE). Modules score from FLAGS, not from their numeric `score`.
+    """
+
+    def test_clean_modules_score_genuine(self):
+        results = [make_result("metadata", 100, 1.0), make_result("content", 100, 1.0)]
+        r = create_analysis_result("h", results)
+        assert r.band == "GENUINE" and r.risk_level == "LOW" and r.trust_score >= 80
+
+    def test_serious_finding_not_diluted_by_clean_modules(self):
+        # One critical-weight finding; everything else clean (abstains). Under the
+        # ledger this lands in REVIEW/SUSPICIOUS, NOT GENUINE — the clean modules
+        # cannot dilute it the way the old average did.
+        results = [
+            make_result("metadata", 100, 1.0),
+            make_result("content", 100, 1.0),
+            make_result("fonts", 100, 1.0),
+            make_result("structure", 0, 1.0, flags=[make_flag("critical", "STRUCT_SUSPICIOUS")]),
+        ]
+        r = create_analysis_result("h", results)
+        assert r.band in ("REVIEW", "SUSPICIOUS")
+        assert r.trust_score < 80
+
+    def test_hard_negative_flag_clamps(self):
+        results = [make_result("content", 0, 1.0,
+                   flags=[make_flag("critical", "CONTENT_SIREN_VAT_MISMATCH")])]
+        r = create_analysis_result("h", results)
+        assert r.trust_score <= 15 and r.risk_level == "CRITICAL"
+
+    def test_extraction_failed_is_unverifiable(self):
+        results = [make_result("extraction", 0, 1.0,
+                   flags=[make_flag("high", "EXTRACTION_FAILED")])]
+        r = create_analysis_result("h", results)
+        assert r.band == "UNVERIFIABLE" and r.risk_level == "UNVERIFIABLE"
+
+    def test_abstaining_clean_modules_do_not_change_score(self):
+        # The real invariant: adding clean (abstaining) modules must not move the
+        # score of a flagged document — neither diluting nor inflating it.
+        flagged_only = create_analysis_result("h", [
+            make_result("visual", 85, 1.0, flags=[make_flag("medium", "VISUAL_X")]),
+        ])
+        with_clean = create_analysis_result("h", [
+            make_result(f"m{i}", 100, 1.0) for i in range(8)
+        ] + [make_result("visual", 85, 1.0, flags=[make_flag("medium", "VISUAL_X")])])
+        assert with_clean.trust_score == flagged_only.trust_score
+
+    def test_result_carries_ledger_and_band_range(self):
+        results = [make_result("structure", 0, 1.0, flags=[make_flag("high", "STRUCT_JS")])]
+        r = create_analysis_result("h", results)
+        assert len(r.evidence_ledger) == 1
+        assert r.score_low <= r.trust_score <= r.score_high
 
 
 # =============================================================================
@@ -367,18 +270,24 @@ class TestGenerateSummary:
         assert "legitimate" in summary.lower()
 
     def test_medium_risk_summary(self):
+        # Under the ledger, a bare score=65 with no flags contributes no
+        # evidence (abstains) and would land GENUINE. To reach MEDIUM/REVIEW,
+        # give it a single soft critical-weight flag: -4.0 + 3.0 = -1.0 logit
+        # -> score ~73 (REVIEW/MEDIUM).
         result = create_analysis_result("abc", [
-            make_result(score=65),
+            make_result(score=0, flags=[make_flag("critical", "TEST_FLAG")]),
         ])
         summary = generate_summary(result)
         assert "verification" in summary.lower() or "concerns" in summary.lower()
 
     def test_critical_risk_summary(self):
+        # Two criticals in ONE module would be group-capped (largest + 0.5*rest
+        # = 4.5 nats -> score ~38, HIGH not CRITICAL). Put them in TWO SEPARATE
+        # modules instead so each contributes its full 3.0 nats uncapped:
+        # -4.0 + 3.0 + 3.0 = 2.0 logit -> score ~12 (CRITICAL/SUSPICIOUS).
         result = create_analysis_result("abc", [
-            make_result(
-                score=0,
-                flags=[make_flag("critical"), make_flag("critical")],
-            ),
+            make_result(module="metadata", score=0, flags=[make_flag("critical", "CRIT_1")]),
+            make_result(module="content", score=0, flags=[make_flag("critical", "CRIT_2")]),
         ])
         summary = generate_summary(result)
         assert "not trust" in summary.lower() or "fraud" in summary.lower()
@@ -418,3 +327,15 @@ def test_scanner_pipeline_handles_non_numeric_hours():
     # Must not raise, even for an identity document (the branch that reads hours).
     result = create_analysis_result("hash", [bad], document_type="identity")
     assert result.trust_score is not None
+
+
+def test_scanner_pipeline_identity_stays_genuine():
+    # Authentic scanned ID: scanner saved, viewer reopened ~6 min later. The
+    # known-FP META_DOCUMENT_MODIFIED critical must be downgraded to negligible
+    # evidence, so the document stays GENUINE rather than being flagged for review.
+    from src.models import ModuleResult, Flag
+    r = ModuleResult(module="metadata", score=0, confidence=1.0, flags=[
+        Flag("critical", "META_DOCUMENT_MODIFIED", "reopened",
+             details={"time_difference_hours": 0.1})])
+    res = create_analysis_result("h", [r], document_type="identity")
+    assert res.band == "GENUINE" and res.trust_score >= 80
