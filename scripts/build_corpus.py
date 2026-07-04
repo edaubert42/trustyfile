@@ -110,6 +110,21 @@ def _legit_template_overlay(src: str, dst: str) -> None:
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
 
 
+def _legit_rightaligned_template(dst: str) -> None:
+    """LEGIT: right-aligned template placeholder overlaid by the real value with
+    HIGH bbox overlap (iou > 0.6), no covering fill. Only the Signal-2 placeholder
+    guard should keep this from a false OVERLAY_CONFLICTING_TEXT flag — it must not
+    depend on a thin width margin."""
+    doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(40, 50), "TEMPLATE INVOICE", fontname="helv", fontsize=16)
+    # same-width placeholder painted first (low seqno), then the real value at nearly
+    # the same position (high overlap). "0 000,00" ~ same width as "1 200,00".
+    page.insert_text(fitz.Point(460, 400), "0 000,00", fontname="helv", fontsize=12)
+    page.insert_text(fitz.Point(460, 400), "1 200,00", fontname="helv", fontsize=12)
+    doc.set_metadata({"producer": "ReportLab PDF Library", "creator": "ACME Report Engine"})
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+
+
 def _legit_faux_bold(dst: str) -> None:
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
     for dx in (0.0, 0.4):  # same string, tiny offset = synthetic bold
@@ -302,6 +317,7 @@ corpus_expectations = {
     "legit_real_redaction.pdf":        {"label": "legit", "expect_no_overlay": True},
     "legit_ocr_sandwich.pdf":          {"label": "legit", "expect_no_overlay": True},
     "legit_french_accents.pdf":        {"label": "legit", "expect_no_overlay": True},
+    "legit_rightaligned_template.pdf": {"label": "legit", "expect_no_overlay": True},   # placeholder + real value, high IoU, no fill -> Signal-2 placeholder guard clears it
     # legit-but-ambiguous: a REAL value changed across a revision, but NOT by an editor.
     # REVIEW is acceptable (honest uncertainty); it must NEVER reach a HARD *_CONFIRMED* code.
     "legit_multisession_template_fill.pdf": {"label": "legit", "expect_no_hard": True},
@@ -351,6 +367,8 @@ def build_corpus(out_dir: str) -> dict:
     _legit_french_accents(str(lfr)); legitimate.append(str(lfr))
     lms = out / "legitimate" / "legit_multisession_template_fill.pdf"
     _legit_multisession_template_fill(str(lms)); legitimate.append(str(lms))
+    lra = out / "legitimate" / "legit_rightaligned_template.pdf"
+    _legit_rightaligned_template(str(lra)); legitimate.append(str(lra))
 
     return {"legitimate": legitimate, "suspicious": forged}
 

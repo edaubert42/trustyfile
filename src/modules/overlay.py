@@ -426,7 +426,12 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
     Two painted spans overlap heavily (iou >= CONFLICT_IOU_MIN) yet hold
     different values of the same kind: a leftover original still peeking through
     a retype. Spans consumed by Signal 3 are excluded. Identical text (faux-bold)
-    is not a conflict (handled inside _pair_is_conflict).
+    is not a conflict (handled inside _pair_is_conflict). PLACEHOLDER GUARD:
+    symmetric with Signals 1/3 — if the lower-seqno ("under"/original) span of
+    the pair is a placeholder, this is benign template scaffolding (a real
+    value painted over a placeholder), not a genuine conflict, so skip it. In
+    real fraud the lower-seqno span is the original REAL value, never a
+    placeholder, so genuine conflicts still fire.
     """
     hits = []
     live = [s for s in spans if id(s) not in consumed_spans]
@@ -436,6 +441,9 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
             if iou(fitz.Rect(a["bbox"]), fitz.Rect(b["bbox"])) < CONFLICT_IOU_MIN:
                 continue
             if _pair_is_conflict(a, b, page_angle):
+                under = a if a.get("seqno", 0) <= b.get("seqno", 0) else b
+                if is_placeholder(span_text(under)):
+                    continue
                 hits.append({"a": a, "b": b})
     return hits
 

@@ -33,6 +33,30 @@ def test_legit_lookalikes_do_not_flag(corpus, name):
     assert _codes(corpus[name]) == set(), f"{name} wrongly produced overlay flags"
 
 
+def test_rightaligned_template_no_conflict_flag(corpus):
+    # Placeholder ("0 000,00") under the real value ("1 200,00") with iou == 1.0
+    # (measured) and NO covering fill -> only the Signal-2 placeholder guard
+    # (not the IoU margin) can clear this. Must produce zero overlay flags.
+    assert _codes(corpus["legit_rightaligned_template.pdf"]) == set()
+
+
+def test_conflicting_real_values_still_flag(tmp_path):
+    # Sanity check: the placeholder guard must NOT suppress a genuine conflict
+    # between two REAL values. Two overlapping real amounts, no fill between
+    # them -> OVERLAY_CONFLICTING_TEXT must still fire.
+    import fitz
+
+    pdf_path = tmp_path / "conflict.pdf"
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(460, 400), "1 200,00", fontname="helv", fontsize=12)
+    page.insert_text(fitz.Point(460, 400), "9 200,00", fontname="helv", fontsize=12)
+    doc.save(str(pdf_path))
+    doc.close()
+
+    assert "OVERLAY_CONFLICTING_TEXT" in _codes(str(pdf_path))
+
+
 def test_analyze_overlay_never_raises_on_garbage(tmp_path):
     bad = tmp_path / "bad.pdf"; bad.write_bytes(b"%PDF-1.4 not really")
     from src.extractors.pdf_extractor import extract_pdf_data
