@@ -16,4 +16,7 @@ def test_expectations_table_well_formed():
     for name, e in corpus_expectations.items():
         assert e["label"] in ("legit", "tamper")
         if e["label"] == "legit":
-            assert e.get("expect_no_overlay") is True
+            # a legit fixture is either truly benign (no overlay flags, GENUINE)
+            # or legit-but-ambiguous (a real value changed w/o editor provenance:
+            # REVIEW ok, but never HARD).
+            assert e.get("expect_no_overlay") is True or e.get("expect_no_hard") is True

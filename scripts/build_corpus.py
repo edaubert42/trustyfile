@@ -61,19 +61,26 @@ def _forge_metadata_dates(src: str, dst: str) -> None:
 
 
 def _forge_amount_overlay(src: str, dst: str) -> None:
-    """Tamper: white-box over the total, new (higher) amount drawn on top."""
+    """Tamper (full-save, NO editor provenance): white-box over the REAL total,
+    higher amount on top. A single full save by a non-editor Producer means
+    geometry-only with no corroborator -> SOFT (REVIEW) per the conservative
+    escalation policy (HARD requires an interactive-editor Producer, C2)."""
     doc = fitz.open(src)
     page = doc[0]
-    # Cover "1 200,00 €" and draw "9 200,00 €" over it.
+    # Cover "1 200,00 €" (a REAL value) and draw "9 200,00 €" over it.
     page.draw_rect(fitz.Rect(455, 392, 545, 406), color=(1, 1, 1), fill=(1, 1, 1))
     page.insert_text(fitz.Point(460, 400), "9 200,00 €", fontname="helv", fontsize=12)
+    # Non-editor Producer: this forgery has no provenance corroborator on purpose.
+    doc.set_metadata({"producer": "ReportLab PDF Library", "creator": "ACME Billing System"})
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    doc.save(dst)  # full save; also try incremental variant below
+    doc.save(dst)
     doc.close()
 
 
 def _forge_incremental_edit(src: str, dst: str) -> None:
-    """Tamper: append an incremental update that overlays a new amount."""
+    """Tamper (realistic): incremental update that white-boxes the REAL total and
+    retypes a higher amount, saved by an INTERACTIVE EDITOR (Acrobat). The editor
+    Producer is the HARD corroborator (C2) -> OVERLAY_COVER_AND_RETYPE_CONFIRMED."""
     import shutil
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dst)
@@ -81,6 +88,7 @@ def _forge_incremental_edit(src: str, dst: str) -> None:
     page = doc[0]
     page.draw_rect(fitz.Rect(455, 392, 545, 406), color=(1, 1, 1), fill=(1, 1, 1))
     page.insert_text(fitz.Point(460, 400), "9 200,00 €", fontname="helv", fontsize=12)
+    doc.set_metadata({"producer": "Adobe Acrobat Pro DC 24", "creator": "ACME Billing System"})
     doc.save(dst, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)  # keeps prior revision
     doc.close()
 
@@ -221,16 +229,23 @@ def _legit_ocr_sandwich(dst: str) -> None:
 
 
 def _legit_multisession_template_fill(dst: str) -> None:
-    """LEGIT (boundary): built via _legit_template_overlay (placeholder < fill < value
-    seqno signature), then a SECOND, incremental save that changes the value again
-    while keeping the SAME producer metadata — emulates a legit multi-session
-    template tool (e.g. draft saved, then re-opened and the amount corrected)
-    rather than a single fraudulent edit session."""
-    _legit_template_overlay("", dst)
+    """LEGIT-BUT-AMBIGUOUS (boundary): session 1 stamps the real value over a
+    placeholder (via _legit_template_overlay -> ends on '1 200,00'). Session 2, an
+    incremental save by the SAME report-engine Producer, CORRECTS the amount to a
+    genuinely DIFFERENT value ('1 350,00') — a legit multi-session correction.
+
+    A real value changes across the revision boundary, so Signals 3/4 fire (-> the
+    document lands in REVIEW). But with NO interactive-editor Producer there is no
+    HARD corroborator (C2), so it must NEVER escalate to a *_CONFIRMED* HARD code.
+    This is the honest-uncertainty case: 'edited, but not demonstrably tampered' ->
+    REVIEW, never a fraud accusation. It proves the C2 gate (bare incremental +
+    value change, same producer, must not be HARD)."""
+    _legit_template_overlay("", dst)  # session 1: placeholder -> 1 200,00
     doc = fitz.open(dst)
     page = doc[0]
+    # session 2: cover the REAL '1 200,00' and correct it to '1 350,00'
     page.draw_rect(fitz.Rect(455, 392, 545, 406), color=(1, 1, 1), fill=(1, 1, 1))
-    page.insert_text(fitz.Point(460, 400), "1 200,00 €", fontname="helv", fontsize=12)
+    page.insert_text(fitz.Point(460, 400), "1 350,00 €", fontname="helv", fontsize=12)
     doc.set_metadata({"producer": "ReportLab PDF Library", "creator": "ACME Report Engine"})
     doc.save(dst, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP)
     doc.close()
@@ -245,25 +260,39 @@ def _forge_image_patch(src: str, dst: str) -> None:
 
 
 def _forge_text_deleted_retyped(src: str, dst: str) -> None:
-    """TAMPER (boundary): remove the original via redaction, retype in place, incremental save.
-    Signals 1-3 must NOT fire (no ghost); Signal 4 catches it via the revision diff."""
+    """TAMPER (boundary): remove the original via redaction, retype in place, saved
+    incrementally by an INTERACTIVE EDITOR. Signals 1-3 must NOT fire (no ghost, no
+    still-present covered text); Signal 4 catches the value change across the
+    revision, and the editor Producer (C2) escalates it to
+    OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED (HARD)."""
     import shutil
     Path(dst).parent.mkdir(parents=True, exist_ok=True); shutil.copyfile(src, dst)
     doc = fitz.open(dst); page = doc[0]
     page.add_redact_annot(fitz.Rect(455, 392, 545, 406)); page.apply_redactions()
     page.insert_text(fitz.Point(460, 400), "9 200,00 €", fontname="helv", fontsize=12)
+    doc.set_metadata({"producer": "Foxit PhantomPDF", "creator": "ACME Billing System"})
     doc.save(dst, incremental=True, encryption=fitz.PDF_ENCRYPT_KEEP); doc.close()
 
 
+# Expectation semantics (consumed by Task 7's acceptance gate):
+#   expect_code       — this OVERLAY_* code must appear in the analysis.
+#   min_band/max_band — the scored band must be within this bound.
+#   expect_no_overlay — TRUE for TRULY-benign legit docs: ZERO OVERLAY_* flags AND
+#                       band GENUINE. (No real value is covered/changed, OR the
+#                       covered value is a placeholder cleared by the placeholder guard.)
+#   expect_no_hard    — for LEGIT-BUT-AMBIGUOUS docs where a REAL value was
+#                       covered/changed but with NO interactive-editor provenance:
+#                       a SOFT flag / REVIEW is acceptable (honest uncertainty), but
+#                       NO *_CONFIRMED* HARD code may fire (never a false accusation).
 corpus_expectations = {
     # tamper — must be caught
-    "forged_amount_overlay.pdf":       {"label": "tamper", "expect_code": "OVERLAY_COVER_AND_RETYPE"},
-    "forged_incremental_edit.pdf":     {"label": "tamper", "expect_code": "OVERLAY_COVER_AND_RETYPE_CONFIRMED", "max_band": "SUSPICIOUS"},
+    "forged_amount_overlay.pdf":       {"label": "tamper", "expect_code": "OVERLAY_COVER_AND_RETYPE", "min_band": "REVIEW"},           # full-save, non-editor -> SOFT/REVIEW
+    "forged_incremental_edit.pdf":     {"label": "tamper", "expect_code": "OVERLAY_COVER_AND_RETYPE_CONFIRMED", "max_band": "SUSPICIOUS"},  # editor Producer -> HARD
     "forged_image_patch_over_amount.pdf": {"label": "tamper", "expect_code": "OVERLAY_IMAGE_OVER_VALUE"},
-    "forged_text_deleted_retyped.pdf": {"label": "tamper", "expect_code": "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED"},
-    # legit — must NOT flag
+    "forged_text_deleted_retyped.pdf": {"label": "tamper", "expect_code": "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED"},                 # editor Producer -> HARD
+    # legit — truly benign: zero overlay flags + GENUINE
     "clean_invoice.pdf":               {"label": "legit", "expect_no_overlay": True},
-    "legit_template_overlay.pdf":      {"label": "legit", "expect_no_overlay": True},
+    "legit_template_overlay.pdf":      {"label": "legit", "expect_no_overlay": True},   # covers a PLACEHOLDER '0,00' -> placeholder guard clears it
     "legit_faux_bold.pdf":             {"label": "legit", "expect_no_overlay": True},
     "legit_watermark.pdf":             {"label": "legit", "expect_no_overlay": True},
     "legit_zebra.pdf":                 {"label": "legit", "expect_no_overlay": True},
@@ -273,7 +302,9 @@ corpus_expectations = {
     "legit_real_redaction.pdf":        {"label": "legit", "expect_no_overlay": True},
     "legit_ocr_sandwich.pdf":          {"label": "legit", "expect_no_overlay": True},
     "legit_french_accents.pdf":        {"label": "legit", "expect_no_overlay": True},
-    "legit_multisession_template_fill.pdf": {"label": "legit", "expect_no_overlay": True},
+    # legit-but-ambiguous: a REAL value changed across a revision, but NOT by an editor.
+    # REVIEW is acceptable (honest uncertainty); it must NEVER reach a HARD *_CONFIRMED* code.
+    "legit_multisession_template_fill.pdf": {"label": "legit", "expect_no_hard": True},
 }
 
 
