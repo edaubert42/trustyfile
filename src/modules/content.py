@@ -1757,6 +1757,22 @@ def check_legal_mentions(text: str) -> list[Flag]:
                 }
             ))
 
+    # Flag ABSENCE of any legal identifier on invoice-like documents.
+    # French invoices legally require a SIRET/SIREN; none present is suspicious.
+    # Gate on invoice-like text so we don't flag letters/attestations.
+    text_lower = text.lower()
+    looks_like_invoice = any(
+        kw in text_lower for kw in ("facture", "tva", "montant", "total ttc")
+    )
+    has_any_id = bool(sirets or sirens or vats)
+    if looks_like_invoice and not has_any_id:
+        flags.append(Flag(
+            severity="medium",
+            code="CONTENT_MISSING_COMPANY_ID",
+            message="French invoice has no SIRET, SIREN or VAT number (legally required)",
+            details={"explanation": "Registered French companies must print their SIRET/SIREN on invoices."},
+        ))
+
     return flags
 
 
