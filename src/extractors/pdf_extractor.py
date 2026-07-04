@@ -75,6 +75,16 @@ class PDFData:
         metadata: Structured metadata (see PDFMetadata)
         raw_metadata: Original metadata dict from PyMuPDF (for edge cases)
         text_by_page: List of text content, one string per page
+        is_repaired: True if PyMuPDF had to repair the file to open it
+            (a strong tamper/corruption signal).
+        is_encrypted: True if the PDF requires a password.
+        is_pdf: False if the file could not be recognized as a PDF at all.
+        pdf_version: The PDF format string (e.g., "PDF 1.4"), if known.
+        file_size_bytes: Size of the file on disk, in bytes.
+        extraction_ok: False if extraction failed and this PDFData is a
+            fail-closed placeholder (empty text, no real metadata). Callers
+            (the analyzer) MUST check this before trusting any other field.
+        extraction_error: Human-readable reason extraction failed, or None.
         # More fields will be added: images, fonts, links, etc.
     """
     file_path: str
@@ -83,6 +93,13 @@ class PDFData:
     metadata: PDFMetadata
     raw_metadata: dict = field(default_factory=dict)
     text_by_page: list[str] = field(default_factory=list)
+    is_repaired: bool = False
+    is_encrypted: bool = False
+    is_pdf: bool = True
+    pdf_version: str | None = None
+    file_size_bytes: int = 0
+    extraction_ok: bool = True
+    extraction_error: str | None = None
     # TODO: Add these as we build more modules:
     # images: list[PDFImage]
     # fonts: list[FontInfo]
@@ -254,11 +271,12 @@ def extract_pdf_data(file_path: str | Path) -> PDFData:
         file_path: Path to the PDF file
 
     Returns:
-        PDFData object containing all extracted information
-
-    Raises:
-        FileNotFoundError: If the file doesn't exist
-        fitz.FileDataError: If the file is not a valid PDF
+        PDFData object containing all extracted information. This function
+        NEVER raises on a malformed/encrypted/non-PDF file — it fails
+        closed, returning a PDFData with extraction_ok=False and empty
+        text/metadata instead. Callers must check `extraction_ok` before
+        trusting the rest of the object (never treat a failed extraction
+        as a clean, trustworthy document).
 
     Example:
         >>> data = extract_pdf_data("invoice.pdf")
@@ -268,26 +286,55 @@ def extract_pdf_data(file_path: str | Path) -> PDFData:
         'Invoice #12345...'
     """
     file_path = Path(file_path)  # Convert to Path object for easier handling
+    file_size = file_path.stat().st_size if file_path.exists() else 0
 
-    # Calculate hash before opening (works even if PDF is corrupted)
+    # Hash first — works even if the PDF is corrupt.
     file_hash = calculate_file_hash(file_path)
 
-    # Open the PDF with PyMuPDF
-    # Using 'with' ensures the file is properly closed even if an error occurs
-    with fitz.open(file_path) as doc:
+    try:
+        # Open the PDF with PyMuPDF
+        # Using 'with' ensures the file is properly closed even if an error occurs
+        with fitz.open(file_path) as doc:
+            is_encrypted = bool(getattr(doc, "is_encrypted", False))
+            # Encrypted docs need a password before text/metadata are readable.
+            if is_encrypted:
+                try:
+                    doc.authenticate("")  # try empty password
+                except Exception:
+                    pass
 
-        # Extract metadata
-        metadata, raw_metadata = extract_metadata(doc)
+            # Extract metadata
+            metadata, raw_metadata = extract_metadata(doc)
 
-        # Extract text from all pages
-        text_by_page = extract_text(doc)
+            # Extract text from all pages
+            text_by_page = extract_text(doc)
 
-        # Build and return the result
+            # Build and return the result
+            return PDFData(
+                file_path=str(file_path),
+                file_hash=file_hash,
+                page_count=len(doc),
+                metadata=metadata,
+                raw_metadata=raw_metadata,
+                text_by_page=text_by_page,
+                is_repaired=bool(getattr(doc, "is_repaired", False)),
+                is_encrypted=is_encrypted,
+                is_pdf=bool(getattr(doc, "is_pdf", True)),
+                pdf_version=raw_metadata.get("format"),
+                file_size_bytes=file_size,
+                extraction_ok=True,
+            )
+    except Exception as e:  # malformed / non-PDF / unreadable — fail closed, never crash
+        logger.warning(f"Extraction failed for {file_path}: {e}")
         return PDFData(
             file_path=str(file_path),
             file_hash=file_hash,
-            page_count=len(doc),
-            metadata=metadata,
-            raw_metadata=raw_metadata,
-            text_by_page=text_by_page,
+            page_count=0,
+            metadata=PDFMetadata(),
+            raw_metadata={},
+            text_by_page=[],
+            is_pdf=False,
+            file_size_bytes=file_size,
+            extraction_ok=False,
+            extraction_error=str(e),
         )
