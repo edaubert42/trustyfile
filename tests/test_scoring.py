@@ -363,3 +363,17 @@ class TestDocTypeSuppression:
         e = Evidence("STRUCT_JAVASCRIPT_DETECTED", 3.0, "soft", "tamper", "structure", "m")
         out = apply_doc_type_suppression(e, "technical")
         assert out is not None and out.weight == 3.0
+
+    def test_hard_evidence_ignores_even_an_explicit_table_suppressor(self):
+        # Security: the hard-kind short-circuit must win over the table. If an
+        # attacker (or a future careless edit) puts a <1.0 multiplier for a HARD
+        # code under some doc type, hard evidence must STILL pass at full weight.
+        # This test fails if the `if evidence.kind == "hard"` bypass is removed.
+        from unittest.mock import patch
+        from src.scoring import apply_doc_type_suppression, DOC_TYPE_CODE_MULTIPLIERS
+        from src.evidence import Evidence
+        e = Evidence("CONTENT_SIREN_VAT_MISMATCH", 3.0, "hard", "tamper", "content", "m")
+        with patch.dict(DOC_TYPE_CODE_MULTIPLIERS,
+                        {"scientific": {"CONTENT_SIREN_VAT_MISMATCH": 0.1}}, clear=False):
+            out = apply_doc_type_suppression(e, "scientific")
+        assert out is not None and out.kind == "hard" and out.weight == 3.0

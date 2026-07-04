@@ -14,7 +14,7 @@ Risk levels:
 - CRITICAL (0-19): Strong evidence of fraud
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Literal
 from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
 
