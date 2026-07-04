@@ -94,7 +94,13 @@ def char_class(s: str) -> str:
 
 
 def norm(s: str) -> str:
-    return "".join(s.split()).replace(" ", "").replace(" ", "").casefold()
+    # Collapse ASCII whitespace via split(), then explicitly strip the no-break
+    # spaces PDFs use as thousands separators: U+202F (narrow no-break space)
+    # and U+00A0 (no-break space). Critical for French amounts, whose thousands
+    # separator is typically U+202F, not a plain space -- matching "1 200,00"
+    # against "1200,00" must not depend on split() incidentally handling
+    # Unicode whitespace (a future refactor could silently break it).
+    return "".join(s.split()).replace("\u202f", "").replace("\xa0", "").casefold()
 
 
 def is_horizontal(span_dir, page_angle_deg: float) -> bool:

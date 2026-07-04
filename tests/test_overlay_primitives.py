@@ -45,3 +45,10 @@ def test_is_horizontal_tolerance_and_page_rotation():
     assert not is_horizontal((0.0, 1.0), page_angle_deg=0.0)   # vertical text on unrotated page
     # on a 90-deg-rotated page, the page baseline is rotated; a span aligned to it is "horizontal"
     assert is_horizontal((0.0, 1.0), page_angle_deg=90.0)
+
+
+def test_norm_strips_no_break_spaces():
+    # French amounts use U+202F (narrow NBSP) / U+00A0 (NBSP) as thousands
+    # separators; norm() must strip them so a covered "1 200,00" matches "1200,00".
+    assert norm("1 200,00 €") == norm("1200,00€")
+    assert norm("9 200,00") != norm("1 200,00")
