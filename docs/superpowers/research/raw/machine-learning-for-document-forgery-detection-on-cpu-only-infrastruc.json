@@ -1,0 +1,165 @@
+{
+ "domain": "Machine learning for document forgery detection on CPU-only infrastructure (datasets, pretrained tamper-localization models, ONNX feasibility, lightweight alternatives, OCR cross-checking)",
+ "techniques": [
+  {
+   "name": "OCR-vs-PDF-text-layer cross-check (render page, OCR it, diff against embedded text)",
+   "how_it_works": "Render each PDF page to an image with fitz.page.get_pixmap() (150-200 dpi), run OCR (pytesseract or rapidocr-onnxruntime), then align OCR word boxes against the embedded text-layer words from pdfplumber/PyMuPDF (same coordinate space after scaling). Compare per-word with fuzzy matching (rapidfuzz) and flag words where the visible pixels disagree with the text layer — this catches text drawn OVER original content, invisible/hidden text layers, and image patches pasted over text. A high match rate is a strong positive legitimacy signal for born-digital PDFs.",
+   "signal": "Catches overlay tampering (new text object drawn on top), hidden-text mismatches, and image-over-text patches; simultaneously CONFIRMS legitimacy when visible text == text layer everywhere. Signal is strong and interpretable. False-positive risk is moderate: OCR errors on small fonts, ligatures, accented French characters, and rotated text — mitigate with per-word OCR confidence thresholds, fuzzy matching (Levenshtein ratio > 0.8), and only flagging clusters of mismatches, not single words. A patent (US10489645) and industry write-ups describe exactly this text-layer-vs-OCR comparison as a core tamper check.",
+   "local_feasibility": "Fully local. pip: pytesseract (+ apt tesseract-ocr tesseract-ocr-fra) or rapidocr-onnxruntime (pure pip, ONNX models ~15MB, det 100-210ms + rec 20-30ms per region on CPU); pdfplumber, PyMuPDF, rapidfuzz. Tesseract: ~2-5s/page; RapidOCR: ~1-3s/page. RAM well under 500MB. Comfortable on a 1-2GB box.",
+   "effort": "medium",
+   "sources": [
+    "https://blog.tampercheck.ai/document-tampering-detection-vs-ocr",
+    "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/10489645",
+    "https://github.com/rapidai/rapidocr",
+    "https://pypi.org/project/rapidocr-onnxruntime/"
+   ]
+  },
+  {
+   "name": "OCR character-geometry graph features + sklearn Random Forest (anomaly in glyph placement)",
+   "how_it_works": "Build a graph from OCR/text-layer character and word bounding boxes: node features = box height/width, baseline y-offset, inter-character spacing, font-size ratio to line median; edge features = neighbor alignment deltas. Feed aggregated features (per word/line) to a Random Forest or gradient boosting classifier that flags words whose geometry deviates from the document's own statistics — inserted or replaced characters almost never sit perfectly on the original baseline/kerning grid. Hariharan et al. (arXiv 2009.05158) framed manipulation detection exactly this way on real business documents and 'dramatically outperformed' prior procedural methods.",
+   "signal": "Catches character insertion/substitution (amount changes like 1025→2025), text moved or re-typeset in an editor — the most common invoice fraud. Works on both born-digital and scanned docs. Medium-strong signal; degrades to unsupervised heuristics gracefully (flag words > k MAD from line statistics) if you lack training data. False-positive risk: proportional/tabular font mixes and right-aligned numeric columns naturally vary — calibrate on legitimate invoice corpora and flag only strong outliers.",
+   "local_feasibility": "Fully local, trivial compute. pip: scikit-learn, numpy, pdfplumber/pytesseract for boxes. Model is <1MB, inference microseconds; feature extraction rides on OCR you already run. No system deps beyond tesseract. Needs labeled or self-synthesized training data (see synthesis technique) — or ship it as pure statistical outlier scoring first.",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/abs/2009.05158"
+   ]
+  },
+  {
+   "name": "Copy-move forgery detection with OpenCV keypoints (SIFT/ORB + clustering + RANSAC)",
+   "how_it_works": "Extract SIFT keypoints on the rendered page or embedded images, match descriptors against the same image (ratio test), cluster matched pairs with DBSCAN, and validate clusters with RANSAC affine estimation — spatially coherent groups of matches between two different regions indicate a region was duplicated (classic Amerini et al. TIFS 2011 pipeline; multiple reference Python/OpenCV implementations exist). Directly addresses the 'Paint copy-paste a digit elsewhere' test case in the project plan.",
+   "signal": "Catches duplicated amounts/digits/stamps/signatures copied within a document or between regions of an embedded photo/scan. Strong when it fires with a large coherent cluster. CRITICAL caveat: on born-digital PDFs every repeated glyph is a pixel-perfect duplicate by construction, so raw glyph-level matches are meaningless — restrict to scanned/photographed pages (detect via image-only pages), require clusters covering multi-character regions, and exclude matches whose offset equals text-line spacing. With those filters FP risk is low-moderate; without them it is very high.",
+   "local_feasibility": "Fully local. pip: opencv-python (SIFT is in main OpenCV >= 4.4, patent expired), scikit-learn for DBSCAN, numpy. 1-3s per page at 150-200 dpi, <300MB RAM. No system deps.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/lambertoballan/sift-forensic",
+    "https://github.com/andreacos/SIFT-based-copy-move-forgery-detection",
+    "https://github.com/cantugba/Copy_Move_Forgery_Detection"
+   ]
+  },
+  {
+   "name": "Double-JPEG / blocking-grid forensics on embedded images (ELA + JPEG ghost + grid misalignment)",
+   "how_it_works": "For each embedded JPEG (extracted via PyMuPDF without re-encoding): (1) ELA — resave at quality ~95 and map per-region error; already-compressed regions change less than freshly pasted ones; (2) JPEG ghost — resave across a quality sweep and look for local minima that differ by region; (3) blocking-artifact grid detection — locate the 8x8 JPEG grid per region (cross-correlation of blockiness); a pasted patch usually has a shifted or absent grid. The a-contrario grid detector (tinankh/GOD, IPOL-style) gives a statistically controlled false-alarm rate (NFA), which matters for your minimize-false-positives goal.",
+   "signal": "Catches pasted/edited regions inside scanned or photographed documents (receipts, ID photos) — resaves and splices leave compression-history inconsistencies. Medium-strong on scans/photos; near-zero value on vector-only born-digital pages (no JPEG history) — gate it on page type. FP risk: heavily recompressed WhatsApp-style images flatten the signal and uniform white backgrounds carry no grid; a-contrario NFA thresholds keep false alarms controlled; treat ELA alone as weak/advisory (AWS's own ELA+CNN sample admits it misses subtle edits).",
+   "local_feasibility": "Fully local, pure numpy/Pillow/OpenCV; optional jpegio for direct DCT coefficient access. Milliseconds to ~1s per image, negligible RAM. This is the natural core of the planned Module H (forensics.py).",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/tinankh/GOD",
+    "https://www.infosecinstitute.com/resources/digital-forensics/error-level-analysis-detect-image-manipulation/",
+    "https://github.com/aws-samples/document-tampering-detection",
+    "https://arxiv.org/pdf/2003.09393"
+   ]
+  },
+  {
+   "name": "Classical features + small sklearn classifier (image-quality measures, LBP, FFT texture -> SVM/RF)",
+   "how_it_works": "Compute cheap handcrafted features per page or per region: image quality measures (Ryu & Lee used 17 IQM features + SVM for document forgery), Local Binary Patterns for texture discontinuities, FFT energy for periodic/moire patterns, local noise variance maps. Train an SVM/RandomForest on legitimate vs tampered samples (from public receipt datasets or your own synthesis). This is the lineage of methods used by Find it! contest (ICPR 2018) participants on real French receipts.",
+   "signal": "Catches background discontinuities, re-saved patches, texture breaks around edits. Medium signal — LBP+FFT+SVM reports 98.7% on CASIA v2, but CASIA is natural images; on documents expect much less. Main value: extremely cheap second opinion that can be trained/recalibrated on YOUR document distribution. FP risk moderate and controllable via threshold choice; the classifier is only as good as domain match of training data.",
+   "local_feasibility": "Fully local. pip: scikit-learn, scikit-image (LBP), opencv-python, numpy. Feature extraction <1s/page, model <5MB, inference instant. Ideal for a 1-2GB box. Training data is the bottleneck, not compute.",
+   "effort": "medium",
+   "sources": [
+    "https://link.springer.com/chapter/10.1007/978-3-540-89796-5_50",
+    "https://hal.science/hal-02316399/",
+    "https://www.techrxiv.org/users/908787/articles/1282650/master/file/data/Fraud_Detection_Survey_TechRxiv/Fraud_Detection_Survey_TechRxiv.pdf"
+   ]
+  },
+  {
+   "name": "Off-the-shelf deep tamper-localization models (DTD, FFDN, ADCD-Net, TruFor, CAT-Net) — evaluated honestly: NOT recommended as a production module",
+   "how_it_works": "These are pixel-level segmentation networks: DTD (ConvNeXt+SwinV2 dual RGB/DCT streams, 67M params, 272 GFLOPs@512), FFDN (89M, 453 GFLOPs), ADCD-Net (ICCV'25, DCT+RGB+OCR masks, weights on GitHub), TruFor (Noiseprint++ + SegFormer, 68.7M params, ~232 GFLOPs@512), CAT-Net (114M, 134 GFLOPs). You would slide 512x512 crops over a rendered page and merge masks. Weights are downloadable (DocTamper repo, FFDN/ADCD-Net GitHub, ForensicHub checkpoint links, TruFor docker).",
+   "signal": "In-domain they look spectacular (DTD F1 0.914 on DocTamper test) but DocForge-Bench (2026) shows catastrophic cross-domain collapse: DocTamper-trained models drop to F1 0.045 on T-SROIE and ~0.002-0.013 on real receipt forgeries; best cross-domain mean F1 is only ~0.34 (TruFor/CAT-Net), and no method reaches F1>=0.3 on 6+ datasets. On flat born-digital French invoices (out of every training distribution) expect noisy masks and high false-positive risk. Licensing is also blocking: DocTamper dataset and TruFor code are explicitly non-commercial.",
+   "local_feasibility": "Technically runnable locally (PyTorch CPU wheels) but impractical on the target box: 232-453 GFLOPs per 512x512 crop means roughly 5-20s per crop on a small vCPU; an A4 page at 300dpi is ~24-35 crops, i.e. minutes per page; FP32 weights alone are 270-360MB and peak RAM exceeds 1.5-2GB. No published ONNX exports exist for the document-specific models; DCT-stream models additionally require true JPEG inputs (a rendered PDF page has no JPEG history, breaking their main feature). Verdict: keep out of the hot path; at most an optional offline 'deep scan' mode.",
+   "effort": "large",
+   "sources": [
+    "https://github.com/qcf-568/DocTamper",
+    "https://openaccess.thecvf.com/content/CVPR2023/html/Qu_Towards_Robust_Tampered_Text_Detection_in_Document_Image_New_Dataset_CVPR_2023_paper.html",
+    "https://arxiv.org/html/2603.01433v2",
+    "https://arxiv.org/pdf/2505.11003",
+    "https://github.com/grip-unina/TruFor",
+    "https://github.com/KahimWong/ADCD-Net",
+    "https://github.com/Rapisurazurite/FFDN",
+    "https://github.com/mjkwon2021/CAT-Net"
+   ]
+  },
+  {
+   "name": "Train-your-own lightweight tamper segmenter (SegFormer-B0 / small U-Net) on self-synthesized tampered documents, exported to INT8 ONNX",
+   "how_it_works": "If you want deep tamper localization, the realistic path is: (1) generate training data by programmatically tampering YOUR document distribution — DocTamper's repo includes its data-synthesis code, and the FSTS paper (2025) shows that modeling realistic tampering parameter distributions (copy-move, splice, insert, replace + post-processing like recompression/blur) yields +14-21% F1 on real-world test sets vs DocTamper-style synthesis; (2) fine-tune a small encoder-decoder (SegFormer-B0 ~3.7M params ~8.4 GFLOPs@512, or MobileNetV3-U-Net) on 512 crops; (3) export to ONNX, statically quantize to INT8 (onnxruntime or OpenVINO, 2-3x speedup on Intel with AVX-VNNI), run sliding-window at 150dpi (~6-9 crops/A4).",
+   "signal": "A domain-matched small model beats a domain-mismatched SOTA model — DocForge-Bench shows the failure mode is distribution shift, not architecture. Catches pixel-level edits (pasted patches, inpainted text) that classical modules miss. Signal medium until you invest in good synthesis; FP risk is the key danger and MUST be controlled by threshold calibration (see calibration technique) and by reporting region+confidence rather than binary verdicts.",
+   "local_feasibility": "Inference fully local and genuinely feasible: pip onnxruntime (or openvino), model file 4-15MB, ~0.3-1s per 512 crop on 2 vCPUs, so ~2-8s/page at 150dpi, peak RAM <700MB — fits the 1-2GB box. Training requires a one-off GPU (Colab/Kaggle free tier suffices for B0-scale). This is the only deep-learning route that meets your constraints.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/html/2511.12658v1",
+    "https://github.com/qcf-568/DocTamper",
+    "https://codezen.medium.com/blazing-fast-inference-with-quantized-onnx-models-518f23777741",
+    "https://arxiv.org/pdf/2502.09941"
+   ]
+  },
+  {
+   "name": "Per-domain threshold calibration with a tiny labeled set (the cheapest ML win from DocForge-Bench)",
+   "how_it_works": "DocForge-Bench's central finding: cross-domain 'failure' of tamper detectors is mostly CALIBRATION failure, not feature failure — models keep Pixel-AUC 0.76-0.90 while F1 at the default 0.5 threshold collapses, because documents have only 0.27-4.17% tampered pixels vs 10-30% in natural-image benchmarks. Recalibrating the decision threshold using just N=10 labeled in-domain images recovered 39-55% of the oracle F1 gap. Practically: whatever scorer you use (deep model, ELA energy, classifier probability), fit its flag threshold on a small held-out set of YOUR legitimate + tampered samples instead of using paper defaults.",
+   "signal": "Not a detector itself but the highest-leverage way to reduce false positives across every ML/forensic module — directly serves TrustyFile's minimize-false-positives goal. Also implies you should keep raw continuous scores in ModuleResult and calibrate at the scoring.py layer.",
+   "local_feasibility": "Trivial: sklearn threshold sweep / isotonic or Platt calibration on ~10-50 sample documents per document type. Zero runtime cost.",
+   "effort": "small",
+   "sources": [
+    "https://arxiv.org/html/2603.01433v2"
+   ]
+  },
+  {
+   "name": "One-class anomaly detection on legitimate-document features (legitimacy confirmation)",
+   "how_it_works": "Train IsolationForest or One-Class SVM on feature vectors extracted from known-legitimate documents (per issuer/template or globally): font list + counts, producer/creator strings, page geometry, text-block layout positions, image count/DPI, color statistics. At analysis time, a document deep inside the learned 'normal' manifold earns a trust bonus; an outlier gets a soft flag. This is the ML formalization of your planned Module I template matching, and pairs with it: template match confirms identity, one-class model confirms statistical normality.",
+   "signal": "Primarily a POSITIVE legitimacy signal (goal 2): 'this EDF invoice looks like the 500 EDF invoices we know'. Weak as a fraud detector on its own (fraudsters copy templates well), so use asymmetrically: inliers gain trust points, outliers only get low-severity flags. FP risk low if used that way; high if outlier=fraud.",
+   "local_feasibility": "Fully local, sklearn only, model <1MB, instant inference. The hard part is curating a legitimate corpus per template — you already plan a templates/ directory, so store feature vectors beside each template.json.",
+   "effort": "medium",
+   "sources": [
+    "https://www.sciencedirect.com/science/article/pii/S0957417421017164",
+    "https://medium.com/@dasarimeenakshi/invoice-anomaly-detection-using-ml-5dc35e47c497"
+   ]
+  },
+  {
+   "name": "Screenshot / recapture detection (classical frequency + resolution heuristics, optional tiny classifier)",
+   "how_it_works": "Detect documents that are screenshots or photos-of-screens rather than originals: check page image dimensions against common screen resolutions and 72/96 dpi, FFT of the page for periodic moire/subpixel peaks, absence of any text layer combined with perfectly axis-aligned uniform background, and EXIF software tags. Optionally train the classical-features sklearn classifier (technique above) with a 'recaptured' class.",
+   "signal": "A screenshot-of-an-invoice PDF is a classic laundering step that destroys metadata and font evidence — flagging it is a valuable medium-severity signal that also explains WHY other modules went quiet (low confidence). FP risk moderate: legitimate users do email screenshots; keep severity medium and wording neutral.",
+   "local_feasibility": "Fully local: numpy FFT + Pillow + existing PyMuPDF extraction; <0.5s/page. Extends your existing Module F screenshot checks with a frequency-domain test.",
+   "effort": "small",
+   "sources": [
+    "https://www.techrxiv.org/users/908787/articles/1282650/master/file/data/Fraud_Detection_Survey_TechRxiv/Fraud_Detection_Survey_TechRxiv.pdf"
+   ]
+  },
+  {
+   "name": "Public datasets pipeline for training and (crucially) false-positive regression testing",
+   "how_it_works": "Assemble an evaluation harness from public corpora: DocTamper (170k doc images; Kaggle mirror, password via academic email, NON-COMMERCIAL license), T-SROIE (462 tampered receipts), Find it! ICPR 2018 (1,969 real French receipts with forgeries — closest to your use case), Find it again! ICDAR 2023 (988 SROIE receipts, 163 realistically forged), FSTS (294k images incl. 16,750 real human tampering instances, GitHub), SIDTD + FantasyID (forged EU ID documents — matches your French ID document use case). Run every TrustyFile module over the legitimate halves to measure false-positive rates and over forged halves for recall, per document type.",
+   "signal": "Not a detector — it is how you prove signal strength and FP rates instead of guessing. The legitimate subsets are the most valuable part for your minimize-false-positives goal. Watch licenses: DocTamper and several others are non-commercial/research-only — fine for internal evaluation and calibration, risky for training a commercial product's shipped weights (prefer self-synthesized training data, evaluate on public sets).",
+   "local_feasibility": "Datasets are downloads (respect the org rule: keep them private, do not re-upload); harness is pytest + pandas. Storage a few GB; use samples/ conventions already in the project. No cloud services involved.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/qcf-568/DocTamper",
+    "https://www.kaggle.com/datasets/dinmkeljiame/doctamper",
+    "https://hal.science/hal-02316399/",
+    "https://l3i-share.univ-lr.fr/2023Finditagain/index.html",
+    "https://arxiv.org/abs/2401.01858",
+    "https://github.com/Oriolrt/SIDTD_Dataset",
+    "https://arxiv.org/html/2511.12658v1",
+    "https://arxiv.org/html/2603.01433v2"
+   ]
+  },
+  {
+   "name": "ForensicHub / IMDLBenCo as research codebase (evaluation only, not deployment)",
+   "how_it_works": "IMDLBenCo (pip install imdlbenco, NeurIPS'24) and its extension ForensicHub provide unified implementations, checkpoints (Google Drive links) and metrics for 8+ IMDL models plus the 4 document-specific models (DTD, FFDN, CAFTB-Net, TIFDM). Use it offline to benchmark candidate models on your own sample documents before committing to any, rather than integrating a model blind.",
+   "signal": "De-risks the ML decision: their own tables show document-specific models are heavy (67-89M params, 272-453 GFLOPs) and generalize poorly, while giving you a harness to verify claims. No direct end-user signal.",
+   "local_feasibility": "pip: imdlbenco (PyTorch; CPU works for inference but slow — this is a workbench, not the production box). Run on a dev laptop, not the 1-2GB cloud host.",
+   "effort": "small",
+   "sources": [
+    "https://pypi.org/project/imdlbenco/",
+    "https://github.com/scu-zjz/IMDLBenCo",
+    "https://github.com/scu-zjz/forensichub",
+    "https://arxiv.org/html/2406.10580v1"
+   ]
+  }
+ ],
+ "key_insights": [
+  "Honest feasibility verdict: published deep tamper-localization models (DTD 67M/272 GFLOPs, FFDN 89M/453 GFLOPs, TruFor 68.7M/232 GFLOPs, CAT-Net 114M/134 GFLOPs per 512x512 crop) would take minutes per A4 page and >1.5GB RAM on a small CPU box, most carry non-commercial licenses (DocTamper dataset, TruFor code), and none have published ONNX exports — they do not fit the hot path.",
+  "Even ignoring compute, generalization kills them: DocForge-Bench (2026) shows DocTamper-trained models collapse from F1 0.914 in-domain to 0.045 on T-SROIE and ~0.002-0.013 on real receipt forgeries; NO method achieves F1>=0.3 on 6+ datasets. Born-digital French invoices are outside every training distribution, so expect noisy masks and false positives, the exact thing TrustyFile wants to minimize.",
+  "The collapse is largely a CALIBRATION problem, not a feature problem: models keep Pixel-AUC 0.76-0.90 cross-domain, and recalibrating the threshold with only ~10 labeled in-domain images recovers 39-55% of the oracle F1 gap (documents have 0.27-4.17% tampered pixels vs 10-30% in natural-image benchmarks). Whatever scorers TrustyFile uses, keep continuous scores and calibrate thresholds on a small in-domain set.",
+  "The highest-ROI 'ML-adjacent' technique for this project is not a neural net: OCR-vs-PDF-text-layer cross-checking (render page, OCR, diff against embedded text) is a few seconds per page with tesseract/RapidOCR, catches overlay/hidden-text tampering, and doubles as a strong positive legitimacy signal when everything matches.",
+  "If a deep model is added later, the only realistic route under 1-2GB RAM / few-seconds-per-page is training your own SegFormer-B0-class segmenter (~3.7M params, ~8.4 GFLOPs@512) on SELF-SYNTHESIZED tampered documents (DocTamper's synthesis code + FSTS's realistic tampering-parameter modeling, which gains +14-21% F1 on real data), then INT8 ONNX/OpenVINO export: ~2-8s/page at 150dpi. Training needs a one-off free-tier GPU; inference stays fully local.",
+  "Classical forensics + sklearn remains the right default: copy-move keypoint detection, ELA/JPEG-ghost/blocking-grid analysis (a-contrario NFA variants give controlled false-alarm rates), LBP/IQM features + SVM, and OCR character-geometry outlier detection each run in <1-3s/page in pure pip packages (opencv-python, scikit-learn, scikit-image, numpy) — but gate JPEG-history and copy-move checks by page type, since born-digital vector pages have no JPEG history and repeated glyphs are pixel-identical by construction (major false-positive trap).",
+  "Public datasets (DocTamper 170k, Find it! 1,969 French receipts, Find it again! 988, T-SROIE 462, FSTS 294k, SIDTD/FantasyID for ID docs) are best used for EVALUATION and false-positive regression testing rather than as shipped training data — several are research/non-commercial licensed, and their legitimate subsets are the most valuable asset for measuring TrustyFile's false-positive rate per document type. All analysis stays local; datasets must not be re-uploaded to third-party services."
+ ]
+}

@@ -1,0 +1,193 @@
+{
+ "domain": "Open-source tools & academic literature on PDF/document fraud detection — borrowable, fully-local techniques for TrustyFile",
+ "techniques": [
+  {
+   "name": "Incremental-update / revision-chain forensics (xref + %%EOF + /Prev walk, ghost objects, trailing bytes)",
+   "how_it_works": "Scan raw bytes for every %%EOF and startxref, then walk the /Prev chain backward from the last xref section: each node is one save session, so update_chain_length = xref_count - 1 revisions after creation. Additionally flag: objects with generation numbers > 0 or xref entries marked 'f' (freed = deleted content), objects present in the file body but absent from the final xref (ghost/orphaned objects whose old content is still recoverable), and any bytes after the final %%EOF (pdfid's -e option counts these). pdfresurrect (C, in Debian repos) and Inscribe's product both build on exactly this; it is ~100 lines of pure Python over the raw bytes, or use pikepdf to enumerate objects.",
+   "signal": "Catches any post-creation edit that was saved incrementally (Acrobat, many editors default to this). Multiple revisions on an 'original' invoice is a medium-strength flag; ghost objects containing old amounts are near-conclusive. FP risk is real: legitimate signing (DocuSign), annotation and form-fill workflows also append incremental updates, and Linearized PDFs legitimately contain 2 xref sections — score additive-only updates low. Crucially, absence of revisions proves nothing (Ghostscript/print-to-PDF flattening erases history), so a clean chain must yield 'inconclusive', not 'legitimate'.",
+   "local_feasibility": "Pure Python over bytes (regex + manual xref parse) or pikepdf (pip pikepdf, bundles qpdf, wheels for all platforms, no apt deps). <50 ms and <50 MB RAM per document.",
+   "effort": "small",
+   "sources": [
+    "https://htpbe.tech/blog/pdf-xref-table-forensics",
+    "https://github.com/enferex/pdfresurrect",
+    "https://forensicdiscovery.expert/blog/document-history-how-pdf-saves-reveal-the-past/",
+    "https://arxiv.org/abs/2003.10546",
+    "https://blog.didierstevens.com/programs/pdf-tools/"
+   ]
+  },
+  {
+   "name": "Version rollback + semantic diff (local 'Document X-Ray')",
+   "how_it_works": "For each detected revision, truncate the file at that revision's %%EOF and open the truncated bytes with fitz.open(stream=...) — this reconstructs each historical version of the document. Extract text (and optionally render pixmaps) from each version and diff consecutive versions: report exactly which words/amounts/dates changed, and pixel-diff renders to localize visual changes. This is the technique Inscribe markets as 'Document X-Ray' and the NDSS 2021 Shadow-Attacks paper's PDF-Detector uses (compare document to its pre-signature version by stripping incremental updates).",
+   "signal": "Upgrades 'this file was edited' into 'the total changed from 1 025 € to 2 025 €' — a smoking gun, justifying a critical flag and a killer UI feature. Very low FP when the diff shows substitution of amounts/dates/IBANs; additive-only diffs (new signature field, annotation) are benign and should be auto-downgraded, which is itself the FP mitigation.",
+   "local_feasibility": "PyMuPDF only (pip pymupdf, already in stack). Text diff via stdlib difflib; render-diff via fitz pixmaps + numpy. ~0.5–2 s per document for a handful of revisions; RAM proportional to page renders (~100–300 MB peak at 150 dpi).",
+   "effort": "medium",
+   "sources": [
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf",
+    "https://www.inscribe.ai/fraud-detection/document-fraud",
+    "https://forensicdiscovery.expert/blog/document-history-how-pdf-saves-reveal-the-past/"
+   ]
+  },
+  {
+   "name": "Trailer /ID + XMP cross-consistency and xmpMM:History parsing",
+   "how_it_works": "Parse three metadata layers and cross-check them: (1) trailer /ID array — ID[0] is permanent, ID[1] changes on every save, so ID[0] != ID[1] means the file was re-saved after creation; (2) XMP packet (fitz Document.get_xml_metadata(), parse with stdlib ElementTree) — xmpMM:DocumentID vs xmpMM:InstanceID mismatch means re-saves, and xmpMM:History is a literal edit trail listing softwareAgent + timestamp + action for each save (e.g. 'Adobe Photoshop ... saved'); (3) compare XMP xmp:CreateDate/ModifyDate/CreatorTool against the Info-dict CreationDate/ModDate/Creator — editors that spoof one layer usually forget the other.",
+   "signal": "xmpMM:History naming Photoshop/Illustrator/Acrobat on an invoice, or Info-vs-XMP date/tool disagreement, is a high-severity flag (disagreement implies deliberate or tool-induced metadata rewriting). FP: moderate — many pipelines legitimately re-save (archival, mail gateways), and lots of cheap generators emit no XMP at all, so missing XMP must be neutral. Matching, coherent three-layer metadata is also a mild positive legitimacy signal.",
+   "local_feasibility": "PyMuPDF + stdlib xml. Zero extra deps, <10 ms per document.",
+   "effort": "small",
+   "sources": [
+    "https://www.meridiandiscovery.com/articles/pdf-forensic-analysis-xmp-metadata/",
+    "https://www.giac.org/paper/gmon/663/detection-malicious-documents-utilizing-xmp-identifiers/143772"
+   ]
+  },
+  {
+   "name": "Producer 'coding-style' fingerprinting to unmask spoofed metadata",
+   "how_it_works": "Every PDF generator has a recognizable syntactic style independent of the Producer string: xref table vs xref stream, object numbering order, dictionary key ordering, whitespace/delimiter habits, stream-length conventions, whether Info precedes the body, comment lines, etc. The arXiv paper 'Robust PDF Files Forensics Using Coding Style' built 192 such rules for 11 producers and identified the true generator with 74% overall (100% for some producers) on 500k PDFs. Implement a scoped version: hand-write style rules for the ~10 producers that matter for invoices (Word, LibreOffice, Chrome/wkhtmltopdf print, LaTeX, iText, ReportLab, Acrobat, InDesign, iLovePDF/smallpdf outputs), then compare the inferred producer against the claimed /Producer.",
+   "signal": "Claimed-vs-actual producer mismatch means the metadata was deliberately edited — one of the few checks that catches a fraudster who cleaned the metadata, and deliberate deception warrants a critical flag. FP: medium — post-processors (compressors, mail gateways, printers) legitimately rewrite files while keeping the original Producer string, so only flag confident rule hits and keep an allowlist of known post-processing chains.",
+   "local_feasibility": "Pure Python over raw bytes + pikepdf for object walks. No system deps, <100 ms. Main cost is building/maintaining the rule set, not runtime.",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/abs/2103.02702"
+   ]
+  },
+  {
+   "name": "pdfid-style keyword triage + pikepdf/qpdf structural integrity check",
+   "how_it_works": "Borrow Didier Stevens's pdfid approach (public-domain, single-file Python, vendorable): count occurrences of /JS, /JavaScript, /AA, /OpenAction, /Launch, /EmbeddedFile, /XFA, /URI, /SubmitForm and hex-obfuscated names (#6A#61...) directly in the bytes — obfuscated keywords are themselves a red flag. Complement with pikepdf.open() + Pdf.check() (qpdf's --check engine): it reports xref damage, recovered/repaired tables, stream-length mismatches and bad object offsets. pdfalyzer (pip pdfalyzer) additionally walks the object tree and runs YARA rules over decoded streams if you want deeper triage; peepdf is abandoned/buggy — do not adopt it.",
+   "signal": "JavaScript or launch actions inside an invoice is highly anomalous (fraud kits and phishing lures, plus glyph-remap tricks that show humans one text and parsers another). A file whose xref had to be 'repaired' was produced or modified by a broken tool — weak-to-medium tamper signal. FP: medium for structural errors (plenty of legitimate generators emit sloppy PDFs — flag, lower confidence, don't condemn); low for JS/Launch in the invoice context.",
+   "local_feasibility": "pip pikepdf (bundles qpdf, no apt needed); pdfid.py vendored (stdlib only); optional pip pdfalyzer + yara-python. All <200 ms, tiny RAM.",
+   "effort": "small",
+   "sources": [
+    "https://blog.didierstevens.com/programs/pdf-tools/",
+    "https://github.com/michelcrypt4d4mus/pdfalyzer",
+    "https://bitsgalore.org/2021/09/06/pdf-processing-and-analysis-with-open-source-tools.html"
+   ]
+  },
+  {
+   "name": "Local digital-signature validation with pyHanko + post-signature change detection (shadow-attack aware)",
+   "how_it_works": "pyHanko (pip 'pyHanko') validates PDF signatures entirely in-process: cryptographic integrity, certificate chain to configurable trust roots, ByteRange coverage, and DocMDP modification policy — it explicitly reports whether incremental updates after the signature stay within the allowed change set. With the [etsi] extra it can use the EU Trusted Lists as roots (the list download sends nothing about the document and is cached; fully offline operation works with pre-provisioned roots). This replaces TrustyFile's current EU DSS API dependency. For shadow attacks, do what the NDSS PDF-Detector does: strip all incremental updates after the signed revision, render both versions, and diff — a valid signature plus visible-content change after signing is the attack.",
+   "signal": "A valid qualified signature covering the whole file is the strongest legitimacy-confirmation signal available (+trust bonus); an invalid signature, a signature covering only part of the file, or disallowed post-signature changes is a high/critical flag. FP: low if you distinguish 'no signature' (neutral — most invoices are unsigned) from 'broken signature' (bad); untrusted-but-intact chains (internal CAs) should be a soft warning only.",
+   "local_feasibility": "pip pyHanko + pyhanko-certvalidator (pure Python + cryptography wheels). No apt deps. ~100–500 ms per signature; EUTL cold-cache fetch is minutes but one-off and cacheable — or ship pinned roots for full offline.",
+   "effort": "medium",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf",
+    "https://pypi.org/project/pyHanko/"
+   ]
+  },
+  {
+   "name": "Factur-X / ZUGFeRD embedded-XML vs visible-text cross-check",
+   "how_it_works": "French/EU hybrid e-invoices are PDF/A-3 files with a machine-readable CII XML (factur-x.xml) embedded as an attachment with AFRelationship=Alternative, declared in XMP. Extract the XML (pip 'factur-x', or fitz embedded-file API), validate it against the EN 16931 XSD, then cross-check its fields — total TTC/HT, VAT amounts and rates, IBAN, SIREN/SIRET, invoice number, dates, seller name — against the text extracted from the visible layer. A fraudster who edits the visible amount almost never updates the embedded XML.",
+   "signal": "XML-vs-visible mismatch on an amount or IBAN is near-conclusive tampering (critical). Presence + XSD-valid + fully consistent Factur-X is a strong legitimacy bonus, increasingly common as France's B2B e-invoicing mandate rolls out from 2026 — this is the single best positive-trust check for the project's French-invoice audience. FP: low; main pitfall is OCR/extraction noise when matching numbers, so compare normalized amounts, not raw strings.",
+   "local_feasibility": "pip factur-x (deps: lxml, pypdf) or pure PyMuPDF embedded-file extraction + lxml XSD validation. Fully offline, <200 ms.",
+   "effort": "medium",
+   "sources": [
+    "https://pypi.org/project/factur-x/",
+    "https://www.pdflib.com/pdf-knowledge-base/zugferd-and-factur-x/"
+   ]
+  },
+  {
+   "name": "Font-subset pairing and span-level font anomaly detection",
+   "how_it_works": "Beyond counting fonts, exploit subset naming: embedded subset fonts are named ABCDEF+BaseName; two different subset prefixes of the same base font (ABCDEF+Arial and GHIJKL+Arial) mean text was added in a separate tool/session — original generators produce one subset per font. Via fitz page.get_text('dict'), inspect per-span font name, size and flags: flag mid-line/mid-word font switches, fractional size deviations within a visual block (genuine rows at 9.0 pt, the inserted row at 9.5 pt), a non-embedded system font amid otherwise-embedded fonts, and editor-default fonts (Helvetica base-14, Roboto) appearing only in one span. Commercial vendors (Resistant AI, Inscribe, Precisa) all list this among their highest-yield checks.",
+   "signal": "Dual subsets of the same base font is a strong, targeted edit indicator (high severity) with low FP; mid-line size/font changes are medium signals — invoices legitimately mix fonts across zones (logo vs body), so restrict comparisons to within-line/within-table-column. This catches exactly the 'edited an amount in Acrobat/online editor' scenario TrustyFile targets.",
+   "local_feasibility": "PyMuPDF only (already in stack); page.get_fonts() + get_text('dict'). <100 ms, no new deps.",
+   "effort": "small",
+   "sources": [
+    "https://precisa.in/blog/bank-statements-document-tampering-detection/",
+    "https://resistant.ai/products/documents",
+    "https://www.inscribe.ai/fraud-detection/document-fraud"
+   ]
+  },
+  {
+   "name": "Character-geometry checks: baseline, alignment and spacing of amounts",
+   "how_it_works": "pdfplumber exposes exact per-character bounding boxes. Within each text line, verify all characters share the same baseline y (tolerance ~0.3 pt) and that inter-character advance is consistent with the font's metrics; within amount/date columns, verify right-edge alignment across rows. Digits retyped over an erased region in an editor land at slightly wrong baselines/offsets, and OCR-graph-feature research (arXiv 2009.05158) plus the altered-text literature confirm geometric misalignment is a dominant tell for inserted text in documents.",
+   "signal": "A digit sitting 0.5 pt off its line's baseline inside a total is a high-severity, well-localized flag. FP: medium — justified text, superscripts (currency symbols, ordinals) and table renderers with per-cell positioning create legitimate offsets; only apply within homogeneous runs (digits of one number, cells of one column) and whitelist superscript flags from the font data.",
+   "local_feasibility": "pip pdfplumber (already in stack) + numpy. Pure CPU, ~100–300 ms/page.",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/abs/2009.05158",
+    "https://hal.science/hal-02316399/",
+    "https://lokeshkvn.github.io/files/ICPRAI_handwriting_compressed.pdf"
+   ]
+  },
+  {
+   "name": "Copy-move (clone) detection tuned for document images",
+   "how_it_works": "Render pages (or extract embedded scans), detect duplicated regions via ORB/SIFT keypoint matching plus dense block matching (DCT/PCA blocks with lexicographic sort), clustering matched pairs by consistent translation vector. Critical document-specific adaptation from Abramova & Böhme: identical glyphs legitimately repeat everywhere in text, so naive CMFD drowns in false positives — require matched regions larger than a single glyph (multi-character patches), require identical noise/background around the patch, and ignore matches aligned with the text grid unless the surrounding background also matches pixel-perfectly (Paint-style paste copies the background too, which real repeated words don't).",
+   "signal": "Catches the classic 'copy a digit/price from elsewhere in the doc and paste it' fraud (TrustyFile test idea #9/#10). Strong when a >glyph-sized region including background matches exactly; FP high if untuned (repeated words, logos, dotted lines), moderate after the document-specific constraints. Best used to localize evidence, not as a standalone verdict.",
+   "local_feasibility": "opencv-python + numpy (SIFT is patent-free and in mainline OpenCV now). ~0.5–2 s per page at 150–200 dpi, ~200–400 MB RAM. No apt deps beyond opencv wheels.",
+   "effort": "large",
+   "sources": [
+    "https://informationsecurity.uibk.ac.at/pdfs/Abramova2016_CMFD_ScannedDocuments_EI.pdf",
+    "https://github.com/GuidoBartoli/sherloq"
+   ]
+  },
+  {
+   "name": "ELA + JPEG-ghost + local-noise inconsistency suite for embedded images and scanned pages",
+   "how_it_works": "For JPEG-origin content: Error Level Analysis (re-save at quality ~90 with Pillow, amplify per-pixel absolute difference — edited regions re-compress differently) and JPEG ghosts (re-save at a sweep of qualities 50–100; a pasted region previously compressed at quality q shows a difference minimum at q while the rest doesn't — Krawetz's Black Hat whitepaper gives the exact recipe). For any raster: local noise maps (residual after median/wavelet denoise, computed per 32×32 block) reveal pasted rectangles with uniform or mismatched noise versus the naturally noisy scan background — this matches TrustyFile's planned paste-detection and the methods that scored best on the Find it!/ICDAR receipt-forgery benchmarks. Sherloq (Python/OpenCV, GPL) contains reference implementations of all three to borrow from.",
+   "signal": "Localizes screenshot-and-paste and Photoshop edits on scanned invoices. ELA alone is notoriously noisy — high FP on high-contrast edges, text, and anything not JPEG (PNG, flattened, re-encoded by the PDF producer), so gate it: only run when the embedded stream is DCTDecode, report as supporting evidence, and require noise-map agreement before raising severity. Noise inconsistency is medium signal / medium FP; ghosts are strong when a clear quality minimum appears.",
+   "local_feasibility": "Pillow + numpy + opencv-python; optionally PyWavelets (pip pywavelets) for wavelet noise. ~0.3–1 s per image; fine on a small box. Extract original JPEG bytes losslessly from the PDF via fitz xref stream (filter DCTDecode) — never re-render before analysis.",
+   "effort": "medium",
+   "sources": [
+    "https://blackhat.com/presentations/bh-dc-08/Krawetz/Whitepaper/bh-dc-08-krawetz-WP.pdf",
+    "https://github.com/GuidoBartoli/sherloq",
+    "https://l3i.univ-larochelle.fr/app/uploads/sites/12/2024/05/ICDAR_2023_Find_it_again.pdf",
+    "https://29a.ch/2017/02/05/jpeg-forensics-in-forensically"
+   ]
+  },
+  {
+   "name": "JPEG quantization-table ballistics on embedded images",
+   "how_it_works": "Extract raw DCTDecode streams from the PDF (fitz, lossless) and read their quantization tables (PIL Image.quantization). Compare against known tables: libjpeg-standard tables scaled per quality, camera-vendor tables, and Photoshop's distinctive 'Save for Web' tables (Farid's 'Digital Image Ballistics from JPEG Quantization' and the DFRWS 2008 software-table database catalog these). An image inside a 'bank-generated' PDF whose quant table matches Photoshop was processed by an editor; two embedded images with wildly different tables suggest compositing from different sources.",
+   "signal": "Photoshop/GIMP-signature quant tables in an official document's logo or scan is a medium-to-high flag with low FP (tables are deterministic per software). Also a mild legitimacy signal when all images share one generator-consistent table. Limitations: only applies to JPEG-embedded images; PDF producers that re-encode images destroy the original table (then the table fingerprints the producer instead — still useful for cross-checking /Producer).",
+   "local_feasibility": "Pillow + PyMuPDF, plus a small bundled table database (build from the DFRWS paper + your own samples). <50 ms per image, trivial RAM.",
+   "effort": "small",
+   "sources": [
+    "https://farid.berkeley.edu/downloads/publications/tr06a.pdf",
+    "https://dfrws.org/sites/default/files/session-files/2008_USA_paper-using_jpeg_quantization_tables_to_identify_imagery_processed_by_software.pdf"
+   ]
+  },
+  {
+   "name": "Standards-conformance validation as a legitimacy signal (veraPDF / Arlington model, pikepdf fallback)",
+   "how_it_works": "Run veraPDF (open-source, Open Preservation Foundation + PDF Association) locally against the file: it validates claimed PDF/A or PDF/UA conformance rule-by-rule and, via the Arlington PDF Model, checks every object against the PDF grammar far more thoroughly than qpdf. Use it in two ways: (1) a document whose XMP claims PDF/A-3 (e.g. a Factur-X invoice) but fails validation was post-processed after generation; (2) a passing PDF/A file from a professional producer earns a trust bonus, because casual editors rarely preserve conformance.",
+   "signal": "Claimed-but-failed conformance is a medium tamper/post-processing signal; verified conformance + coherent metadata is one of the few honest positive signals for unsigned invoices. FP: low for the claim-vs-reality check (the claim is explicit in XMP); do not penalize files that never claimed conformance.",
+   "local_feasibility": "veraPDF is Java: apt default-jre-headless + the veraPDF CLI zip; ~1–3 s and 300–500 MB JVM per run — acceptable but the heaviest dependency listed, so make it optional. Lightweight fallback: pikepdf/qpdf --check plus your own XMP-claim parser (small).",
+   "effort": "small",
+   "sources": [
+    "https://docs.verapdf.org/cli/validation/",
+    "https://bitsgalore.org/2021/09/06/pdf-processing-and-analysis-with-open-source-tools.html",
+    "https://openpreservation.org/blogs/validation-ok-they-said-fixing-the-rendering-of-a-so-called-valid-pdf/"
+   ]
+  },
+  {
+   "name": "Perceptual-hash serial-fraud and known-good template matching",
+   "how_it_works": "Render page 1 at fixed dpi, compute perceptual hashes (pHash/dHash via pip imagehash) plus a coarse layout signature (grid of text-block bounding boxes from fitz). Maintain two local databases: (a) previously analyzed documents — near-duplicate hits (small Hamming distance) with different amounts/names indicate a reused fraud template ('template farms'; Resistant AI reports 98.3% of serial fraud caught this way without prior template knowledge); (b) known-good vendor templates (TrustyFile Module I) — verify logo position via template matching/SSIM (opencv matchTemplate, skimage.metrics.structural_similarity), font set, and field positions against the reference.",
+   "signal": "Same-template-different-payee across submissions is a very strong serial-fraud signal (the top detection mechanism claimed by commercial vendors); matching a known-good template earns a trust bonus, and claiming to be EDF/Amazon while mismatching the reference layout is high severity. FP: template families legitimately vary by year/region — version your references and use tolerances on positions; near-duplicate detection needs a corpus, so value grows with usage.",
+   "local_feasibility": "pip imagehash, Pillow, opencv-python, scikit-image; hashes stored in SQLite — all local (mind the org rule: the document corpus stays private). ~200–500 ms per document.",
+   "effort": "medium",
+   "sources": [
+    "https://resistant.ai/products/documents",
+    "https://cloud.google.com/blog/topics/financial-services/resistant-ai-document-forensics-built-on-google-cloud-document-ai",
+    "https://github.com/Stirling-Tools/Stirling-PDF"
+   ]
+  },
+  {
+   "name": "Offline identifier-checksum and invoice-arithmetic validation (python-stdnum)",
+   "how_it_works": "Validate every extracted identifier with pure-math checksums, no network: SIREN/SIRET (Luhn), French VAT key (FR key = (12 + 3*(SIREN mod 97)) mod 97), IBAN mod-97, EAN, and dozens more via pip python-stdnum (stdnum.fr.siret, stdnum.eu.vat, stdnum.iban). Then check invoice arithmetic: line items sum to subtotal, VAT amount equals rate × base for legal French rates (20/10/5.5/2.1 %), TTC = HT + TVA, and dates are ordered (issue ≤ due; service period plausible). Fabricated invoices routinely contain checksum-invalid SIRETs or VAT math that doesn't close.",
+   "signal": "A checksum-invalid SIRET/VAT/IBAN on an invoice is high severity with essentially zero FP (it can never be valid); all-checksums-valid plus arithmetic that closes is a solid legitimacy confirmation that needs no external API — complements (and mostly replaces) the INSEE lookup. FP on arithmetic: rounding conventions and multi-rate invoices need per-line rate grouping and ±0.01/line tolerance.",
+   "local_feasibility": "pip python-stdnum (pure Python, tiny); arithmetic is stdlib + your existing extraction. <10 ms. The weak link is extraction quality — validate only high-confidence extracted strings.",
+   "effort": "small",
+   "sources": [
+    "https://pypi.org/project/python-stdnum/",
+    "https://www.acfe.com/-/media/images/acfe/products/publication/self-study-cpe/workbook/using-benfords-law/using_benfords_law_sample.pdf"
+   ]
+  }
+ ],
+ "key_insights": [
+  "The cheapest, highest-yield upgrades for TrustyFile are file-structure forensics: revision-chain counting is ~100 lines of Python, and rolling back to previous versions to diff WHAT changed (amounts, IBANs) turns a vague 'file was modified' flag into a critical, explainable verdict — this is exactly what Inscribe sells as 'Document X-Ray' and it is fully replicable locally with PyMuPDF.",
+  "Absence of tamper evidence is not evidence of authenticity: Ghostscript re-printing, print-to-PDF, or any full rewrite flattens revision history, resets metadata and produces one clean xref. Structure checks must return 'inconclusive' for such files (the htpbe.tech writeup is explicit about this), which is why legitimacy-confirmation signals matter as much as tamper detection.",
+  "The best positive-trust signals are all locally verifiable: pyHanko validates digital signatures (incl. EU trust lists) in-process and replaces the EU DSS API in the roadmap; Factur-X embedded XML cross-checked against visible text is near-conclusive both ways and is tailor-made for French invoices under the 2026 e-invoicing mandate; python-stdnum validates SIRET/VAT/IBAN checksums with zero network.",
+  "Metadata can lie, but style cannot easily: cross-layer consistency (Info dict vs XMP vs trailer /ID vs xmpMM:History) and producer coding-style fingerprinting (arXiv 2103.02702, 74–100% producer identification from file syntax alone) catch fraudsters who cleaned the obvious metadata — deliberate spoofing detected this way deserves higher severity than any single passive flag.",
+  "Benchmarks exist to calibrate against: the Find it! ICPR 2018 contest (1,969 French receipts) and the ICDAR 2023 forged-receipt dataset show no single method is reliable (subtle price edits ~65% detection), that combined text+image ensembles win, and that image-forensics methods (ELA especially) have high false-positive rates when applied ungated — matching TrustyFile's weighted multi-module design and its minimize-false-positives goal.",
+  "Commercial vendors' published methodology (Resistant AI's '500+ checks', Inscribe's detectors) decomposes into exactly five replicable families: metadata consistency, font/span anomalies, pixel-level image forensics, revision-history extraction, and cross-document template-reuse detection; their strongest differentiator — serial-fraud detection via near-duplicate template matching (98.3% claimed) — only needs perceptual hashing plus a local corpus.",
+  "False-positive discipline that the sources agree on: legitimate signing/annotation workflows create incremental updates (score additive-only revisions low); legitimate users run invoices through online converters (flag, don't condemn); ELA is only meaningful on DCTDecode-origin images; copy-move detection on text drowns in repeated-glyph matches unless patches larger than a glyph including background are required (Abramova & Böhme); repeated fonts across zones of an invoice are normal — compare within lines/columns only.",
+  "Tooling verdicts from the survey: adopt pikepdf (bundles qpdf, wheels, no apt), vendor Didier Stevens's public-domain pdfid.py, borrow algorithms from sherloq (Python/OpenCV reference implementations of ELA/ghost/noise/copy-move), treat veraPDF as an optional Java-based add-on; peepdf is abandoned/buggy and OPAF is dead (Google Code archive) — skip both. pdfresurrect is C but its /Prev-chain logic is trivially reimplemented in Python.",
+  "Benford's-law digit analysis, though standard in the invoice-fraud accounting literature, is statistically meaningless on a single document — only consider it if TrustyFile ever analyzes batches of invoices from one vendor.",
+  "Rough per-document budget on a small cloud box if all techniques run: structure+metadata+fonts+checksums <0.5 s; signature validation ~0.5 s; rollback diff and image forensics 1–3 s per page/image; copy-move is the outlier (0.5–2 s/page) — gate heavy pixel modules on triggers from the cheap structural modules to stay within a few seconds."
+ ]
+}

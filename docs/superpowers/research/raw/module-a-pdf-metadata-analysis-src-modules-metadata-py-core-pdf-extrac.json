@@ -1,0 +1,144 @@
+{
+ "area": "Module A: PDF metadata analysis (src/modules/metadata.py) + core PDF extraction layer (src/extractors/pdf_extractor.py)",
+ "checks": [
+  {
+   "name": "META_IMAGE_EDITOR (check_producer, metadata.py:180-199)",
+   "description": "Case-insensitive substring search of Producer+Creator (concatenated) against 13 image-editor names (photoshop, gimp, canva, photopea, paint.net, pixelmator, etc.). Severity: high. Early-returns, suppressing all other producer checks.",
+   "quality": "Sound idea (image editors are anomalous producers for official docs), but naive substring matching, hardcoded in-function list rebuilt every call, and the early return means an AI-generated + image-edited doc only gets one flag. Canva appears in three lists with three severities; this one wins by check order, not by design."
+  },
+  {
+   "name": "META_IMAGE_CONVERSION (check_producer, metadata.py:203-215)",
+   "description": "Substring search for image-to-PDF keywords ('image conversion', 'image to pdf', 'img2pdf', 'photo to pdf'). Severity: low (scans are legitimate).",
+   "quality": "Reasonable low-severity signal, but the keyword list misses the producer strings of the most common scan apps (CamScanner, Adobe Scan, Genius Scan, Microsoft Lens, iOS Quartz), so real-world coverage is near zero."
+  },
+  {
+   "name": "META_AI_GENERATED (check_producer, metadata.py:218-231)",
+   "description": "Substring search against 26 AI-tool names (chatgpt, openai, claude, gemini, bard, tome, gamma.app, ...). Severity: critical (50 points). Early return.",
+   "quality": "Brittle: several entries are short common substrings ('bard' matches 'Bombardier', 'tome' matches any producer containing it, 'gemini'/'copilot' collide with unrelated products). Critical severity on a bare substring hit is a strong FP amplifier, and the list will age fast."
+  },
+  {
+   "name": "META_ONLINE_CONVERTER (check_producer, metadata.py:234-247)",
+   "description": "Substring search against 6 'highly suspicious' converters (ilovepdf, smallpdf, sejda, pdfcandy, pdf2go, canva). Severity: high. Early return.",
+   "quality": "Matches the spec, but CLAUDE.md says 'flag but don't over-penalize' converters; high (30 pts) plus structure-module flags can double-penalize. Canva is unreachable here (caught earlier as image editor)."
+  },
+  {
+   "name": "META_SUSPICIOUS_PRODUCER (check_producer, metadata.py:250-262)",
+   "description": "Substring search against ~20 moderately suspicious tools (pdf24, sodapdf, nitro, pdfelement, xodo, google docs, generic 'pdf editor'...). Severity: medium. Early return.",
+   "quality": "Generic entry 'pdf editor' (metadata.py:54) matches any producer containing those words; 'google docs' at medium contradicts the minimize-false-positives goal since many small businesses legitimately invoice from Google Docs."
+  },
+  {
+   "name": "META_FUTURE_CREATION_DATE (check_dates, metadata.py:290-300)",
+   "description": "CreationDate > now + 1 day → critical (50 pts); 1-day tolerance for timezones. Not called by analyze_metadata — invoked only from structure.py:1776, so points land in the structure module's score.",
+   "quality": "Concept fine; implementation compares a timezone-STRIPPED PDF datetime (parse_pdf_date discards the offset) against naive local datetime.now(). A doc created in UTC+13/+14 analyzed on a UTC-8..-10 host can legitimately appear >24h in the future. Critical severity for possible clock skew is harsh."
+  },
+  {
+   "name": "META_DOCUMENT_MODIFIED (check_dates, metadata.py:306-338)",
+   "description": "ModDate − CreationDate > 2 seconds → critical (50 pts) with human-readable gap message; rationale: 'official documents should never be modified after creation'. Invoked from structure.py:1776.",
+   "quality": "The single biggest false-positive generator. The 2-second threshold is a wrong assumption: large report generation exceeds 2s between setting CreationDate and finalizing; server-side linearization, e-signature workflows (DocuSign/Adobe Sign), and stamping legitimately update ModDate. Because timezone offsets are stripped, creation stored as local (+02'00') and mod stored as UTC (Z) for the SAME instant reads as a 2h 'modification' → instant critical. Flat critical severity regardless of gap size (2s vs 300 days) throws away signal."
+  },
+  {
+   "name": "META_IMPOSSIBLE_DATES (check_dates, metadata.py:341-351)",
+   "description": "ModDate < CreationDate → high (30 pts): impossible ordering indicating corruption or forged metadata.",
+   "quality": "Good check in principle, but zero tolerance interacts badly with timezone stripping: creation stored in UTC and mod in local negative-offset time for the same instant reads as mod-before-creation → spurious high flag."
+  },
+  {
+   "name": "META_NO_METADATA (check_missing_metadata, metadata.py:375-383)",
+   "description": "All values in the raw PyMuPDF metadata dict empty → medium (15 pts), 'metadata possibly stripped'.",
+   "quality": "Effectively DEAD/unreachable: PyMuPDF's doc.metadata always includes a synthetic non-empty 'format' key (e.g. 'PDF 1.7'), so non_empty_fields is never 0. A fully stripped PDF only ever gets the low-severity META_NO_PRODUCER."
+  },
+  {
+   "name": "META_NO_PRODUCER (check_missing_metadata, metadata.py:384-391)",
+   "description": "Some metadata present but neither producer nor creator set → low (5 pts).",
+   "quality": "Works, but severity is inverted: absent producer/creator on a supposedly system-generated invoice is a stronger laundering signal than 5 points, and it simultaneously drops module confidence to 0.3 (metadata.py:443-451), muting the module in the weighted final score — the attacker is rewarded twice for stripping."
+  },
+  {
+   "name": "Module scoring + confidence (analyze_metadata, metadata.py:432-451)",
+   "description": "Score = 100 − Σ severity points (low 5 / medium 15 / high 30 / critical 50), floored at 0. Confidence: 1.0 if producer/creator AND creation date present, 0.7 if one, 0.3 if neither.",
+   "quality": "Simple, but SEVERITY_POINTS is duplicated per module (also in structure.py) inviting drift, and confidence is derived from fields the attacker controls: forged-complete metadata gets confidence 1.0 while stripped metadata gets 0.3 — backwards for adversarial input."
+  },
+  {
+   "name": "SHA256 file hashing (calculate_file_hash, pdf_extractor.py:87-115)",
+   "description": "Chunked (8KB) SHA256 of the raw file, stored in PDFData.file_hash for identification/caching.",
+   "quality": "Correct and standard. But the file is hashed, then reopened by fitz, then re-opened by ~6 downstream modules via file_path — no single-read consistency guarantee, and no size/page-count guard (PDF-bomb / huge-doc DoS risk on the Streamlit host)."
+  },
+  {
+   "name": "PDF date parsing (parse_pdf_date, pdf_extractor.py:118-155)",
+   "description": "Strips 'D:' prefix, truncates to 14 chars, right-pads with '0', strptime('%Y%m%d%H%M%S'); timezone offset deliberately discarded ('for simplicity in MVP'); returns None + logger.warning on failure.",
+   "quality": "Multiple defects: (1) discarding the offset makes every downstream date comparison unsound; (2) zero-padding builds invalid dates for short forms — 'D:2024' (valid per PDF spec, meaning Jan 1 2024) becomes '20240000000000' → month 00 → strptime fails → silently None; (3) nonstandard producer formats (ISO-style dates) fail; (4) an unparseable date — itself a tamper signal — degrades to None with only a log line, silently disabling all three date checks AND lowering module confidence."
+  },
+  {
+   "name": "Metadata extraction (extract_metadata, pdf_extractor.py:158-188)",
+   "description": "Maps PyMuPDF doc.metadata (Info dictionary view) into PDFMetadata (parsed dates, producer/creator/author/title/subject/keywords) plus the raw dict.",
+   "quality": "Reads only the Info dictionary; XMP is handled separately in structure.py by reopening the file. Author/title/subject/keywords are extracted but never used by any check (the CLAUDE.md-specified author/company mismatch check is unimplemented). PyMuPDF returns '' not None for absent fields, so 'str | None' fields actually carry '' — falsy so checks work, but the type contract is wrong."
+  },
+  {
+   "name": "Text extraction (extract_text, pdf_extractor.py:191-212)",
+   "description": "page.get_text('text') for every page, one string per page; no per-page error handling; no OCR triggering (ocr.py is separate).",
+   "quality": "get_text includes invisible text (render mode 3) indistinguishably from visible text — a white-rectangle-over-old-amount tamper yields old and new text mixed with no visibility signal; a page-level MuPDF error aborts the whole extraction."
+  },
+  {
+   "name": "Top-level extraction (extract_pdf_data, pdf_extractor.py:215-262)",
+   "description": "Hash → fitz.open (context manager) → metadata + per-page text → PDFData(file_path, hash, page_count, metadata, raw_metadata, text_by_page). Docstring documents raising FileNotFoundError / fitz.FileDataError.",
+   "quality": "Violates the project's own rules ('Always use fitz.open() with error handling', 'never crash on malformed PDFs, return partial results'): no try/except here and analyzer.py:109 doesn't catch either, so a corrupt PDF surfaces as a raw exception. No encrypted-PDF handling (doc.needs_pass/is_encrypted → silently empty metadata/text, no flag), no doc.is_repaired capture (MuPDF silently repairs broken xrefs — a strong tamper signal, lost), no doc.is_pdf check (an image renamed .pdf passes analyzer's suffix-only check and opens as an image document). PDFData's images/fonts/links fields are still TODO (pdf_extractor.py:81-84), so every downstream module re-opens the file from file_path — 6+ redundant parses per analysis."
+  }
+ ],
+ "weaknesses": [
+  "Dead code — LEGITIMATE_PRODUCERS (metadata.py:108-135) is defined, documented ('we won't flag these') and never referenced anywhere in the codebase; there is consequently no positive-trust signal from known-good producers (SAP, Sage, JasperReports...), despite 'confirm legitimate files' being a primary project goal.",
+  "Unreachable check — check_missing_metadata (metadata.py:375-383) counts non-empty values in PyMuPDF's raw metadata dict, which always contains a synthetic non-empty 'format' key ('PDF 1.7'), so META_NO_METADATA can never fire; only the 5-point META_NO_PRODUCER ever triggers for stripped metadata.",
+  "Confused layering / misleading module boundaries — check_dates (metadata.py:267-352) is defined in metadata.py, advertised in the module docstring (metadata.py:8-9), tested in tests/test_metadata.py, but excluded from analyze_metadata (comment at metadata.py:427-428) and only called from structure.py:1776, where its META_* flags are scored with the structure module's SEVERITY_POINTS.",
+  "Timezone stripping — parse_pdf_date (pdf_extractor.py:143-148) truncates to 14 chars and discards the UTC offset, producing naive datetimes; check_dates then compares them to naive datetime.now() (metadata.py:287). Any producer that writes CreationDate and ModDate in different conventions (local+offset vs Z) yields a phantom multi-hour 'modification' and an instant critical flag.",
+  "Arbitrary hardcoded thresholds — 2-second mod/creation tolerance (metadata.py:310), 1-day future tolerance (metadata.py:290), all severities and SEVERITY_POINTS (metadata.py:143-148) are inline constants with no config, no per-document-type variation, and SEVERITY_POINTS is duplicated in structure.py (drift risk).",
+  "Flat critical severity for any mod gap — metadata.py:311-338 assigns 'critical' identically for a 3-second gap and a 300-day gap; the graduated messages (seconds/minutes/hours/days) exist purely for display while the score impact is constant 50 points.",
+  "Naive substring matching — check_producer (metadata.py:176, 185, 218, 234, 250) does `needle in combined` with no word boundaries; short needles like 'bard' (metadata.py:81), 'tome' (95), 'gemini' (80), 'copilot' (82), 'pdf editor' (54) collide with legitimate producer strings ('Bombardier...', products named Gemini, Microsoft Copilot-branded exports).",
+  "Early returns hide co-occurring signals — check_producer returns after the first match in each tier (metadata.py:199, 231, 247, 262), so at most one producer flag is ever emitted; image-editor detection preempts AI detection, and multiple independent suspicious markers don't accumulate score impact.",
+  "IMAGE_EDITORS and IMAGE_CONVERSION_KEYWORDS are function-local constants (metadata.py:180-184, 203) unlike the other module-level lists — inconsistent, rebuilt on every call, and easy to miss when auditing the lists.",
+  "parse_pdf_date zero-padding bug — pdf_extractor.py:148 pads short-but-valid PDF dates ('D:2024', 'D:202401') with '0', producing month/day '00' which strptime rejects; spec-valid dates parse to None, silently disabling all date checks with only a logger.warning (pdf_extractor.py:154).",
+  "Unparseable dates produce no flag — a malformed CreationDate/ModDate string (itself a classic tamper artifact) results in None, a log line, skipped date checks, AND reduced module confidence (metadata.py:444-451) — the failure is triply hidden.",
+  "No error handling around fitz.open — extract_pdf_data (pdf_extractor.py:246) and analyzer.py:109 let fitz exceptions propagate, contradicting CLAUDE.md's 'never crash on malformed PDFs, return partial results with lower confidence'.",
+  "No encrypted/repaired/non-PDF detection — extract_pdf_data never inspects doc.needs_pass, doc.is_encrypted, doc.is_repaired, or doc.is_pdf; an encrypted or silently-repaired PDF (repair = strong tamper hint) or an image renamed .pdf all flow through with empty metadata and no dedicated flag; analyzer validates only the .pdf filename suffix, not magic bytes.",
+  "PDFMetadata type contract wrong — PyMuPDF returns '' for absent metadata fields, so fields declared 'str | None' (pdf_extractor.py:48-55) carry empty strings; downstream truthiness checks happen to work but details dicts expose '' and identity comparisons to None would fail.",
+  "Extractor is under-built relative to its role — PDFData images/fonts/links are TODOs (pdf_extractor.py:81-84), so structure.py, fonts, images, forensics all re-open the file independently from pdf_data.file_path: 6+ full parses per analysis, no consistency with the hashed bytes, no shared caching.",
+  "extract_text has no per-page error isolation (pdf_extractor.py:203-210) — one malformed page aborts extraction for the whole document instead of returning partial results.",
+  "Extracted-but-unused metadata — author, title, subject, keywords (pdf_extractor.py:182-185) feed no check; the CLAUDE.md-specified 'author/company mismatch' detection for Module A is unimplemented.",
+  "Confidence heuristic is attacker-controlled — analyze_metadata (metadata.py:443-451) grants confidence 1.0 exactly when producer+dates are present (trivially forgeable with exiftool/pikepdf) and 0.3 when absent, down-weighting the module precisely when stripping — a suspicious act — occurred.",
+  "No file-size/page-count guard anywhere in the extraction path (pdf_extractor.py:215-262) — a PDF bomb or 5000-page upload hashes, parses, and text-extracts unboundedly on the small cloud host."
+ ],
+ "false_positive_risks": [
+  "E-signed contracts and invoices (DocuSign, Adobe Sign): signing legitimately updates ModDate hours or days after CreationDate → META_DOCUMENT_MODIFIED critical (−50). Digitally signed documents — the most trustworthy category — are systematically hammered by the 2-second rule, which fires from structure.py regardless of signature status.",
+  "Server-side post-processing by legitimate issuers: banks/utilities that generate a statement then linearize it ('Fast Web View'), stamp a duplicate mark, or merge attachments minutes later → ModDate gap > 2s → critical flag on a genuine document.",
+  "Mixed timezone conventions from one legitimate generator: CreationDate written as local time with +02'00' and ModDate as UTC 'Z' for the same instant → phantom 2-hour 'modification' → critical, purely an artifact of parse_pdf_date discarding offsets (pdf_extractor.py:143-148).",
+  "Long-running report generation: a JasperReports/Crystal Reports 500-page statement where CreationDate is set at job start and ModDate at finalization 10-30s later → 'modified 15 second(s) after creation - possibly tampered', critical.",
+  "Documents from far-east timezones: an invoice created this morning in Auckland (UTC+12/+13) analyzed on a US-hosted server can appear more than a day in the future after offset stripping → META_FUTURE_CREATION_DATE critical.",
+  "Freelancer/small-business invoices designed in Canva (millions of legitimate users) → META_IMAGE_EDITOR high; invoices written in Google Docs → META_SUSPICIOUS_PRODUCER medium — both common legitimate workflows CLAUDE.md explicitly says not to over-penalize.",
+  "A customer legitimately merging their genuine invoice with T&C pages via iLovePDF/Smallpdf before forwarding it → META_ONLINE_CONVERTER high (30 pts).",
+  "Producer-string substring collisions: any legitimate producer/creator containing 'bard' (e.g. 'Bombardier ERP Export'), 'gemini' (unrelated products named Gemini), 'tome', or 'copilot' (Microsoft 365 Copilot-branded exports) → META_AI_GENERATED critical (−50) from a substring accident (metadata.py:74-105, matching at :218-219).",
+  "A user who opens a genuine PDF in mobile PDF Expert/Xodo just to read or annotate and re-saves before uploading → medium suspicious-producer flag plus a critical mod-date flag, though content is untouched.",
+  "Legitimate letters/attestations exported from Grammarly's editor ('grammarly ai' in creator, metadata.py:92) → critical AI-generated flag."
+ ],
+ "false_negative_gaps": [
+  "Full-rewrite laundering: attacker edits the invoice content and re-exports through Word, LibreOffice, Acrobat, or prints to PDF (Quartz PDFContext / Skia / Microsoft Print to PDF). Producer looks benign or is absent from every suspicious list, CreationDate == ModDate on the fresh file → zero metadata flags and confidence 1.0. The module only catches attackers naive enough to leave a converter fingerprint.",
+  "Ghostscript/qpdf/mutool/pikepdf laundering — the classic post-edit cleanup tools that rewrite the whole file and destroy incremental-update evidence — are absent from every suspicious list; producer 'GPL Ghostscript 10.x' passes clean, when it should at least be a 're-processed document' signal for an invoice.",
+  "Direct metadata forgery: one exiftool/pikepdf command sets Producer='SAP NetWeaver', CreationDate=ModDate=plausible past date. Every check passes and confidence becomes 1.0; there is no cross-validation in this module between Info-dict claims and structural evidence (XMP mismatch is delegated to structure.py only).",
+  "Metadata stripping as evasion: removing the Info dictionary costs 5 points (META_NO_PRODUCER; META_NO_METADATA is unreachable due to the 'format'-key bug) and drops module confidence to 0.3, so in the confidence-weighted final score the stripped module barely counts — stripping is net-rewarded.",
+  "ModDate normalization: copying CreationDate into ModDate after editing (exiftool one-liner; several editors do this by default) fully bypasses META_DOCUMENT_MODIFIED and META_IMPOSSIBLE_DATES.",
+  "Unparseable/garbage date strings: a tampered PDF whose CreationDate is 'D:garbage' or ISO-format parses to None → all three date checks silently skip, no MALFORMED_DATE flag exists, and confidence drops, muting the module — malformed dates should themselves be a signal.",
+  "Encrypted PDFs: doc.needs_pass / is_encrypted never checked; an encrypted upload yields empty metadata/text, earning only low META_NO_PRODUCER — no 'encrypted, cannot analyze' flag.",
+  "Silently repaired PDFs: MuPDF auto-repairs broken xref tables (frequent after crude binary edits); doc.is_repaired is never read, so a strong tamper indicator is discarded at extraction time.",
+  "Non-PDF disguises: analyzer validates only the '.pdf' filename suffix; fitz opens an image or XPS renamed to .pdf (doc.is_pdf unchecked), producing empty metadata → only low-severity flags for what is likely a screenshot-of-an-invoice fraud.",
+  "Invisible/covered text tampering at the extraction layer: extract_text mixes render-mode-3 (invisible) text with visible text indistinguishably, so downstream modules cannot detect the overlay-new-text-hide-old-text pattern from the text layer.",
+  "Author/title/subject fields never analyzed: an invoice claiming EDF whose Author='John Smith' or Title='invoice_edited_v3_FINAL' sails through — the CLAUDE.md 'author/company mismatch' check for Module A is unimplemented.",
+  "AI-tool list decay: only fixed 2023-2024-era brand names are matched; any newer or self-hosted generator — or simply clearing the producer — evades META_AI_GENERATED entirely."
+ ],
+ "improvement_ideas": [
+  "Make parse_pdf_date timezone-aware: parse the full PDF date grammar (offset, 'Z', apostrophe-quoted minutes, short forms like 'D:2024' with spec defaults), return aware datetimes, compare in UTC, and expose the raw strings + a MALFORMED_DATE flag when parsing fails instead of a silent None.",
+  "Replace the flat 2-second/critical modification rule with graduated severity informed by context: no flag under ~1 minute, low for same-session gaps, escalate with gap size, and cross-reference structure-module evidence (incremental update count, signature presence) — a mod gap that coincides with a valid digital signature should be neutral or positive, not critical.",
+  "Switch producer matching from bare substring to word-boundary/regex token matching with per-entry match rules, report ALL matches instead of early-returning, and move IMAGE_EDITORS/keywords to module level (or better: externalize all producer lists to a versioned data file with per-entry severity, so ghostscript/qpdf/mutool/quartz/skia/stirling-pdf and future AI tools can be added without code changes).",
+  "Fix META_NO_METADATA by excluding PyMuPDF's synthetic keys ('format', 'encryption') before counting non-empty fields, raise the severity of fully stripped metadata, and stop letting missing metadata reduce module confidence — decouple 'how much evidence we saw' from 'how suspicious the absence is' so stripping is penalized, not rewarded.",
+  "Actually use LEGITIMATE_PRODUCERS as a positive trust signal (score bonus / higher baseline) to serve the confirm-legitimate-files goal, but only when corroborated by structural evidence (e.g. matching XMP toolkit, no incremental updates), since the Info dict alone is trivially forgeable.",
+  "Harden extract_pdf_data per the project's own rules: wrap fitz.open with error handling returning partial PDFData + extraction flags; detect and flag doc.needs_pass/is_encrypted, doc.is_repaired (strong tamper signal currently discarded), and doc.is_pdf/magic-byte mismatches; add file-size and page-count guards before parsing.",
+  "Enrich PDFData once instead of letting six modules re-open the file: fill the TODO images/fonts/links fields, add raw creation/mod date strings, PDF version, xref/trailer facts, and is_repaired, so all modules analyze one consistent snapshot matching the SHA256 hash.",
+  "Implement the specified-but-missing author/company mismatch check using the already-extracted author/title/subject fields (compare against vendor identity detected by content/template modules).",
+  "Differentiate visible vs invisible text at extraction time (get_text('dict') span flags / render mode) so downstream modules can detect overlay-tamper patterns instead of receiving them pre-mixed.",
+  "Centralize SEVERITY_POINTS and thresholds in scoring.py or a config module (they are duplicated in metadata.py:143-148 and structure.py), and move check_dates fully into the structure module to end the split-ownership confusion between metadata.py and structure.py:1776."
+ ]
+}

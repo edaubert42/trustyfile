@@ -1,0 +1,190 @@
+{
+ "domain": "Local algorithmic validation of business document content (checksums, cross-field consistency, arithmetic, dates, barcodes) for invoice/French-document fraud detection",
+ "techniques": [
+  {
+   "name": "IBAN ISO 7064 mod-97 checksum + per-country BBAN format validation",
+   "how_it_works": "Move the first 4 chars (country code + 2 check digits) to the end, convert letters to numbers (A=10..Z=35), and the resulting big integer mod 97 must equal 1. Then validate the country-specific BBAN structure (length, digit/letter positions) against the ISO 13616 registry. Both python-stdnum (stdnum.iban) and schwifty implement this in pure Python; schwifty also validates country-specific bank/branch/account sub-formats.",
+   "signal": "Catches any single-digit edit or transposition in an IBAN (~99% detection for one changed character) — the classic 'invoice IBAN swap' fraud where a fraudster hand-edits digits usually breaks mod-97. As legitimacy: a valid IBAN is only a weak positive (fraudsters can paste their own fully valid IBAN), so a PASS should add little trust while a FAIL is a high-severity flag. False-positive risk is near zero if OCR is reliable; the main FP source is OCR misreads (O/0, I/1) on scanned documents — mitigate by only firing high severity when the IBAN came from the text layer, lower severity from OCR.",
+   "local_feasibility": "Pure Python: pip install python-stdnum (LGPL, no deps) or schwifty. No system deps, microseconds per check, negligible RAM.",
+   "effort": "small",
+   "sources": [
+    "https://github.com/arthurdejong/python-stdnum/blob/master/stdnum/iban.py",
+    "https://arthurdejong.org/python-stdnum/doc/1.20/stdnum.iban",
+    "https://github.com/mdomke/schwifty"
+   ]
+  },
+  {
+   "name": "French RIB key — second, independent national checksum inside FR IBANs",
+   "how_it_works": "A French BBAN is bank code (5) + branch code (5) + account number (11, letters converted via the official table A,J=1; B,K,S=2; ...) + 2-digit RIB key. Recompute: key = 97 − ((concatenated 21-digit number) mod 97), computed digit-by-digit as remainder = (remainder*10 + digit) mod 97 to avoid big ints. Validate that the recomputed key matches digits 21-22 of the BBAN.",
+   "signal": "Gives a second checksum independent of the IBAN's own mod-97, so a tampered French IBAN must satisfy two constraints simultaneously — an attacker who fixes the IBAN check digits but not the RIB key (or vice versa) is caught. Also lets you validate bare RIBs printed without the IBAN form (common on older French invoices). FP risk essentially zero on clean text-layer extraction; note python-stdnum's iban module only checks national checksums for a few countries, so implement this ~20-line function yourself.",
+   "local_feasibility": "Pure Python, ~20 lines, no dependencies, microseconds. Trivially testable.",
+   "effort": "small",
+   "sources": [
+    "https://fr.wikipedia.org/wiki/Cl%C3%A9_RIB",
+    "https://www.dcode.fr/bban-check"
+   ]
+  },
+  {
+   "name": "IBAN-to-bank identification and BIC/IBAN consistency via schwifty's offline registry",
+   "how_it_works": "schwifty ships a manually curated, offline bank registry (France included) mapping domestic bank codes to bank names and BICs. From a French IBAN, extract the 5-digit bank code and look up the bank name locally; if the invoice also prints a BIC, verify the BIC's bank code and country agree with the IBAN. Compare the resolved bank name against any bank name printed on the invoice/RIB block.",
+   "signal": "Catches the common fraud where the IBAN is replaced but the printed bank name/BIC is left unchanged (e.g., invoice says 'Crédit Agricole' but the IBAN resolves to a fintech or foreign bank), and IBAN country ≠ supplier country is a known red flag. As legitimacy: IBAN resolving to a real registered French bank consistent with the printed bank name is a decent positive signal. Moderate FP risk: registry can lag bank mergers, neobanks/payment institutions are legitimate but look 'unusual' — flag as medium, never critical, and phrase as 'verify with sender'.",
+   "local_feasibility": "pip install schwifty (pure Python, registry data bundled, updated via CalVer releases). No network, no system deps, sub-millisecond lookups.",
+   "effort": "small",
+   "sources": [
+    "https://github.com/mdomke/schwifty",
+    "https://schwifty.readthedocs.io/en/latest/examples.html"
+   ]
+  },
+  {
+   "name": "SIREN/SIRET Luhn validation (with La Poste exception)",
+   "how_it_works": "SIREN (9 digits) and SIRET (14 digits = SIREN + 5-digit NIC) must both pass the Luhn mod-10 checksum. Exception: SIRETs of La Poste (SIREN 356000000) validate by sum-of-digits mod 5 == 0 instead. Also cross-check internal consistency: the first 9 digits of any SIRET on the document must equal the SIREN printed elsewhere (header, footer, legal mentions). python-stdnum implements all of this including the La Poste special case (stdnum.fr.siren / stdnum.fr.siret).",
+   "signal": "A single edited digit in a SIRET breaks Luhn with 100% certainty for single-digit substitutions — strong tamper signal on fabricated or hand-edited legal identifiers, which appear on virtually every French invoice, payslip and attestation. Legitimacy side: valid format+checksum proves only well-formedness, not existence (existence needs the INSEE API — your optional external module, which only sends the number, never the file). FP risk near zero on text-layer extraction; OCR confusions are the only realistic FP source.",
+   "local_feasibility": "pip install python-stdnum, pure Python, microseconds. Extraction: regex for \\b\\d{3}\\s?\\d{3}\\s?\\d{3}(\\s?\\d{5})?\\b near keywords SIREN/SIRET/RCS.",
+   "effort": "small",
+   "sources": [
+    "https://github.com/arthurdejong/python-stdnum",
+    "https://lookuptax.com/docs/how-to-verify/siren-verification-france"
+   ]
+  },
+  {
+   "name": "French VAT-number key ↔ SIREN cross-consistency check",
+   "how_it_works": "A French intra-community VAT number is FR + 2-digit key + SIREN, where key = (12 + 3 × (SIREN mod 97)) mod 97. So on any French invoice you can (a) verify the VAT number's key is arithmetically correct for its embedded SIREN, and (b) verify the SIREN embedded in the VAT number equals the SIREN/SIRET printed elsewhere on the document. Example: SIREN 775670417 → key 61 → FR61775670417.",
+   "signal": "This is one of the strongest pure-arithmetic tamper detectors for French invoices: a fraudster who edits the SIRET but not the VAT number (or vice versa) breaks the mathematical link between two fields that must agree. Both fields individually valid but mutually inconsistent = high-severity flag with near-zero false-positive rate (the relation is deterministic). Matching fields are also a genuine legitimacy-confirmation signal (internal coherence).",
+   "local_feasibility": "Pure Python, ~10 lines (or stdnum.fr.tva for the key check). No deps, microseconds.",
+   "effort": "small",
+   "sources": [
+    "https://www.randomsiret.fr/en/tva-calculator",
+    "https://www.vatdb.com/guides/validate-fr-vat-number/",
+    "https://arthurdejong.org/python-stdnum/doc/"
+   ]
+  },
+  {
+   "name": "EU-wide VAT number format + per-country checksum validation (offline)",
+   "how_it_works": "Every EU member state's VAT number has a country-specific structure and most have a checksum: DE mod-11, IT Luhn, BE mod-97, ES letter-check, NL mod-11 (old style) etc. stdnum.eu.vat dispatches on the 2-letter prefix to the right country module and validates entirely offline (it separately offers a VIES online check — do NOT use that path given your locality constraint, or treat it like your INSEE module: identifier-only, optional).",
+   "signal": "Catches fabricated or digit-edited VAT numbers on any EU supplier invoice, not just French ones — useful because your users will upload Amazon/PayPal/foreign-supplier invoices. Signal strength like other checksums: FAIL is strong (medium-high severity), PASS is weak-positive. FP risk: very low; a few countries have weak or no checksums (format-only), so report confidence per country.",
+   "local_feasibility": "pip install python-stdnum; the offline validate() path makes no network calls. Microseconds per check.",
+   "effort": "small",
+   "sources": [
+    "https://pypi.org/project/python-stdnum/",
+    "https://github.com/arthurdejong/python-stdnum"
+   ]
+  },
+  {
+   "name": "French personal fiscal number (SPI/NIF) mod-511 check + NIR mod-97 (tax notices, payslips)",
+   "how_it_works": "The 13-digit numéro fiscal (SPI) on French tax notices: C1 must be 0-3; the last 3 digits (C11-C13) equal (first 10 digits) mod 511, zero-padded (official example: 3023217600 mod 511 = 53 → number ends 053). The 15-digit NIR (social security number, on payslips/attestations): last 2 digits = 97 − (first 13 digits mod 97), with Corsica letter handling (2A→19, 2B→18 substitutions). Both implemented in python-stdnum (stdnum.fr.nif, stdnum.fr.nir); the SPI rule is published by the DGFiP itself.",
+   "signal": "Directly targets your French-document scope: an edited or invented numéro fiscal on a tampered avis d'impôt, or a fabricated NIR on a fake payslip, fails these checksums. High-severity flag on failure, near-zero FP (deterministic algorithms from official sources). Passing is a mild legitimacy signal (fabricators frequently don't know the mod-511 rule).",
+   "local_feasibility": "pip install python-stdnum, pure Python, microseconds. Extraction: 13-digit runs near 'numéro fiscal'/'N° fiscal', 15-digit near 'sécurité sociale'.",
+   "effort": "small",
+   "sources": [
+    "https://www.impots.gouv.fr/sites/default/files/media/1_metier/3_partenaire/tiers_declarants/spi/algorithme_spi.pdf",
+    "https://arthurdejong.org/python-stdnum/doc/1.20/stdnum.fr.nif"
+   ]
+  },
+  {
+   "name": "Invoice arithmetic consistency using EN 16931 BR-CO calculation rules with rounding tolerance",
+   "how_it_works": "Adopt the European e-invoicing standard's calculation rules as your ground truth: sum of line net amounts = declared lines total (BR-CO-10); per VAT rate group, VAT amount = round(taxable base × rate, 2) (BR-CO-17); total with VAT = total without VAT + VAT total (BR-CO-15); grand total = total with VAT − prepaid (BR-CO-16). Because legitimate software rounds either per-line or per-invoice (both legal in the EU; the choice is national law per ECJ C-302/07), accept a tolerance: |Σ(rounded lines) − declared| ≤ max(0.01 × n_lines, 0.02) for line sums, and ±0.01-0.05 per VAT rate group for VAT amounts; anything beyond is a flag.",
+   "signal": "Catches the classic 'change one number in Paint/PDF editor' fraud: editing a line amount, the VAT, or the total breaks at least one identity (an attacker must consistently re-derive 3+ dependent figures). Deviation of exactly one 'round' step (e.g. total off by 100.00 or by the edited digit's place value) is an especially strong tamper signature. FP risk is the main design issue: per-line vs per-total rounding legitimately diverges by up to (n−1)×0.01, discounts/éco-participation/shipping lines get missed by extraction, and OCR of amounts is error-prone — so gate severity: within tolerance = pass (positive trust signal, +legitimacy since all arithmetic coheres), 0.05-1.00 off = medium, exact-digit-place discrepancies = high.",
+   "local_feasibility": "Pure Python + your existing pdfplumber extraction; the hard part is robustly parsing amounts (French formats: '1 234,56 €', non-breaking spaces, thin spaces). Use decimal.Decimal, never float. No new deps; milliseconds. Amount-extraction regexes + rate detection (20%, 10%, 5.5%, 2.1% French rates) is where the effort goes.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/ConnectingEurope/eInvoicing-EN16931",
+    "https://www.invoicenavigator.eu/blog/en16931-validation-rules-complete-guide",
+    "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:62007CJ0302",
+    "https://vat-calculator.net/art/vat-rounding-eu-uk-europe"
+   ]
+  },
+  {
+   "name": "Factur-X embedded XML extraction, schematron validation, and XML-vs-visible-text cross-check",
+   "how_it_works": "French/German invoices increasingly are Factur-X: a PDF/A-3 with an embedded EN 16931-compliant CII XML file (mandatory in France's e-invoicing reform). Extract the XML with the akretion/factur-x lib (get_xml_from_pdf), validate it locally against the official XSD and — since factur-x 5.1 (June 2026) — the official schematron rules (xml_check_schematron()). Then cross-compare the XML's seller name, SIRET, IBAN, totals, and date against what the visible PDF layer shows.",
+   "signal": "Extremely strong tamper detector for the growing share of Factur-X invoices: fraudsters who edit the visible text layer virtually never regenerate the embedded XML, so any XML↔text mismatch on amount/IBAN/date is near-proof of tampering (critical severity, ~zero FP). Conversely, a present, XSD+schematron-valid XML whose values match the visible text is one of the strongest local legitimacy confirmations available for invoices. Absence of XML is neutral (most PDFs today still lack it).",
+   "local_feasibility": "pip install factur-x (BSD; depends on pypdf + lxml). Schematron validation runs locally via lxml XSLT; ~100-500 ms. The official CEN schematron artefacts are on GitHub (ConnectingEurope/eInvoicing-EN16931) if you want rule-level control. No system deps.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/akretion/factur-x",
+    "https://pypi.org/project/factur-x/",
+    "https://github.com/ConnectingEurope/eInvoicing-EN16931"
+   ]
+  },
+  {
+   "name": "Targeted digit tests instead of Benford's law (round-number, threshold-proximity, duplication, last-two-digits)",
+   "how_it_works": "Benford's law needs hundreds of numbers spanning orders of magnitude — a single invoice with 5-30 amounts cannot conform or violate it meaningfully (datasets under ~500 values are non-conforming by nature), so do NOT score Benford per document. Instead run Nigrini's small-sample surrogates on the extracted line amounts: (1) round-number test — fraudulent amounts are disproportionately round (x000.00, x500.00); (2) threshold-proximity — amounts clustered just under approval thresholds (…4 900-4 999 under a 5 000 limit); (3) number-duplication — identical non-trivial amounts repeated across lines; (4) last-two-digits distribution only if the user batch-uploads many documents from one vendor.",
+   "signal": "Weak-to-moderate signals individually; per Journal of Accountancy, round numbers are 'a fingerprint of fraud', but plenty of legitimate invoices have round amounts (fixed fees, subscriptions, rents) — so cap these at low severity and require co-occurrence with other flags before they move the score. Their real value is as corroborating evidence and for batch mode. Explicitly excluding Benford avoids a whole class of false positives.",
+   "local_feasibility": "Pure Python over already-extracted amounts; trivial CPU. No deps.",
+   "effort": "small",
+   "sources": [
+    "https://www.oreilly.com/library/view/forensic-analytics-methods/9781118087633/chapter08.html",
+    "https://www.journalofaccountancy.com/issues/2018/may/fraud-round-numbers/",
+    "https://en.wikipedia.org/wiki/Benford's_law",
+    "https://www.acfe.com/fraud-magazine/all-issues/issue/article?s=2024-novdec-revisiting-benfords-law"
+   ]
+  },
+  {
+   "name": "Weekday-name vs calendar-date consistency check",
+   "how_it_works": "French documents often spell dates with the weekday: 'Fait à Paris, le lundi 3 juin 2025'. Parse the date, compute datetime(2025,6,3).weekday(), and compare against the written weekday name (French names: lundi..dimanche; handle abbreviations lun./mar. and English for foreign invoices). June 3, 2025 is a Tuesday, so 'lundi 3 juin 2025' is a fabrication artifact. Apply the same to any '(day-name) DD month YYYY' pattern found by regex over the extracted text.",
+   "signal": "Surprisingly effective tamper catch: when someone edits only the date digits of a template (attestation, contract, invoice), the weekday name silently becomes wrong — a mistake humans rarely notice but that is deterministic to verify. A mismatch is a high-severity flag with essentially zero false positives (only risk: OCR misreading the day name or digits; require exact token match from the text layer for high severity). Match = small legitimacy bonus. Same family: reject impossible dates (Feb 30) and 'future' document dates vs today.",
+   "local_feasibility": "Pure Python stdlib (datetime + a 7-entry French/English name table); combine with your existing datefinder pipeline. Microseconds.",
+   "effort": "small",
+   "sources": [
+    "https://docs.python.org/3/library/datetime.html",
+    "https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week"
+   ]
+  },
+  {
+   "name": "Invoice/due-date/service-period logic incl. French statutory payment-term bounds (Code de commerce L441-10)",
+   "how_it_works": "Enforce the partial order: service/delivery period start ≤ end ≤ invoice date (usually), invoice date ≤ due date, and due date − invoice date within legal French B2B maxima: 30 days default, 60 days net or '45 jours fin de mois' when contractually agreed, 45 days for periodic invoices (Article L441-10). Also cross-check the document's textual dates against PDF metadata: text invoice date far AFTER the file's CreationDate is impossible for a genuinely generated invoice; ModDate years after CreationDate corroborates editing (ties into your Module A).",
+   "signal": "Catches anachronisms typical of forged or altered invoices: due date before issue date, service period after invoice date, payment terms wildly exceeding legal limits (e.g., 180 days on a French B2B invoice), or a '2024' invoice inside a PDF created in 2026. Individually medium signals; the metadata-vs-content date cross is strong. FP risk: moderate — deposits/prepayment invoices legitimately precede service, credit notes invert logic, and scanned old invoices have recent CreationDates (only apply the metadata cross to born-digital PDFs, detectable via your structure module). Legal-limit violations are common in reality (late-payment culture) so keep them low severity.",
+   "local_feasibility": "Pure Python over datefinder/regex output + fitz metadata you already extract. Microseconds.",
+   "effort": "small",
+   "sources": [
+    "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000038414392",
+    "https://entreprendre.service-public.gouv.fr/vosdroits/F23211?lang=en"
+   ]
+  },
+  {
+   "name": "Reference-number consistency: internal repetition, French sequencing rules, and ISO 11649 'RF' creditor-reference mod-97 checksum",
+   "how_it_works": "Three layers: (1) Internal consistency — the invoice number typically appears 2-4 times (header, footer, payment-reference line, filename); extract all occurrences of the INV/FA/F-YYYY-NNNN pattern and flag any disagreement, and check the year token inside the reference matches the invoice date year. (2) Plausibility per French law — Article 242 nonies A CGI requires numbering 'basée sur une séquence chronologique et continue', so a reference whose embedded year/month contradicts the date, or mixed formats within one document, is suspect. (3) Structured payment references — an RF creditor reference (ISO 11649, e.g. 'RF18 5390 0754 7034') carries an IBAN-style mod-97 checksum, validatable with stdnum.iso11649; Belgian '+++xxx/xxxx/xxxxx+++' OGM references carry a mod-97 check too. SEPA Creditor Identifiers (FR ICS on direct-debit mandates) have mod-97 check digits validated by stdnum.eu.at_02.",
+   "signal": "Mismatched copies of the same invoice number within one document is a high-severity, near-zero-FP tamper signal (an editor changed one instance and missed another — exactly how amount/reference edits fail). A checksum-valid RF reference or ICS is a mild legitimacy signal; an invalid one is medium severity. Year-in-reference vs date-year mismatch is medium (FP risk: fiscal-year numbering, migrated numbering schemes — keep below high).",
+   "local_feasibility": "Pure Python + regex; stdnum.iso11649 and stdnum.eu.at_02 from python-stdnum for the checksums. Microseconds.",
+   "effort": "small",
+   "sources": [
+    "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000050811276",
+    "https://bofip.impots.gouv.fr/bofip/140-PGP.html/identifiant=BOI-TVA-DECLA-30-20-20-10-20131018",
+    "https://github.com/arthurdejong/python-stdnum"
+   ]
+  },
+  {
+   "name": "French 2D-Doc DataMatrix decoding + offline ECDSA signature verification (the strongest legitimacy proof available)",
+   "how_it_works": "2D-Doc is the ANTS-standardized signed DataMatrix on French tax notices, payslips, proofs of address, etc. Pipeline: render page via fitz get_pixmap → locate/decode DataMatrix with pylibdmtx → parse the C40-encoded payload (header: version, CA ID, cert ID, emission date, doc type 00/04/06/28…; then 2-char-tagged data fields like name, reference, income, amount) → verify the ECDSA signature (P-256/384/521) against the issuing certificate resolved from the ANTS Trusted Service List (TSL). betagouv/2ddoc-parser does the parse+verify fully offline with a bundled tsl_signed.xml (note: it targets Python 3.13 and installs from git, so on your 3.11 stack you may vendor/adapt its ~small codebase; it supports DC04 versions 2-4). Finally cross-check the signed payload fields (name, amounts, reference) against the document's visible text.",
+   "signal": "Cryptographic, government-grade: a valid ANTS signature over payload fields that match the visible text PROVES the document content is authentic — the single strongest positive-trust signal you can compute locally, worth a large trust bonus. Signature-valid but payload ≠ visible text = critical tamper flag (someone edited the human-readable layer of a genuine document) with ~zero FP. Failed signature or undecodable barcode on a document type that always carries one (avis d'impôt) = high suspicion. FP risks: low-resolution scans break DataMatrix decoding (render at 300 dpi, try multiple binarizations before concluding 'unreadable'), and the bundled TSL must be refreshed periodically as ANTS rotates certificates (ship it with app releases — no runtime network needed).",
+   "local_feasibility": "pip install pylibdmtx + cryptography; apt libdmtx0b (or libdmtx0a on older Debian) — matches the libdmtx note already in your CLAUDE.md. Parsing/verification logic from betagouv/2ddoc-parser (vendorable). Cost: page render + DataMatrix scan ~200-800 ms/page, ECDSA verify <5 ms; fine for a small box.",
+   "effort": "large",
+   "sources": [
+    "https://github.com/betagouv/2ddoc-parser",
+    "https://ants.gouv.fr/Les-solutions/2D-Doc",
+    "https://pypi.org/project/pylibdmtx/"
+   ]
+  },
+  {
+   "name": "EPC QR code (EPC069-12 'SCT QR' / Girocode) payload validation and QR↔printed-text cross-check",
+   "how_it_works": "European payment QR codes on invoices follow EPC069-12: an ≤331-byte payload of up to 11 lines — 'BCD', version 001/002, charset code, 'SCT', BIC (optional in v002), beneficiary name (≤70 chars), IBAN, 'EUR' amount (0.01-999999999.99), purpose, remittance reference (≤140, may be ISO 11649 RF), display text. Decode the QR from the rendered page (cv2.QRCodeDetector — no extra system dep — or pyzbar), validate every field's format, run the IBAN mod-97 and RF mod-97 checks on the embedded values, then cross-compare QR IBAN/amount/beneficiary against the printed invoice text.",
+   "signal": "The EPC spec itself notes these QRs are meant for paper invoices where the same payment data is also printed in plain text — that redundancy is your weapon: a fraudster who edits the printed IBAN or amount but not the QR (or overlays a new QR but not the text) produces a mismatch that is a critical, near-zero-FP tamper flag (this 'QR swap' is an actively reported invoice-fraud vector). A well-formed EPC payload whose data matches the text is a solid legitimacy signal. FP risk: QR decode failures on poor scans (treat unreadable as neutral); some invoices carry non-EPC QRs (URLs) — only apply after the 'BCD' service tag is confirmed.",
+   "local_feasibility": "opencv-python (already in stack; QRCodeDetector needs no system dep) or pyzbar + apt libzbar0 (already planned for your Module C). Payload parsing is ~50 lines of pure Python straight from the EPC069-12 table; reuse IBAN/RF validators. ~50-200 ms/page for detection.",
+   "effort": "medium",
+   "sources": [
+    "https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2024-03/EPC069-12%20v3.1%20Quick%20Response%20Code%20-%20Guidelines%20to%20Enable%20the%20Data%20Capture%20for%20the%20Initiation%20of%20an%20SCT.pdf",
+    "https://en.wikipedia.org/wiki/EPC_QR_code",
+    "https://segno.readthedocs.io/en/1.5.2/epc-qrcodes.html"
+   ]
+  }
+ ],
+ "key_insights": [
+  "One dependency covers most identifier math: python-stdnum (pure Python, LGPL, offline) validates IBAN mod-97, SIREN/SIRET Luhn (incl. the La Poste mod-5 exception), all EU VAT checksums, French NIF/SPI (mod 511), NIR (mod 97), ISO 11649 RF references, and SEPA creditor IDs — adopt it as the backbone of a 'Module J: identifiers' and get a dozen checks nearly for free.",
+  "Cross-FIELD consistency beats single-field validity: the French VAT key is a deterministic function of the SIREN ((12+3*(SIREN mod 97)) mod 97), the RIB key double-checks the IBAN, the 2D-Doc payload and EPC QR duplicate the printed text, and Factur-X XML duplicates the visible layer. A fraudster editing one surface almost never fixes its mathematically or cryptographically linked twin — these mismatch checks are your highest-signal, lowest-false-positive tamper detectors.",
+  "Interpret checksums asymmetrically in scoring: a checksum PASS proves only well-formedness (weak legitimacy, fraudsters can paste a fully valid IBAN they control), but a checksum FAIL on a text-layer-extracted identifier detects ~99%+ of single-character edits — score FAIL high-severity, PASS as a small trust bonus, and downgrade severity when the value came from OCR (misreads like O/0 are the dominant false-positive source).",
+  "Benford's law is statistically inapplicable to a single invoice (needs hundreds of values across orders of magnitude; <500 values are non-conforming by nature) — replace it with Nigrini's small-sample digit tests (round-number, threshold-proximity, duplication) capped at low severity, and reserve Benford/last-two-digits for future batch-upload mode.",
+  "Arithmetic checks need engineered tolerance, not equality: EU law permits both per-line and per-total VAT rounding (ECJ C-302/07; divergence up to (n-1)*€0.01), so validate the EN 16931 BR-CO identities (line sum, rate×base, subtotal+VAT=total) with tolerance ~max(0.01×n_lines, 0.02) using decimal.Decimal — within tolerance is itself a positive trust signal, and a discrepancy equal to one digit's place value is a strong edited-digit signature.",
+  "The two strongest local LEGITIMACY proofs for French documents are cryptographic/structural, not statistical: (1) ANTS 2D-Doc ECDSA signature verification (betagouv/2ddoc-parser, offline via bundled TSL; needs pylibdmtx + apt libdmtx0b) on tax notices/payslips/attestations, and (2) Factur-X embedded XML that passes EN 16931 schematron AND matches the visible text (akretion/factur-x 5.1+). Both also flip into near-zero-FP critical tamper flags when the signed/embedded data contradicts the printed layer.",
+  "Cheap date logic catches human forgery mistakes: weekday-name vs calendar-date mismatch ('lundi 3 juin 2025' when it was a Tuesday) is deterministic and near-zero-FP; combine with date ordering (invoice ≤ due date, ≤60-day French statutory terms per L441-10, low severity since real-world violations are common) and born-digital-only cross-checks of content dates vs PDF CreationDate.",
+  "Everything above fits the deployment envelope: all checksum/arithmetic/date checks are pure-Python microsecond operations; the only real costs are barcode scanning (~0.2-0.8 s/page for DataMatrix/QR at 300 dpi) and schematron validation (~0.1-0.5 s), keeping total added latency within a couple of seconds per document on a small cloud box with no document ever leaving the machine."
+ ]
+}

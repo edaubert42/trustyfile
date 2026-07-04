@@ -1,0 +1,178 @@
+{
+ "domain": "Positive trust signals for document legitimacy, fully locally verifiable (PDF signatures, embedded structured invoice data, French government barcodes, payment QR codes, producer fingerprints, structural provenance)",
+ "techniques": [
+  {
+   "name": "PDF digital signature validation with pyHanko (ByteRange integrity + certificate chain)",
+   "how_it_works": "Open the PDF with pyhanko.pdf_utils.reader.PdfFileReader, iterate r.embedded_signatures, and call validate_pdf_signature(sig, ValidationContext(trust_roots=[...])). pyHanko checks the CMS signature over the /ByteRange, builds the certificate chain to the trust roots, and returns a PdfSignatureStatus with bottom_line (bool), coverage (whether the signature covers the whole file), modification_level and docmdp_ok (whether post-signature incremental updates violate the signer's DocMDP policy), plus timestamp validity. Even without trusting the chain, a cryptographically intact signature whose coverage is ENTIRE_FILE proves byte-level integrity since signing; use skip_diff=True if you only want the cheap coverage check.",
+   "signal": "Legitimacy confirmation: intact signature covering the whole file is near-cryptographic proof of no modification since signing (very strong, trust bonus +15-20). Tamper detection: an invalid digest, or invasive incremental updates after signing (modification_level high / docmdp_ok False), is near-proof of tampering (critical flag). False-positive risk is very low for the integrity part; chain-trust failures can be benign (self-signed corporate seals), so score 'intact but untrusted chain' as mild positive, not negative. Absence of a signature must stay neutral — most invoices are unsigned.",
+   "local_feasibility": "pip install pyhanko (pulls pyhanko-certvalidator, asn1crypto, cryptography). Pure Python, no system deps, <1s per document, negligible RAM. Fully offline if revocation checking is set to soft-fail/skip.",
+   "effort": "small",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://github.com/MatthiasValvekens/pyHanko"
+   ]
+  },
+  {
+   "name": "EU Trusted Lists (eIDAS EUTL) qualified signature/eSeal verification with local cache",
+   "how_it_works": "Install pyhanko[etsi]; pyHanko bundles bootstrap keys for the EU List-of-the-Lists (LOTL) and can download + verify member-state trusted lists (ETSI TS 119 612), caching them on disk via FileSystemTLCache with configurable expiry (e.g. 14 days). Validation then reports whether the signer certificate is a qualified eSign/eSeal cert per eIDAS, via the AdES-aligned validation path (ades_lta_validation / the CLI's adesverify --eutl). Cold bootstrap of all lists takes minutes, so warm the cache at deploy time or via a cron job; per-document validation afterwards is fast and fully offline.",
+   "signal": "Very strong legitimacy confirmation: French invoices and attestations increasingly carry qualified eSeals ('cachet serveur' from providers like Docaposte, Universign, ChamberSign), and a signature chaining to the EU trusted list is about the strongest positive signal available. False-positive risk near zero for the positive direction. Only caveat: cache refresh needs network (list download only — the document itself never leaves the machine, so it respects the hard constraint), and a stale cache can wrongly downgrade a valid qualified cert — treat 'qualified check unavailable' as neutral.",
+   "local_feasibility": "pip install 'pyhanko[etsi]'. Pure Python. Disk cache of trusted lists is a few MB. Per-document check <1s once cache is warm; bootstrap of all EU lists takes several minutes and ~modest bandwidth — run at container start or weekly cron, works on a small cloud box.",
+   "effort": "medium",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/cli-guide/validation.html",
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html"
+   ]
+  },
+  {
+   "name": "Factur-X / ZUGFeRD embedded XML extraction + XSD validation",
+   "how_it_works": "Factur-X invoices are PDF/A-3 files with an embedded UN/CEFACT CII XML (filename factur-x.xml, or zugferd-invoice.xml for ZUGFeRD 1.0). Use the factur-x lib: get_xml_from_pdf() to extract, xml_check_xsd(xml, flavor=...) to validate against the official XSDs for the Minimum/Basic WL/EN 16931/Extended profiles (UBL 2.1 also supported). Alternatively pycheval parses the XML into typed profile objects for easy field access. Presence + schema-valid XML proves the file came out of a real invoicing pipeline.",
+   "signal": "Legitimacy confirmation, and rapidly getting stronger: France's e-invoicing mandate makes structured formats (Factur-X/UBL/CII) obligatory for emission by large/mid-size companies from 1 Sept 2026 and SMEs from Sept 2027, so a valid embedded XML is a mainstream trust signal for French invoices (+10-15). Fraudsters who visually edit a PDF almost never regenerate the attachment. Absence is neutral today. FP risk: low; malformed XML in an otherwise fine invoice is rare but possible from buggy generators — flag medium, not critical.",
+   "local_feasibility": "pip install factur-x (deps: pypdf>=5.3, lxml, python-stdnum; BSD license) or pip install pycheval. Pure Python, no system deps, milliseconds per document. XSDs ship with the package — fully offline.",
+   "effort": "small",
+   "sources": [
+    "https://pypi.org/project/factur-x/",
+    "https://github.com/akretion/factur-x",
+    "https://github.com/zfutura/pycheval",
+    "https://www.economie.gouv.fr/tout-savoir-sur-la-facturation-electronique-pour-les-entreprises"
+   ]
+  },
+  {
+   "name": "Cross-check Factur-X XML fields against rendered PDF text (dual-representation consistency)",
+   "how_it_works": "After extracting the embedded XML, parse the machine-readable facts — grand total, tax total, currency, invoice number, issue date, seller name/SIREN/VAT, payee IBAN — and compare each against the values extracted from the visible text layer (pdfplumber/PyMuPDF, with tolerant normalization: 1 234,56 € vs 1234.56). The XML and the rendered page are two independent encodings of the same invoice inside one file; a tamperer editing the visible amount with Paint/Acrobat/an online editor leaves the XML untouched.",
+   "signal": "This is the highest-value check in this whole domain. Match on totals+IBAN+invoice number = strong legitimacy confirmation (the document is internally consistent AND machine-generated). Mismatch on an amount or IBAN = near-proof of tampering (critical flag, exactly the classic invoice-redirection fraud). FP risk: low but nonzero — OCR/extraction errors and rounding displays can cause spurious mismatches, so compare normalized numbers and require exact failure on at least one high-stakes field (total, IBAN) before flagging critical.",
+   "local_feasibility": "Pure Python on top of factur-x/pycheval + lxml + the existing pdfplumber extraction. No new system deps, milliseconds. The whole check is string/number normalization logic.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/akretion/factur-x",
+    "https://validatefin.com/en/blog/facturx-zugferd-explained"
+   ]
+  },
+  {
+   "name": "EN 16931 Schematron business-rule validation of the extracted invoice XML",
+   "how_it_works": "Beyond XSD shape-checking, the EN 16931 standard defines Schematron business rules (e.g. BR-CO-15: total = sum of line nets + tax; VAT category math; date coherence). factur-x exposes xml_check_schematron() (with check_option='fr-ctc' for French CTC rules), which uses saxonche (Saxon-HE Python bindings) to run the official Schematron-compiled XSLT from the ConnectingEurope eInvoicing-EN16931 artifacts. A fraudster who edits the XML to match a doctored visible amount will almost always break the internal arithmetic (line sums, VAT computation) that these rules enforce.",
+   "signal": "Tamper detection AND legitimacy confirmation: passing ~200 business rules means the invoice's numbers are arithmetically self-consistent the way a real ERP emits them (moderate-strong trust bonus); arithmetic-rule failures on an invoice that claims a standard profile are a strong tamper/fabrication indicator. FP risk: moderate — some real-world generators emit rule warnings on edge cases (rounding, exotic VAT categories), so weight 'fatal' assertions high and 'warning' assertions low.",
+   "local_feasibility": "pip install factur-x saxonche. saxonche is a native wheel (~100MB installed) but works on plain Linux x86_64 — fine for a small cloud box; note lxml alone cannot run these (XSLT 2.0 required). ~1-2s per validation. Fully offline; schematron artifacts bundled/vendored.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/ConnectingEurope/eInvoicing-EN16931",
+    "https://github.com/akretion/factur-x",
+    "https://www.invoicexml.com/blog/ubl-peppol-python"
+   ]
+  },
+  {
+   "name": "PDF/A conformance validation with veraPDF (claim-vs-reality check)",
+   "how_it_works": "Two layers: (1) cheap claim check — pikepdf's metadata interface exposes pdfa_status (the pdfaid:part/conformance XMP claim, e.g. '3B' which Factur-X requires); (2) real validation — run the veraPDF CLI as a subprocess (verapdf --format json --flavour 3b file.pdf) and parse the JSON verdict. veraPDF is the industry-reference open-source validator (GPLv3+/MPLv2+) covering all PDF/A parts. Key trick: a file that CLAIMS PDF/A but FAILS validation is suspicious, because editing a PDF/A file with generic tools (online editors, Paint-style workflows, many PDF libraries) typically breaks conformance while leaving the XMP claim in place.",
+   "signal": "Legitimacy confirmation: valid PDF/A-3 + embedded Factur-X XML = professionally generated archival invoice (moderate bonus). Tamper detection: pdfaid claim present but veraPDF fails = medium-high flag (post-generation processing). FP risk: moderate — plenty of legitimate producers emit slightly non-conformant 'PDF/A' files, so never flag critical on conformance failure alone; combine with other signals. Absence of any PDF/A claim is neutral.",
+   "local_feasibility": "pikepdf: pip install pikepdf (bundles qpdf, no apt). veraPDF: Java required — apt install default-jre-headless (~200MB) plus the veraPDF-greenfield CLI zip; JVM startup ~1-3s and ~300-500MB RAM per run — acceptable but make it an optional/async module on a small box. Fully offline.",
+   "effort": "medium",
+   "sources": [
+    "https://verapdf.org/",
+    "https://docs.verapdf.org/cli/validation/",
+    "https://pikepdf.readthedocs.io/en/latest/topics/metadata.html"
+   ]
+  },
+  {
+   "name": "French 2D-Doc barcode decode + ECDSA signature verification with cached ANTS certificates",
+   "how_it_works": "2D-Doc is a DataMatrix standardized by France Titres/ANTS that carries key document fields (tax income, name, address, IBAN, salary...) plus an ECDSA signature (P-256/384/521, base32) from a government-accredited issuer, on tax notices (avis d'imposition), payslips, proof-of-address, RIBs, attestations. Pipeline: render PDF page to image at ~300dpi (fitz page.get_pixmap), locate/decode the DataMatrix, then feed the raw string to betagouv/2ddoc-parser: it parses the DC04 header (CA ID + Cert ID), resolves the signing certificate from the ANTS Trusted Service List that is embedded in the package (crypto/keys/tsl_signed.xml), and verifies the signature — result.is_valid plus typed fields (AvisImposition, BulletinSalaire, JustificatifDomicile, CarteIdentite...). Then cross-check the signed fields against the rendered text: any divergence means the visible text was altered after issuance.",
+   "signal": "Strongest possible signal for French administrative documents: a valid government-signed barcode whose fields match the visible text is cryptographic legitimacy proof (+20); a valid barcode whose fields DIFFER from the page text is near-proof of tampering (critical). FP risk: decode failures on low-resolution scans are common — treat 'barcode present but undecodable' as neutral/low, never as fraud. Absence is neutral (not all doc types carry one).",
+   "local_feasibility": "pip install from github betagouv/2ddoc-parser (verification fully offline, TSL embedded — vendor/pin it). DataMatrix decoding: pylibdmtx (needs apt libdmtx0b, robust) or zxing-cpp (pip-only wheel, decodes DataMatrix too, occasional detection misses per upstream issue #695 — try zxing-cpp first, fall back to pylibdmtx). Rendering + decode ~1s/page.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/betagouv/2ddoc-parser",
+    "https://ants.gouv.fr/home/our-missions/digital-solutions/2d-doc",
+    "https://github.com/zxing-cpp/zxing-cpp/issues/695"
+   ]
+  },
+  {
+   "name": "SEPA EPC QR (EPC069-12) payload parsing + cross-check against invoice text",
+   "how_it_works": "European payment QR codes ('girocode') have a strict 11-line text payload: 'BCD' / version 001|002 / charset / 'SCT' / BIC (optional in v002) / beneficiary name / IBAN / EUR amount / purpose / remittance reference / text. Decode any QR on the page (zxing-cpp on the rendered pixmap), detect the BCD header, parse the lines, validate the IBAN checksum (python-stdnum or schwifty), then cross-check beneficiary IBAN, name and amount against the values extracted from the invoice text layer.",
+   "signal": "Match between QR IBAN/amount and rendered text = strong internal-consistency trust signal (machine-generated payment data agrees with the visible invoice). Mismatch of IBAN = the canonical invoice-redirection fraud pattern — critical flag; mismatched amount = high. FP risk: low for IBAN comparison (exact string after de-spacing); amount can legitimately differ (deposits/partial payments), so weight amount mismatch lower than IBAN mismatch.",
+   "local_feasibility": "pip install zxing-cpp python-stdnum (or schwifty). No system deps (zxing-cpp ships wheels — this also replaces pyzbar+libzbar0, unblocking the project's disabled QR feature). Sub-second per page. Fully offline.",
+   "effort": "small",
+   "sources": [
+    "https://en.wikipedia.org/wiki/EPC_QR_code",
+    "https://www.europeanpaymentscouncil.eu/sites/default/files/kb/file/2024-03/EPC069-12%20v3.1%20Quick%20Response%20Code%20-%20Guidelines%20to%20Enable%20the%20Data%20Capture%20for%20the%20Initiation%20of%20an%20SCT.pdf",
+    "https://pypi.org/project/zxing-cpp/",
+    "https://blog.jonasneubert.com/2022/09/30/the-best-python-packages-for-reading-barcodes/"
+   ]
+  },
+  {
+   "name": "QR/hyperlink URL domain consistency vs claimed sender",
+   "how_it_works": "Collect all URLs from decoded QR payloads, link annotations (page.get_links() in PyMuPDF) and text-layer URLs; reduce each to eTLD+1 with tldextract (offline mode using its bundled public-suffix snapshot). Compare against the claimed issuer domain derived from the document (sender email domain, domains in a template DB like edf.fr, or the majority domain among the document's own links). No fetching — pure string comparison, so no document data leaves the box.",
+   "signal": "Legitimacy confirmation when QR/link domains all match the claimed issuer (small-moderate bonus, works well with the template DB in Module I). Tamper/fabrication detection when a QR points to an unrelated or look-alike domain (payment phishing via replaced QR — high flag). FP risk: moderate — legit invoices link to payment processors, URL shorteners and CDNs; maintain an allowlist of common payment/tracking domains and only flag when the QR is payment- or portal-like and off-domain.",
+   "local_feasibility": "pip install zxing-cpp tldextract (use tldextract with suffix_list_urls=() for strictly offline PSL snapshot). Trivial CPU cost.",
+   "effort": "small",
+   "sources": [
+    "https://en.wikipedia.org/wiki/EPC_QR_code",
+    "https://pypi.org/project/zxing-cpp/"
+   ]
+  },
+  {
+   "name": "Known-good producer/creator fingerprint database",
+   "how_it_works": "Maintain a curated dict of Creator+Producer combinations with a trust class: institutional generators (SAP NetWeaver, Oracle BI Publisher, PeopleSoft, Temenos T24 for bank docs; iText/OpenPDF/Apache FOP/BIRT/Jasper Reports common behind telecom-utility invoices; Sage/Cegid for French accounting; wkhtmltopdf+'Qt 4.8.7' and Chromium+'Skia/PDF mNNN' for fintech/SaaS web-to-PDF; Microsoft Word pairs for office docs), and post-processing tools (iLovePDF, Smallpdf, PDF24, Sejda, PDFescape). Score: known institutional pair = trust bonus; document that claims to be from a bank/utility but has a consumer/creative tool (Canva, Photoshop, PowerPoint, LibreOffice Draw) = high flag; institutional Creator + editor Producer (e.g. 'LibreOffice' + 'Adobe Acrobat') = re-save evidence. Seed the DB empirically from your legitimate sample corpus (EDF, Orange, Free, Amazon, Chorus Pro portal outputs) since public lists are incomplete.",
+   "signal": "Moderate legitimacy confirmation (metadata is spoofable, so bonus should be modest, +5-10) and good fabrication detection ('bank statement with Creator: Canva is not ambiguous'). FP risk of the negative direction is real — legit senders sometimes pass documents through converters — so per your CLAUDE.md, flag but don't over-penalize; the positive direction (known pair) is low-FP.",
+   "local_feasibility": "Pure Python dict lookup on existing PyMuPDF metadata extraction; zero new deps, zero cost. Effort is in curating the DB.",
+   "effort": "small",
+   "sources": [
+    "https://htpbe.tech/blog/pdf-metadata-fields-complete-reference",
+    "https://medium.com/@iurii_rogulia/how-pdf-tampering-detection-actually-works-and-where-it-fails-ad398c311798",
+    "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/11651093"
+   ]
+  },
+  {
+   "name": "Coding-style verification of the claimed producer (metadata-spoofing detection)",
+   "how_it_works": "From 'Robust PDF Files Forensics Using Coding Style' (arXiv:2103.02702): each PDF generator leaves structural idiosyncrasies independent of the Producer string — header comment bytes after %PDF-x.y, trailer dictionary key set and ordering, classic xref table vs cross-reference streams, object numbering/ordering patterns, stream filter choices, string/name formatting. The authors derived 192 rules identifying 11 producers (100% accuracy on some, 74% overall on 508k files) and used them to spot inconsistencies in online PDF services. Implementation: for each producer family in your known-good DB, record 3-5 cheap structural invariants (e.g. Skia/PDF always uses xref streams; wkhtmltopdf emits a specific header comment; iText numbers objects sequentially) from your legitimate corpus, then verify the claimed Producer's invariants hold. pikepdf/raw byte parsing suffices.",
+   "signal": "Tamper/fabrication detection with a legitimacy-confirmation flip side: metadata Producer that matches its structural fingerprint upgrades the producer-DB bonus to a solid signal; a mismatch (claims 'SAP' but file is structured like LibreOffice) is a high flag for spoofed metadata — something naive metadata checks miss entirely. FP risk: moderate — producers change style across versions, so verify against version-tagged corpora and treat single-invariant misses as low severity.",
+   "local_feasibility": "pip install pikepdf plus raw file parsing (you already depend on PyMuPDF). Milliseconds per file. The cost is corpus collection and rule curation per producer family.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/abs/2103.02702"
+   ]
+  },
+  {
+   "name": "Single-revision deterministic structure as a positive trust signal",
+   "how_it_works": "Machine-generated invoices are written once, deterministically. Compute a 'pristine structure' score from cheap checks: exactly one %%EOF/startxref (no incremental updates); trailer /ID array where ID[0]==ID[1] (unmodified since creation) or a producer-consistent pair; CreationDate == ModDate; no /Prev key in trailer; one content stream per page; consistent font-subset prefixes (ABCDEF+Font) with a small uniform font set; modern generators additionally use xref+object streams. Count revisions by scanning for b'%%EOF' / parsing xref chain with pikepdf. Note: exactly 2 revisions is normal for a signed document (signature appended incrementally) — pair this check with the pyHanko coverage result.",
+   "signal": "Legitimacy confirmation: all-pristine structure = document never touched after generation (moderate bonus, +5-10, low FP). The inverse (3+ revisions, ModDate >> CreationDate, mixed font subsets) is your existing tamper heuristic — this technique makes the ABSENCE of those anomalies an explicit positive score rather than mere silence. Key limitation (from the Medium analysis): a fraudulent document FABRICATED from scratch in Word is also structurally pristine — so this signal proves 'not modified', never 'authentic origin'; combine with producer fingerprint + content checks.",
+   "local_feasibility": "pikepdf (pip, bundles qpdf) + PyMuPDF you already have. Milliseconds, no system deps.",
+   "effort": "small",
+   "sources": [
+    "https://medium.com/@iurii_rogulia/how-pdf-tampering-detection-actually-works-and-where-it-fails-ad398c311798",
+    "https://arxiv.org/abs/2103.02702",
+    "https://htpbe.tech/blog/pdf-metadata-fields-complete-reference"
+   ]
+  },
+  {
+   "name": "XMP media-management provenance analysis (DocumentID / InstanceID / History)",
+   "how_it_works": "Parse the XMP packet (pikepdf pdf.open_metadata(), or lxml on the raw metadata stream) for the xmpMM namespace: xmpMM:DocumentID (GUID assigned at creation), xmpMM:InstanceID (new GUID on every save), and xmpMM:History (ordered ResourceEvent list recording each save's action, softwareAgent and timestamp). Positive signal: no history or a single creation event, InstanceID consistent with DocumentID, agents matching the Producer. Negative: history showing 'saved' events by Adobe Acrobat/Photoshop AFTER creation by an institutional generator — an explicit edit trail with tool names and timestamps; also cross-check XMP dates against Info-dictionary dates (mismatch = partial metadata scrubbing).",
+   "signal": "Both directions: clean single-event provenance is a small-moderate legitimacy bonus; a multi-save history with editing tools is high-confidence modification evidence (it literally names the editor and when). FP risk: low for the negative direction when history exists (it's written by the editing software itself), but many producers write no xmpMM at all — absence must be neutral. Sophisticated fraudsters can strip XMP; stripped-XMP-plus-intact-Info inconsistency is itself a soft flag.",
+   "local_feasibility": "pikepdf (pip) or plain lxml on the metadata stream. Milliseconds. No system deps.",
+   "effort": "small",
+   "sources": [
+    "https://www.meridiandiscovery.com/articles/pdf-forensic-analysis-xmp-metadata/",
+    "https://developer.adobe.com/xmp/docs/XMPNamespaces/xmpMM/",
+    "https://www.4n6k.com/2014/02/forensics-quickie-pdf-metadata.html"
+   ]
+  },
+  {
+   "name": "Checksum-valid identifiers + cross-source agreement (IBAN, SIREN/SIRET, VAT) — fully offline",
+   "how_it_works": "python-stdnum validates checksums locally for IBAN (mod-97), French SIREN/SIRET (Luhn), French VAT keys (FR key = f(SIREN)), and EU VAT formats — no API calls. Extract every occurrence of these identifiers from ALL sources inside the document (text layer, Factur-X XML, EPC QR payload, 2D-Doc signed fields) and require (a) checksum validity and (b) agreement across sources. The FR VAT/SIREN arithmetic link is a bonus consistency check: the VAT number embeds the SIREN, so both appearing on an invoice must be mutually consistent.",
+   "signal": "Legitimacy confirmation: all identifiers checksum-valid and identical across independent in-file sources = solid consistency bonus (fraudsters typing a fake or fat-fingered edit frequently break a checksum: ~97% of random IBAN edits fail mod-97). Tamper detection: the same identifier differing between two in-file sources (text vs XML vs QR) is a high/critical flag. FP risk: very low for checksum failures on cleanly extracted text; guard against OCR digit errors by only flagging checksum failure when the text layer (not OCR) was the source.",
+   "local_feasibility": "pip install python-stdnum (pure Python, already a factur-x dependency). Microseconds per check, fully offline — unlike the INSEE API module, this sends nothing anywhere.",
+   "effort": "small",
+   "sources": [
+    "https://arthurdejong.org/python-stdnum/",
+    "https://github.com/akretion/factur-x"
+   ]
+  }
+ ],
+ "key_insights": [
+  "The single most powerful pattern is dual-representation cross-checking: one file often contains the same fact twice (visible text vs Factur-X XML, text vs EPC QR payload, text vs 2D-Doc signed fields, bytes vs signature ByteRange). Agreement is a strong, low-false-positive trust bonus; disagreement on an amount or IBAN is near-proof of tampering, because visual editors never update the machine-readable copy.",
+  "Everything requested is achievable fully locally: pyHanko validates PAdES signatures and even EU qualified status offline via a filesystem-cached trusted-list (only the trust LIST refresh needs network — the document never leaves the box); 2ddoc-parser ships the ANTS TSL certificates inside the package; Factur-X XSD/Schematron artifacts are bundled in pip packages.",
+  "Regulatory timing matters: France mandates structured e-invoices (Factur-X/UBL/CII) for reception by ALL companies from 1 Sept 2026 and emission by large/mid-size firms the same date — so 'valid embedded XML that matches the rendered text' is about to become the default legitimacy signal for French invoices, and its absence will gradually become informative.",
+  "zxing-cpp (pip-only wheels, no libzbar0/libdmtx apt deps) decodes both QR codes AND DataMatrix — one dependency unblocks the project's currently-disabled pyzbar QR feature and enables 2D-Doc, with pylibdmtx (apt libdmtx0b) as a fallback for hard-to-detect DataMatrix.",
+  "Producer metadata fingerprints are useful but spoofable; the arXiv 'coding style' work (2103.02702) shows structural invariants (trailer keys, xref style, object ordering) can verify or contradict the claimed Producer — turning a weak metadata signal into a robust spoofing detector.",
+  "Positive signals must be asymmetric in scoring: presence-and-valid gives a bonus, but absence must stay neutral (most legitimate documents today carry no signature, XML, or 2D-Doc) — this is essential for the project's minimize-false-positives goal. Also remember structural pristineness only proves 'not modified after generation', never 'authentic origin': a fake invoice fabricated in Word is structurally clean.",
+  "Cost profile fits a small cloud box: everything except veraPDF (Java, ~300-500MB RAM, 1-3s) and saxonche (~100MB native wheel) is pure-Python and sub-second; run signature/XML/QR/2D-Doc checks inline and make PDF/A + Schematron optional or async.",
+  "Suggested scoring integration: cryptographic proofs (valid qualified signature, valid 2D-Doc matching text) should be able to lift the trust score decisively (+15-20 each), consistency proofs (XML/QR/text agreement, checksums) +5-15, while their mismatches map to critical flags — these map cleanly onto the existing Flag/ModuleResult dataclasses as new modules or extensions of Modules C and G."
+ ]
+}

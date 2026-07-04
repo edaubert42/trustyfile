@@ -1,0 +1,186 @@
+{
+ "domain": "Font and text-layer forensics in PDFs for detecting text edits (subset-font anomalies, ToUnicode/CMap attacks, rendering-parameter jitter, invisible text, z-order overlays)",
+ "techniques": [
+  {
+   "name": "Font subset-tag cohort analysis (multiple subsets of the same base font)",
+   "how_it_works": "Enumerate every font in the document (PyMuPDF doc.get_page_fonts(i) per page, or scan xref objects with /Type /Font), strip the subset prefix matching ^[A-Z]{6}\\+ from BaseFont/FontName, and group fonts by base name. Per the PDF spec, each subset gets a 6-uppercase-letter tag and different subsets in one file MUST have different tags; generators mint a fresh random tag set per save session. Flag: (a) the same base font appearing with 2+ distinct subset tags (classic sign a word was re-set by an editor in a second session), (b) the same base font both subset-embedded and fully/non-embedded, (c) count distinct tag 'cohorts' as an estimate of edit sessions (the approach used by the questio forensic CLI's 'font session tracking', which calls it its most reliable signal).",
+   "signal": "Catches text edited/re-saved by a second tool: the editor embeds its own subset of the visually-same font. Medium-high strength — one of the best cheap signals. False positives: merged/concatenated PDFs (mail-merge, appended T&C pages), portfolio documents, and some generators that re-subset per page; treat 2 cohorts as 'medium' severity, not critical, and combine with revision count.",
+   "local_feasibility": "Pure PyMuPDF (already a dependency) plus one regex; no new deps, no system packages. Milliseconds per document, negligible RAM.",
+   "effort": "small",
+   "sources": [
+    "https://github.com/abcreativ/questio",
+    "https://www.verypdf.com/document/pdf-format-reference/pg_0419.htm",
+    "https://github.com/Rasmus-Riis/PDFRecon",
+    "https://www.pdflib.com/pcos-cookbook/resources/advanced-font-properties/",
+    "https://pdfa.org/re-subsetting-embedded-font-subsets/"
+   ]
+  },
+  {
+   "name": "Acrobat TouchUp_TextEdit marker scan (smoking-gun edit marker)",
+   "how_it_works": "Adobe Acrobat's Edit Text tool inserts a /TouchUp_TextEdit marked-content point (MP/BDC operator) into the content stream at every edited region — five edits produce five markers. Decompress all content streams (PyMuPDF page.read_contents() or xref stream access) and regex-search for TouchUp_TextEdit; also detect Acrobat-specific CIDFont objects that only Acrobat's edit tool produces (questio's 'Acrobat Edit Signature'). Report the marker count and, by parsing surrounding text-positioning operators, the approximate page location of each edit.",
+   "signal": "Near-zero false-positive, high-confidence proof that text was edited in Acrobat after generation — used as decisive evidence in real litigation (the Craig Wright/Satoshi case) and classified 'high confidence' by PDFRecon. Catches only Acrobat edits (fraudsters using other editors escape it), so absence proves nothing.",
+   "local_feasibility": "Pure PyMuPDF + regex over decompressed streams. No new deps, milliseconds per document.",
+   "effort": "small",
+   "sources": [
+    "https://mjg59.dreamwidth.org/73317.html",
+    "https://github.com/Rasmus-Riis/PDFRecon",
+    "https://github.com/abcreativ/questio",
+    "https://www.forensicfocus.com/forums/general/pdf-manipulated/"
+   ]
+  },
+  {
+   "name": "Mid-line / mid-token font, size, and color change detection",
+   "how_it_works": "Extract character-level attributes (pdfplumber page.chars gives fontname/size per char; PyMuPDF get_text('rawdict') or get_texttrace() gives font, size, color, per-char bbox). Cluster chars into visual lines by baseline y, then tokens by whitespace gaps. Flag any change of fontname, font size (>0.2pt delta), fill color, or weight (Bold in name) occurring INSIDE a token — especially inside amount-like tokens (digits, currency). Commercial bank-statement tamper detectors specifically hunt 9pt-vs-9.5pt insertions; 0.5pt deltas are invisible to humans but trivially machine-detectable.",
+   "signal": "Catches the most common manual fraud: a number or word retyped with an editor that picked a near-match font/size. Strong signal when confined to within-token changes. False-positive risk is real for line-level changes (bold totals, styled currency symbols, superscripts), so restrict to intra-token changes and exempt sub/superscript patterns (size change + baseline shift together).",
+   "local_feasibility": "pdfplumber and PyMuPDF are already project dependencies. Pure Python, ~tens of ms per page, negligible RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://precisa.in/blog/bank-statements-document-tampering-detection/",
+    "https://patents.google.com/patent/US11651093B1/en",
+    "https://pymupdf.readthedocs.io/en/latest/app1.html"
+   ]
+  },
+  {
+   "name": "Baseline jitter and advance-width residual analysis (Tm/Td micro-offsets)",
+   "how_it_works": "For each visual line, compute the dominant baseline y from char origins (get_texttrace gives exact per-char origin points — verified locally: chars are (unicode, glyph_id, (x,y) origin, bbox)). Flag tokens whose baseline deviates from the line's baseline by a sub-point amount (0.05–0.5pt) — manually placed replacement text is almost never re-positioned to the exact original baseline. Second check: recompute each character's expected x-advance from font metrics (glyph_width × size / 1000) and compare with the actual next-char origin; machine-generated text has residuals that are zero or follow the producer's deterministic glyph-shift scheme, while pasted text objects show discontinuous residuals. The 'Story Beyond the Eye' paper (arXiv:2206.02285) established that positional adjustments are expressed in 1/1000-of-font-size text-space units (sub-pixel precision, 0.0042mm at 12pt), that each producer workflow has a characteristic shift scheme, and crucially that editing a text fragment in Word SPLITS it into two fragments and RESETS the shift accumulator — so fragment boundaries and shift-pattern discontinuities mid-line localize edits.",
+   "signal": "Catches manually repositioned/patched text with sub-pixel sensitivity; the fragment-split + accumulator-reset artifact directly localizes Word-originated edits. Medium-strong, but the highest false-positive risk in this list: justified text, kerning TJ adjustments, and tables all produce legitimate offsets. Ship baseline-jitter first (low FP: baselines within one line should be exactly equal), keep advance-residual analysis as corroboration only.",
+   "local_feasibility": "PyMuPDF get_texttrace() for origins (verified working locally); pikepdf (pip 'pikepdf', self-contained wheels bundle qpdf) or pdfminer.six to parse raw TJ/Td/Tm operators if operator-level data is needed. CPU trivial; the paper's tooling ran on a consumer laptop.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/pdf/2206.02285",
+    "https://resistant.ai/blog/document-fraud",
+    "https://pikepdf.readthedocs.io/en/latest/topics/content_streams.html"
+   ]
+  },
+  {
+   "name": "Character/word spacing (Tc/Tw) and TJ-kern anomaly detection",
+   "how_it_works": "Parse content streams (pikepdf.parse_content_stream yields (operands, operator) tuples) and track Tc (char spacing), Tw (word spacing), and inline TJ adjustment values per text object. Flags: Tc/Tw values that change mid-line while font stays constant; TJ kern values on one token that are statistical outliers vs the document's distribution (fraudsters stretch/squeeze replacement text to fill the original width — e.g. swapping a narrow '1' for a wide '4' and compensating with negative kerns); a token whose internal inter-char gaps deviate >2–3σ from same-font tokens elsewhere. Equivalent gap statistics can be computed without stream parsing from get_texttrace char origins.",
+   "signal": "Catches width-compensated character swaps — a sophisticated edit invisible to font-name checks because the SAME font is reused. Medium strength. False positives: justified paragraphs (legitimate per-line Tw changes — but rarely mid-line), letter-spaced headings, tabular kerning; calibrate on the document's own distribution rather than absolute thresholds.",
+   "local_feasibility": "pikepdf (pip, no system deps, wheels include qpdf) or reuse get_texttrace origins with PyMuPDF. Milliseconds per page, low RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/pdf/2206.02285",
+    "https://pikepdf.readthedocs.io/en/latest/topics/content_streams.html",
+    "https://precisa.in/blog/bank-statements-document-tampering-detection/"
+   ]
+  },
+  {
+   "name": "Invisible text detection with legit-OCR vs malicious-overlay classification",
+   "how_it_works": "PyMuPDF page.get_texttrace() returns span 'type' = the text render mode — verified locally: render-mode-3 text comes back as type 3 and appears as 'ignore-text' entries in page.get_bboxlog(). Also detect opacity==0 and text whose bbox is covered by a later-drawn object (higher seqno). Then CLASSIFY: legitimate OCR layer = invisible text using Tesseract's 'GlyphLessFont' (the signature of ocrmypdf/Tesseract sandwich PDFs), lying UNDER a full-page scanned image, with producer strings like ocrmypdf/ABBYY; malicious = invisible text overlapping VISIBLE text spans, or invisible text whose content contradicts what OCR of the rendered page reads (extraction poisoning — automated invoice-processing systems read the invisible layer, humans see the image).",
+   "signal": "Detection itself is trivial and certain; the classification carries the value. Invisible text overlapping visible text with different content is a strong fraud/poisoning indicator. False positives are dominated by OCR layers — the GlyphLessFont + under-image + producer heuristics whitelist virtually all of them, leaving low residual FP.",
+   "local_feasibility": "Pure PyMuPDF (verified working on installed 1.26.5). Milliseconds per page. The contradiction check reuses the OCR cross-validation module below.",
+   "effort": "small",
+   "sources": [
+    "https://ocrmypdf.readthedocs.io/en/latest/advanced.html",
+    "https://github.com/pymupdf/PyMuPDF/discussions/3537",
+    "https://github.com/Rasmus-Riis/PDFRecon"
+   ]
+  },
+  {
+   "name": "Z-order overlay detection: text-after-image, image-over-text, white rectangles",
+   "how_it_works": "page.get_bboxlog() returns the page's drawing operations in execution order — ('fill-text'|'ignore-text'|'fill-image'|'fill-path'|'stroke-path', bbox) — verified locally. Three flags: (1) fill-text drawn AFTER a fill-image with intersecting bbox = text patched on top of a scanned/rasterized document (classic amount replacement on a scanned invoice); (2) fill-image or opaque fill-path drawn AFTER fill-text it covers = 'hide' overlay concealing original content (the PDF Shadow Attack 'Hide' variant; iText's detection enhances text extraction to flag images covering extracted text); (3) white/near-white filled rectangles over text — Edact-Ray's redaction detector refined this by checking whether pixels in each covered glyph's bbox are one uniform color, reporting only 4% FP on real court documents. Whitelist: a full-page image drawn FIRST (scanned page background) is the normal OCR-PDF pattern; small logos/stamps/signature images that overlap no text.",
+   "signal": "Catches both overlay-hiding (fraudster covers original value) and patch-on-scan (fraudster paints new value over raster). Strong signal when the overlap region contains amount/date text. False positives: letterhead graphics, stamps, watermarks, signature images, highlight annotations — bbox-overlap-with-text plus uniform-color tests keep FP low (~4% in Edact-Ray's evaluation).",
+   "local_feasibility": "Pure PyMuPDF get_bboxlog + a rendered pixmap for the uniform-color check. ~100ms per page, low RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://itextpdf.com/blog/technical-notes/investigating-pdf-shadow-attacks-depth-pdf-security-using-itext-part-2",
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf",
+    "https://arxiv.org/pdf/2206.02285",
+    "https://www.group-ib.com/blog/pdf-tampering/"
+   ]
+  },
+  {
+   "name": "OCR cross-validation: rendered pixels vs extracted text layer (ToUnicode-remap defense)",
+   "how_it_works": "Render each page to an image (fitz page.get_pixmap at ~300dpi), OCR it with local Tesseract (pytesseract — already in the stack), and align the OCR tokens against the PDF's extracted text layer (word-level alignment via bboxes; compare with fuzzy matching). Substantial mismatches — especially on digits, amounts, dates, IBANs — reveal ToUnicode/CMap remapping (font renders glyph 'A' while ToUnicode claims 'C'), content-masking fonts, invisible-text poisoning, or overlays. This is the canonical defense proposed in the USENIX Security 2017 'PDF Mirage: Content Masking Attack' paper, and it is the ONLY check that validates what a human actually sees against what machines extract.",
+   "signal": "Catch-all with the broadest coverage: any technique that makes rendered content differ from extracted content trips it. Very strong on digit/amount tokens (OCR is reliable on clean digits). False positives: ligatures, hyphenation, diacritics, stylized fonts, OCR errors — mitigate by comparing only high-OCR-confidence tokens, normalizing ligatures/whitespace, and weighting digit-token mismatches highest.",
+   "local_feasibility": "pytesseract + tesseract-ocr (+tesseract-ocr-fra) apt packages — all already in TrustyFile's stack/packages.txt. Cost is the ceiling: 2–5s per page on one CPU core, ~200–500MB RAM. Run only on pages containing amounts, or as a second-stage check when other flags fire, to stay within the seconds-per-document budget.",
+   "effort": "medium",
+   "sources": [
+    "https://www.usenix.org/system/files/conference/usenixsecurity17/sec17-markwood.pdf",
+    "https://www.cs.purdue.edu/homes/luo401/paper/Exploiting_PDF_Obfuscation_in_LLMs__arXiv__and_More.pdf"
+   ]
+  },
+  {
+   "name": "Static ToUnicode/CMap and encoding anomaly checks",
+   "how_it_works": "For each font dict (PyMuPDF doc.xref_get_key(xref, 'ToUnicode') / 'Encoding' — verified locally): flag (a) fonts with no ToUnicode AND a non-standard/custom encoding (text extraction from them is unverifiable — a favorite of extraction-poisoning and sloppy editors), (b) /Differences arrays that remap standard printable codes to unrelated glyph names, (c) two font objects sharing a BaseFont but carrying different Encoding/Differences or different ToUnicode CMaps (a second, differently-mapped copy of 'the same' font is an editing artifact), (d) ToUnicode CMaps mapping used codes to Unicode outside plausible ranges for an invoice's language. MuPDF returning U+FFFD for characters during extraction is itself a per-char symptom of broken/missing mapping.",
+   "signal": "Individually weak-to-medium — many legitimate generators emit odd encodings — so treat each as a low-severity corroborating flag; the combination (custom encoding + no ToUnicode + font used only in one amount token) is strong. Its real value is routing: any of these flags should trigger the OCR cross-validation module. As a legitimacy signal, all-fonts-have-valid-ToUnicode is a positive trust marker.",
+   "local_feasibility": "Pure PyMuPDF xref access; CMap stream parsing is ~50 lines of Python (bfchar/bfrange). Milliseconds per document.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/typst/typst/issues/4582",
+    "https://www.usenix.org/system/files/conference/usenixsecurity17/sec17-markwood.pdf",
+    "https://www.sciencedirect.com/science/article/pii/S2666281726000181"
+   ]
+  },
+  {
+   "name": "Glyph-width consistency check: /Widths array vs embedded font program",
+   "how_it_works": "For each embedded font actually used for rendering: extract the font program (doc.extract_font(xref) — API verified present), parse with fontTools (TTFont; hmtx table for TrueType, CharStrings widths for CFF), and compare per-glyph advance widths against the PDF font dictionary's /Widths (simple fonts) or /W (CID fonts) for the glyphs referenced in content streams. This is PDF/A rule 6.3.6 ('glyph width info in the font dictionary and in the embedded font program shall be consistent'), which veraPDF implements. A mismatch means someone swapped text or the font program while faking widths to preserve layout, or edited with a tool that reused the original font dict.",
+   "signal": "Medium-strong: clean single-generator documents essentially always pass, so failures on invoice-class documents are meaningful. Known false-positive traps documented in veraPDF issues: CFF nominalWidthX/defaultWidthX defaults, two font dicts sharing one font stream with different CIDToGIDMap, MissingWidth fallback — allow ±1/1000-unit tolerance and check ONLY glyphs actually rendered (veraPDF's own policy). Passing the check is a good positive-legitimacy signal (the doc would survive PDF/A font validation).",
+   "local_feasibility": "pip install fonttools (pure Python, no system deps; NOT currently installed in the project env). ~10–50ms per font to parse; a document has typically <10 fonts. Low RAM.",
+   "effort": "large",
+   "sources": [
+    "https://github.com/veraPDF/veraPDF-library/issues/1009",
+    "http://martin.hoppenheit.info/blog/2018/pdfa-validation-and-inconsistent-glyph-width-information/",
+    "https://github.com/veraPDF/veraPDF-library/issues/941",
+    "https://github.com/veraPDF/veraPDF-library/issues/1145"
+   ]
+  },
+  {
+   "name": "Subset coverage check: characters used but absent from the embedded subset",
+   "how_it_works": "get_texttrace() exposes both the unicode and the GLYPH ID of every rendered char (verified locally: chars are (unicode, glyph_id, origin, bbox)). For each subset-embedded font, collect the glyph IDs used on all pages and verify each exists (non-empty outline) in the embedded font program via fontTools (glyf/CFF table, cmap). Text inserted after generation that references character codes the original subset never included renders as .notdef/blank or garbage — the docling project documents extraction producing 'GLYPH<id>' placeholders exactly in this situation. Also flag glyph_id=0 (.notdef) occurrences inside rendered text.",
+   "signal": "Used-but-missing glyphs are a strong edit indicator (a correct generator never emits codes outside its own subset) with low false-positive risk; occasional broken-but-legit generators exist, so severity 'high' not 'critical'. The inverse (subset contains exactly the used glyphs, nothing missing) is a mild legitimacy signal.",
+   "local_feasibility": "PyMuPDF + fontTools (pip 'fonttools'). Milliseconds to tens of ms per font. No system deps.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/docling-project/docling/issues/2170",
+    "https://www.compdf.com/blog/what-is-so-hard-about-pdf-text-extraction",
+    "https://www.sciencedirect.com/science/article/pii/S2666281726000181"
+   ]
+  },
+  {
+   "name": "Incremental-update revision extraction and text-level diff",
+   "how_it_works": "Count revisions (multiple %%EOF/startxref markers, or PyMuPDF's journal/xref facilities). If >1: reconstruct each earlier revision by truncating the file bytes at each prior startxref/%%EOF boundary (pdfresurrect's technique — the PDF format keeps full previous versions in the file), open each truncated version with fitz.open(stream=...), extract text per page, and diff token-by-token against the final version. Report exactly what changed — '1025' -> '2025' in the totals line is a smoking gun no other check produces. Complementary structural flags from PDFRecon: objects with generation >0, 'linearized + updated' combination, trailer /ID first-vs-second mismatch, XMP history gaps, multiple startxref entries. This also detects Shadow-Attack-style hide-and-replace edits which live entirely in incremental updates.",
+   "signal": "When the diff shows content changes to amounts/dates, this is the single most conclusive and most explainable signal available. False positives: incremental updates are LEGITIMATE for signing, form-filling, and annotations — so never flag the mere presence of revisions; flag only content-stream/text diffs, and downgrade annotation-only or signature-only updates to neutral (a valid signature revision is a positive trust signal).",
+   "local_feasibility": "Pure PyMuPDF + byte-level scanning. Fast (one extra open+extract per revision; most docs have 1–2 revisions). Low RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/enferex/pdfresurrect",
+    "https://github.com/Rasmus-Riis/PDFRecon",
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf",
+    "https://arxiv.org/abs/2507.00827"
+   ]
+  },
+  {
+   "name": "Font embedding-state and descriptor consistency check",
+   "how_it_works": "For every font: read FontDescriptor (FontFile/FontFile2/FontFile3 presence = embedded) via xref access. Flags: (a) document mixes embedded subset fonts with non-embedded system fonts (Arial/Calibri/TimesNewRoman) — the patented commercial heuristic is that text injected after creation often has a different embedded/non-embedded state than the original run ('fonts-embedded-types detector', US11651093); (b) FontDescriptor /Flags bits contradict the font name (Symbolic flag on a text font, Serif bit on 'Arial'); (c) a text box/line containing multiple fonts where sibling lines use one ('wrong font injected into a text box' — US12164657); (d) non-embedded non-standard-14 fonts in a supposedly professionally generated invoice.",
+   "signal": "Medium. Very cheap and catches lazy edits (editor defaults to a non-embedded system font). False positives: many legitimate producers use non-embedded standard-14 fonts throughout — flag the MIXTURE and the mid-box injection, not non-embedding per se. Uniform embedding state across the document is a positive trust signal.",
+   "local_feasibility": "Pure PyMuPDF xref reads; milliseconds. No new deps.",
+   "effort": "small",
+   "sources": [
+    "https://patents.google.com/patent/US11651093B1/en",
+    "https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/12164657",
+    "https://www.pdflib.com/pcos-cookbook/resources/advanced-font-properties/"
+   ]
+  },
+  {
+   "name": "Producer content-stream fingerprinting (legitimacy confirmation)",
+   "how_it_works": "Learn per-generator 'style' fingerprints from known-good corpora: coordinate decimal precision (Word emits different precision than wkhtmltopdf or ReportLab), preferred operators (Td vs Tm vs TJ), glyph-shift scheme class (MS Word's dependent accumulated-WYSIWYG-error scheme vs Google Docs' unadjusted exports — reverse-engineered in arXiv:2206.02285), font resource naming patterns (/F1 vs /TT0 vs /C2_0), object count ranges, subset-prefix style. At analysis time, compare the document's observed style against the fingerprint of the generator its Producer metadata claims. Match = trust bonus; mismatch (claims 'Microsoft Word' but content stream looks like an online editor) = strong flag. This is questio's 'content stream fingerprinting' with local JSON issuer profiles, and it dovetails with TrustyFile's planned template-matching module (add a per-issuer stream fingerprint to each template.json).",
+   "signal": "This is the premier POSITIVE trust signal for goal #2 (confirming legitimate files): a document whose stream style, shift scheme, and font naming all match its claimed producer is very likely untouched. As a fraud detector it catches producer-metadata spoofing. False positives: generator version drift changes fingerprints — store min/max ranges per version and decay confidence for unknown versions.",
+   "local_feasibility": "pikepdf or PyMuPDF for operator extraction; fingerprints as local JSON (questio stores them in ~/.questio/fingerprints). Needs a corpus of known-good documents per issuer/generator — start with the 5 planned template companies. Fast at inference (<100ms); the effort is corpus curation.",
+   "effort": "large",
+   "sources": [
+    "https://github.com/abcreativ/questio",
+    "https://arxiv.org/pdf/2206.02285"
+   ]
+  }
+ ],
+ "key_insights": [
+  "PyMuPDF — already TrustyFile's core dependency — natively exposes almost every primitive these techniques need, verified empirically on the installed 1.26.5: get_texttrace() returns per-span render mode ('type': 3 = invisible text), opacity, z-order seqno, spacewidth, and per-char (unicode, glyph_id, origin, bbox); get_bboxlog() returns the drawing-op sequence ('fill-text'/'ignore-text'/'fill-image'/'fill-path') for z-order overlay checks; xref_get_key()/extract_font() give font-dict and font-program access. Only new pip deps needed across all 14 techniques: fonttools (pure Python) and optionally pikepdf (self-contained wheels) — no new apt packages.",
+  "The cheapest high-value combo is: subset-tag cohort analysis (every save session mints a fresh random 6-letter prefix, so two tag cohorts on one base font = two edit sessions) + TouchUp_TextEdit scan (near-zero-FP Acrobat edit marker, used as decisive evidence in the Craig Wright case) + revision text-diff (materialize prior revisions pdfresurrect-style and diff the text — '1025 -> 2025' output is the most explainable evidence any module can produce). All three are pure PyMuPDF and run in milliseconds.",
+  "OCR cross-validation (render page, tesseract, compare against extracted text layer) is the universal catch-all: it is the canonical defense from USENIX 2017 'PDF Mirage' against ToUnicode/CMap remapping, and it also catches invisible-text poisoning and overlays — anything that makes what a human sees differ from what a machine extracts. Since automated invoice processing reads the text layer, this what-you-see-vs-what-you-parse check should gate every amount/date field. Budget: 2–5s/page, so run it selectively (amount-bearing pages, or as stage 2 when static flags fire).",
+  "False-positive control hinges on explicitly whitelisting four benign patterns that mimic fraud: (1) OCR sandwich layers — invisible text in Tesseract's GlyphLessFont under a full-page image is legitimate, invisible text OVER visible text is not; (2) merged/concatenated PDFs legitimately carry multiple subset tags; (3) incremental updates are legitimate for signing/forms/annotations — flag only text-content diffs between revisions; (4) justified text legitimately varies Tw per line — flag only mid-line/intra-token spacing changes.",
+  "Sub-pixel positioning is a real, quantifiable forensic channel: PDF positional adjustments are expressed in 1/1000-of-font-size units (0.0042mm at 12pt), each producer workflow has a characteristic deterministic glyph-shift scheme, and editing a Word document splits text fragments and resets Word's shift accumulator — so baseline jitter, advance-width residuals, and shift-pattern discontinuities can localize the exact edited token (arXiv:2206.02285, Edact-Ray).",
+  "For goal #2 (confirming legitimacy), the strongest positive signals are: a single subset-tag cohort, uniform font embedding state, valid ToUnicode on all fonts, /Widths consistent with embedded font programs (the PDF/A 6.3.6 property), zero or annotation-only revisions, and — most powerful — a producer content-stream fingerprint (coordinate precision, operator style, shift scheme, font naming) that matches the generator the metadata claims. Fingerprints integrate naturally into the planned templates/ per-issuer database as local JSON.",
+  "Reference implementations to study (all local-first): questio (Python CLI, font session tracking + Acrobat edit signature + stream fingerprinting, 0-100 trust score like TrustyFile), PDFRecon (PyMuPDF-based, 40+ indicators with high/indication confidence tiers — a ready-made severity taxonomy), pdfresurrect (revision materialization), Edact-Ray (glyph-shift analysis + overlay-box detection at 4% FP on real corpora), veraPDF (glyph-width validation rules and its documented false-positive traps: CFF nominalWidthX defaults, shared font streams with differing CIDToGIDMap)."
+ ]
+}

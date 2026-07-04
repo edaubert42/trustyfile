@@ -1,0 +1,194 @@
+{
+ "domain": "Local image forensics for detecting edited regions in document images (scans/screenshots of invoices and IDs)",
+ "techniques": [
+  {
+   "name": "Calibrated Error Level Analysis (ELA)",
+   "how_it_works": "Resave the JPEG at a known quality, subtract from the original, and amplify the per-pixel absolute difference: regions with a different compression history compress differently and stand out. 'Done right' means calibrating the resave quality to the image's actual quality instead of a fixed 90: read the quantization tables (Pillow `img.quantization` or jpeglib), estimate the original quality by least-squares matching against IJG standard tables scaled with Kornblum's formula (S=5000/Q for Q<50, 200-2Q for Q>=50), then resave at that estimated quality (or estimated-5) and compute block-level (8x8) mean error rather than per-pixel. Report a Nash-Sutcliffe fit coefficient so you know when the table is non-standard and the estimate is unreliable.",
+   "signal": "Catches regions pasted in from a source with different JPEG history (edited amount boxes, swapped photos on IDs) when the final file is a JPEG. Signal strength: weak-to-moderate and notoriously subjective; IEEE evaluation found it works for splicing/retouching but fails after recompression, rotation, or filtering which homogenize artifacts. False-positive risk on documents is HIGH: ELA inherently lights up high-contrast edges, and invoices are wall-to-wall text edges; solid white background reads near-black while every glyph reads bright. Use only as a visual/aggregate feature (per-block error variance in background regions), never as a standalone flag. Meaningless on PNG screenshots or born-digital PDF pages.",
+   "local_feasibility": "Trivially local: Pillow + NumPy only (already in stack). pyIFD ships an ELA implementation; sherloq has reference code. No system deps. Milliseconds-to-tens-of-ms per page, negligible RAM.",
+   "effort": "small",
+   "sources": [
+    "https://en.wikipedia.org/wiki/Error_level_analysis",
+    "https://ieeexplore.ieee.org/document/7412439/",
+    "https://bitsgalore.org/2024/10/30/jpeg-quality-estimation-using-simple-least-squares-matching-of-quantization-tables.html",
+    "https://www.infosecinstitute.com/resources/digital-forensics/error-level-analysis-detect-image-manipulation/"
+   ]
+  },
+  {
+   "name": "JPEG quantization-table quality estimation and producer fingerprinting (legitimacy signal)",
+   "how_it_works": "Extract the luma/chroma quantization tables from each embedded JPEG (Pillow `.quantization`, or jpeglib/jpegio for full access). Least-squares match against standard IJG tables to estimate quality Q and a fit score (NSE); non-standard tables can be matched against a small local database of known producers (Photoshop 'Save for Web', common scanner firmwares, iPhone camera, WhatsApp ~Q75, screenshot tools). Kornblum's classic paper shows software can be identified from its tables.",
+   "signal": "Dual use. Legitimacy: tables consistent with the claimed origin (e.g., a scanner's stock tables, single compression, high NSE) support 'untouched scan'. Fraud: a document claiming to be a raw scan but carrying Photoshop signature tables, or absurdly low quality (heavy re-save laundering), is suspicious. Strong, cheap, near-zero false-positive metadata-adjacent signal — but tables are absent if the fraudster exports to PNG or re-renders the PDF, and a matching table proves nothing by itself (easy to spoof).",
+   "local_feasibility": "Pure local: Pillow only for tables; jpeglib (pip install jpeglib, bundles libjpeg, no apt deps) or jpegio for DCT-level access. Reference script: KBNLresearch/jpeg-quality-demo (jpegquality-lsm.py). Microseconds per image. Important: extract embedded JPEGs from the PDF losslessly with PyMuPDF (raw stream) — re-rendering the page destroys the compression history this and all JPEG-domain methods depend on.",
+   "effort": "small",
+   "sources": [
+    "https://bitsgalore.org/2024/10/30/jpeg-quality-estimation-using-simple-least-squares-matching-of-quantization-tables.html",
+    "https://github.com/KBNLresearch/jpeg-quality-demo",
+    "https://arxiv.org/pdf/1802.00992",
+    "https://jpeglib.readthedocs.io/en/latest/",
+    "https://github.com/dwgoon/jpegio"
+   ]
+  },
+  {
+   "name": "JPEG Ghost detection (Farid)",
+   "how_it_works": "Resave the image at every quality in a sweep (e.g., Q=30..100 step 5) and compute per-block (16x16) normalized squared difference against the original. A region originally compressed at lower quality Qi than the rest exhibits a local minimum ('ghost') in the difference at Q=Qi while the rest keeps decreasing toward the final quality. Localize blocks whose difference-vs-Q curve has a distinct early minimum.",
+   "signal": "Catches spliced content that was previously saved at a LOWER JPEG quality than the host (pasted logos, lifted signature crops, numbers copied from another invoice photo). Moderate signal when the quality gap exists; blind to same-or-higher-quality inserts and destroyed by resizing. False positives on flat/saturated regions (their difference curves are degenerate) — mask out near-constant blocks. On documents, restrict to photographed/scanned pages.",
+   "local_feasibility": "Pure Pillow/NumPy loop (~15 resaves — roughly 0.3-1 s per page image on a small VPS). pyIFD implements it (GHOST); sherloq has 'JPEG Ghost Maps'. No system deps, RAM trivial.",
+   "effort": "small",
+   "sources": [
+    "https://farid.berkeley.edu/downloads/publications/tifs09.pdf",
+    "https://github.com/AICoE/pyIFD",
+    "https://pmc.ncbi.nlm.nih.gov/articles/PMC6839440/"
+   ]
+  },
+  {
+   "name": "Aligned double-JPEG / double-quantization detection (ADQ1, ADQ2/DQ, NADQ)",
+   "how_it_works": "When an edited JPEG is re-saved, untouched 8x8 blocks are quantized twice (their DCT-coefficient histograms show periodic peaks/valleys — the double-quantization effect) while tampered blocks were re-rasterized and are only singly compressed. ADQ methods model per-block posterior probability of double compression from the DCT histograms (read coefficients directly with jpegio/jpeglib — do NOT decode to pixels first) and output a tamper-probability map where 'singly compressed' islands mark edits.",
+   "signal": "One of the strongest classical localizers when its precondition holds: final file is JPEG, saved exactly once after editing, no resize. Bianchi-Piva ADQ2/DQ scored among top classical methods in benchmarks (PhotoHolmes includes DQ for this reason). Catches Photoshop/GIMP edits to camera photos of documents and photo-substitution on IDs. Fails silently (no signal, not false alarms) on PNG output, resized images, or multiply-recompressed files; moderate FP on very flat content where histograms are starved — for invoices, gate on block having enough nonzero AC coefficients.",
+   "local_feasibility": "pyIFD implements ADQ1/ADQ2/NADQ (pip install git+https://github.com/AICoE/pyIFD, Apache-2.0, pure Python); PhotoHolmes implements DQ (pip, PyTorch-based framework but DQ itself is classical). Needs jpegio/jpeglib for coefficient access. ~0.5-2 s per image, <500 MB RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/AICoE/pyIFD",
+    "https://arxiv.org/html/2412.14969v1",
+    "https://arxiv.org/pdf/2003.09393",
+    "https://medium.com/@trentonford/pyifd-python-based-image-forgery-detection-toolkit-6dc1214b0e51"
+   ]
+  },
+  {
+   "name": "ZERO: JPEG grid origin / grid-misalignment detection with a-contrario validation",
+   "how_it_works": "JPEG quantization forces many DCT coefficients to zero on the 8x8 grid. ZERO counts, for each pixel neighborhood and each of the 64 possible grid origins, the number of zero DCT coefficients; the true grid origin maximizes zeros. Regions whose local grid origin differs from the global one (misaligned paste), or that show no grid at all (re-rendered/inpainted content), are flagged. Every detection carries a Number of False Alarms (NFA) from a-contrario theory, so thresholding NFA<1 makes the method fully automatic with mathematically controlled false alarms.",
+   "signal": "Excellent fit for TrustyFile's minimize-false-positives goal: detects copy-paste, splicing, and locally re-rendered regions in anything that was once JPEG (works even after conversion to PNG, since it reads pixel-domain traces). Also a legitimacy signal: a single consistent grid across the whole page with no anomalies supports 'unmodified since compression'. Blind when the whole image is recompressed at high quality after editing or resized (grid destroyed everywhere — reported as 'no grid', which is itself informative for a claimed scan).",
+   "local_feasibility": "Reference implementation in C (github.com/tinankh/ZERO, AGPL-3.0 — call as subprocess to avoid license contamination, or use the Rust crate forgery-detection-zero) with a Python driver script; also implemented in PhotoHolmes (pip). Fast: well under 1 s per page, tiny RAM. IPOL paper includes certified source code.",
+   "effort": "medium",
+   "sources": [
+    "https://www.ipol.im/pub/art/2021/390/",
+    "https://github.com/tinankh/ZERO",
+    "https://lib.rs/crates/forgery-detection-zero",
+    "https://arxiv.org/html/2412.14969v1"
+   ]
+  },
+  {
+   "name": "Blocking Artifact Grid (BAG/BLK) and CAGI grid-inconsistency analysis",
+   "how_it_works": "Extract the 8-pixel-periodic blocking grid left by JPEG using a second-order difference filter (BAG, Li et al.) and look for local grid discontinuities, or use CAGI which scores each block's alignment confidence against the global grid and adds content-aware filtering so that grid breaks explained by image content (strong edges) are discounted. Both output heatmaps of blocks violating the dominant grid.",
+   "signal": "Same underlying evidence as ZERO (grid misalignment from pasting/resampling) but older formulations without NFA guarantees — noisier, more manual-inspection-oriented. CAGI's content-aware step reduces but does not eliminate false positives on textured/edge-dense content, which documents are full of. Prefer ZERO; keep BLK/CAGI only as cheap corroboration since pyIFD already ships them.",
+   "local_feasibility": "pyIFD implements BLK and CAGI in pure Python (Apache-2.0). ~1-3 s per image, low RAM. No system deps.",
+   "effort": "small",
+   "sources": [
+    "https://www.sciencedirect.com/science/article/abs/pii/S1047320318301068",
+    "https://www.researchgate.net/publication/222146847_Passive_detection_of_doctored_JPEG_image_via_block_artifact_grid_extraction",
+    "https://github.com/AICoE/pyIFD",
+    "http://www.ipol.im/pub/art/2020/283/"
+   ]
+  },
+  {
+   "name": "Copy-move / clone detection — keypoint-based (SIFT/ORB) with document-specific filtering",
+   "how_it_works": "Detect keypoints and descriptors (cv2.SIFT_create() — patent expired, in standard opencv-python; ORB as a faster fallback), match the image against itself with a generalized 2nd-nearest-neighbor test excluding trivially-near matches, then cluster matched pairs by consistent translation/affine transform (RANSAC or shift-vector histogram). A cluster of many matches sharing one transform reveals a duplicated region. For documents you MUST add filters: minimum displacement (> glyph size), minimum cluster area (> single character), and require dense contiguous support.",
+   "signal": "Directly catches the most common invoice fraud: a digit, amount, line item, stamp, or signature cloned from elsewhere in the same document, and duplicated ID photos. Keypoint methods survive rotation/scale of the pasted region. False-positive risk on text documents is EXTREME if unfiltered — every repeated letterform ('e' matching another 'e') is a legitimate self-similarity; Christlein et al.'s benchmark documents this repetitive-pattern failure mode. With glyph-scale filtering and word-or-larger cluster thresholds, precision becomes usable; treat any surviving cluster as high-severity.",
+   "local_feasibility": "opencv-python only (already in stack). Reference recipes abound; the pimage package (pip install pimage) covers the block/PCA-based side. 0.5-3 s per page at ~150 dpi; keep working resolution <= ~2500 px to bound RAM (<1 GB).",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/abs/1208.3665",
+    "https://arxiv.org/pdf/1612.03989",
+    "https://www5.cs.fau.de/research/software/copy-move-forgery-detection/",
+    "https://github.com/rnazali/pimage"
+   ]
+  },
+  {
+   "name": "Copy-move detection — block-based (overlapping-block DCT/PCA features)",
+   "how_it_works": "Slide an overlapping window (e.g., 16x16), compute a robust low-dimensional feature per block (quantized DCT coefficients per Fridrich, or PCA projection per Popescu), lexicographically sort features, and flag pairs of near-identical blocks whose spatial offset vector recurs many times (shift-vector counting). Complements keypoints: works on smooth, low-texture areas where SIFT finds nothing — e.g., cloned patches of blank background used to erase a line item.",
+   "signal": "Catches exact or near-exact duplication including 'erasure by background cloning', which keypoint methods miss on featureless paper. Robust to mild JPEG/noise (DCT features). Fragile to rotation/scaling. FP risk on documents: large uniform white areas are all mutually identical — must exclude near-constant blocks (variance threshold) before matching, and require large same-shift clusters. CPU is the main cost (sorting millions of blocks) — downscale or restrict to regions of interest.",
+   "local_feasibility": "pimage (pip install pimage, implements Fridrich robust-match and Popescu fast-PCA, pure Python) or a NumPy/OpenCV recipe. 2-10 s per page depending on resolution; a few hundred MB RAM. No system deps.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/rnazali/pimage",
+    "https://arxiv.org/pdf/1308.5661",
+    "https://arxiv.org/abs/1208.3665"
+   ]
+  },
+  {
+   "name": "Local noise-variance inconsistency (wavelet-MAD, NOI family)",
+   "how_it_works": "Estimate local noise standard deviation on tiles (e.g., 64x64) using the median absolute deviation of the diagonal high-frequency wavelet subband: sigma = median(|HH1|)/0.6745 (Mahdian & Saic, NOI1). Alternative estimators: kurtosis-based (NOI2, Lyu), PCA-based. Segment tiles into consistent-noise groups; an island with significantly different sigma than its surroundings indicates content from a different source or local smoothing/inpainting.",
+   "signal": "Catches pasted regions with mismatched sensor/scan noise and airbrushed/blurred patches (noise too LOW is the classic edit signature). On scans this is genuinely useful in background regions: real scanner background carries uniform noise, a pasted white rectangle has none. FP risk: moderate-to-high naively — noise estimation confuses texture with noise, so text-dense tiles read as high-noise; JPEG compression flattens noise in flat areas causing spurious lows. Mitigate by analyzing background-classified tiles only and comparing against the page's own background statistics.",
+   "local_feasibility": "pyIFD implements NOI1/NOI2/NOI4/NOI5 (pure Python, pip from GitHub); a from-scratch NOI1 is ~40 lines with PyWavelets (pip install PyWavelets) + NumPy. <1 s per page, trivial RAM.",
+   "effort": "small",
+   "sources": [
+    "https://www.ijcsit.com/docs/Volume%205/vol5issue06/ijcsit20140506155.pdf",
+    "https://cse.buffalo.edu/~siweilyu/papers/iccp12.pdf",
+    "https://github.com/AICoE/pyIFD"
+   ]
+  },
+  {
+   "name": "Noisesniffer — a-contrario noise-anomaly detection",
+   "how_it_works": "Models how the acquisition pipeline shapes intensity-dependent noise across the whole image (noise curve as a function of intensity), then finds spatial regions whose noise statistics deviate from that global stochastic model. Candidate anomalies are grown region-wise and each detection is validated with a Number of False Alarms (NFA) threshold, making it fully automatic. Refined version published with certified code at IPOL 2024 (Gardella et al.).",
+   "signal": "Same fraud class as NOI methods (spliced or locally smoothed regions) but with statistical false-alarm control instead of an arbitrary threshold — the best-behaved noise method for a low-FP product. Detects 'noise too low for this intensity level here' which matches pasted flat boxes over scans well. Limits: weak on already heavily compressed images (noise mostly destroyed everywhere) and on born-digital content that legitimately has zero noise — gate by document type.",
+   "local_feasibility": "Certified source code downloadable from the IPOL article (Python/C); also implemented in PhotoHolmes (pip install from github.com/photoholmes/photoholmes). Runs in seconds on CPU, <1 GB RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://www.ipol.im/pub/art/2024/462/",
+    "https://hal.science/hal-03243928",
+    "https://arxiv.org/html/2412.14969v1"
+   ]
+  },
+  {
+   "name": "White-point / background-flatness inconsistency (pasted-box detector)",
+   "how_it_works": "Real scanned or photographed paper background is off-white (e.g., 245-253) with per-pixel noise; a rectangle drawn or pasted by an editor is exactly RGB (255,255,255) (or one uniform value) with zero local variance. Implement: compute a local variance map (cv2.boxFilter on image and image^2), threshold near-zero-variance pixels that are also saturated-white, extract connected components (cv2.connectedComponentsWithStats), and flag axis-aligned rectangular components embedded inside otherwise-noisy background. Also compare the histogram peak of each candidate region against the page's global background peak (255 vs 249 mismatch).",
+   "signal": "Cheap and surprisingly effective against amateur invoice fraud (Paint/Photoshop white-box-over-amount edits) — the exact scenario in TrustyFile's test plan. Practitioner heuristic used by commercial doc-fraud vendors rather than an academic method. Near-zero FP on genuine scans/photos; but 100% FP on born-digital PDFs, where pure flat white is universal — MUST be gated on 'this page is a scan/photo' (detect via global noise level / OCR-vs-text-layer / image covering full page). Sophisticated forgers who clone real background instead of painting white evade it (the block copy-move detector covers that case).",
+   "local_feasibility": "Pure OpenCV/NumPy, ~50 lines, milliseconds per page. No packages beyond the existing stack.",
+   "effort": "small",
+   "sources": [
+    "https://hawkeyeforensic.com/scanned-vs-original-the-invisible-clues-that-reveals-tampering/",
+    "https://www.koncile.ai/en/ressources/document-fraud-detection-software-3-methods",
+    "https://www.klippa.com/en/blog/information/document-fraud-detection-software/"
+   ]
+  },
+  {
+   "name": "Resampling / interpolation trace detection (Popescu-Farid p-map)",
+   "how_it_works": "Interpolation (resize/rotate of a pasted region) makes pixels linear combinations of neighbors with a spatially periodic pattern. Fit a linear predictor per pixel with an EM algorithm to obtain a probability map of 'pixel is correlated with neighbors'; take the FFT of the p-map — resampled regions show characteristic spectral peaks whose positions encode the scaling factor. Faster variant (Kirchner): fixed linear predictor residue instead of EM.",
+   "signal": "In principle catches rescaled/rotated pastes even in PNG output. In practice one of the NOISIEST classical methods on documents: JPEG compression introduces its own 8-px periodicity that masquerades as resampling; halftone/dither patterns in printed-then-scanned documents alias badly; and whole-page rescaling (extremely common and legitimate in PDF workflows) lights up everything. Recommend implementing only as a low-weight corroborating signal or skipping for MVP.",
+   "local_feasibility": "No maintained pip package; sherloq contains a Python 'Image Resampling' implementation (GPL-3, portable as reference). NumPy/SciPy only. EM version is slow (~5-20 s/page naive); Kirchner variant is ~1 s. ",
+   "effort": "large",
+   "sources": [
+    "https://dl.acm.org/doi/10.1145/1411328.1411333",
+    "https://onlinelibrary.wiley.com/doi/10.1155/2017/7130491",
+    "https://github.com/GuidoBartoli/sherloq",
+    "https://cs229.stanford.edu/proj2011/HoMaMeyer-ResamplingDetectionForDigitalImageForensics.pdf"
+   ]
+  },
+  {
+   "name": "PRNU sensor-fingerprint analysis — assessed as NOT feasible for this use case",
+   "how_it_works": "Photo-Response Non-Uniformity is a per-device multiplicative sensor noise pattern; extract a noise residual (wavelet denoise, subtract) and correlate against a camera fingerprint built from dozens of known images from the same device; region-wise absence of the fingerprint localizes tampering.",
+   "signal": "Gold standard in law-enforcement camera attribution, but inapplicable to TrustyFile: you receive one image from an unknown device, never a set of reference images, so no fingerprint can be built; PRNU is also largely destroyed by scanner pipelines, recompression, screenshots, and PDF re-encoding. Equal-error rates vary wildly by sensor even in lab settings (0.2-23% in biometric studies). Verdict: document why it's excluded; revisit only if a future feature lets a company enroll its own scanner with many reference scans (then flatbed scanners do have usable PRNU-like fixed-pattern noise).",
+   "local_feasibility": "Would be local if used: polimi-ispl/prnu-python (GitHub, NumPy/SciPy/PyWavelets). But the reference-image requirement makes it a dead end for single-document analysis, not the CPU cost.",
+   "effort": "large",
+   "sources": [
+    "https://github.com/polimi-ispl/prnu-python",
+    "https://arxiv.org/pdf/1907.04025",
+    "https://ietresearch.onlinelibrary.wiley.com/doi/full/10.1049/iet-bmt.2016.0117"
+   ]
+  },
+  {
+   "name": "Local deep-learning forgery localizers (optional heavy module: DQ/CAT-Net/TruFor via PhotoHolmes; DocTamper models)",
+   "how_it_works": "PhotoHolmes (pip, PyTorch) wraps 10 detectors behind one API (`photoholmes run <method> <image>`), including classical (DQ, ZERO, Splicebuster, Noisesniffer) and pretrained CNN/transformer localizers (CAT-Net: RGB+DCT streams tuned to compression artifacts; TruFor: noise-fingerprint transformer with a reliability map; PSCC-Net; FOCAL). Weights download once, then inference is fully offline on CPU. For document-specific text tampering, the DocTamper line of work (CVPR 2023, 170k tampered document images incl. invoices/receipts) provides models built around DCT + visual features.",
+   "signal": "Benchmarks in the PhotoHolmes paper: FOCAL/TruFor lead on splicing (F1 0.74-0.95 on Columbia/DSO), ZERO leads on JPEG-quality manipulations, and everything degrades sharply after social-media-style recompression — so treat scores as one weighted module, not truth. Deep models are the only class that stays competitive on character-level document edits (DocTamper). FP risk: moderate and hard to explain to users (black box); TruFor/CAT-Net weights are research-license-only — check before commercial deployment; DocTamper dataset/models are non-commercial.",
+   "local_feasibility": "pip install from github.com/photoholmes/photoholmes; PyTorch CPU wheels (~200 MB), model weights 100-500 MB, inference ~2-10 s/page CPU, needs ~2-4 GB RAM — feasible but heaviest option for a small cloud box. No document leaves the machine. License review required for each weight set.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/html/2412.14969v1",
+    "https://github.com/qcf-568/DocTamper",
+    "https://arxiv.org/pdf/2507.16397",
+    "https://arxiv.org/pdf/2505.11003"
+   ]
+  }
+ ],
+ "key_insights": [
+  "Almost all classical image-forensics methods assume photographic content; invoices/IDs are flat text, which breaks them in two specific ways: ELA lights up every glyph edge (text IS high-contrast edges), and copy-move detectors match legitimately repeated letterforms. Every module needs document-aware gating: variance/flatness masks, glyph-scale minimum-region filters, and background-only analysis for noise methods.",
+  "Gate all pixel forensics on document type first: born-digital (vector) PDF pages must be excluded — they legitimately have zero noise, pure-255 white, and no JPEG grid, so every noise/white-point/grid method false-positives on them. Run image forensics only on embedded raster images and full-page scans/photos; a cheap classifier (page covered by one large image + global noise level + no extractable text layer) decides.",
+  "Extract embedded JPEGs from the PDF losslessly (PyMuPDF raw image streams), never by re-rendering pages with get_pixmap(): re-rendering destroys the JPEG compression history that ELA, ghost, ADQ/DQ, ZERO and quantization-table analysis all depend on.",
+  "For the minimize-false-positives requirement, prefer methods with a-contrario statistical false-alarm control (NFA): ZERO for JPEG-grid misalignment and Noisesniffer for noise anomalies. These are the only classical detectors designed to be fully automatic with bounded false alarms; threshold-based heatmap methods (ELA, BAG, NOI1) should only corroborate, never flag alone.",
+  "The compression-history methods form a complementary matrix: ADQ/DQ works when the final file is a re-saved JPEG; JPEG Ghost when the pasted part was a LOWER-quality JPEG; ZERO works even after PNG conversion (pixel-domain grid traces); quantization-table fingerprinting works on any surviving JPEG stream. Run all cheap ones and require spatial agreement between at least two maps before raising severity.",
+  "Quick wins for TrustyFile's Module H, in order: (1) white-point/zero-variance pasted-box detector (pure OpenCV, catches the Paint-edit test cases, near-zero FP on scans), (2) quantization-table quality estimation + producer fingerprinting (Pillow-only, doubles as a legitimacy signal), (3) pyIFD (Apache-2.0, pip from GitHub) for ADQ1/ADQ2/GHOST/BLK/NOI1 in one dependency, (4) ZERO via subprocess (AGPL isolation) or PhotoHolmes.",
+  "Legitimacy confirmation is achievable, not just tamper detection: a single consistent JPEG grid over the whole page (ZERO, no anomalies), standard scanner/camera quantization tables with high NSE fit, a globally consistent intensity-dependent noise model (Noisesniffer clean), and no double-quantization signature together support 'compressed once, untouched since acquisition' — worth a positive trust bonus in scoring.",
+  "PRNU is a dead end for single anonymous documents (needs dozens of reference images from the known device; destroyed by scan/recompress pipelines) — exclude it and document why.",
+  "Signal-strength reality check from benchmarks: everything degrades sharply after recompression/resizing (e.g., WhatsApp-forwarded invoice photos); expect silent misses, not false alarms, from the JPEG-domain methods in that case — so absence of forensic findings must lower module confidence, not raise the trust score.",
+  "Deep models (TruFor, CAT-Net via PhotoHolmes; DocTamper for character-level document edits) are the accuracy ceiling and run locally on CPU in seconds, but weights carry research-only/non-commercial licenses — a licensing review is required before shipping them in a product."
+ ]
+}

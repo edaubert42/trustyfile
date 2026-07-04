@@ -1,0 +1,170 @@
+{
+ "domain": "Aggregating many weak forensic signals into one trust score while minimizing false positives (scoring/combination architecture for TrustyFile's scoring.py)",
+ "key_insights": [
+  "The single most important change: replace the weighted AVERAGE with an ADDITIVE LOG-ODDS (log-likelihood-ratio) sum. Averaging is mathematically the wrong operation for evidence: one critical finding (score 5) averaged with nine clean modules (score 95) yields ~86 and the fraud vanishes. In log-odds space each check ADDS its weight of evidence, so a strong signal (large log-LR) is preserved regardless of how many clean checks surround it. This is the shared backbone of SpamAssassin, credit scorecards, biometric score fusion, and naive-Bayes spam filters.",
+  "Separate HARD evidence from SOFT evidence architecturally. Cryptographic facts (a valid PDF signature verified offline with pyHanko, a checksum-valid IBAN/VAT) and a single critical tamper finding should VETO or CLAMP the score, never be averaged into it. Fraud engines universally combine a small set of hard-fail/veto rules with a cumulative soft-score, then map the soft score to green/yellow/red decision bands (APPROVE / REVIEW / SUSPICIOUS).",
+  "The dominant false-positive driver in a naive-Bayes / product-of-LR scheme is CORRELATED evidence double-counting: metadata-producer, font-diversity, and structure modules often all fire off the same underlying fact ('re-saved in Photoshop'). Multiplying their LRs treats them as independent and produces overconfident false accusations. Mitigate by grouping correlated checks and capping each group's total contribution, or by learning weights on real labeled data (perceptron-style) rather than hand-guessing.",
+  "Minimizing false positives is a CALIBRATION + ASYMMETRIC-COST problem, not just a threshold problem. SpamAssassin explicitly trains its rule weights to favor false negatives over false positives ~100:1 and targets ~1 FP per 2500 legit messages. TrustyFile should weight 'wrongly accusing a genuine document' far more heavily than 'missing a subtle forgery', tune the decision threshold on a labeled set, and validate with Brier score / ECE / reliability diagrams that a '70' really means ~70% genuine.",
+  "Confidence and coverage must propagate into the final output. When modules conflict or many are low-confidence, the honest answer is 'uncertain' (mid-score wide band), NOT a confident verdict. Gary Robinson's chi-square spam method deliberately returns ~0.5 on conflicting evidence; TrustyFile should surface a score RANGE + verbal scale (ENFSI-style) + the per-check evidence ledger that drove the number, rather than a single false-precision integer.",
+  "Track legitimacy as a first-class POSITIVE-evidence ledger, not merely 'absence of red flags'. Hard positive signals (valid signature chain, exact template match, single consistent producer, coherent date chain) produce LR<1 (evidence FOR genuine) and should actively raise trust. A two-sided log-odds ledger (evidence-for-tamper minus evidence-for-genuine) is the clean way to fuse detection and confirmation in one number.",
+  "All of this is pure-Python and cheap: numpy + scipy.stats + scikit-learn (CalibratedClassifierCV, isotonic/Platt) + pyHanko for offline signature verification. No document ever leaves the box; combination/calibration math is microseconds; the only cost is building a small labeled corpus of genuine vs tampered documents to fit weights and calibration curves."
+ ],
+ "techniques": [
+  {
+   "name": "Additive log-odds / log-likelihood-ratio aggregation (replace the weighted average)",
+   "how_it_works": "For each check, define a weight of evidence w_i = log( P(finding | tampered) / P(finding | genuine) ). Start from a prior log-odds (log of base-rate of tampering), then SUM the weights of every fired check: logit_post = logit_prior + sum(w_i). Convert once at the end with the logistic sigmoid p_tampered = 1/(1+exp(-logit_post)); trust_score = round(100*(1-p_tampered)). Positive w_i pushes toward tamper, negative (LR<1) toward genuine. This is exactly the credit-scorecard 'points to double the odds' scaling (Score = Offset - Factor*ln(odds)) and the naive-Bayes spam log-sum.",
+   "signal": "Catches the core failure mode: a single strong finding contributes a large fixed number of evidence-points that adding cannot dilute, unlike averaging where 9 clean modules drown 1 critical flag. FALSE-POSITIVE RISK: real, if weights are guessed too high or checks are correlated (double counting -> overconfident accusations). Controlled by fitting w_i from data and by grouping/capping correlated checks.",
+   "local_feasibility": "Pure Python: math/numpy only, sub-millisecond. Weights can be hand-set initially (e.g. critical=+3.0 nats, high=+1.5, medium=+0.7, low=+0.2) then refined from a labeled corpus. pip: numpy. Negligible CPU/RAM.",
+   "effort": "small",
+   "how_it_works_note": "",
+   "sources": [
+    "https://wiki.datrics.ai/scorecard",
+    "https://www.linuxjournal.com/article/6467",
+    "https://arxiv.org/pdf/1704.08275",
+    "https://nvlpubs.nist.gov/nistpubs/jres/122/jres.122.027.pdf"
+   ]
+  },
+  {
+   "name": "Noisy-OR aggregation for the tamper side",
+   "how_it_works": "Model overall tamper probability as the probability that AT LEAST ONE independent cause fired: P(tampered) = 1 - (1-leak) * PRODUCT_over_fired_checks(1 - p_i), where p_i is the per-check probability that finding i alone indicates tampering, and 'leak' is a small baseline. Each clean/absent check contributes factor 1 (no dilution). One confident detector (p_i=0.9) drives the product's complement high regardless of how many modules stayed clean.",
+   "signal": "Excellent for 'any one strong tamper signal should dominate' semantics; naturally non-diluting and bounded in [0,1]. Proves nothing about legitimacy (one-sided). FALSE-POSITIVE RISK: moderate/high if many weakly-suspicious checks each have inflated p_i — their complements multiply down and stack into a high P even with no single strong signal; keep p_i honest and small for weak heuristics. Assumes independence between causes, so correlated checks inflate it.",
+   "local_feasibility": "Pure Python one-liner over a list of p_i (numpy.prod). Microseconds, no deps beyond numpy. Ideal as the 'detection' half of a two-track score.",
+   "effort": "small",
+   "sources": [
+    "https://arxiv.org/pdf/1303.1479",
+    "https://arxiv.org/pdf/1711.08324",
+    "https://arxiv.org/pdf/1203.3470"
+   ]
+  },
+  {
+   "name": "Maximum / damped-max / top-k combination (anti-dilution, from outlier ensembles)",
+   "how_it_works": "Instead of averaging normalized per-module suspicion scores, take the MAXIMUM (Aggarwal/LOF ensemble convention: max avoids dilution from irrelevant models). Softer variants: 'damped averaging' applies sqrt or log to scores before averaging so a few components can't dominate but strong ones aren't washed out; 'pruned averaging / aggregate' discards low scores and sums the top-k, implicitly counting how many modules independently found something. Combine max-of-tamper-scores with the log-odds sum as a sanity gate.",
+   "signal": "Directly answers 'why does averaging hide the one bad module': max keeps the worst finding front-and-center. Aggarwal argues max is the right default when each component should give a comparable score. FALSE-POSITIVE RISK: pure max is noisy/over-sensitive (any single flaky module dominates) — hence damped or top-k aggregate as the robust middle ground; still needs per-module normalization first or the highest-scaled module always wins.",
+   "local_feasibility": "Pure Python: max()/sorted()/numpy over normalized scores. Trivial CPU/RAM. pip: numpy.",
+   "effort": "small",
+   "sources": [
+    "https://www.charuaggarwal.net/ensembles.pdf",
+    "https://dl.acm.org/doi/pdf/10.1145/2481244.2481252"
+   ]
+  },
+  {
+   "name": "Hard-evidence vs soft-evidence separation with veto rules and decision bands",
+   "how_it_works": "Split checks into (a) HARD facts — cryptographically or arithmetically certain: valid PDF signature chain, checksum-valid IBAN/VAT/SIREN, exact template/logo match; and (b) SOFT heuristics — everything probabilistic. Hard NEGATIVE facts veto/clamp the score to a floor (e.g. confirmed tampered content stream after signing -> cap at 15); hard POSITIVE facts raise a floor. Only soft evidence goes through the log-odds/noisy-OR combiner. Map the final number to explicit bands: green APPROVE, yellow REVIEW, red SUSPICIOUS.",
+   "signal": "Prevents the two worst outcomes: a mathematically-proven forgery being 'averaged back to safe', and a heuristic pile-up overriding cryptographic proof of authenticity. Mirrors how fraud engines pair hard-fail rules with cumulative soft scores + review bands. FALSE-POSITIVE RISK: very low for the hard track (facts), and the REVIEW band absorbs ambiguous cases instead of forcing a wrong verdict.",
+   "local_feasibility": "Architectural, not compute: routing logic in scoring.py. Hard signature check uses pyHanko fully offline (pip: pyHanko, pyhanko-certvalidator; Python 3.10+, ~tens of MB RAM, <1s). IBAN/VAT/SIREN checksums are pure Python. No document leaves the box.",
+   "effort": "medium",
+   "sources": [
+    "https://seon.io/resources/fraud-scores-how-to-calculate-them/",
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://github.com/MatthiasValvekens/pyHanko"
+   ]
+  },
+  {
+   "name": "Fisher / Stouffer weighted p-value combination (Gary Robinson chi-square model)",
+   "how_it_works": "Treat each check as a hypothesis test under the null 'document is genuine', producing a p-value p_i (probability of seeing this finding on a genuine doc). Combine independent p_i with Fisher's statistic -2*sum(ln p_i) ~ chi2(2k), or Stouffer's weighted-Z sum(w_i * Phi^-1(1-p_i)) / sqrt(sum w_i^2) which allows per-check reliability weights. Robinson's spam refinement computes TWO combined values — H (support for genuine) and S (support for tampered) — and reports I = S/(S+H).",
+   "signal": "Robinson's H/S/I gives a crucial FP-reducing property: when strong evidence points BOTH ways (conflicting checks), both H and S go small and I -> ~0.5 = 'uncertain / manual review', instead of a confident wrong verdict. Stouffer's weighting lets you down-weight low-precision checks. FALSE-POSITIVE RISK: low with the two-sided formulation; but the independence assumption inflates significance for correlated checks.",
+   "local_feasibility": "scipy.stats.combine_pvalues implements Fisher/Stouffer directly (pip: scipy). Microseconds. Main work is defining a defensible p_i per check from your labeled genuine corpus.",
+   "effort": "medium",
+   "sources": [
+    "https://www.linuxjournal.com/article/6467",
+    "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.combine_pvalues.html",
+    "https://www.nature.com/articles/s41598-021-86465-y"
+   ]
+  },
+  {
+   "name": "Per-check weight learning with an asymmetric FP cost (SpamAssassin perceptron)",
+   "how_it_works": "Rather than hand-guessing severity weights, learn each check's contribution from a labeled corpus of genuine + tampered documents. SpamAssassin trains a single-layer perceptron / logistic model via stochastic gradient descent (logsig activation) and maps learned weights to score space. Critically it injects an asymmetric cost ('ham preference'): legitimate examples are oversampled so the model favors false negatives over false positives (~100:1), targeting ~1 FP in 2500. Equivalent modern route: fit sklearn LogisticRegression on the per-module flag vector with class_weight favoring the 'genuine' class.",
+   "signal": "Turns 'why is this rule worth 15 points?' into a data-driven, precision-weighted answer, and bakes FP-minimization into the objective. Learned log-odds coefficients ARE the weights-of-evidence for technique #1. FALSE-POSITIVE RISK: this is the primary lever to REDUCE it; risk shifts to overfitting a small corpus (use regularization + cross-val).",
+   "local_feasibility": "sklearn LogisticRegression / SGDClassifier, pure CPU, trains in <1s on thousands of docs (pip: scikit-learn, numpy). Needs a labeled dataset — the real cost. Inference is a dot product. Dataset stays local (org rule: never leak it).",
+   "effort": "medium",
+   "sources": [
+    "https://svn.apache.org/repos/asf/spamassassin/trunk/masses/README.perceptron",
+    "https://cwiki.apache.org/confluence/display/SPAMASSASSIN/HowScoresAreAssigned"
+   ]
+  },
+  {
+   "name": "Score normalization before combining (rank / min-max / probability conversion)",
+   "how_it_works": "Heterogeneous module outputs (a font-diversity count, an ELA energy, a metadata boolean) live on incomparable scales; averaging or maxing them raw lets whichever module has the largest natural range dominate. Normalize first: rank-based, min-max to [0,1], z-score, or — best per Aggarwal — convert each module's raw score to a PROBABILITY via a fitted sigmoid or a Gaussian/exponential mixture (EM) so the numbers are genuinely comparable before combination.",
+   "signal": "Prevents silent domination of the aggregate by one high-variance module — a subtle, common cause of both false positives and false negatives. Rank-normalization is robust but loses magnitude info (Aggarwal's {1.71,1.71,1.70} vs {1.72,1.03,1.01} example); probability conversion preserves it. FALSE-POSITIVE RISK: itself low; it's a prerequisite that makes every other combiner behave.",
+   "local_feasibility": "numpy for rank/min-max/z-score; sklearn for sigmoid/mixture fits. Microseconds. pip: numpy, scikit-learn.",
+   "effort": "small",
+   "sources": [
+    "https://www.charuaggarwal.net/ensembles.pdf",
+    "https://arxiv.org/pdf/1911.10418"
+   ]
+  },
+  {
+   "name": "Probability calibration (Platt scaling / isotonic regression) of the final score",
+   "how_it_works": "Raw combined scores are usually not true probabilities (over/under-confident). Fit a monotone map from raw score to empirical genuine-rate on a held-out calibration set: Platt scaling fits a logistic sigmoid (good for S-shaped distortion, works with little data); isotonic regression fits any monotone step function via pool-adjacent-violators (more flexible, ~22% better ECE, needs more data). scikit-learn's CalibratedClassifierCV wraps both (method='sigmoid'|'isotonic'). After calibration a displayed '70' means ~70% of docs scoring 70 are genuine.",
+   "signal": "Makes the trust score HONEST and thresholds meaningful — the foundation for choosing an FP-minimizing cutoff. Directly supports 'present uncertainty honestly'. FALSE-POSITIVE RISK: reduces it by exposing/correcting overconfidence; isotonic can overfit on tiny calibration sets (prefer Platt when data is scarce).",
+   "local_feasibility": "sklearn CalibratedClassifierCV / IsotonicRegression / _sigmoid_calibration, pure CPU, trivial cost (pip: scikit-learn). Needs a labeled calibration split, kept local.",
+   "effort": "small",
+   "sources": [
+    "https://machinelearningmastery.com/calibrated-classification-model-in-scikit-learn/",
+    "https://fastml.com/classifier-calibration-with-platts-scaling-and-isotonic-regression/",
+    "https://arxiv.org/pdf/2601.19944"
+   ]
+  },
+  {
+   "name": "Correlated-evidence grouping / double-counting guard",
+   "how_it_works": "Naive-Bayes/product-of-LR and noisy-OR both assume conditional independence; TrustyFile's modules violate it (producer string, font substitution, and structure-revision checks all reflect the same edit). Group checks that share a root cause into clusters; within a cluster, take the strongest signal or cap the cluster's total log-odds contribution instead of summing all members. Optionally learn pairwise correlations from the corpus and discount redundant features (feature-selection / tree-augmented naive Bayes).",
+   "signal": "Attacks the biggest FALSE-POSITIVE source in additive/multiplicative schemes: several correlated weak flags stacking into a confident-but-wrong accusation of a genuine doc that merely went through one converter. Independence violation makes the raw sum overconfident. FALSE-POSITIVE RISK: this technique specifically lowers it; cost is some lost sensitivity if grouping is too aggressive.",
+   "local_feasibility": "Config-level grouping in scoring.py + optional correlation estimate via numpy/pandas on the labeled corpus. Negligible compute. pip: numpy, pandas.",
+   "effort": "medium",
+   "sources": [
+    "https://nlp.stanford.edu/IR-book/html/htmledition/properties-of-naive-bayes-1.html",
+    "https://www.sciencedirect.com/science/article/pii/S0305054821002070",
+    "https://medium.com/@vishalnayak/why-naive-bayes-algorithm-makes-assumptions-of-features-independence-cc98292b9e28"
+   ]
+  },
+  {
+   "name": "Two-sided legitimacy-confirmation ledger (positive evidence with LR<1)",
+   "how_it_works": "Model trust as a running log-odds ledger with BOTH directions. Tamper evidence adds positive weight; legitimacy evidence adds negative weight (LR<1, i.e. more likely on genuine docs): a cryptographically valid signature chain, an exact known-template/logo SSIM match, a single self-consistent Producer across the whole file, a coherent CreationDate<=ModDate<=today chain, embedded ICC/XMP consistent with the claimed generator. Same additive machinery as #1, so detection and confirmation fuse into one number.",
+   "signal": "Directly serves goal (2) 'better confirm legitimate files' and combats false positives: strong positive proof can offset weak heuristic suspicion, so a clean signed invoice isn't dinged for using a common converter. Signature validity and exact template match are near-cryptographic-strength positive signals. FALSE-POSITIVE RISK: low, but avoid letting a forged/self-signed certificate count as positive — verify the trust chain, don't just check 'a signature exists'.",
+   "local_feasibility": "pyHanko for offline signature+chain validation (pip: pyHanko, pyhanko-certvalidator); OpenCV/skimage SSIM for template/logo match (pip: opencv-python, scikit-image); rest is PyMuPDF metadata parsing. All local, <1-2s. pyHanko needs a local trust root store, no network.",
+   "effort": "medium",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://wp.unil.ch/forensicdecision/files/2015/01/ChampodBiedermannVuilleWillisDeKinder_2016PDF.pdf",
+    "https://researchportal.hw.ac.uk/en/publications/likelihood-ratio-based-biometric-score-fusion"
+   ]
+  },
+  {
+   "name": "Honest uncertainty presentation: score bands, verbal scale, and evidence ledger in the UI",
+   "how_it_works": "Instead of a single integer, show (a) a point score PLUS a confidence band whose width grows when modules are low-confidence, conflicting, or when coverage is thin (e.g. scanned image with no text layer); (b) an ENFSI-style verbal qualifier ('weak / moderate / strong support' mapped from log-LR magnitude); (c) an explainable per-check ledger listing which findings pushed the score up or down and by how much (SpamAssassin-style rule contribution list). Prefer frequency framing ('~5 in 100 documents like this are genuine') over bare probabilities for lay users.",
+   "signal": "Serves goal (3) minimize false-positive HARM: a wide band + REVIEW label communicates 'we're not sure' rather than a false-precise accusation, and the ledger lets a human sanity-check. Research shows range+point estimates improve decision quality and trust. FALSE-POSITIVE RISK: reduces perceived/actioned FPs by routing ambiguous docs to human review rather than auto-verdict.",
+   "local_feasibility": "Pure Streamlit UI + the confidence numbers already produced by modules (ModuleResult.confidence). No extra compute. Band width can be derived from module confidences (e.g. variance-weighted) or from conformal-prediction intervals (pip: mapie) if a labeled set exists.",
+   "effort": "medium",
+   "sources": [
+    "https://wp.unil.ch/forensicdecision/files/2015/01/ChampodBiedermannVuilleWillisDeKinder_2016PDF.pdf",
+    "https://www.tandfonline.com/doi/full/10.1080/13669877.2020.1801807",
+    "https://analystsuncertaintytoolkit.github.io/UncertaintyWeb/chapter_6.html",
+    "https://mapie.readthedocs.io/en/latest/index.html"
+   ]
+  },
+  {
+   "name": "Calibration monitoring: Brier score, ECE, reliability diagrams (Murphy decomposition)",
+   "how_it_works": "On a held-out labeled set, bin documents by predicted trust and plot observed genuine-rate vs predicted (reliability diagram); points below the diagonal = overconfident. Summarize with Expected Calibration Error (mean |predicted-observed| across bins) and the Brier score (mean squared error of the probability), decomposable via Murphy into reliability + resolution + uncertainty. Good models: Brier 0.1-0.2, excellent <0.1. Re-run whenever weights change to catch regressions.",
+   "signal": "This is the measurement layer that PROVES the FP rate is under control and that weight/threshold changes actually help rather than just feel better. Resolution term rewards a score that actually separates genuine from tampered (not just a safe mid-score). FALSE-POSITIVE RISK: it's a diagnostic — its value is exposing over/under-confidence before it reaches users.",
+   "local_feasibility": "sklearn.metrics.brier_score_loss + calibration_curve, or hand-rolled binning in numpy; matplotlib for the diagram (pip: scikit-learn, numpy, matplotlib). Runs offline in seconds on a labeled corpus.",
+   "effort": "small",
+   "sources": [
+    "https://www.statstest.com/calibration-checks-brier-score-reliability-diagrams",
+    "https://www.convexly.app/answers/how-to-measure-forecasting-calibration",
+    "https://arxiv.org/pdf/2605.03816"
+   ]
+  },
+  {
+   "name": "Dempster-Shafer fusion — considered and mostly rejected (Zadeh paradox)",
+   "how_it_works": "D-S theory assigns belief mass to SETS of hypotheses including an explicit 'unknown' mass, then fuses sources with Dempster's rule of combination (orthogonal sum, normalized by conflict). Attractive because it can represent ignorance directly (a module that abstains contributes mass to 'unknown' rather than 50/50). However Zadeh's paradox shows that when two sources strongly conflict, the normalization produces counterintuitive certainty (e.g. backing a hypothesis both sources deemed nearly impossible).",
+   "signal": "Its explicit 'unknown' mass is philosophically nice for low-confidence forensic modules. But the classic combination rule is a documented FALSE-POSITIVE hazard under conflicting evidence — exactly TrustyFile's situation when detection and confirmation modules disagree. Recommendation: use log-odds/noisy-OR as primary; only consider D-S with a conflict-robust variant if explicit ignorance modeling proves necessary.",
+   "local_feasibility": "Pure Python (e.g. pip: pyds / py_dempster_shafer) but the paradox handling requires modified combination rules that add complexity. Compute is cheap; conceptual risk is the cost.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/pdf/1304.2718",
+    "https://ojs.aaai.org/aimagazine/index.php/aimagazine/article/view/542",
+    "https://arxiv.org/pdf/1107.0018"
+   ]
+  }
+ ]
+}

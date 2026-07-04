@@ -1,0 +1,202 @@
+{
+ "area": "app.py (Streamlit UI layer, 2487 lines) + tests/ directory (8 files, 3449 lines) of TrustyFile at /Users/edouard/Projects/trustyfile-main",
+ "checks": [
+  {
+   "name": "VirusTotal hash lookup (UI-only)",
+   "description": "app.py:23-71 sends the file's SHA256 (never the file) to VT API v3. status=malicious if (malicious+suspicious)>0, clean if 0, unknown on 404. Rendered as a red/green/gray pill (app.py:1104-1135). No Flag object, no severity, does not affect the trust score. Silently disabled when no VIRUSTOTAL_API_KEY secret.",
+   "quality": "Naive: counts a single engine's 'suspicious' verdict as malicious; `except Exception: return None` (app.py:70-71) hides auth/rate-limit errors; re-queried on every Streamlit rerun (page navigation, language toggle) with a 10s blocking timeout because the result is not cached in session_state."
+  },
+  {
+   "name": "File size gate",
+   "description": "app.py:822-844: reject uploads > 10MB with a friendly error page and st.stop(). Hardcoded threshold, no severity (hard reject).",
+   "quality": "Sound but arbitrary; silently prevents analysis of large legitimate documents (scanned multi-page statements)."
+  },
+  {
+   "name": "Page count gate",
+   "description": "app.py:846-870: fitz.open on bytes, reject > 20 pages. Hard reject.",
+   "quality": "fitz.open at line 848 has no try/except — a corrupted or renamed non-PDF file raises before any friendly error path, showing a raw traceback."
+  },
+  {
+   "name": "Passport detection to skip 2D-Doc scan",
+   "description": "app.py:899-907: reads identity module details['mrz_lines']; if first line startswith('P') → passport → skip scan_pdf_for_2d_doc. Otherwise runs the DataMatrix scan on every document (if pylibdmtx available).",
+   "quality": "Brittle: depends on identity module exposing raw mrz_lines and on OCR getting the first character right; a single OCR error flips the decision."
+  },
+  {
+   "name": "2D-Doc decode + 'Verified' panel",
+   "description": "app.py:906-909 + 2061-2213: decoded 2D-Doc barcodes rendered in a green always-open panel with a 'Verified' pill, listing identity/tax/invoice fields for manual comparison.",
+   "quality": "Misleading: twod_doc.py parses the signature bytes (twod_doc.py:611-640) but never cryptographically verifies them against ANTS certificates, so 'Verified' really means 'decoded'. An attacker can regenerate a DataMatrix with altered data and get the green panel."
+  },
+  {
+   "name": "Modification-date red pill",
+   "description": "app.py:1020-1029: if |ModDate - CreationDate| > 86400s (1 day, hardcoded), a red '{days} days' pill is shown next to the modification date. UI-only detection, produces no Flag, bypasses scoring.",
+   "quality": "Duplicates and contradicts module logic: metadata/structure modules use a 2s tolerance and scoring.py:280-303 deliberately downgrades <30min scanner-pipeline criticals to 'low' for identity docs — but the UI pill still screams red using its own threshold."
+  },
+  {
+   "name": "Stated-date vs creation-date red pill",
+   "description": "app.py:984-990 + 1031-1039: extracts dates from page 1 only via content.extract_dates_from_text, takes the FIRST date typed 'document'/'invoice' as the stated date; if |stated - CreationDate| > 7 days (hardcoded) shows a red pill.",
+   "quality": "Analysis logic hiding in the UI; picks the first extracted date (extraction order, not layout order); 7-day threshold flags the extremely common legitimate case of re-downloading a document weeks after its stated date."
+  },
+  {
+   "name": "Editor detection from modification history",
+   "description": "app.py:1008-1014: parses the literal substring '→ modified with ' out of get_modification_history()'s last diff to_tool string to display an 'Editor' row.",
+   "quality": "Magic-string coupling to structure.py:356 formatting; any wording change silently removes the Editor row. Should be a structured field."
+  },
+  {
+   "name": "Signature display",
+   "description": "app.py:973-979: scans structure-module flags for a details dict containing 'signer'; displays 'Signed by: <name>' or 'None'.",
+   "quality": "Fragile convention (key presence in an arbitrary flag's details); takes the first match only; unsigned docs show 'None' with no distinction between 'no signature' and 'signature check unavailable'."
+  },
+  {
+   "name": "Grouped score bars (4 categories)",
+   "description": "app.py:1196-1263: recomputes group scores — Modifications=[structure], Consistency=[content], Tampering=[images,fonts,visual,metadata], Authenticity=[external] — as sum(score*weight*confidence)/sum(weight*confidence) using MODULE_WEIGHTS, colored green>=80 / yellow>=50 / red<50. N/A when no member module ran.",
+   "quality": "Two defects: (1) ignores scoring.py CONFIDENCE_MULTIPLIERS (document-type adjustment), so bars contradict the headline score for identity/technical/scientific docs; (2) the identity (weight 1.5), forensics and twod_doc modules belong to NO group — for an ID card the most important module is invisible in the bars."
+  },
+  {
+   "name": "Trust gauge + risk label",
+   "description": "app.py:1149-1194: SVG donut, color thresholds 80/50/20 hardcoded (duplicating scoring.get_risk_level), label 'Trusted' if score >= 95 else risk level.",
+   "quality": "Threshold duplication risks drift; the 20-49 and 0-19 bands render the same red so HIGH vs CRITICAL is indistinguishable by color."
+  },
+  {
+   "name": "Flag severity pills + summary + Detected Issues list",
+   "description": "app.py:1265-1346 and 1450-1519: counts flags by severity, shows verdict from generate_rich_summary, lists every flag twice (summary block and expandable Detected Issues with code + details key/values). Secondary-type banner for scientific/legal_notice/technical/unknown (app.py:1324-1332).",
+   "quality": "Rendering is fine and flag content is html-escaped here (unlike file-properties rows); duplication of the full flag list is by design but wastes vertical space."
+  },
+  {
+   "name": "Modification history timeline",
+   "description": "app.py:1349-1448 (compact) and 1526-1638 (detailed): shown when structure.get_modification_history reports version_count > 1; per-version text diffs (+/- lines, 5-line cap in compact view), object-change badges, timing only for the final version computed from CreationDate/ModDate.",
+   "quality": "Timing for intermediate versions is 'unknown'; entire feature depends on incremental updates surviving in the file — a full-rewrite edit shows nothing; per-version times rely on attacker-writable metadata."
+  },
+  {
+   "name": "Entity extraction and grouping (UI-layer analysis)",
+   "description": "app.py:1747-1951: re-extracts SIRET/SIREN/VAT/RCS from full text, groups unverified identifiers by SIREN (VAT→SIREN via vat[4:] when len==13; RCS→first 9 digits), displays verified companies (INSEE, Active/Closed pill) and 'Not verified' cards. Company name found via regex requiring ALL-CAPS name + legal form (SAS|SARL|EURL|SASU|SCI|SNC|SCOP|SELARL|SEL|SELAFA); address via street/postal-code regex.",
+   "quality": "Substantial detection logic living in the UI; the single extracted name/address is applied to EVERY unverified SIREN card (app.py:1907-1912) — on a two-party invoice the buyer's SIREN is labeled with the seller's name, which looks like fraud; name regex misses SA, SASU lowercase, mixed-case names, non-French forms."
+  },
+  {
+   "name": "IBAN panel",
+   "description": "app.py:1953-2059: shows API-verified IBANs (valid/invalid pill, BIC, bank, country) plus IBANs found by content.extract_iban with a checksum-valid/invalid note and 'Not verified' pill. IBAN API only enabled when IBAN_API_KEY secret exists (app.py:143-149).",
+   "quality": "Informational only — an invalid checksum in the text-extracted path is displayed but produces no visible severity escalation in this panel; feature silently absent without the key."
+  },
+  {
+   "name": "MRZ panel (identity docs)",
+   "description": "app.py:2215-2468: shows MRZ fields, age computed as days//365, expiry VALID/EXPIRED badge vs today, header badge suspect(red)/warning(orange)/valid(green) derived from identity-module flag severities, coherence checks (doc type prefix, issuer format, validity period 5-10y TD3 / 10-15y TD1), and scan-authenticity rows (ELA suspicious-ratio %, noise CV uniformity).",
+   "quality": "Pure display of module output — reasonable; age via //365 drifts on leap years (cosmetic); the panel is the only surface where identity results are visible since the module is excluded from group bars."
+  },
+  {
+   "name": "Analysis caching & temp-file lifecycle",
+   "description": "app.py:872-927: analysis runs once per file (md5 of bytes as session key); results, summary, 2D-Doc scan and tmp path cached in session_state; old tmp file deleted when a new file is uploaded.",
+   "quality": "extract_pdf_data + get_modification_history (app.py:968-970) and check_virustotal are NOT cached and re-run on every rerun — if the OCR fallback triggers this is multi-second per UI interaction; tmp files leak at session end (only deleted on next upload); md5 used for cache key (fine for caching, but inconsistent with the SHA256 shown)."
+  },
+  {
+   "name": "Tests: content module (test_content.py, 796 lines)",
+   "description": "Broad unit coverage of pure functions: French/numeric/abbreviated date parsing, date-type identification, impossible dates (CONTENT_FAR_FUTURE_DATE critical >1y future; CONTENT_VERY_OLD_DATE medium <2000), anachronisms (service/order after invoice, due before invoice = high, 1-day tolerance), future invoice date (critical), amounts (>=1.0 filter), reference date patterns, SIRET/SIREN Luhn, FR VAT check digits, SIREN-VAT mismatch (critical), missing company ID (medium), analyze_content scoring integration.",
+   "quality": "Best test file, but drifting: test_service_after_invoice_flagged and test_missing_company_id_flagged now FAIL against the implementation; extract_invoice_reference, extract_all_invoice_references, check_reference_date_match, check_reference_consistency are imported (lines 33-37) and never tested; TestCheckDuplicateAmounts only asserts a disabled check returns [] (documents dead code)."
+  },
+  {
+   "name": "Tests: metadata module (test_metadata.py, 457 lines)",
+   "description": "check_producer three-tier detection (AI tools → critical META_AI_GENERATED; iLovePDF-class converters → high META_ONLINE_CONVERTER; Nitro/LibreOffice/Google Docs → medium META_SUSPICIOUS_PRODUCER; substring matching, case-insensitive, single flag priority), check_dates (future creation critical with 1-day tolerance, mod>creation+2s critical META_DOCUMENT_MODIFIED, mod<creation high META_IMPOSSIBLE_DATES), check_missing_metadata (all empty → medium META_NO_METADATA; no producer/creator → low META_NO_PRODUCER), confidence tiers 1.0/0.7/0.3.",
+   "quality": "Good coverage of pure logic; one FAILING test (canva now classified META_IMAGE_EDITOR, tests expect META_ONLINE_CONVERTER) shows the producer taxonomy drifted; no test loads producer strings from a real PDF."
+  },
+  {
+   "name": "Tests: fonts module (test_fonts.py, 289 lines)",
+   "description": "extract_base_font_name subset parsing (6 uppercase letters + '+'), diversity thresholds (>7 families medium FONTS_HIGH_DIVERSITY, >10 high FONTS_EXCESSIVE_DIVERSITY, bold/italic collapse to one family), system fonts low flag (Arial/Calibri/etc.), non-embedded non-standard fonts low flag, mixed subset/non-subset same base name low FONTS_MIXED_SUBSETS.",
+   "quality": "Pure-function only; nothing tests font extraction from an actual PDF, and the flagship CLAUDE.md check 'font change mid-line/mid-word' has no test (and possibly no implementation exercised anywhere)."
+  },
+  {
+   "name": "Tests: images module (test_images.py, 497 lines)",
+   "description": "check_screenshot_dimensions (known screen resolutions ± tolerance, rotated, high IMAGES_SCREENSHOT_DETECTED), resolution mismatch (>2.5x DPI ratio medium), heavy JPEG compression ratio, excessive image count per page, no-images low flag, image-only/mostly-image PDF (>=80% page coverage + <200 chars/page medium), find_amount_regions on synthetic PDFs, check_paste_artifacts negative paths only (digital PDF, no amounts, missing file, image-only).",
+   "quality": "Two FAILING tests (screenshot tolerance and compression threshold changed in implementation); the paste-artifact detector — the project's marquee tampering check — has ZERO positive tests, so it could detect nothing and the suite would stay green."
+  },
+  {
+   "name": "Tests: visual module (test_visual.py, 271 lines)",
+   "description": "Pure QR analysis: URL shorteners high VISUAL_QR_URL_SHORTENER, suspicious TLDs medium, domain mismatch vs expected_domains critical, non-URL ignored; watermarks (SPECIMEN/VOID/CANCELLED high, COPY/DRAFT/DUPLICATE/SAMPLE medium, TEST/CONFIDENTIAL low, French variants mapped); converter watermarks ('created with', 'ilovepdf' high, trial/evaluation); sender-domain extraction from emails/URLs with social-media filtering.",
+   "quality": "All tests exercise code that never runs in production for QR: visual.py:33 hardcodes PYZBAR_AVAILABLE=False, so QR extraction is dead and app.py's enable_qr=True (line 138) is a no-op. Watermark checks are text-substring based — no test for the word COPY appearing innocently ('copy of your contract' would flag)."
+  },
+  {
+   "name": "Tests: structure module (test_structure.py, 242 lines)",
+   "description": "count_incremental_updates (1 EOF for clean PDF; missing file → 1 'assume clean'), check_incremental_updates/javascript/hidden_annotations/acroform/object_streams on clean PDFs, embedded file high STRUCT_EMBEDDED_FILES positive test, visible annotation not flagged, trusted-signature raises deleted-object threshold.",
+   "quality": "Weakest coverage relative to module size (63KB): almost exclusively negative/happy paths — no fixture with an actual incremental update (fitz saveIncr would do it), no JS-bearing PDF, no AcroForm, no hidden annotation, no ghost objects; get_modification_history (used directly by app.py) untested; signature verification untested."
+  },
+  {
+   "name": "Tests: scoring (test_scoring.py, 402 lines)",
+   "description": "Risk thresholds 80/50/20, confidence-weighted average math, empty→100, zero-confidence ignored, clamping, flag collection/sorting/counting, critical-flag caps (1 critical → score<=49 + at least HIGH; 2 criticals → <=19 CRITICAL), summary keyword checks.",
+   "quality": "Math tests are solid but cap assertions drifted: implementation caps at 40 minus 5/high and 2/medium with floor 5 (scoring.py:311-318) while tests assert <=49 (too loose to catch changes); no test at all for CONFIDENCE_MULTIPLIERS, the _skip_caps_types cap bypass, or the identity scanner-pipeline critical downgrade (scoring.py:270-303) — the most intricate and risk-bearing logic in scoring."
+  },
+  {
+   "name": "Tests: identity module (test_identity_us.py, 495 lines)",
+   "description": "US-only MRZ coherence: TD1 'IP'+USA passport card (subtype, no flags), IP prefix with non-USA issuer → high MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH with expected/found details, TD3 US passport validity (adult 10y / minor 5y ±1.5y, low MRZ_US_VALIDITY_PERIOD_UNEXPECTED, skipped without issuance_date), constants.",
+   "quality": "Well-built helpers with real ICAO check digits, but covers only the US corner of a 60KB module: no French CNI/TD1, no TD3 checksum-failure tests, no OCR extraction, no photo/ELA/noise analysis tests, no full analyze() integration."
+  },
+  {
+   "name": "Modules and layers with ZERO test coverage",
+   "description": "external.py (30KB: INSEE SIRET, VAT, IBAN API logic), twod_doc.py (70KB — the largest module: DataMatrix decode, C40 parsing, field mapping, cross-check against PDF text), forensics.py (17KB ELA/noise), summary.py (39KB verdict/bullet generation), document_type.py (classifier that selects confidence multipliers AND decides whether critical-flag caps apply), analyzer.py (orchestrator), extractors/pdf_extractor.py + ocr.py, i18n, and app.py itself.",
+   "quality": "The highest-leverage untested code path is document_type.py → scoring caps: a classifier regression that labels invoices 'technical' silently disables the critical-flag score caps with no failing test."
+  }
+ ],
+ "weaknesses": [
+  "app.py:929 + 2474-2477 — the giant results block is wrapped in `try: ... finally: pass` with NO except clause; the comment at app.py:918-921 says a failed analysis 're-raises so the outer handler catches it' but no outer handler exists, so any module/extraction exception renders a raw Streamlit traceback to the end user.",
+  "app.py:1002, 1057, 1062-1070, 1076-1082, 1089, 1096 — attacker-controlled PDF metadata (producer, creator, editor_name, signer) and the uploaded filename are interpolated into st.markdown(..., unsafe_allow_html=True) WITHOUT html.escape, while flag messages elsewhere are carefully escaped. A hostile PDF with Producer='<img src=x onerror=...>' injects HTML/JS into the page (stored-in-metadata XSS).",
+  "app.py:848 — `_fitz.open(stream=file_bytes, filetype='pdf')` has no error handling; a corrupted or renamed non-PDF upload crashes before the friendly size/page error paths.",
+  "app.py:70-71 — check_virustotal swallows every exception (network, auth, JSON shape) and returns None, indistinguishable from 'no API key'; the VT row silently disappears with no diagnostics.",
+  "app.py:1105 — check_virustotal is called on every Streamlit rerun (page selector change, language toggle) with a 10s timeout; result is not cached in session_state despite the analysis being cached.",
+  "app.py:968-970 — extract_pdf_data and get_modification_history re-run full text extraction on every rerun; if the PDF has no text layer the OCR fallback (2-5s/page) fires on every UI interaction.",
+  "app.py:904 — passport detection is `mrz_lines[0].startswith('P')` on OCR output stored in another module's details dict; a one-character OCR error flips whether the 2D-Doc scan runs.",
+  "app.py:1008-1014 — editor detection string-parses '→ modified with ' out of structure.py:356's human-readable formatting; renaming that string silently kills the Editor row (magic-string coupling across layers).",
+  "app.py:1020-1039 — two red-pill detections live only in the UI with their own hardcoded thresholds (1 day for ModDate gap, 7 days for stated-date gap) that contradict module logic (metadata uses 2s tolerance; scoring.py:280-303 downgrades <30min scanner-pipeline criticals for identity docs, yet the pill still shows red).",
+  "app.py:1231-1239 — group score bars use MODULE_WEIGHTS × confidence but ignore scoring.py CONFIDENCE_MULTIPLIERS (scoring.py:60-100), so per-group bars can contradict the headline trust score for identity/technical/scientific documents.",
+  "app.py:1203-1208 — the group definitions omit the identity (weight 1.5), forensics, and twod_doc modules entirely; for an ID document the most heavily weighted module is invisible in the score bars.",
+  "app.py:1907-1912 — one globally extracted entity_name/entity_address is stamped onto EVERY unverified SIREN card; a normal two-party invoice shows the same company name/address for both parties (looks like an identity mismatch).",
+  "app.py:1868-1869 — entity-name regex requires ALL-CAPS names followed by a hardcoded list of French legal forms; misses 'SA', mixed-case names, and all non-French forms; app.py:1846 drops any VAT whose length != 13.",
+  "app.py:2200-2213 — green always-open '2D-Doc Verified' panel is shown for any successfully DECODED barcode; twod_doc.py parses but never cryptographically verifies the signature (twod_doc.py:611-640, no certificate-chain code anywhere in the module), so 'Verified' overstates what was checked.",
+  "app.py:137-138 — enable_external=True and enable_qr=True are hardcoded ('sidebar removed'); enable_qr is dead configuration because visual.py:33 hardcodes PYZBAR_AVAILABLE=False, so the entire tested QR pipeline never executes in production.",
+  "app.py:62 — VT 'suspicious' verdicts are summed into 'malicious', so one paranoid engine turns the pill red on a clean file.",
+  "app.py:880-882 + 2474-2477 — temp files persist for the whole session and are only deleted when a NEW file is uploaded; abandoned sessions leak temp files on the small cloud host.",
+  "app.py:990 — 'stated date' is the FIRST extracted invoice/document-type date on page 1 (extraction order, not layout order); mis-picking feeds a red pill directly.",
+  "Test suite drift: 5 tests currently FAIL against the implementation (test_content.py::test_service_after_invoice_flagged, test_content.py::test_missing_company_id_flagged, test_images.py::test_within_tolerance, test_images.py::test_heavy_compression_flagged, test_metadata.py canva classification) — the encoded detection spec no longer matches shipped behavior and there is evidently no CI gate.",
+  "tests/test_scoring.py:287-311 — docstring/assertions describe a cap at 49 while scoring.py:311-318 caps at 40 with -5/high and -2/medium down to floor 5; the loose `<= 49` assertion cannot catch regressions in the actual cap math.",
+  "tests/test_content.py:33-37 — extract_invoice_reference, extract_all_invoice_references, check_reference_date_match, check_reference_consistency are imported and never tested; tests/test_content.py:546-554 (TestCheckDuplicateAmounts) is a vacuous test asserting a disabled check returns [].",
+  "tests/test_structure.py — only clean-PDF negative paths plus one embedded-file positive; no incremental-update fixture (trivially creatable with fitz saveIncr), no JavaScript, no AcroForm, no hidden-annotation, no ghost-object fixture; get_modification_history (consumed directly by app.py) is untested.",
+  "tests/test_images.py::TestCheckPasteArtifacts — the flagship paste/tamper detector has ONLY negative-path tests; if its positive detection silently broke, no test would notice.",
+  "No tests exist for external.py, twod_doc.py (70KB), forensics.py, summary.py, document_type.py, analyzer.py, pdf_extractor.py, ocr.py, or app.py — including document_type.py whose output selects confidence multipliers and decides whether critical-flag score caps apply (scoring.py:263-305).",
+  "app.py:1155-1162 and 1241-1248 — score color thresholds (80/50/20) are duplicated in the UI instead of reusing scoring.get_risk_level; HIGH and CRITICAL bands both render the same red."
+ ],
+ "false_positive_risks": [
+  "Re-downloaded duplicates: a customer fetches a duplicate invoice or bank statement from a portal weeks after the stated document date — the PDF's CreationDate is the download time, so the |stated - creation| > 7 days rule (app.py:1031-1039) puts an alarming red 'N days' pill on a perfectly legitimate document. This is the normal case for bank statements and utility-bill duplicates.",
+  "Viewer re-saves: a legitimate recipient opens a real invoice in Adobe/Preview and saves it (or a scanner writes the file and a viewer touches it) days later — ModDate gap > 1 day triggers the red modification pill (app.py:1020-1029) even when scoring.py:280-303 deliberately treats the equivalent module flag as a scanner-pipeline false positive; UI and engine contradict each other.",
+  "Two-party invoices: because one extracted company name/address is applied to every unverified SIREN card (app.py:1907-1912), a legitimate invoice listing both seller and buyer SIRENs shows the buyer's SIREN labeled with the seller's name — users read this as an identity mismatch/fraud signal.",
+  "Scanned identity documents: the 'Tampering' group bar averages fonts/images/visual/metadata WITHOUT the document-type confidence multipliers (app.py:1231-1239), so an authentic scanned CNI can show a red Tampering bar while the headline score (which applies the 0.3 fonts multiplier) says the document is fine.",
+  "VirusTotal 'suspicious' verdicts: one aggressive engine marking a clean corporate PDF 'suspicious' renders the red 'threats detected' pill (app.py:62,1115-1121), implying malware on a legitimate document.",
+  "SME documents produced with consumer tools: per the tested taxonomy (test_metadata.py, test_fonts.py), Google Docs/LibreOffice producers get medium flags and Calibri/Arial gets a system-font flag — a small business's genuine Word invoice accumulates penalties from tooling alone; a Microsoft-ecosystem producer string containing 'Copilot' would even hit the critical AI list.",
+  "Innocent watermark words: check_watermarks is substring-based (test_visual.py:158-200), so a legitimate letter containing 'please keep a copy for your records' or a 'TEST' environment reference can be flagged, and 'copie' appears routinely in French administrative text.",
+  "Legitimate long documents: hard gates reject > 10MB or > 20 pages (app.py:822-870) — real annual bank statements and notarial files simply cannot be analyzed, which users may misread as rejection for cause.",
+  "Documents with genuine 2D-Doc on passports: the UI skips 2D-Doc scanning whenever MRZ line 1 starts with 'P' (app.py:904) — if a legitimate French document is misread as a passport, its authentic 2D-Doc positive signal is never collected, depriving the doc of a trust boost."
+ ],
+ "false_negative_gaps": [
+  "QR phishing is entirely undetected in production: visual.py:33 hardcodes PYZBAR_AVAILABLE=False, so QR extraction never runs — every tested check (URL shorteners, suspicious TLDs, domain mismatch vs sender) is dead code in deployment despite app.py:138 setting enable_qr=True. An invoice with a phishing payment QR passes clean.",
+  "Forged 2D-Doc: since the barcode's cryptographic signature is never verified, an attacker can regenerate a DataMatrix encoding altered income/tax/identity values matching their edited text — the UI then shows an authoritative green 'Verified' panel that actively legitimizes the forgery (worse than no check).",
+  "Full-rewrite tampering: editing a PDF with any tool that rewrites the file (LibreOffice re-export, print-to-PDF, qpdf --linearize, many online editors) leaves a single %%EOF and lets the attacker set ModDate=CreationDate — the modification-history panel, both red date pills, and the entire structure group show nothing. Only producer-string heuristics remain, and those are trivially spoofed with exiftool by setting Producer='Adobe PDF Library 15.0' (explicitly whitelisted in test_metadata.py:157-165).",
+  "Metadata forgery generally: all date-based UI detections (pills, history timing, version timeline) read attacker-writable Info-dictionary fields; a fraudster who sets coherent CreationDate/ModDate/stated date suppresses every date signal surfaced in app.py.",
+  "Passport-labelled evasion of 2D-Doc cross-check: crafting MRZ line 1 to start with 'P' (app.py:904) skips the 2D-Doc scan, so a doctored CNI/tax document presented with a passport-style MRZ never has its barcode decoded and cross-checked against visible text.",
+  "Second-page tampering: the stated-date extraction reads page 1 only (app.py:987), so manipulated dates or amounts on later pages never feed the pill logic; similarly the amount-region paste detector's effectiveness is unproven — it has zero positive-path tests, so a regression that makes it detect nothing would ship green.",
+  "Classifier-driven cap bypass: document_type.py is untested; if a fraudulent invoice is classified 'technical'/'scientific'/'legal_notice', scoring.py:265 skips the critical-flag score caps AND applies confidence multipliers that mute structure/content findings — an attacker adding academic-looking boilerplate could materially raise their score, and no test guards this path.",
+  "Untested verification modules: external.py (INSEE/VAT/IBAN) and twod_doc.py cross-checking have no tests — silent regressions there (e.g., an API schema change making every SIRET 'unverifiable') would quietly remove the strongest positive/negative signals with the suite still green.",
+  "VirusTotal scope confusion: the VT pill only detects known malware hashes; a fraudulent-but-not-malicious invoice reliably shows the neutral/green states, which users can misread as document authenticity.",
+  "Anachronism regression already shipped: test_content.py::test_service_after_invoice_flagged currently FAILS — service-date-after-invoice-date (a classic fabricated-invoice tell that the tests document as 'the most valuable date check') is apparently no longer flagged by the implementation, and likewise CONTENT_MISSING_COMPANY_ID no longer fires for French invoices with no SIRET/SIREN/VAT."
+ ],
+ "improvement_ideas": [
+  "Move every UI-layer detection into modules that emit Flag objects — the two red date pills, editor extraction, entity name/address extraction, and VT lookup — so severity, i18n, scoring, and display stay consistent and the engine/UI contradictions (scanner-pipeline downgrade vs red pill) disappear. app.py should only render flags.",
+  "Extract a shared `effective_weight(module, confidence, document_type)` helper in scoring.py and use it for both calculate_final_score and the app.py group bars; add identity/forensics/twod_doc to a group (e.g., 'Identity & Signatures') so their results are visible.",
+  "Escape ALL attacker-controlled strings (producer, creator, signer, editor_name, uploaded filename, API-returned BIC/bank names) before interpolation into unsafe_allow_html markdown — a single esc() helper applied at the file-properties block (app.py:1002-1102) closes the hostile-PDF XSS.",
+  "Add a proper except-handler around the analysis/results block rendering the same friendly error card as the size/page gates, and wrap the initial fitz.open at app.py:848 to handle corrupted uploads.",
+  "Implement offline 2D-Doc signature verification: bundle the ANTS/France Titres certificates (fully local, satisfies the no-external-upload constraint) and verify the parsed signature; rename the pill to 'Decoded — signature not verified' until then, because the current green 'Verified' is the single most dangerous overstatement in the UI.",
+  "Cache extract_pdf_data, get_modification_history, and check_virustotal results in session_state keyed by the same file hash as the analysis, eliminating per-rerun OCR/API costs; delete temp files via a session-end hook or analyze from bytes (fitz supports streams) to remove temp files entirely.",
+  "Fix the 5 failing tests to re-encode intended behavior (or fix regressions they reveal — especially the service-after-invoice anachronism and missing-company-ID checks) and add CI so spec drift can't ship; tighten test_scoring cap assertions to the real 40/−5/−2/floor-5 math.",
+  "Add positive-path structure fixtures: fitz saveIncr() for incremental updates, a JS action, an AcroForm text widget, an opacity-0 annotation, and a ghost-object file; add tests for get_modification_history since app.py consumes it directly.",
+  "Test the untested decision-critical code first: document_type.py classification (it gates the critical-flag caps), scoring's CONFIDENCE_MULTIPLIERS/_skip_caps_types/identity scanner-pipeline downgrade, twod_doc parsing + cross-check, external.py response handling (mock the APIs), and at least one positive paste-artifact fixture (synthetic scan with a pasted amount region, matching CLAUDE.md's own 'Test Document Ideas' list).",
+  "Replace the '→ modified with ' magic-string contract with a structured `detected_editor` field in get_modification_history diffs; replace the 'signer-in-flag-details' convention with a first-class field on the structure ModuleResult.details.",
+  "Either ship pyzbar (libzbar0 via packages.txt already exists as a mechanism) and add an availability-gated end-to-end QR extraction test, or delete the enable_qr plumbing — right now the tested QR suite gives false confidence about a feature that never runs.",
+  "Per-entity attribution: extract name/address from a ±300-char context window around each SIREN occurrence instead of one global regex pass, so multi-party documents label each entity correctly; broaden legal-form patterns (SA, mixed case) and support non-13-length VAT forms.",
+  "Make the VT pill three-state with nuance: treat suspicious-only verdicts (or <2 engines) as amber 'inconclusive', cache responses, and add tooltip text clarifying VT checks malware, not document authenticity.",
+  "Surface the cap logic in the UI: when a critical flag caps the score, show 'score limited by a critical finding' next to the gauge — currently the gauge can show 40 while all four group bars are green, which confuses users and hides the engine's reasoning.",
+  "Differentiate HIGH vs CRITICAL visually (distinct colors below 50) and derive gauge/bar colors from get_risk_level instead of re-hardcoding thresholds in three places in app.py."
+ ]
+}

@@ -1,0 +1,176 @@
+{
+ "area": "src/modules/content.py — Module B: Content Analysis (date extraction/coherence, invoice reference consistency, French legal-mention validation; called from src/analyzer.py:125; extractors reused by src/modules/external.py and app.py)",
+ "checks": [
+  {
+   "name": "French date extraction (find_french_dates / parse_french_date, lines 59-128)",
+   "description": "Regex-extracts dates like '15 janvier 2024', '1er fév. 2024' using a hand-built FRENCH_MONTHS map. Extraction only — feeds all date checks. No severity itself.",
+   "quality": "Reasonable for French month-name dates. Matches on text.lower() then slices the original text by position, which assumes lower() preserves string length (true for French, not for all Unicode). Requires 'day month year' order; no 'month year' ('janvier 2024') or ISO support."
+  },
+  {
+   "name": "Numeric date extraction (find_numeric_dates, lines 131-193)",
+   "description": "Extracts DD/MM/YYYY, DD-MM-YYYY (with optional H:MM time) and DD/MM/YY. Two-digit years are always mapped to 2000+YY (line 181), so '99' becomes 2099. Extraction only.",
+   "quality": "Hard-assumes French day-first convention — US MM/DD documents are silently misparsed or dropped. The 2000+YY pivot turns any 1990s short date (e.g. an unlabeled birth date '12/05/85') into a far-future 2085 date that then trips a CRITICAL flag downstream. No ISO (YYYY-MM-DD), no dotted (15.01.2024), no month/year ('12/2024') support."
+  },
+  {
+   "name": "Abbreviated month-year extraction (find_abbreviated_month_dates, lines 196-235)",
+   "description": "Extracts 'Mar 23', 'Avr. 24' style dates (consumption graphs), defaulting day to 1. Extraction only.",
+   "quality": "Naive: pattern \\b([A-Za-zéûô]{3})\\.?\\s+(\\d{2})\\b matches ANY 3-letter token followed by 2 digits — 'Mai 68' becomes 2068-05-01, 'NOV 85' becomes 2085-11-01 — and these synthetic dates flow into the far-future/very-old checks."
+  },
+  {
+   "name": "Date type classification (identify_date_type + DATE_CONTEXT_KEYWORDS, lines 260-454)",
+   "description": "Classifies each date as invoice/service/due/creation/document/reference_date/order by longest substring keyword found in the context (previous line + current line up to the date). Drives which coherence checks apply.",
+   "quality": "Substring matching with no word boundaries: 'du' (service) and ', le' (document) match nearly all French prose, 'dated' matches inside 'updated'. 'date d'émission' appears in BOTH invoice and creation lists (lines 267, 331) — tie broken by dict insertion order. The special-case city regex at line 436 ([A-ZÀ-Ü][a-zà-ÿ]+,\\s*le\\s*$) can NEVER fire because the context string built at lines 507-508 includes the date itself, so the context never ends with ', le' — dead branch (masked only because the generic ', le' keyword still classifies it)."
+  },
+  {
+   "name": "CONTENT_FAR_FUTURE_DATE (check_impossible_dates, lines 588-606)",
+   "description": "Any extracted date > now + 365 days → CRITICAL (−50 pts). Skipped for reference_date-typed dates and if context contains a future-ok keyword (valable, expire, jusqu'au...).",
+   "quality": "Threshold hardcoded; the keyword escape depends on the label being within the 2-line/120-char context window, which fails in tabular layouts. Combined with the 2-digit-year pivot and the 3-letter-month over-matching, this critical flag fires on garbage extractions."
+  },
+  {
+   "name": "CONTENT_VERY_OLD_DATE (check_impossible_dates, lines 610-636)",
+   "description": "Any date < 2000-01-01 → MEDIUM (−15 pts). Skips reference_date type, birth keywords (né le, naissance...), and legal-reference keywords (loi, article, décret...).",
+   "quality": "The 2000 cutoff is arbitrary; guard lists are decent but the keyword lists are hardcoded substrings ('l. ', 'r. ', 'code ') that both over- and under-match. Historic but legitimate dates (lease start on a rent receipt, marriage date) get flagged."
+  },
+  {
+   "name": "CONTENT_EXPIRED_DOCUMENT (check_impossible_dates, lines 639-653)",
+   "description": "Any date whose context contains a strict expiry keyword (valable jusqu, expire le, valid until...) and is in the past → MEDIUM per occurrence.",
+   "quality": "Flags once per matching date, so a driving licence with several category expiry rows yields multiple stacked MEDIUM flags. Conflates document freshness (expired but genuine) with tampering — arguably not a fraud signal at all."
+  },
+  {
+   "name": "CONTENT_ANACHRONISM_DUE (check_date_logic, lines 683-695)",
+   "description": "If an invoice-typed date exists, any due-typed date earlier than invoice_date − 1 day → HIGH (−30 pts).",
+   "quality": "Uses invoice_dates[0], where ordering is extraction-method order (French dates before numeric), NOT document order — the 'primary' invoice date is arbitrary. Compares ALL due dates in the document against that one date, which breaks on statements/dunning letters listing several invoices."
+  },
+  {
+   "name": "CONTENT_ANACHRONISM_ORDER (check_date_logic, lines 699-711)",
+   "description": "Any order-typed date later than invoice_date + 1 day → HIGH.",
+   "quality": "Same invoice_dates[0] arbitrariness. The 1-day tolerance is hardcoded. Note: the module docstring promises a service-date-after-invoice-date check (line 6) but no service anachronism check exists — check_date_logic only covers due and order."
+  },
+  {
+   "name": "CONTENT_FUTURE_DOCUMENT_DATE (check_future_document_date, lines 716-746)",
+   "description": "First-PAGE dates typed invoice/document/creation that are > now + 1 day → CRITICAL (−50 pts). Called with first-page dates only (analyze_content line 1786).",
+   "quality": "1-day tolerance is too tight: subscription/insurance invoices legitimately dated a few days ahead get a critical flag. First-page-only scoping means a future date on page 2+ is never checked."
+  },
+  {
+   "name": "CONTENT_DATE_CREATION_MISMATCH (check_date_vs_creation, lines 749-820)",
+   "description": "Compares the FIRST 'document'-typed and FIRST 'invoice'-typed date on page 1 against PDF metadata CreationDate: abs gap > 7d → MEDIUM, > 30d → HIGH, > 180d → CRITICAL. Skipped silently when CreationDate is missing.",
+   "quality": "The single biggest false-positive engine: uses abs(), so 'PDF regenerated months after invoice date' (every on-demand re-download from Amazon/EDF/Free, every scan of an old letter) scores identically to the genuinely suspicious 'PDF created long before its stated date'. Thresholds hardcoded; also inherits the arbitrary first-date selection and the over-broad ', le' classifier."
+  },
+  {
+   "name": "check_duplicate_amounts (lines 889-900) — gutted",
+   "description": "Returns [] unconditionally; the repeated-amount check was removed for FP reasons. Its helper extract_amounts (lines 827-886) is now fully dead code with its own buggy regexes.",
+   "quality": "Dead. Leaves the module with ZERO amount-based checks — no HT+TVA=TTC arithmetic, no line-item sum, nothing."
+  },
+  {
+   "name": "CONTENT_REFERENCE_DATE_MISMATCH (check_reference_date_match + extract_date_from_reference, lines 1014-1144)",
+   "description": "If the first extracted invoice reference embeds a date (leading digits starting with '20' parsed as YYYYMMDD/YYYYMM/YYYY), compare with invoice date: year mismatch → HIGH, month → MEDIUM, day → LOW.",
+   "quality": "Assumes any ref whose digits start with '20' encodes a calendar date — fiscal-year numbering, carried-over sequences, and coincidental '20…' prefixes all produce HIGH flags. Reference selection (refs[0]) is keyword-list order, not document order, so the 'invoice reference' may actually be an order number."
+  },
+  {
+   "name": "CONTENT_INCONSISTENT_REFERENCES (check_reference_consistency + extract_all_invoice_references, lines 929-1189)",
+   "description": "Collects references behind keywords (facture n°, invoice #, votre/notre référence, document n°, commande n°, order #), with exclusion patterns (client n°, contrat n°, cedex, pdl...). If more than one UNIQUE value is found → CRITICAL (−50 pts).",
+   "quality": "Fundamentally broken pooling: invoice number, order number and customer references are DIFFERENT numbers by design, but they are collected into one pool and required to be identical. Any Amazon-style invoice showing both 'Facture n° INV-123' and 'Commande n° 405-999…' earns a CRITICAL flag. Ref regex ([A-Z]{0,5}[-]?\\d{4,}[-]?\\d*[A-Z]?, line 977) also misses short-grouped refs like 'F-24-0032'."
+  },
+  {
+   "name": "CONTENT_INVALID_SIRET / CONTENT_INVALID_SIREN (extract_siret/extract_siren + Luhn, lines 1199-1398, flags at 1666-1689)",
+   "description": "Extracts labeled SIRET (14 digits, 'SIRET:' variants) and SIREN (labeled or 'NNN NNN NNN RCS City'), validates Luhn checksum; each invalid occurrence → HIGH (−30 pts).",
+   "quality": "Checksum math is correct (verified conventions: SIRET doubles even positions, SIREN doubles odd). But extraction is label-dependent — an unlabeled SIRET in a footer is never validated, so removing the label defeats the check entirely. Micro-entrepreneur documents legitimately using formats the regexes miss are skipped rather than flagged."
+  },
+  {
+   "name": "CONTENT_INVALID_VAT (extract_french_vat + validate_french_vat, lines 1263-1441, flag at 1692-1702)",
+   "description": "Extracts FR VAT numbers (labeled or bare FRxx+9 digits), validates key = (12 + 3*(SIREN % 97)) % 97 plus SIREN Luhn; invalid → HIGH.",
+   "quality": "Formula is correct for standard SIRENs (note: 'Monaco/La Poste' special SIREN cases aside). Only FRENCH VAT is validated — DE/BE/NL/etc. numbers on foreign invoices are never checked. Unlabeled VAT with full French spacing 'FR 03 552 081 317' escapes pattern 3."
+  },
+  {
+   "name": "CONTENT_SIREN_VAT_MISMATCH (check_legal_mentions, lines 1704-1730)",
+   "description": "If valid VAT(s) and valid SIRET/SIREN(s) coexist, the SIREN embedded in each VAT must intersect the document SIRENs; otherwise → CRITICAL (−50 pts).",
+   "quality": "Good idea, but no multi-company awareness: marketplace invoices (platform SIRET + seller VAT), invoices listing both supplier and customer legal IDs, or factoring mentions produce guaranteed critical false positives."
+  },
+  {
+   "name": "IBAN extraction + mod-97 validation (extract_iban / validate_iban_checksum, lines 1540-1637) — extraction only",
+   "description": "Extracts labeled and unlabeled IBANs, validates ISO 13616 mod-97. Correct algorithm.",
+   "quality": "NEVER produces a flag in this module — check_legal_mentions does not call it; results are only consumed by external.py and the app UI. An invalid IBAN (the classic payment-diversion fraud) yields zero score impact here. Unlabeled pattern is digits-only so alphanumeric-BBAN IBANs (NL, GB…) without a label are missed."
+  },
+  {
+   "name": "RCS and capital social extraction (extract_rcs / extract_capital_social, lines 1444-1537)",
+   "description": "Extracts RCS mentions (3 pattern orders) and share-capital amounts.",
+   "quality": "Pure extraction, never flagged, never cross-checked (e.g. RCS number vs SIREN would be a free consistency check — they are the same 9 digits). Display-only value."
+  },
+  {
+   "name": "Scoring + confidence (analyze_content, lines 1748-1825)",
+   "description": "score = 100 − Σ severity points (low 5 / med 15 / high 30 / crit 50), floored at 0. Confidence: ≥2 classified dates → 0.9; ≥2 dates → 0.7; 1 date → 0.5; none → 0.3; empty text → score 100, confidence 0.1.",
+   "quality": "SEVERITY_POINTS (line 1740) duplicates the scoring config in CLAUDE.md/scoring.py — drift risk. Confidence is inflated because the generic 'du'/', le' keywords classify almost every French date, so nearly every French document reports 0.9. Empty-text path returns a neutral 100 with no OCR fallback (ocr.py exists but is not wired into pdf_extractor or analyzer), making the module blind to scanned/flattened documents. No positive trust signals despite valid SIRET+VAT+IBAN being strong legitimacy evidence."
+  }
+ ],
+ "weaknesses": [
+  "content.py:22 — 'import datefinder' is unused (the fallback at lines 535-549 is commented out), yet datefinder remains a hard dependency in requirements.txt. Net effect: no English, ISO (YYYY-MM-DD), or long-English-form date parsing at all.",
+  "content.py:181 — two-digit year pivot 'year = 2000 + year_short' maps '85'→2085 and '99'→2099; any legitimate 1990s short date becomes a far-future date and can trigger a CRITICAL CONTENT_FAR_FUTURE_DATE.",
+  "content.py:218 — abbreviated-month pattern matches ANY 3-letter word + 2 digits ('Mai 68', 'NOV 85', product codes, table headers), fabricating dates that feed the impossible-date checks.",
+  "content.py:151 — numeric date regex hard-assumes DD/MM order; US-format documents are misparsed ('03/04/2024' read as 3 April); no support for '15.01.2024', 'YYYY-MM-DD', or month/year '12/2024' periods.",
+  "content.py:436 — the city+', le' special-case regex requires the context to END with ', le', but the context built at lines 507-508 always includes the date text itself, so this branch is unreachable dead code; classification silently falls through to the generic ', le' keyword.",
+  "content.py:289 and content.py:356 — keywords 'du' (service) and ', le' (document) are substrings present in almost all French prose; with no word-boundary or proximity constraint (line 445: 'keyword in context_lower'), nearly every date gets classified, corrupting both the coherence checks and the confidence heuristic. 'dated' (line 275) matches inside 'updated'/'outdated'.",
+  "content.py:267 vs content.py:331 — 'date d'émission' is listed under BOTH 'invoice' and 'creation'; the tie is resolved by dict insertion order (line 443-452), which is fragile and undocumented.",
+  "content.py:487 — context lookup uses text.lower().find(source_text.lower()), which returns the FIRST occurrence of that date string in the document, not the position the regex actually matched; a repeated date string gets the wrong context and therefore potentially the wrong type.",
+  "content.py:478-481 — dedup key (date, source_text) means the same date string appearing under two different labels ('Date de facture: 15/01/2024' and 'Échéance: 15/01/2024') is recorded once with only the first label's type, silently disabling anachronism checks between them.",
+  "content.py:684 and content.py:1099 — 'invoice_dates[0]' is extraction-method order (French-name dates always precede numeric dates), not reading order; the 'primary invoice date' and 'primary reference' are effectively arbitrary.",
+  "content.py:790 — check_date_vs_creation uses abs(gap): it cannot distinguish 'PDF regenerated after the stated date' (benign, extremely common) from 'PDF created before the stated date' (physically suspicious). Thresholds 7/30/180 days (lines 792-800) are hardcoded with no document-type awareness.",
+  "content.py:770-771 — when metadata CreationDate is absent, check_date_vs_creation returns [] silently; stripping metadata disables the check with no penalty from this module.",
+  "content.py:889-900 — check_duplicate_amounts is a stub returning []; extract_amounts (lines 827-886) is fully dead code (no other caller in the repo), and its regexes were broken anyway (pattern '[\\d\\s,]+[.,]\\d{2}' would over-capture spaces/newlines). Module docstring (lines 3-9) still advertises amount checks and service-date anachronisms that do not exist.",
+  "content.py:948-960 — extract_all_invoice_references pools invoice numbers, order numbers, 'votre/notre référence' and 'document n°' into ONE namespace; check_reference_consistency (line 1174) then demands they all be identical and emits CRITICAL otherwise.",
+  "content.py:977 — reference regex '([A-Z]{0,5}[-]?\\d{4,}[-]?\\d*[A-Z]?)' requires ≥4 consecutive digits, missing short-grouped refs like 'F-24-0032' or 'FAC/2024/17'; slash- and dot-separated refs are not captured.",
+  "content.py:1036-1060 — extract_date_from_reference treats ANY reference whose digits start with '20' as encoding a calendar date; fiscal-year and sequence numbering produce HIGH mismatch flags.",
+  "content.py:1318-1323 — SIRET extraction is label-gated ('siret' must appear); unlabeled 14-digit SIRETs in footers are never checksum-validated, so omitting the label defeats the check.",
+  "content.py:1640-1732 — check_legal_mentions never flags ABSENCE of legal mentions (despite its docstring), never flags invalid IBANs (extract_iban is not called there), and never cross-checks the RCS number against SIREN even though both are extracted.",
+  "content.py:1416-1418 — unlabeled VAT pattern '\\b(fr\\s?\\d{2}\\s?\\d{9})\\b' cannot match the common fully-spaced print format 'FR 03 552 081 317'.",
+  "content.py:639-653 — the expired-document loop emits one MEDIUM flag per matching date with no dedup/cap, stacking penalties on documents that list several validity rows.",
+  "content.py:1740-1745 — SEVERITY_POINTS is duplicated per-module instead of imported from scoring; the two tables can drift.",
+  "content.py:1780-1789 — future-date and date-vs-creation checks run on page 1 only; later pages are unchecked. Line 1763 joins pages with a single \\n which can also glue the last line of a page to the next page's header, creating spurious contexts.",
+  "content.py:120-123 — matching on text.lower() and slicing the original by the same offsets assumes casefolding never changes string length; false for a few Unicode characters (edge case, but a latent misalignment bug)."
+ ],
+ "false_positive_risks": [
+  "Re-downloaded/regenerated invoice: Amazon, EDF, Free, OVH generate the PDF at download time, so CreationDate = download date, months after the printed invoice date → CONTENT_DATE_CREATION_MISMATCH CRITICAL (−50) on a perfectly genuine document. Same for a customer who scans or prints-to-PDF an old paper letter.",
+  "Any invoice showing both an invoice number and an order number ('Facture n° INV-2024-118' + 'Commande n° 405-9983…') → CONTENT_INCONSISTENT_REFERENCES CRITICAL, because different-purpose references are pooled and required to be identical. This hits most e-commerce invoices.",
+  "ID/benefits document with an unlabeled birth date in a table cell ('12/05/85' with the 'Né(e) le' label too far away for the 2-line context window) → parsed as 2085 → CONTENT_FAR_FUTURE_DATE CRITICAL.",
+  "Insurance attestation or subscription invoice with coverage 'du 01/01/2026 au 01/07/2027' where the 'valable' keyword sits in a different table column/line than the date → far-future CRITICAL despite being a normal validity range.",
+  "Dunning letter / account statement listing several past invoices: due dates of older invoices precede the arbitrarily-chosen 'first' invoice date → CONTENT_ANACHRONISM_DUE HIGH.",
+  "Marketplace or dual-party invoice carrying the platform's SIRET plus the seller's VAT number (or supplier + customer legal IDs) → CONTENT_SIREN_VAT_MISMATCH CRITICAL, because the check assumes exactly one company per document.",
+  "Company using fiscal-year or carried-over numbering ('2024-1205' issued in January 2025) → CONTENT_REFERENCE_DATE_MISMATCH HIGH.",
+  "Invoice legitimately pre-dated by a few days (subscription pre-billing, insurance premium notices sent ahead of the effective date) → CONTENT_FUTURE_DOCUMENT_DATE CRITICAL with only a 1-day tolerance.",
+  "Genuine but expired ID or attestation (naturally expired, still authentic) → one or several stacked CONTENT_EXPIRED_DOCUMENT MEDIUM flags; expiry is a freshness issue, not evidence of tampering.",
+  "Documents containing incidental tokens like 'Mai 68', 'NOV 85', or 3-letter codes followed by 2 digits → fabricated far-future/very-old dates via find_abbreviated_month_dates.",
+  "Rent receipt or contract quoting a legitimate old date ('bail du 15 mars 1998') where the context lacks the whitelisted legal keywords → CONTENT_VERY_OLD_DATE MEDIUM.",
+  "French prose containing ', le' near a date ('Veuillez trouver, le cas échéant, … le 15/03/2023') misclassifies the date as the document's establishment date, feeding the creation-date mismatch cascade."
+ ],
+ "false_negative_gaps": [
+  "Amount tampering — the flagship invoice fraud (changing 1 025 € to 2 025 €) — is completely invisible to this module: check_duplicate_amounts returns [] and there is no HT + TVA = TTC arithmetic check, no line-items-sum-to-total check, no VAT-rate plausibility check (5.5/10/20%), no cross-page total consistency. A whole-PDF rewrite that keeps dates/references clean sails through.",
+  "Scanned or flattened-to-image PDFs: no text layer → analyze_content returns score 100 (confidence 0.1) and the OCR fallback (src/extractors/ocr.py) is not wired into pdf_extractor/analyzer, so a screenshot-of-an-edited-invoice PDF gets a near-neutral content score.",
+  "Non-French/ISO-dated documents: 'January 15, 2024' and '2024-01-15' are never extracted (datefinder disabled, custom parsers French-only), so ALL date checks silently no-op on English or machine-formatted documents — an attacker can dodge every date check by using ISO dates.",
+  "Invalid or swapped IBAN (payment-diversion fraud): extract_iban validates the checksum but check_legal_mentions never uses it, so a typo'd or fabricated IBAN produces zero flags from this module.",
+  "A French 'invoice' with NO legal mentions at all (no SIRET, no VAT, no RCS) — legally impossible for a real French company — receives no flag; absence is never penalized, only present-but-invalid values are.",
+  "Unlabeled SIRET: printing '552 081 317 66522' without the word 'SIRET' bypasses checksum validation entirely (label-gated regexes, lines 1318-1323).",
+  "Fabricated-but-Luhn-valid SIREN/SIRET: the checksum is trivially satisfiable; with no local registry cross-check (external INSEE module is optional/post-MVP), an invented valid-checksum identifier passes.",
+  "Service date after invoice date — explicitly promised by the module docstring — is never checked (check_date_logic only covers due and order), and the 'service' type is diluted by the generic 'du' keyword anyway.",
+  "Future or inconsistent dates on pages 2+ escape check_future_document_date and check_date_vs_creation, which only receive first-page dates (analyze_content lines 1780-1789).",
+  "Metadata-stripped PDFs: CreationDate=None silently disables the strongest content check (date-vs-creation); the tamperer who removes metadata loses nothing here.",
+  "Same date string reused under different labels: the (date, source) dedup at lines 478-481 keeps only the first label's type, so an anachronism expressed with identical date strings is invisible.",
+  "Non-French EU VAT numbers (DE/BE/NL/IT…) are extracted by no pattern and validated by nothing — foreign or cross-border invoice fraud is out of scope by accident, not by design.",
+  "Reference tampering that keeps ONE consistent value: since the consistency check only compares occurrences within the document, an attacker who edits all occurrences (or a document with a single occurrence) is safe; no format-plausibility or sequence check exists.",
+  "Coherent-but-fraudulent documents: an attacker who fabricates an invoice from scratch with plausible dates, one reference, and a real company's valid SIRET/VAT gets a perfect 100 from this module — there are no positive-verification signals (template/registry match) to distinguish 'consistent' from 'genuine'."
+ ],
+ "improvement_ideas": [
+  "Reinstate amount analysis with arithmetic instead of repetition-counting: verify Total TTC = Total HT + TVA within rounding tolerance, line items sum to subtotal, VAT amount / HT ratio matches a legal French rate (2.1/5.5/10/20%), and the same 'total due' value is identical everywhere it appears. These are high-signal, low-FP checks and directly catch digit-edit fraud.",
+  "Split reference extraction into namespaces (invoice_ref, order_ref, client_ref, document_ref) keyed by the keyword that matched, and only apply the consistency CRITICAL within the same namespace; keep cross-namespace values as informational context.",
+  "Make check_date_vs_creation direction-aware: creation_date << document date (PDF created before its own stated date) stays HIGH/CRITICAL; creation_date >> document date should be downgraded to LOW/info and suppressed when metadata Producer indicates on-demand generation or scanning (coordinate with the metadata module), since re-downloads and scans are the dominant legitimate case.",
+  "Wire the OCR fallback into pdf_extractor so image-only PDFs get analyzed text; when text comes from OCR, run checks with relaxed checksum handling (OCR digit confusion) and reflect OCR provenance in confidence rather than returning a neutral 100/0.1.",
+  "Replace the disabled datefinder path with locale-aware parsing (e.g. the 'dateparser' library with languages=['fr','en']) and add explicit ISO YYYY-MM-DD, dotted DD.MM.YYYY, and MM/YYYY period patterns; detect document language first and choose day-first vs month-first accordingly.",
+  "Fix the 2-digit-year pivot: map YY to 19YY when 2000+YY would exceed current_year + small_margin (standard sliding window), eliminating the 2085-birth-date class of critical false positives.",
+  "Fix or remove the unreachable city+', le' regex at line 436 by matching the context minus the date substring; then delete the over-generic keywords ('du', ', le', 'dated') or require word boundaries and a max distance (e.g. keyword within 25 chars before the date).",
+  "Track the actual regex match span through extraction instead of re-finding via text.find(), keep one ExtractedDate per OCCURRENCE (not per unique string), and let a date carry multiple candidate types so relabeled duplicates still participate in anachronism checks.",
+  "Add the missing legal-mention checks: flag French invoices (doc-type aware, using the analyzer's detect_document_type) that have NO SIRET/SIREN/VAT at all; flag invalid IBANs; scan for unlabeled 14-digit Luhn-valid SIRET candidates; cross-check RCS number == SIREN when both present.",
+  "Introduce positive trust signals per project goal 2: a coherent set of valid SIRET + matching VAT + matching RCS + valid IBAN should add a bonus (or raise confidence), not be score-neutral — this also helps separate 'fabricated but internally consistent' from 'verified'.",
+  "Make the SIREN/VAT mismatch multi-company-aware: pair each VAT with the nearest SIRET/SIREN in the text (proximity or same page block) before declaring a mismatch, and downgrade to MEDIUM when 2+ distinct companies are legitimately present.",
+  "Centralize thresholds and severity points in scoring.py/config (creation-gap 7/30/180, future tolerance 1 day, far-future 365 days, very-old year 2000) so they can be tuned per document type instead of being hardcoded per function; cap repeated flags of the same code per document.",
+  "Extend the future-date and creation-date checks to all pages (or at least last page, where totals/signatures live), and add the promised service-vs-invoice anachronism check once the 'service' classifier is cleaned of the 'du' keyword.",
+  "Delete dead code (datefinder import, extract_amounts, the check_duplicate_amounts stub) and update the module docstring so the advertised checks match reality — the drift is already misleading for anyone tuning the engine."
+ ]
+}

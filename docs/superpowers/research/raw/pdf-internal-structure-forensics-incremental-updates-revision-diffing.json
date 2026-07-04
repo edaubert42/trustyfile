@@ -1,0 +1,202 @@
+{
+ "domain": "PDF internal structure forensics: incremental updates, revision diffing, xref anomalies, content-stream traces, redaction failures, signature coverage, and structural legitimacy signals",
+ "techniques": [
+  {
+   "name": "Incremental update / revision counting (%%EOF + startxref + /Prev chain)",
+   "how_it_works": "Byte-scan the raw file for xref sections terminated by %%EOF (regex like rb'[^t]xref.*?%%EOF' plus counting b'startxref' and b'%%EOF' occurrences), then cross-check by walking the trailer's /Prev pointers (and /XRefStm for hybrid files) which form a linked list of every save operation. Each incremental save appends new objects + a new xref section + trailer instead of rewriting the file, so revision_count = number of xref sections. PyMuPDF exposes doc.version_count directly; pikepdf's Pdf.get_xref_table() gives structured entries. Didier Stevens' pdfid.py -e and pdftool.py 'iu' command implement the same counting.",
+   "signal": "1 revision = written once by the generator (weak positive signal). 2+ revisions = the file was re-saved after creation by some editor. Catches Acrobat/Foxit 'Save' after editing amounts/dates. FALSE-POSITIVE RISK IS HIGH if used alone: digital signing, form filling, Bates stamping, and annotation workflows all legitimately append revisions (the DoJ Epstein files had incremental updates that were just Bates numbering). Treat count alone as low/medium severity; the discriminator is WHAT changed (see revision diffing).",
+   "local_feasibility": "Pure Python on raw bytes + PyMuPDF (pip: PyMuPDF, already in stack) or pikepdf (pip: pikepdf, bundles qpdf in wheels, no apt needed). Milliseconds per file, negligible RAM.",
+   "effort": "small",
+   "sources": [
+    "https://blog.didierstevens.com/programs/pdf-tools/",
+    "https://blog.didierstevens.com/2021/01/31/new-tool-pdftool-py/",
+    "https://htpbe.tech/blog/pdf-xref-table-forensics",
+    "https://isc.sans.edu/diary/25904",
+    "https://github.com/pymupdf/PyMuPDF/discussions/3096"
+   ]
+  },
+  {
+   "name": "Prior-version extraction (rollback) + text/render diff — show WHAT was edited",
+   "how_it_works": "Because incremental saves are append-only, truncating the file at each successive %%EOF boundary yields each historical version: for revision i, take bytes[0:end_offset_i] (cumulative from file start, not between offsets) and open it as its own PDF (PyMuPDF opens slightly-damaged prefixes in repair mode). Then extract text per page from each version and difflib-diff them, and/or render pages to pixmaps and pixel-diff, to display exactly which words/amounts/dates changed between saves. pyHanko offers a cleaner parser-level route: PdfFileReader(r).get_historical_resolver(rev) reads any prior revision without byte truncation. C tool pdfresurrect and Didier Stevens' pdftool.py 'iu' do the extraction standalone.",
+   "signal": "Strongest evidence in this whole domain: 'revision 1 said 1 025,00 EUR, revision 2 says 2 025,00 EUR' is near-courtroom-grade and makes a great UI. Converts the weak 'has incremental updates' signal into critical or into a false-positive dismissal (diff shows only a signature/annotation was added → downgrade to benign, even a positive signal). FP risk very low when the diff is classified: content-stream/text changes = critical; only /Annots, /AcroForm values, or DSS/signature objects = benign. Caveats: %%EOF byte-scan can false-match inside streams (validate each prefix actually parses); Save-As/flattened files have no history (inconclusive, not clean).",
+   "local_feasibility": "PyMuPDF (already in stack) + stdlib difflib; pyHanko (pip: pyhanko) for historical resolvers; optional pdfresurrect (apt: pdfresurrect on Debian/Kali). Cost: one extra parse+text-extraction per revision — typically <1s total for invoices; rendering pixmaps for visual diff adds ~0.1-0.3s/page. Fine for a small box.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/pymupdf/PyMuPDF/discussions/3096",
+    "https://khkonsulting.com/2017/10/pdf-time-machine/",
+    "https://github.com/enferex/pdfresurrect",
+    "https://blog.didierstevens.com/2021/01/31/new-tool-pdftool-py/",
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html"
+   ]
+  },
+  {
+   "name": "Object-level diff between revisions (classify which objects were redefined)",
+   "how_it_works": "Parse each revision's xref section and list the object numbers it (re)defines. For every object redefined in a later revision, resolve its type/role in the document graph: page /Contents stream, image XObject, /FontDescriptor, /Info dict, /Metadata XMP, /Annots, /AcroForm field, DSS/signature objects. Implement by walking xref sections yourself (pikepdf.Pdf.get_xref_table + parsing trailers per revision) or via pyHanko's revision-aware reader; pyHanko's pyhanko.sign.diff_analysis module already contains a rule-based engine that judges which object-updating operations between revisions are legitimate (its reject-by-default StandardDiffPolicy is reusable outside signature contexts).",
+   "signal": "Precisely identifies the nature of the edit without needing full text diffing: a later revision that redefines a page's /Contents or swaps an image XObject is content tampering (high/critical); one that only adds signature/DSS/annotation objects is a legitimacy-compatible update (neutral/positive). Also detects shadow-attack patterns: duplicate object IDs redefined post-signing, overlay objects retyped in a new xref. FP risk low-moderate: some editors rewrite the page object even for trivial changes; combine with text diff for severity.",
+   "how_it_works_note": null,
+   "local_feasibility": "pikepdf (pip: pikepdf) and/or pyhanko (pip: pyhanko), both pure pip installs with wheels; CPU cost is one parse per revision, well under a second for typical invoices.",
+   "effort": "large",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://pikepdf.readthedocs.io/en/latest/api/main.html",
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf"
+   ]
+  },
+  {
+   "name": "Orphan/ghost object detection (deleted-but-present content)",
+   "how_it_works": "Build the reachability graph from the trailer's /Root (catalog) and /Info: recursively follow all indirect references, including objects packed inside /ObjStm compressed object streams (pdf-parser.py -O extracts these; pikepdf resolves them transparently). Any object present in the file but unreachable from the current trailer is an orphan — typically content deleted or replaced in a later revision whose bytes still exist (old text streams, old images, old Info dicts). Extract and decode orphaned streams; if an orphaned content stream or string contains text resembling invoice fields (amounts, dates, IBANs), surface it and diff against visible text.",
+   "signal": "Catches 'deleted' original values still recoverable in the file — e.g., the pre-edit amount lurking in a superseded stream — and hidden metadata (the Epstein analysis found orphaned document-info dictionaries inside compressed object streams). Strong when the orphan contains readable divergent text. FP risk moderate: linearization hint streams, unused resources from sloppy generators, and superseded objects from benign updates are all orphans too — score low unless the orphan decodes to meaningful text that differs from the visible layer.",
+   "local_feasibility": "pikepdf or PyMuPDF (xref walk: doc.xref_length() + doc.xref_object(i)) — pure pip. pdf-parser.py (single-file BSD-ish script, vendorable) as reference implementation. Sub-second for invoices; RAM proportional to file size.",
+   "effort": "medium",
+   "sources": [
+    "https://blog.didierstevens.com/2019/03/07/analyzing-a-phishing-pdf-with-objstm/",
+    "https://ascii.co.uk/news/article/news-20260206-becbc299/pdf-forensics-deep-dive-doj-epstein-files-reveal-sanitizatio",
+    "https://pdfa.org/a-case-study-in-pdf-forensics-the-epstein-pdfs/",
+    "https://www.pdf-insecurity.org/signature/shadow-attacks.html"
+   ]
+  },
+  {
+   "name": "Xref anomaly analysis (free list, generation numbers, offset integrity, hybrid tables)",
+   "how_it_works": "Validate the cross-reference machinery itself: (a) object 0 must be free with generation 65535 and head a consistent free-list linked list; (b) generation numbers >0 on in-use objects mean an object number was freed and reused — essentially never produced by one-shot generators, so it implies multi-session editing; (c) verify each xref offset actually lands on 'N 0 obj' for the right N (offset/object mismatches indicate manual tampering or signature-wrapping-style xref games); (d) flag mixed xref styles across revisions (classic table then xref stream, or Word-style hybrid /XRefStm) inconsistent with the claimed producer; (e) startxref pointing nowhere or a suspiciously large /Prev. qpdf --check / pikepdf Pdf.check() reports most of these as warnings; parse its output rather than reimplementing.",
+   "signal": "Catches hand-edited files, tools that splice objects, and the malformed-xref family of signature attacks (Signature Wrapping inserts a manipulated xref + ByteRange games). Generation-number reuse and offset/object mismatches are rare in legitimate files (decent signal); however qpdf warnings in general are COMMON on legitimate PDFs from sloppy generators — bucket 'spec-sloppiness' (low) separately from 'structurally impossible' (high) anomalies to control false positives.",
+   "local_feasibility": "pikepdf (pip; bundles qpdf, exposes check() and get_xref_table()) — no apt needed. Milliseconds. Optionally qpdf CLI (apt: qpdf) for --show-xref during development.",
+   "effort": "medium",
+   "sources": [
+    "https://htpbe.tech/blog/pdf-xref-table-forensics",
+    "https://www.pdf-insecurity.org/signature/swa.html",
+    "https://pypdf2.readthedocs.io/en/3.0.0/dev/pdf-format.html",
+    "https://man.archlinux.org/man/extra/qpdf/qpdf.1.en"
+   ]
+  },
+  {
+   "name": "Editor breadcrumbs in content streams: /TouchUp_TextEdit and friends",
+   "how_it_works": "Decompress every page content stream (PyMuPDF doc.xref_stream(xref) or pikepdf) and regex for editor-inserted marked-content operators: Adobe Acrobat's 'Edit Text & Images' inserts '/TouchUp_TextEdit MP' at each edited region (one marker per edit — five edited amounts leave five markers); Iceni Infix wraps edits in '/IceniObject << ... >> DP'. Also scan for editor-specific /PieceInfo entries in page/document dictionaries. These are plain tokens sitting next to the drawing operators; most viewers ignore them but they are trivially greppable.",
+   "signal": "Near-smoking-gun that the text layer was edited in place with a PDF editor — exactly the 'change 1025 to 2025' fraud pattern. False-positive rate is extremely low (the marker only exists if the tool was used); the only nuance is legitimate corrections by the issuer, which is still worth a high-severity flag on an invoice that should come straight from a billing system. Absence proves nothing (many editors leave no marker, and a full rewrite strips them).",
+   "local_feasibility": "PyMuPDF or pikepdf (already available); pure regex over decompressed streams; microseconds per page.",
+   "effort": "small",
+   "sources": [
+    "https://holofin.ai/blog/document-fraud-detection-what-a-pdf-cant-hide/",
+    "https://community.adobe.com/questions-9/touchup-objects-in-todays-versions-of-acrobat-1252432",
+    "https://link.springer.com/chapter/10.1007/978-3-642-22309-9_12"
+   ]
+  },
+  {
+   "name": "Content-stream overlay anomaly detection (opaque rects and late-drawn text over content)",
+   "how_it_works": "PDF paints in stream order, so anything covering earlier content must be drawn after it. Three checks: (1) opaque rectangle over text — use PyMuPDF page.get_drawings() for filled rects and page.get_text('rawdict') for character bboxes, flag text whose bbox is covered by a later-drawn non-transparent rect; confirm by rendering the clip (pix = page.get_pixmap(clip=bbox); pix.is_unicolor / pix.color_topusage()) to prove the text is visually hidden; (2) text-over-text — two text spans from different BT/ET blocks whose bboxes overlap heavily (an overlay value pasted on top of the original); (3) appended-overlay structure — /Contents is an array whose last stream contains only a tiny BT...ET block with an absolute Tm jumping into an already-painted region, or a q...Do of a small XObject at the end of the page: classic 'value patched on top' signature, also the Hide variant of shadow attacks.",
+   "signal": "Catches covered/replaced values and fake redactions; text-under-opaque-rect confirmed by pixel rendering is high severity with low FP. Text-over-text and appended-stream heuristics have moderate FP (legitimate stamps, 'PAID' watermarks, letterheads, Bates numbers are also late-drawn overlays) — whitelist page-margin positions and diagonal watermark geometry, and raise severity only when the overlay sits on an amount/date/IBAN region.",
+   "local_feasibility": "PyMuPDF only (already in stack). get_drawings + rawdict + selective pixmap rendering ≈ 0.1-0.5s/page. Well within budget.",
+   "effort": "medium",
+   "sources": [
+    "https://medium.com/@pymupdf/unmasking-fake-redactions-with-pymupdf-82de0b34d21d",
+    "https://github.com/pymupdf/PyMuPDF-Utilities/blob/master/jupyter-notebooks/detect-hidden.ipynb",
+    "https://www.pdf-insecurity.org/signature/shadow-attacks.html",
+    "https://www.group-ib.com/blog/pdf-tampering/"
+   ]
+  },
+  {
+   "name": "Redaction-failure and invisible-text detection (x-ray + render-mode checks)",
+   "how_it_works": "Use Free Law Project's x-ray library (pip: x-ray, PyMuPDF-based): it finds rectangles, maps text under them, renders each rect and checks color uniformity to distinguish bad redactions (text merely covered) from real ones. Complement with invisible-text checks: text rendering mode 3 (Tr 3, invisible), fill color equal to background (white-on-white), and glyphs positioned outside the CropBox — all extractable from PyMuPDF rawdict + content stream inspection.",
+   "signal": "Dual purpose: fraud (original values 'hidden' rather than removed — recover and diff them against visible values) and a legitimacy/privacy warning. High signal when hidden text differs from visible text in the same region. KEY false-positive trap: scanned documents with an OCR text layer legitimately use invisible text (Tr 3) across the whole page — detect the OCR pattern (full-page invisible text over an image) and exempt it, otherwise every OCRed attestation gets flagged.",
+   "local_feasibility": "pip: x-ray (pulls PyMuPDF). No system deps. ~0.2-1s per document. Small RAM.",
+   "effort": "small",
+   "sources": [
+    "https://github.com/freelawproject/x-ray",
+    "https://www.argeliuslabs.com/deep-research-on-pdf-redaction-failures-and-security-risks-exploits-and-best-practices/",
+    "https://github.com/pymupdf/PyMuPDF/discussions/2263"
+   ]
+  },
+  {
+   "name": "Signature /ByteRange coverage + post-signing diff analysis (pyHanko)",
+   "how_it_works": "For each embedded signature (r = PdfFileReader(f); r.embedded_signatures), pyHanko checks that /ByteRange covers the whole file except the /Contents hole and reports status.coverage as SignatureCoverageLevel (ENTIRE_FILE vs ENTIRE_REVISION vs worse). If coverage is ENTIRE_REVISION, later incremental updates exist; pyHanko's diff_analysis module (DEFAULT_DIFF_POLICY, reject-by-default rules, MDPPerm levels) adjudicates whether those post-signing updates are permissible (form fill, DSS, second signature) or invasive, exposed via status.modification_level and docmdp_ok. Cryptographic validation runs fully offline given trust roots (skip revocation, or pre-cache CRLs); even WITHOUT any trust anchor you can still verify document-integrity (digest matches, coverage complete) purely locally.",
+   "signal": "Tamper detection: bytes appended after the signed range + diff policy flagging content changes = signed-then-modified, catches naive fraud on signed invoices/attestations and (partially) shadow attacks — pair with duplicate-object-ID and retyped-object checks per the NDSS 2021 countermeasures. Legitimacy confirmation: an intact signature with ENTIRE_FILE coverage is the single strongest positive trust signal available (+large trust bonus), common on French government attestations and payroll docs. FP risk: pyHanko's own docs warn diff adjudication is 'inherently somewhat risky' — treat 'suspicious post-signing update' as high, not critical, and show the object diff.",
+   "local_feasibility": "pip: pyhanko (pure Python + cryptography/asn1crypto). No apt deps. Signature validation ~100-500ms. Trust roots (e.g., EU Trusted List certs, French ANTS/AC roots) can be bundled/cached locally so nothing leaves the box.",
+   "effort": "medium",
+   "sources": [
+    "https://docs.pyhanko.eu/en/latest/lib-guide/validation.html",
+    "https://www.ndss-symposium.org/wp-content/uploads/ndss2021_1B-4_24117_paper.pdf",
+    "https://www.pdf-insecurity.org/signature/swa.html",
+    "https://pdfa.org/recently-identified-pdf-digital-signature-vulnerabilities/"
+   ]
+  },
+  {
+   "name": "Active-content census: /JS, /OpenAction, /AA, /Launch, /EmbeddedFile, /XFA",
+   "how_it_works": "Count risk-bearing name occurrences across all objects including inside /ObjStm: /JavaScript and /JS (scripts), /OpenAction and /AA (auto-run actions), /Launch (execute files), /EmbeddedFile and /Names→/EmbeddedFiles (attachments), /RichMedia, /XFA. pdfid.py does the byte-level census (obfuscation-resistant via hex-name normalization); peepdf-3 (pip: peepdf-3) and pdfalyzer (pip: pdfalyzer, YARA-based) give object-level context. Implement natively by iterating pikepdf objects and checking dictionary keys — 30 lines.",
+   "signal": "In an invoice or attestation, JavaScript, Launch actions, and unexpected embedded files are near-always illegitimate (malware or staging) — high severity, tiny FP rate for /Launch and /RichMedia. CRITICAL caveat for your document types: French tax/government forms (impots.gouv.fr) legitimately use XFA and AcroForm with field-validation JavaScript — gate the JS/XFA flags on document type or you will flag real CERFA forms. Embedded files also matter for fraud: attackers sometimes leave the original unedited document attached.",
+   "local_feasibility": "pikepdf or vendored pdfid.py (single-file). pdfalyzer needs yara (pip: yara-python, wheels available). All sub-second, no apt deps.",
+   "effort": "small",
+   "sources": [
+    "https://zeltser.com/peepdf-malicious-pdf-analysis",
+    "https://blog.didierstevens.com/programs/pdf-tools/",
+    "https://github.com/michelcrypt4d4mus/pdfalyzer",
+    "https://hacktricks.wiki/en/generic-methodologies-and-resources/basic-forensic-methodology/specific-software-file-type-tricks/pdf-file-analysis.html"
+   ]
+  },
+  {
+   "name": "Broken-linearization check (/Linearized dict vs actual file state)",
+   "how_it_works": "Linearized ('Fast Web View') PDFs start with a /Linearized dictionary whose /L key must equal the exact file length, with a specific first-page-first object layout. An incremental save appends data, so the header still says /Linearized but /L no longer matches the true byte length and the xref chain no longer matches the linearized layout. Check: scan the first ~1KB for '/Linearized', read /L, compare to os.path.getsize(); combined with revision count >1 this proves the file left its generator and was edited by an appending tool.",
+   "signal": "Crisp, cheap corroborator: /L mismatch = 'file was modified after being produced by a linearizing generator' (many bank/telecom billing systems emit linearized PDFs). Catches edits even when metadata was scrubbed. FP risk low-moderate: a few tools emit broken linearization from the start, and re-linearizing on Save-As resets the evidence — use as medium-severity corroboration, and treat a VALID linearized single-revision file as a small positive trust signal.",
+   "local_feasibility": "Pure Python byte scan, microseconds. qpdf --check also reports linearization errors via pikepdf.",
+   "effort": "small",
+   "sources": [
+    "https://www.nutrient.io/blog/linearized-pdf/",
+    "https://kbdeveloper.qoppa.com/how-to-check-that-a-pdf-document-is-linearized-fast-web-view/",
+    "https://apryse.com/blog/pdf-format/what-is-pdf-linearization"
+   ]
+  },
+  {
+   "name": "Producer structural fingerprinting (metadata claims vs structural dialect)",
+   "how_it_works": "Every generator writes a recognizable structural dialect independent of the (spoofable) /Producer string: LibreOffice puts /DocChecksum in the trailer; Word uses hybrid xref (/Prev + /XRefStm); pdfTeX/pdfLaTeX has distinctive object ordering and PTEX comments; Chrome's Skia omits /ID and uses LF line endings; iText, ReportLab, wkhtmltopdf each have telltale object layouts, coordinate precision, and operator styles in content streams. Build a fingerprint table (trailer keys, xref style, line endings, object numbering pattern, content-stream operator style, font-subsetting style) and compare the observed dialect against the claimed Producer/Creator. The 'questio' project (pip: questio, MIT) implements this as learnable per-issuer content-stream fingerprints plus font-subset-tag session tracking.",
+   "signal": "Tamper detection: metadata says 'SAP'/'Microsoft Word' but structure is Ghostscript/qpdf-rewrite or online-converter dialect → the file was laundered or the metadata forged (medium-high). Legitimacy confirmation: dialect matches claimed producer AND matches previously seen genuine invoices from the same issuer → meaningful positive trust (this is structural template matching, complementing your Module I). FP risk moderate until the fingerprint corpus is decent; questio's docs note single-sample issuer fingerprints are too narrow and cause false alerts — require 3+ samples per issuer.",
+   "local_feasibility": "Pure Python over pikepdf/PyMuPDF parses; questio is pip-installable (needs exiftool via apt: libimage-exiftool-perl / brew exiftool). Fast; the cost is corpus curation, not CPU.",
+   "effort": "large",
+   "sources": [
+    "https://holofin.ai/blog/document-fraud-detection-what-a-pdf-cant-hide/",
+    "https://github.com/abcreativ/questio"
+   ]
+  },
+  {
+   "name": "Trailer /ID pair consistency + font-subset session tracking",
+   "how_it_works": "The trailer /ID is an array of two byte strings: the first is the permanent ID set at creation, the second changes on every update — on a freshly generated file both are EQUAL; after any incremental update they DIFFER while the first stays constant. Check equality and cross-revision stability of ID[0]. Complementary session tracker: each save by a subsetting editor assigns fresh random 6-letter subset prefixes (ABCDEF+Arial); multiple different subset prefixes for the SAME base font on one page, or a font used on exactly one page of a multipage doc, indicate a separate editing session touched that page (questio's 'font session tracking').",
+   "signal": "ID[0]==ID[1] with a single revision corroborates 'never modified since creation' (positive signal); differing IDs corroborate modification even when other traces were cleaned. Two subset prefixes for one base font is a strong text-edit indicator with low FP on machine-generated invoices (generators subset once per document). FP risk: some producers omit /ID entirely (Chrome/Skia) or regenerate both on full rewrite — score only when /ID is present; merged/concatenated PDFs legitimately mix font subsets, so gate on document type.",
+   "local_feasibility": "pikepdf (trailer access) + PyMuPDF page.get_fonts() — all pip, microseconds.",
+   "effort": "small",
+   "sources": [
+    "https://holofin.ai/blog/document-fraud-detection-what-a-pdf-cant-hide/",
+    "https://github.com/abcreativ/questio",
+    "https://htpbe.tech/blog/pdf-xref-table-forensics"
+   ]
+  },
+  {
+   "name": "Well-formedness and PDF/A conformance as positive trust (qpdf check, veraPDF)",
+   "how_it_works": "Run pikepdf's Pdf.check() (qpdf --check equivalent) to get a syntactic-validity verdict plus warning list; a clean single-revision, spec-conformant file from a known-good producer earns a trust bonus. Optionally run veraPDF (Java CLI, open source, by the PDF Association/OPF) to validate PDF/A conformance: files claiming PDF/A in XMP that fail validation were altered or re-produced by a non-conforming tool; files genuinely conforming to PDF/A-1b/2b/3b were emitted by a serious archival pipeline.",
+   "signal": "Primarily a legitimacy-confirmation signal: professional billing systems emit consistent, valid, often PDF/A or linearized files. A claimed-PDF/A-but-invalid file is a medium tamper signal. FP control: do NOT penalize generic qpdf warnings (very common on legit files); only reward cleanliness and flag claim/reality mismatches. veraPDF is heavy (Java, apt: default-jre-headless ~200MB, ~1-2s+ per file, few hundred MB RAM) — make it an optional deep-scan tier; pikepdf check is the always-on tier.",
+   "local_feasibility": "pikepdf (pip) always-on; veraPDF optional (Java runtime via apt, runs fully offline). Both local-only.",
+   "effort": "small",
+   "sources": [
+    "https://verapdf.org/home/",
+    "https://openpreservation.org/tools/verapdf/",
+    "https://pikepdf.readthedocs.io/"
+   ]
+  },
+  {
+   "name": "Factur-X / embedded e-invoice XML cross-validation (French/German invoices)",
+   "how_it_works": "French/German e-invoices increasingly embed a machine-readable XML (factur-x.xml, EN 16931 / CII) as an /EmbeddedFile inside a PDF/A-3 container (Factur-X/ZUGFeRD standard — mandatory rollout for French B2B e-invoicing). Use the factur-x library (pip: factur-x, Akretion, BSD) or pikepdf to extract the attachment, validate it against the official XSD/schematron (bundled, offline), then cross-check XML fields (total amount, date, invoice number, seller SIRET/VAT, IBAN) against the visible text layer extracted with pdfplumber/PyMuPDF.",
+   "signal": "Devastatingly effective for your exact use case: a fraudster who edits the visible amount almost never updates the embedded XML → visible-vs-XML mismatch is a critical, near-zero-FP tamper flag. Conversely, presence of schema-valid Factur-X whose values match the text layer (ideally plus PDF/A-3 conformance and a signature) is a top-tier legitimacy confirmation. FP risk: rounding/locale formatting when matching amounts (compare normalized decimals, not strings); absence of Factur-X is neutral.",
+   "local_feasibility": "pip: factur-x (+ lxml). No system deps, fully offline, milliseconds. Ideal for the small-box budget.",
+   "effort": "medium",
+   "sources": [
+    "https://github.com/akretion/factur-x",
+    "https://pypi.org/project/factur-x/"
+   ]
+  }
+ ],
+ "key_insights": [
+  "Incremental-update COUNT is a weak, high-false-positive signal (signing, form filling, Bates stamping all append revisions — the DoJ Epstein files' incremental updates were benign Bates numbering, and automated scanners that flagged them drew false conclusions). The high-value move is revision ROLLBACK + DIFF: truncate at each %%EOF (or use pyHanko's historical resolvers), extract text/render each version, and show exactly what changed — this converts a weak structural hint into near-courtroom evidence or into a confident false-positive dismissal.",
+  "The strongest single tamper signals in this domain, in rough order: (1) visible-text vs embedded Factur-X XML mismatch, (2) revision diff showing a changed amount/date, (3) /TouchUp_TextEdit or /IceniObject editor breadcrumbs in content streams, (4) text hidden under an opaque rectangle confirmed by pixel rendering, (5) signature ByteRange not covering the full file with an invasive post-signing diff. All are implementable with PyMuPDF + pikepdf + pyHanko + x-ray + factur-x, pure pip, sub-second each.",
+  "Legitimacy confirmation is as tractable as tamper detection: intact digital signature with ENTIRE_FILE coverage (pyHanko, offline with cached trust roots), schema-valid Factur-X matching the text layer, single revision with trailer ID[0]==ID[1], valid unbroken linearization, PDF/A conformance, and producer structural-dialect matching the metadata claim. These positive signals directly serve the 'minimize false positives / confirm legitimate files' goal and should add trust points, not just absence-of-flags.",
+  "Absence of structural evidence is NOT cleanliness: Save-As, Ghostscript/qpdf rewrites, print-to-PDF, and scan-to-PDF flatten all history and strip every trace discussed here. Score such files 'inconclusive at the structure layer' and lean on the image-forensics and content modules instead; conversely a structure-clean file that IS a full rewrite of a bank-style linearized original is itself mildly suspicious (laundering).",
+  "False-positive control comes from classification and convergence, not thresholds: classify WHAT changed between revisions (content stream/image = critical; annotations/signatures/DSS = benign), whitelist OCR invisible-text layers (Tr 3 over full-page image) before flagging hidden text, gate JS/XFA flags by document type (French CERFA/tax forms legitimately contain them), and require multi-domain corroboration before high severity (Holofin's model: 2 corroborating domains ×1.25, 3+ ×1.5 — 'one lie is an anomaly, four lies are a pattern').",
+  "Recommended stack for structure.py, all local: pikepdf (xref tables, trailer, qpdf check, object graph), PyMuPDF (revisions via version_count, content streams, drawings/rawdict, rendering), pyhanko (signatures, coverage, revision-aware reading, diff rules), x-ray (bad redactions), factur-x (e-invoice XML), optional vendored pdfid.py/pdf-parser.py (byte-level census) and veraPDF as an optional Java-based deep tier. Everything except veraPDF is wheel-only pip with no apt deps and fits a few-seconds-per-document budget on a small cloud box.",
+  "Parser diversity matters: the Epstein case study's core lesson is that single-parser automated verdicts misfire — qpdf, PyMuPDF and a raw byte-scanner disagree on malformed files, so run the cheap byte-level scan (EOF/startxref/Linearized//ID) independently of the object-model parse and reconcile, lowering module confidence when they disagree rather than emitting flags."
+ ]
+}

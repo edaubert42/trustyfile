@@ -1,0 +1,157 @@
+{
+ "domain": "Completeness critique: forgery techniques and legitimacy signals missing from TrustyFile's candidate detection list (local-only, CPU)",
+ "techniques": [
+  {
+   "name": "AI-generated whole-document-image detection (diffusion/GAN synthesis detector)",
+   "how_it_works": "The dominant new attack (March 2025 onward) is generating the entire receipt/invoice/ID as an image with GPT-4o-class models or services like OnlyFake — no editing traces exist because nothing was edited. Detection runs a synthetic-image classifier over rasterized pages and embedded images: frequency-domain residual analysis (Synthbuster-style cross-difference filter for periodic diffusion artifacts), patch-level classifiers with limited receptive fields (PatchForensics/AIDE-style low-level inconsistency scoring), and bit-plane/entropy features (LOTA, MLEP). For documents specifically, combine with document-domain tells: AI images have no genuine JPEG quantization history coherent with a camera/scanner, no EXIF, and text rendered as 'texture' rather than consistent glyphs.",
+   "signal": "Catches the fastest-growing fraud class (fake receipts for expense/reimbursement, fake attestations, fake ID scans) that every listed technique misses — ELA/copy-move/noise checks all assume a real base image with a local edit. Signal strength is moderate: generalization to unseen generators is the known weakness, so treat as one weak-to-medium signal fused with glyph-consistency (below). FP risk moderate on heavily recompressed or filtered legitimate photos; keep severity at medium unless corroborated.",
+   "local_feasibility": "Feasible. Frequency/residual heuristics are pure numpy+OpenCV (opencv-python, numpy, scipy). A small patch classifier exported to INT8 ONNX runs on onnxruntime CPU in <1s/page with ~200-500MB RAM — fits a small cloud box. No external calls; model weights shipped with the app.",
+   "effort": "large",
+   "sources": [
+    "https://techcrunch.com/2025/03/31/chatgpts-new-image-generator-is-really-good-at-faking-receipts/",
+    "https://resistant.ai/blog/chatgpt-document-fraud",
+    "https://arxiv.org/pdf/2402.01123 (A Single Simple Patch is All You Need for AI-generated Image Detection)",
+    "https://arxiv.org/pdf/2504.13726 (MLEP: Multi-granularity Local Entropy Patterns)",
+    "https://arxiv.org/pdf/2510.14230 (LOTA: Bit-Planes Guided AI-Generated Image Detection)",
+    "https://arxiv.org/pdf/2406.19435 (A Sanity Check for AI-generated Image Detection)"
+   ]
+  },
+  {
+   "name": "Glyph raster self-consistency check (same-character clustering)",
+   "how_it_works": "OCR the rasterized page with per-character bounding boxes (pytesseract TSV output), crop every instance of the same character at similar point size, normalize scale/binarize, and measure pairwise similarity (NCC/SSIM) within each character cluster. Digitally-born documents render identical glyphs pixel-identically; genuine scans show one consistent glyph shape plus uniform scanner noise; AI-generated images render each instance of 'e' or '7' slightly differently (shape variance across the cluster); a spliced/retyped amount shows up as an outlier instance whose shape or anti-aliasing profile deviates from its siblings.",
+   "signal": "Dual-purpose: (a) whole-cluster high variance = AI-generated image (complements the synthesis detector with a document-specific, generator-agnostic signal); (b) single-outlier instance = character substitution in a scan — exactly the Find it!/DocTamper attack class. Strong signal on receipts and typed invoices; FP risk from OCR box misalignment and very low-resolution scans, so gate on DPI and OCR confidence.",
+   "local_feasibility": "Fully local: pytesseract (tesseract-ocr + tesseract-ocr-fra already in packages.txt scope), opencv-python, numpy, scikit-learn for clustering. CPU cost is one OCR pass per page (~2-5s, already budgeted for the OCR fallback) plus milliseconds of correlation. Low RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://l3i-share.univ-lr.fr/2023Finditagain/index.html (Find it again! receipt forgery dataset, ICDAR 2023)",
+    "https://arxiv.org/pdf/2009.05158 (OCR Graph Features for Manipulation Detection in Documents)",
+    "http://iwcdf2017.univ-lr.fr/wp-content/uploads/2017/11/IWCDF2017_Artaud_1.pdf (Receipt Dataset for Fraud Detection)"
+   ]
+  },
+  {
+   "name": "C2PA / Content Credentials manifest verification",
+   "how_it_works": "Parse and cryptographically verify C2PA manifests embedded in uploaded images and PDFs using the c2pa-python library (binding to the Rust c2pa-rs SDK), with a locally cached trust list of signer certificates. Three outcomes matter: (1) a manifest asserting an AI generator (OpenAI signs GPT-4o images with C2PA metadata) is a near-decisive fraud signal for a document presented as a real receipt/scan; (2) a valid manifest from a camera/scanner/Adobe chain whose hard-binding hash still matches is a strong positive provenance signal; (3) a present-but-broken hash binding proves post-signing modification.",
+   "signal": "Asymmetric: presence of an AI-origin assertion or a broken binding is high-severity and near-zero-FP (cryptographic); absence is neutral (metadata is trivially stripped by screenshotting/re-encoding) and must NOT be penalized. This is the cheapest possible check against lazy GPT-4o receipt fraud and a genuine positive-trust signal the candidate list lacks entirely.",
+   "local_feasibility": "pip install c2pa-python (prebuilt wheels, Rust core, no system deps). Verification is offline once trust-anchor certificates are cached locally; only content integrity + signature chain math, no network. Negligible CPU/RAM.",
+   "effort": "small",
+   "sources": [
+    "https://opensource.contentauthenticity.org/docs/c2pa-python/",
+    "https://github.com/contentauth/c2pa-python",
+    "https://sightengine.com/python-c2pa-tutorial-verifying-images-detecting-tampering"
+   ]
+  },
+  {
+   "name": "ICAO 9303 MRZ check-digit validation + MRZ↔VIZ↔2D-Doc cross-zone consistency + specimen blocklist",
+   "how_it_works": "Glaring gap: the candidate list validates IBAN/SIREN/VAT/NIR checksums but never the MRZ check digits on ID documents, despite identity.py being an audited module. Implement the ICAO 9303 weighted 7-3-1 mod-10 scheme over document number, DOB, expiry, and the composite digit, for TD3 (passport), TD1/TD2 (CNI formats including the pre-2021 French 2x36 layout), and visas — the 'mrz' PyPI package or ~40 lines of code. Then cross-compare the three independent representations on the same document: MRZ fields vs OCR'd visual zone (name/DOB printed on the card) vs decoded 2D-Doc payload, and blocklist known specimen data (issuer UTO/'UTOPIA', ANTS specimen strings).",
+   "signal": "The classic change-one-digit DOB/expiry fraud fails check digits deterministically unless the fraudster recomputes them (most don't); MRZ-vs-VIZ or MRZ-vs-2D-Doc disagreement is a near-certain forgery indicator since a genuine document is internally consistent by construction. Very strong, near-zero FP once gated on OCR confidence (OCR misreads are the only FP source — require the check digit to fail under multiple OCR hypotheses before flagging).",
+   "local_feasibility": "Pure Python: pip 'mrz' or PassportEye (which bundles MRZ detection + checksum scoring via tesseract). No new system deps beyond tesseract already in the stack. Milliseconds of compute.",
+   "effort": "small",
+   "sources": [
+    "https://pypi.org/project/mrz/",
+    "https://passporteye.readthedocs.io/en/latest/mrz_algorithm.html",
+    "https://idcheck.dev/icao-9303-check-digits/",
+    "ICAO Doc 9303 Part 3 (Specifications Common to all MRTDs)"
+   ]
+  },
+  {
+   "name": "Capture-channel authentication: real scan vs fake-scan filter vs print-and-rescan laundering",
+   "how_it_works": "Two symmetric attacks are unaddressed: (a) 'fake scan' tools (Lookscanned-style filters, OnlyFake's 'photographed on a tabletop' mode) make a digitally forged document look like a physical capture; (b) print-and-rescan launders a tampered file, destroying all PDF/JPEG history the candidate list depends on. Detection: FFT analysis of the page for halftone dot peaks and moiré (genuine print reproduction), scanner noise spectrum and paper-texture statistics, illumination gradient shape, and coherence between claimed capture (EXIF scanner/camera model, DPI) and observed physics. Synthetic scan filters betray themselves with spatially UNIFORM added noise, perfectly constant skew angle, and noise that doesn't modulate with ink coverage.",
+   "signal": "For (a): document presents as scan but lacks physical capture traces → the 'scanned' look is cosmetic, high suspicion. For (b): confirming a genuine print-scan pass tells the aggregator that ALL digital-history modules are blind, so their clean scores must not count as positive evidence — a scoring-critical signal, not just a flag. Medium strength; FP risk on high-quality flatbed scans of laser-printed originals, so use as confidence modifier more than penalty.",
+   "local_feasibility": "opencv-python + numpy FFT, Pillow for EXIF. No models required for the heuristic tier; optional tiny sklearn classifier trained on scan/fake-scan/digital corpora. Fast, low RAM.",
+   "effort": "medium",
+   "sources": [
+    "https://arxiv.org/pdf/2102.06792 (VIPPrint: printed/scanned dataset for synthetic image detection and source linking)",
+    "https://www.researchgate.net/publication/220962324_Document_Frauds_Identification_and_Linking_Fake_Document_to_Scanners_and_Printers",
+    "https://resistant.ai/blog/onlyfake-generative-ai-fraud"
+   ]
+  },
+  {
+   "name": "Face-region forensics for ID documents (portrait-swap and morphing-attack detection)",
+   "how_it_works": "No listed technique looks at the portrait — the highest-value zone of an ID. Detect the face region locally (OpenCV DNN or dlib), then (1) run the existing splice detectors (ELA, noise-variance, resampling p-map, JPEG-grid alignment) specifically on the portrait rectangle and its border seam, where a pasted photo leaves discontinuities; (2) check geometric plausibility (portrait position/aspect vs the document template); (3) optionally run a single-image morphing-attack-detection (S-MAD) model exported to ONNX for passport-style photos.",
+   "signal": "Portrait replacement is the canonical physical/digital ID forgery; border-seam and localized-forensics signals are medium-strength with manageable FP if scoped to the portrait rect. S-MAD must be sold honestly: single-image morph detection generalizes poorly across morphing tools (documented in the MAD literature), so treat any morph score as weak corroborating evidence, never standalone.",
+   "local_feasibility": "Face detection: opencv-python's DNN module with bundled Caffe/ONNX face detector (no GPU, ~10MB). Region-scoped forensics reuse Module H code. S-MAD ONNX model ~20-100MB on onnxruntime CPU. All offline; fine for a small box if S-MAD stays optional.",
+   "effort": "large",
+   "sources": [
+    "https://arxiv.org/pdf/2011.02045 (Face Morphing Attack Generation & Detection: A Comprehensive Survey)",
+    "https://arxiv.org/abs/2501.09817 (Generalized Single-Image-Based MAD Using ViT)",
+    "https://www.christoph-busch.de/projects-mad.html",
+    "https://decrypt.co/216188/ai-generated-fake-id-bypass-kyc-aml-banks-crypto-onlyfakes"
+   ]
+  },
+  {
+   "name": "Page-level provenance consistency (inserted/substituted page detection)",
+   "how_it_works": "A common multi-page fraud is splicing one forged page into a genuine document (or assembling a PDF from pages of different origins) — every listed check operates file-wide or object-wide, none compares pages against each other. Fingerprint each page: font set and subset tags, content-stream operator style (the 'coding-style' features already planned, computed per page), embedded-image compression parameters/DPI/quantization tables, MediaBox/CropBox/rotation, and annotation/resource dictionary dialect. Flag pages that are statistical outliers versus their siblings.",
+   "signal": "A page produced by a different generator than the rest of the document (LibreOffice page inside an SAP-generated invoice; a rescanned page 2 inside a digital original) is strong evidence of substitution. FP risk: legitimately merged documents (cover letter + invoice), so severity medium and message framed as 'page N has different origin than the rest'.",
+   "local_feasibility": "Pure PyMuPDF/pikepdf metadata walking plus numpy for outlier scoring — no new dependencies, negligible compute. Reuses the per-producer structural fingerprint features already on the roadmap, just bucketed per page.",
+   "effort": "medium",
+   "sources": [
+    "Builds on producer coding-style fingerprinting literature already cited in the candidate list (PDF producer identification via structural dialect)",
+    "https://dl.acm.org/doi/10.1007/978-3-031-41682-8_28 (ICDAR 2023, document forgery via composition)"
+   ]
+  },
+  {
+   "name": "Known-BAD template fingerprint database (fake receipt/invoice generator detection)",
+   "how_it_works": "The list has a known-GOOD producer/template DB but no negative counterpart. Curate outputs of public fake-receipt/fake-invoice generator sites and template kits (expensify-style receipt makers, 'free invoice generator' sites abused for fraud, known OnlyFake template layouts): store perceptual hashes (pHash/dHash) of their layouts, their characteristic Producer strings (wkhtmltopdf builds, specific headless-Chrome versions with default margins), default fonts, and fixed layout geometry (line positions, logo boxes). Match uploads against this DB offline.",
+   "signal": "Exact or near template match to a known fraud-generator output is high-severity, very low FP (legitimate businesses don't invoice from receipt-maker templates). Coverage is inherently reactive — it only catches known generators — but these tools produce enormous volumes of low-effort fraud, so hit rate per curation hour is high.",
+   "local_feasibility": "pip imagehash + Pillow; DB is a small JSON/SQLite shipped with the app (no document leaves the box). The cost is curation, not compute.",
+   "effort": "medium",
+   "sources": [
+    "https://www.aiaaic.org/aiaaic-repository/ai-algorithmic-and-automation-incidents/chatgpt-4o-generation-of-realistic-fake-receipts-raises-scam-concerns",
+    "https://www.techspot.com/news/111504-us-arrests-onlyfake-operator-accused-selling-over-10000.html",
+    "https://resistant.ai/blog/onlyfake-generative-ai-fraud (documents template-reuse as the actual OnlyFake mechanism)"
+   ]
+  },
+  {
+   "name": "Illumination/shadow-gradient consistency for photographed documents",
+   "how_it_works": "The listed white-point/background-flatness detector assumes a flat digital background; on phone photos of documents (the dominant capture mode) the paper has a smooth illumination gradient and perspective shading. Estimate the low-frequency luminance field (large-kernel morphological closing or polynomial surface fit on background pixels), then flag rectangular regions whose local background deviates from the fitted global gradient — a patch pasted from a differently-lit source, or a digitally flat (255,255,255) box composited onto a photographed page.",
+   "signal": "Catches patch-paste on photos where white-point and noise checks fail (paper isn't uniformly white on a photo). Medium strength; FPs from genuine shadows/folds, so require rectangularity + alignment with text regions before flagging, and cap at medium severity.",
+   "local_feasibility": "Pure opencv-python + numpy (morphology, polyfit). Milliseconds per page, no deps, no RAM concerns.",
+   "effort": "small",
+   "sources": [
+    "Classic illumination-inconsistency splicing literature (Kee & Farid, 'Exposing digital forgeries from 3-D lighting environments'); background-surface-fit techniques standard in document binarization (Sauvola preprocessing)"
+   ]
+  },
+  {
+   "name": "Container-anomaly signals: repaired xref, encryption, and file-type masquerade as first-class flags",
+   "how_it_works": "The extraction layer silently discards three cheap high-value signals the audit confirmed are unread: fitz's doc.is_repaired (MuPDF auto-fixed a broken xref — frequent after crude binary edits), doc.is_encrypted/needs_pass (analysis-evasion via encryption), and doc.is_pdf (an image/XPS renamed to .pdf — the screenshot-fraud disguise). Surface each as an explicit flag with its own severity, plus a qpdf --check pass whose warnings/errors feed the same channel, and magic-byte sniffing to name the true file type.",
+   "signal": "is_repaired after a binary edit is a strong tamper indicator otherwise invisible to every listed structural check (the repair erases the evidence those checks need). Encryption and masquerade are evasion signals: the correct output is 'could not analyze — treat as unverified', which the aggregation layer must score as suspicion, not neutral confidence-0.1 silence. Near-zero FP for masquerade; low FP for is_repaired (some legitimate but broken generators exist — medium severity).",
+   "local_feasibility": "Trivial: attributes already returned by PyMuPDF; qpdf is a small apt package (already compatible with packages.txt deployment); python-magic for sniffing. Zero measurable cost.",
+   "effort": "small",
+   "sources": [
+    "https://pymupdf.readthedocs.io/en/latest/document.html (is_repaired, is_encrypted, is_pdf)",
+    "https://qpdf.readthedocs.io/en/stable/cli.html#option-check"
+   ]
+  },
+  {
+   "name": "Annotation-overlay forensics (FreeText/Stamp edits, hidden-flag annotations, flattening residue)",
+   "how_it_works": "One-click Acrobat/Preview edits add content as ANNOTATIONS, not content-stream text — invisible to the listed z-order, font, and mid-line checks (which read the page stream) and to get_text defaults. Enumerate annotations via PyMuPDF: flag FreeText/Square/Stamp/Redact annotations whose rects overlap existing text or regex-matched amount/date/IBAN regions; decode the /F bit flags to catch Hidden/NoView annotations (the standard way to conceal a white square over the real amount); inspect appearance streams for text; and render each page twice (with and without annotations) and pixel-diff to show exactly what the annotations change.",
+   "signal": "A FreeText annotation sitting on an amount region is close to a smoking gun for the laziest and most common consumer edit path. Hidden-flag annotations on an invoice have essentially no legitimate use — high severity, very low FP. The render-diff doubles as user-facing evidence ('this box was added on top').",
+   "local_feasibility": "PyMuPDF only (page.annots(), annot.flags, get_pixmap with/without annots). A few lines per check, milliseconds per page.",
+   "effort": "small",
+   "sources": [
+    "PDF 2.0 spec ISO 32000-2 §12.5.3 (annotation flags: Hidden, NoView)",
+    "https://pymupdf.readthedocs.io/en/latest/annot.html"
+   ]
+  },
+  {
+   "name": "French typographic and lexical plausibility check (fraudster-error detector)",
+   "how_it_works": "Fabricated French documents routinely violate conventions that real French billing software never gets wrong: decimal comma vs point, thin/non-breaking space before € and %, correct mandatory phrases ('TVA non applicable, art. 293 B du CGI', the exact late-payment penalty clause, 'indemnité forfaitaire de 40 €'), legal-form/capital coherence ('SARL au capital de…'), and plain spelling errors in boilerplate. Run hunspell-fr over extracted/OCR'd text, plus a rule table for typography and required-mention phrasing, and flag deviations concentrated in boilerplate zones.",
+   "signal": "Weak individually but cheap and orthogonal to everything listed; GPT-4o receipt fakes were specifically observed making comma/decimal and arithmetic errors, and human fraudsters mangle legal boilerplate they retype. Low severity only, best consumed by the log-odds aggregator as several tiny LR contributions; FP risk from OCR noise means it must only fire on text-layer (not OCR) input or high-confidence OCR.",
+   "local_feasibility": "pip hunspell/pyspellchecker + French dictionary files shipped locally; rule table is a YAML of regexes. Milliseconds, no system deps beyond dictionary files.",
+   "effort": "small",
+   "sources": [
+    "https://techcrunch.com/2025/03/31/chatgpts-new-image-generator-is-really-good-at-faking-receipts/ (documents comma/decimal and arithmetic errors in AI fakes)",
+    "Code général des impôts art. 242 nonies A (mandatory French invoice mentions)"
+   ]
+  }
+ ],
+ "key_insights": [
+  "The single biggest hole in the candidate list is synthetic-document detection: every listed image-forensics technique (ELA, JPEG ghost, copy-move, noise, resampling) assumes a REAL base image with a LOCAL edit. The 2025-2026 attack wave — GPT-4o-generated receipts (March 2025) and OnlyFake-style template/AI ID images — produces documents with no edit seam at all, and commercial detectors were already shown failing on them (26.8% detection reported). At minimum, add the AI-image detector + glyph-consistency + C2PA trio.",
+  "Identity documents are almost entirely uncovered by the candidate list despite being a declared TrustyFile document class with an existing (audited, gap-ridden) identity module: ICAO 9303 MRZ check digits, MRZ↔visual-zone↔2D-Doc cross-comparison, specimen blocklists, and portrait-region forensics are all missing. The MRZ checksum + cross-zone checks are the highest signal-per-effort items in this entire report (small effort, near-deterministic).",
+  "Two laundering paths destroy the evidence base of ~80% of the listed techniques: full PDF rewrite (kills all metadata/structure/font forensics) and print-and-rescan or screenshot (kills all digital history). The counters are not more tamper detectors but capture-channel authentication (is this really a scan?) plus an aggregation rule the list only implies: a document whose entire history has been laundered must be scored as 'unverifiable', never as 'clean' — absence of evidence is the attacker's cheapest product.",
+  "The list has known-GOOD databases (producers, templates) but no known-BAD counterpart: fake receipt/invoice generator sites and OnlyFake-style template kits produce high-volume, layout-identical fraud that a small local pHash/producer-string blocklist catches at near-zero FP.",
+  "Several cheap, audit-confirmed signals need no research at all and are absent from the list: fitz is_repaired/is_encrypted/is_pdf flags, annotation-overlay enumeration (FreeText over amounts, hidden /F flags, render-with/without-annots diff), and per-page provenance outliers for spliced multi-page documents. These are days, not weeks, of work.",
+  "One near-miss rather than a gap: graphical SPECIMEN/DUPLICATA/CamScanner watermarks (invisible to text extraction) don't need a new technique — the already-listed render+OCR cross-validation pass covers them if its OCR output is also matched against the watermark keyword lists, which the implementation should make explicit.",
+  "For C2PA and the AI-image detector alike, the scoring must stay asymmetric to protect the false-positive goal: presence of AI-origin evidence or broken cryptographic bindings is decisive, but absence of C2PA/EXIF/history must remain neutral — millions of legitimate documents have none."
+ ]
+}
