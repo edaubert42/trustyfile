@@ -1,0 +1,936 @@
+"""
+Rich Template-Based Summary Generator for TrustyFile.
+
+Groups flags by user-facing themes (not modules) and produces a natural-feeling
+two-part summary: a short verdict + a multi-sentence explanation.
+
+All template-based — no LLM, free, instant, works offline.
+"""
+
+from src.models import AnalysisResult, AnalysisSummary, ModuleResult, Flag
+from src.scoring import collect_all_flags
+
+
+# =============================================================================
+# THEME DEFINITIONS
+# =============================================================================
+
+# Each flag code is mapped to a user-facing theme.
+# Themes group related findings so the summary reads naturally.
+FLAG_THEME_MAP: dict[str, str] = {
+    # origin: online converters, AI tools, suspicious software
+    "META_AI_GENERATED": "origin",
+    "META_ONLINE_CONVERTER": "origin",
+    "META_SUSPICIOUS_PRODUCER": "origin",
+    "META_NO_METADATA": "origin",
+    "META_NO_PRODUCER": "origin",
+
+    # tampering: incremental edits, paste artifacts, font mixing, deleted objects
+    "STRUCT_INCREMENTAL_UPDATES": "tampering",
+    "STRUCT_DELETED_OBJECTS": "tampering",
+    "FONTS_EXCESSIVE_DIVERSITY": "tampering",
+    "FONTS_HIGH_DIVERSITY": "tampering",
+    "FONTS_MIXED_SUBSETS": "tampering",
+    "FONTS_MIDLINE_CHANGE": "tampering",
+    "IMAGES_PASTE_NOISE_ANOMALY": "tampering",
+
+    # tampering: modification time gap, impossible dates in metadata
+    "META_DOCUMENT_MODIFIED": "tampering",
+    "META_FUTURE_CREATION_DATE": "tampering",
+    "META_IMPOSSIBLE_DATES": "tampering",
+
+    # dates: content-level date inconsistencies (anachronisms, future dates in text)
+    "CONTENT_FAR_FUTURE_DATE": "dates",
+    "CONTENT_VERY_OLD_DATE": "dates",
+    "CONTENT_ANACHRONISM_SERVICE": "dates",
+    "CONTENT_ANACHRONISM_DUE": "dates",
+    "CONTENT_ANACHRONISM_ORDER": "dates",
+    "CONTENT_FUTURE_INVOICE_DATE": "dates",
+
+    # identity: invalid SIRET/SIREN/VAT, company mismatch
+    "CONTENT_INVALID_SIRET": "identity",
+    "CONTENT_INVALID_SIREN": "identity",
+    "CONTENT_INVALID_VAT": "identity",
+    "CONTENT_SIREN_VAT_MISMATCH": "identity",
+    "CONTENT_MISSING_COMPANY_ID": "identity",
+    "CONTENT_INCONSISTENT_REFERENCES": "identity",
+    "CONTENT_REFERENCE_DATE_MISMATCH": "identity",
+    "EXTERNAL_SIRET_NOT_FOUND": "identity",
+    "EXTERNAL_SIREN_NOT_FOUND": "identity",
+    "EXTERNAL_COMPANY_CLOSED": "identity",
+    "EXTERNAL_COMPANY_NAME_MISMATCH": "identity",
+    "EXTERNAL_VAT_INVALID": "identity",
+    "EXTERNAL_SIRET_VERIFICATION_FAILED": "identity",
+    "EXTERNAL_SIREN_VERIFICATION_FAILED": "identity",
+    "EXTERNAL_VAT_VERIFICATION_FAILED": "identity",
+
+    # visual: QR mismatches, watermarks
+    "VISUAL_QR_URL_SHORTENER": "visual",
+    "VISUAL_QR_SUSPICIOUS_TLD": "visual",
+    "VISUAL_QR_DOMAIN_MISMATCH": "visual",
+    "VISUAL_WATERMARK_SPECIMEN": "visual",
+    "VISUAL_WATERMARK_COPY": "visual",
+    "VISUAL_WATERMARK_DRAFT": "visual",
+    "VISUAL_WATERMARK_DUPLICATE": "visual",
+    "VISUAL_WATERMARK_VOID": "visual",
+    "VISUAL_WATERMARK_CANCELLED": "visual",
+    "VISUAL_WATERMARK_NOT_VALID": "visual",
+    "VISUAL_WATERMARK_SAMPLE": "visual",
+    "VISUAL_WATERMARK_TEST": "visual",
+    "VISUAL_WATERMARK_CONFIDENTIAL": "visual",
+    "VISUAL_CONVERTER_WATERMARK": "visual",
+
+    # images: screenshots, image-only PDFs, compression issues
+    "IMAGES_SCREENSHOT_DETECTED": "images",
+    "IMAGES_RESOLUTION_MISMATCH": "images",
+    "IMAGES_HEAVY_COMPRESSION": "images",
+    "IMAGES_EXCESSIVE_COUNT": "images",
+    "IMAGES_NO_IMAGES": "images",
+    "IMAGES_IMAGE_ONLY_PDF": "images",
+    "IMAGES_MOSTLY_IMAGE_PDF": "images",
+
+    # security: JavaScript, embedded files, hidden annotations
+    "STRUCT_JAVASCRIPT_DETECTED": "security",
+    "STRUCT_HIDDEN_ANNOTATIONS": "security",
+    "STRUCT_SUSPICIOUS_ANNOTATIONS": "security",
+    "STRUCT_EMBEDDED_FILES": "security",
+    "STRUCT_ACROFORM_DETECTED": "security",
+    "STRUCT_XMP_EDITOR_MISMATCH": "tampering",
+
+    # fonts (standalone, not tampering-level)
+    "FONTS_SYSTEM_FONTS": "fonts",
+    "FONTS_NOT_EMBEDDED": "fonts",
+
+    # signature (positive — handled separately in positive signals)
+    "STRUCT_SIGNATURE_TRUSTED": "signature",
+    "STRUCT_SIGNATURE_TRUSTED_EXPIRED": "signature",
+    "STRUCT_SIGNATURE_NOT_TRUSTED": "signature",
+    "STRUCT_SIGNATURE_UNVERIFIABLE": "signature",
+    "STRUCT_SIGNATURE_INVALID": "signature",
+}
+
+
+# =============================================================================
+# SENTENCE TEMPLATES
+# =============================================================================
+
+# Each flag code maps to a function that takes a Flag and returns a sentence.
+# Using lambdas for simple cases, regular functions for complex ones.
+# If a flag code is missing here, we fall back to flag.message.
+
+def _get_converter_name(flag: Flag) -> str:
+    """Extract the converter/tool name from flag details."""
+    if flag.details:
+        return flag.details.get("detected_tool", flag.details.get("producer", "an unknown tool"))
+    return "an unknown tool"
+
+
+SENTENCE_TEMPLATES: dict[str, callable] = {
+    # --- origin ---
+    "META_AI_GENERATED": lambda f: (
+        f"The document was generated by {_get_converter_name(f)}, an AI tool."
+    ),
+    "META_ONLINE_CONVERTER": lambda f: (
+        f"The document was processed through {_get_converter_name(f)}, "
+        f"an online converter commonly used to modify documents."
+    ),
+    "META_SUSPICIOUS_PRODUCER": lambda f: (
+        f"The document was created with {_get_converter_name(f)}, "
+        f"which is unusual for a professional invoice."
+    ),
+    "META_NO_METADATA": lambda f: (
+        "The document metadata has been completely stripped, "
+        "which may indicate an attempt to hide its origin."
+    ),
+    "META_NO_PRODUCER": lambda f: (
+        "No software information is present in the document metadata."
+    ),
+
+    # --- tampering ---
+    "STRUCT_INCREMENTAL_UPDATES": lambda f: (
+        f"The PDF has been edited {f.details.get('edit_count', 'multiple')} "
+        f"time(s) after its initial creation."
+        if f.details else "The PDF has been edited after its initial creation."
+    ),
+    "STRUCT_DELETED_OBJECTS": lambda f: (
+        "The PDF contains deleted objects (ghost data), suggesting content "
+        "was removed but traces remain."
+    ),
+    "FONTS_EXCESSIVE_DIVERSITY": lambda f: (
+        f"The document uses {f.details.get('font_count', 'many')} different fonts, "
+        f"which is unusual for a professional invoice."
+        if f.details else "The document uses an excessive number of fonts."
+    ),
+    "FONTS_HIGH_DIVERSITY": lambda f: (
+        f"The document uses {f.details.get('font_count', 'several')} different fonts, "
+        f"more than typical for a professional document."
+        if f.details else "The document uses more fonts than typical."
+    ),
+    "FONTS_MIXED_SUBSETS": lambda f: (
+        f"The font \"{f.details.get('font_name', 'unknown')}\" appears in both "
+        f"subset and full forms, which can indicate text editing."
+        if f.details else "A font appears in mixed forms, suggesting editing."
+    ),
+    "FONTS_MIDLINE_CHANGE": lambda f: (
+        f"A font change was detected mid-line, suggesting text was edited after creation."
+    ),
+    "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
+        "A region of the document shows abnormal noise patterns consistent "
+        "with a copy-paste operation."
+    ),
+
+    # --- dates ---
+    "META_FUTURE_CREATION_DATE": lambda f: (
+        "The PDF creation date is set in the future, which is impossible "
+        "for a legitimate document."
+    ),
+    "META_DOCUMENT_MODIFIED": lambda f: (
+        f"The document was modified "
+        f"{int(f.details['time_difference_hours'] // 24)} day(s) after creation."
+        if f.details and f.details.get('time_difference_hours', 0) >= 24
+        else f"The document was modified "
+        f"{round(f.details['time_difference_hours'], 1)}h after creation."
+        if f.details and f.details.get('time_difference_hours', 0) >= 1
+        else f"The document was modified "
+        f"{int(f.details['time_difference_hours'] * 60)} minute(s) after creation."
+        if f.details and f.details.get('time_difference_hours')
+        else "The document was modified after its initial creation."
+    ),
+    "META_IMPOSSIBLE_DATES": lambda f: (
+        "The modification date is before the creation date, "
+        "which indicates metadata tampering."
+    ),
+    "CONTENT_FAR_FUTURE_DATE": lambda f: (
+        f"A date far in the future was found"
+        f" ({f.details.get('date', '')})"
+        f"{' near: ' + f.details.get('context', '') if f.details and f.details.get('context') else ''}."
+        if f.details else "A date far in the future was found in the document."
+    ),
+    "CONTENT_VERY_OLD_DATE": lambda f: (
+        "A suspiciously old date (before 2000) was found in the document."
+    ),
+    "CONTENT_ANACHRONISM_SERVICE": lambda f: (
+        "The service date comes after the invoice date, which is inconsistent."
+    ),
+    "CONTENT_ANACHRONISM_DUE": lambda f: (
+        "The due date is before the invoice date, which is inconsistent."
+    ),
+    "CONTENT_ANACHRONISM_ORDER": lambda f: (
+        "The order date comes after the invoice date, which is inconsistent."
+    ),
+    "CONTENT_FUTURE_INVOICE_DATE": lambda f: (
+        "The invoice date is in the future."
+    ),
+
+    # --- identity ---
+    "CONTENT_INVALID_SIRET": lambda f: (
+        f"The SIRET number ({f.details.get('siret', 'unknown')}) has an invalid checksum."
+        if f.details else "A SIRET number with invalid checksum was found."
+    ),
+    "CONTENT_INVALID_SIREN": lambda f: (
+        f"The SIREN number ({f.details.get('siren', 'unknown')}) has an invalid checksum."
+        if f.details else "A SIREN number with invalid checksum was found."
+    ),
+    "CONTENT_INVALID_VAT": lambda f: (
+        f"The VAT number ({f.details.get('vat', 'unknown')}) is invalid."
+        if f.details else "An invalid VAT number was found."
+    ),
+    "CONTENT_SIREN_VAT_MISMATCH": lambda f: (
+        "The SIREN number derived from the VAT number does not match "
+        "the SIREN/SIRET found in the document."
+    ),
+    "CONTENT_MISSING_COMPANY_ID": lambda f: (
+        "No SIRET, SIREN, or RCS number was found, which is required "
+        "on French invoices."
+    ),
+    "CONTENT_INCONSISTENT_REFERENCES": lambda f: (
+        f"The document contains {f.details.get('unique_references', 'multiple')} "
+        f"different reference numbers, which is suspicious."
+        if f.details else "Inconsistent reference numbers were found."
+    ),
+    "CONTENT_REFERENCE_DATE_MISMATCH": lambda f: (
+        "The invoice reference number does not match the invoice date."
+    ),
+    "EXTERNAL_SIRET_NOT_FOUND": lambda f: (
+        f"The SIRET number ({f.details.get('siret', 'unknown')}) was not found "
+        f"in the official French registry."
+        if f.details else "A SIRET number was not found in the official registry."
+    ),
+    "EXTERNAL_SIREN_NOT_FOUND": lambda f: (
+        f"The SIREN number ({f.details.get('siren', 'unknown')}) was not found "
+        f"in the official French registry."
+        if f.details else "A SIREN number was not found in the official registry."
+    ),
+    "EXTERNAL_COMPANY_CLOSED": lambda f: (
+        f"The company \"{f.details.get('company_name', 'unknown')}\" is registered "
+        f"as closed/inactive."
+        if f.details else "The company is registered as closed/inactive."
+    ),
+    "EXTERNAL_COMPANY_NAME_MISMATCH": lambda f: (
+        f"The company name in the document does not match the official registry "
+        f"(expected \"{f.details.get('name_in_registry', 'unknown')}\")."
+        if f.details else "The company name does not match the official registry."
+    ),
+    "EXTERNAL_VAT_INVALID": lambda f: (
+        f"The VAT number ({f.details.get('vat', 'unknown')}) is invalid "
+        f"according to the EU VIES system."
+        if f.details else "A VAT number is invalid according to EU VIES."
+    ),
+
+    # --- visual ---
+    "VISUAL_QR_URL_SHORTENER": lambda f: (
+        f"A QR code uses a URL shortener ({f.details.get('domain', 'unknown')}), "
+        f"which can hide the real destination."
+        if f.details else "A QR code uses a URL shortener."
+    ),
+    "VISUAL_QR_SUSPICIOUS_TLD": lambda f: (
+        f"A QR code points to a suspicious domain "
+        f"({f.details.get('domain', 'unknown')})."
+        if f.details else "A QR code points to a suspicious domain."
+    ),
+    "VISUAL_QR_DOMAIN_MISMATCH": lambda f: (
+        f"A QR code points to {f.details.get('qr_domain', 'an unexpected domain')}, "
+        f"which doesn't match the expected domain(s)."
+        if f.details else "A QR code domain doesn't match the expected domain."
+    ),
+    "VISUAL_CONVERTER_WATERMARK": lambda f: (
+        f"A visible watermark from a converter/editor was detected "
+        f"(\"{f.details.get('matched_text', '')}\")."
+        if f.details and f.details.get('matched_text')
+        else "A visible converter/editor watermark was detected."
+    ),
+
+    # images
+    "IMAGES_SCREENSHOT_DETECTED": lambda f: (
+        "An image with screen-like dimensions was detected, "
+        "suggesting the document may be a screenshot."
+    ),
+    "IMAGES_RESOLUTION_MISMATCH": lambda f: (
+        "Images in the document have inconsistent resolutions, "
+        "which may indicate images from different sources."
+    ),
+    "IMAGES_HEAVY_COMPRESSION": lambda f: (
+        "An image is heavily compressed, which can indicate multiple re-saves."
+    ),
+    "IMAGES_IMAGE_ONLY_PDF": lambda f: (
+        "The document is image-only with no text layer, "
+        "which is typical of screenshots or scanned modifications."
+    ),
+    "IMAGES_MOSTLY_IMAGE_PDF": lambda f: (
+        "The document is mostly images with very little text."
+    ),
+
+    # security
+    "STRUCT_JAVASCRIPT_DETECTED": lambda f: (
+        "The PDF contains JavaScript code, which is suspicious "
+        "and potentially dangerous in an invoice."
+    ),
+    "STRUCT_EMBEDDED_FILES": lambda f: (
+        f"The PDF contains {f.details.get('file_count', '')} embedded file(s), "
+        f"which could be malicious."
+        if f.details else "The PDF contains embedded files."
+    ),
+    "STRUCT_HIDDEN_ANNOTATIONS": lambda f: (
+        "Hidden annotations were found in the PDF."
+    ),
+    "STRUCT_SUSPICIOUS_ANNOTATIONS": lambda f: (
+        "Suspicious annotation types were found in the PDF "
+        "(file attachments, multimedia, etc.)."
+    ),
+    "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
+        "The document was modified by a different tool than its creator."
+    ),
+}
+
+
+SENTENCE_TEMPLATES_FR: dict[str, callable] = {
+    # --- origin ---
+    "META_AI_GENERATED": lambda f: (
+        f"Le document a été généré par {_get_converter_name(f)}, un outil IA."
+    ),
+    "META_ONLINE_CONVERTER": lambda f: (
+        f"Le document a été traité via {_get_converter_name(f)}, "
+        f"un convertisseur en ligne couramment utilisé pour modifier des documents."
+    ),
+    "META_SUSPICIOUS_PRODUCER": lambda f: (
+        f"Le document a été créé avec {_get_converter_name(f)}, "
+        f"ce qui est inhabituel pour une facture professionnelle."
+    ),
+    "META_NO_METADATA": lambda f: (
+        "Les métadonnées du document ont été entièrement supprimées, "
+        "ce qui peut indiquer une tentative de masquer son origine."
+    ),
+    "META_NO_PRODUCER": lambda f: (
+        "Aucune information logicielle n'est présente dans les métadonnées du document."
+    ),
+
+    # --- tampering ---
+    "STRUCT_INCREMENTAL_UPDATES": lambda f: (
+        f"Le PDF a été modifié {f.details.get('edit_count', 'plusieurs')} "
+        f"fois après sa création initiale."
+        if f.details else "Le PDF a été modifié après sa création initiale."
+    ),
+    "STRUCT_DELETED_OBJECTS": lambda f: (
+        "Le PDF contient des objets supprimés (données fantômes), "
+        "suggérant que du contenu a été retiré mais des traces subsistent."
+    ),
+    "FONTS_EXCESSIVE_DIVERSITY": lambda f: (
+        f"Le document utilise {f.details.get('font_count', 'beaucoup de')} polices différentes, "
+        f"ce qui est inhabituel pour une facture professionnelle."
+        if f.details else "Le document utilise un nombre excessif de polices."
+    ),
+    "FONTS_HIGH_DIVERSITY": lambda f: (
+        f"Le document utilise {f.details.get('font_count', 'plusieurs')} polices différentes, "
+        f"plus que la normale pour un document professionnel."
+        if f.details else "Le document utilise plus de polices que la normale."
+    ),
+    "FONTS_MIXED_SUBSETS": lambda f: (
+        f"La police \"{f.details.get('font_name', 'inconnue')}\" apparaît en formes "
+        f"sous-ensemble et complète, ce qui peut indiquer une modification de texte."
+        if f.details else "Une police apparaît sous formes mixtes, suggérant une modification."
+    ),
+    "FONTS_MIDLINE_CHANGE": lambda f: (
+        "Un changement de police a été détecté en milieu de ligne, "
+        "suggérant que le texte a été modifié après sa création."
+    ),
+    "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
+        "Une zone du document présente des patterns de bruit anormaux "
+        "cohérents avec une opération de copier-coller."
+    ),
+
+    # --- dates ---
+    "META_FUTURE_CREATION_DATE": lambda f: (
+        "La date de création du PDF est définie dans le futur, "
+        "ce qui est impossible pour un document légitime."
+    ),
+    "META_DOCUMENT_MODIFIED": lambda f: (
+        f"Le document a été modifié "
+        f"{int(f.details['time_difference_hours'] // 24)} jour(s) après sa création."
+        if f.details and f.details.get('time_difference_hours', 0) >= 24
+        else f"Le document a été modifié "
+        f"{round(f.details['time_difference_hours'], 1)}h après sa création."
+        if f.details and f.details.get('time_difference_hours', 0) >= 1
+        else f"Le document a été modifié "
+        f"{int(f.details['time_difference_hours'] * 60)} minute(s) après sa création."
+        if f.details and f.details.get('time_difference_hours')
+        else "Le document a été modifié après sa création initiale."
+    ),
+    "META_IMPOSSIBLE_DATES": lambda f: (
+        "La date de modification est antérieure à la date de création, "
+        "ce qui indique une anomalie dans les métadonnées."
+    ),
+    "CONTENT_FAR_FUTURE_DATE": lambda f: (
+        f"Une date lointaine dans le futur a été trouvée"
+        f" ({f.details.get('date', '')})"
+        f"{' près de : ' + f.details.get('context', '') if f.details and f.details.get('context') else ''}."
+        if f.details else "Une date lointaine dans le futur a été trouvée dans le document."
+    ),
+    "CONTENT_VERY_OLD_DATE": lambda f: (
+        "Une date suspicieusement ancienne (avant 2000) a été trouvée dans le document."
+    ),
+    "CONTENT_ANACHRONISM_SERVICE": lambda f: (
+        "La date de prestation est postérieure à la date de facture, ce qui est incohérent."
+    ),
+    "CONTENT_ANACHRONISM_DUE": lambda f: (
+        "La date d'échéance est antérieure à la date de facture, ce qui est incohérent."
+    ),
+    "CONTENT_ANACHRONISM_ORDER": lambda f: (
+        "La date de commande est postérieure à la date de facture, ce qui est incohérent."
+    ),
+    "CONTENT_FUTURE_INVOICE_DATE": lambda f: (
+        "La date de facture est dans le futur."
+    ),
+
+    # --- identity ---
+    "CONTENT_INVALID_SIRET": lambda f: (
+        f"Le numéro SIRET ({f.details.get('siret', 'inconnu')}) a un checksum invalide."
+        if f.details else "Un numéro SIRET avec un checksum invalide a été trouvé."
+    ),
+    "CONTENT_INVALID_SIREN": lambda f: (
+        f"Le numéro SIREN ({f.details.get('siren', 'inconnu')}) a un checksum invalide."
+        if f.details else "Un numéro SIREN avec un checksum invalide a été trouvé."
+    ),
+    "CONTENT_INVALID_VAT": lambda f: (
+        f"Le numéro de TVA ({f.details.get('vat', 'inconnu')}) est invalide."
+        if f.details else "Un numéro de TVA invalide a été trouvé."
+    ),
+    "CONTENT_SIREN_VAT_MISMATCH": lambda f: (
+        "Le numéro SIREN dérivé du numéro de TVA ne correspond pas "
+        "au SIREN/SIRET trouvé dans le document."
+    ),
+    "CONTENT_MISSING_COMPANY_ID": lambda f: (
+        "Aucun numéro SIRET, SIREN ou RCS n'a été trouvé, "
+        "ce qui est obligatoire sur les factures françaises."
+    ),
+    "CONTENT_INCONSISTENT_REFERENCES": lambda f: (
+        f"Le document contient {f.details.get('unique_references', 'plusieurs')} "
+        f"numéros de référence différents, ce qui est suspect."
+        if f.details else "Des numéros de référence incohérents ont été trouvés."
+    ),
+    "CONTENT_REFERENCE_DATE_MISMATCH": lambda f: (
+        "Le numéro de référence de la facture ne correspond pas à la date de facture."
+    ),
+    "EXTERNAL_SIRET_NOT_FOUND": lambda f: (
+        f"Le numéro SIRET ({f.details.get('siret', 'inconnu')}) n'a pas été trouvé "
+        f"dans le registre officiel français."
+        if f.details else "Un numéro SIRET n'a pas été trouvé dans le registre officiel."
+    ),
+    "EXTERNAL_SIREN_NOT_FOUND": lambda f: (
+        f"Le numéro SIREN ({f.details.get('siren', 'inconnu')}) n'a pas été trouvé "
+        f"dans le registre officiel français."
+        if f.details else "Un numéro SIREN n'a pas été trouvé dans le registre officiel."
+    ),
+    "EXTERNAL_COMPANY_CLOSED": lambda f: (
+        f"L'entreprise \"{f.details.get('company_name', 'inconnue')}\" est enregistrée "
+        f"comme fermée/inactive."
+        if f.details else "L'entreprise est enregistrée comme fermée/inactive."
+    ),
+    "EXTERNAL_COMPANY_NAME_MISMATCH": lambda f: (
+        f"Le nom de l'entreprise dans le document ne correspond pas au registre officiel "
+        f"(attendu : \"{f.details.get('name_in_registry', 'inconnu')}\")."
+        if f.details else "Le nom de l'entreprise ne correspond pas au registre officiel."
+    ),
+    "EXTERNAL_VAT_INVALID": lambda f: (
+        f"Le numéro de TVA ({f.details.get('vat', 'inconnu')}) est invalide "
+        f"selon le système EU VIES."
+        if f.details else "Un numéro de TVA est invalide selon EU VIES."
+    ),
+
+    # --- visual ---
+    "VISUAL_QR_URL_SHORTENER": lambda f: (
+        f"Un QR code utilise un raccourcisseur d'URL ({f.details.get('domain', 'inconnu')}), "
+        f"ce qui peut masquer la vraie destination."
+        if f.details else "Un QR code utilise un raccourcisseur d'URL."
+    ),
+    "VISUAL_QR_SUSPICIOUS_TLD": lambda f: (
+        f"Un QR code pointe vers un domaine suspect "
+        f"({f.details.get('domain', 'inconnu')})."
+        if f.details else "Un QR code pointe vers un domaine suspect."
+    ),
+    "VISUAL_QR_DOMAIN_MISMATCH": lambda f: (
+        f"Un QR code pointe vers {f.details.get('qr_domain', 'un domaine inattendu')}, "
+        f"qui ne correspond pas aux domaines attendus."
+        if f.details else "Un domaine de QR code ne correspond pas au domaine attendu."
+    ),
+    "VISUAL_CONVERTER_WATERMARK": lambda f: (
+        f"Un filigrane de convertisseur/éditeur a été détecté "
+        f"(\"{f.details.get('matched_text', '')}\")."
+        if f.details and f.details.get('matched_text')
+        else "Un filigrane de convertisseur/éditeur a été détecté."
+    ),
+
+    # --- images ---
+    "IMAGES_SCREENSHOT_DETECTED": lambda f: (
+        "Une image aux dimensions typiques d'un écran a été détectée, "
+        "suggérant que le document est peut-être une capture d'écran."
+    ),
+    "IMAGES_RESOLUTION_MISMATCH": lambda f: (
+        "Les images du document ont des résolutions incohérentes, "
+        "ce qui peut indiquer des images provenant de sources différentes."
+    ),
+    "IMAGES_HEAVY_COMPRESSION": lambda f: (
+        "Une image est fortement compressée, ce qui peut indiquer de multiples re-sauvegardes."
+    ),
+    "IMAGES_IMAGE_ONLY_PDF": lambda f: (
+        "Le document est composé uniquement d'images sans couche de texte, "
+        "ce qui est typique des captures d'écran ou des modifications scannées."
+    ),
+    "IMAGES_MOSTLY_IMAGE_PDF": lambda f: (
+        "Le document est principalement composé d'images avec très peu de texte."
+    ),
+    "IMAGES_NO_IMAGES": lambda f: (
+        "Le document ne contient aucune image (inhabituel pour une facture de marque)."
+    ),
+
+    # --- security ---
+    "STRUCT_JAVASCRIPT_DETECTED": lambda f: (
+        "Le PDF contient du code JavaScript, ce qui est suspect "
+        "et potentiellement dangereux dans une facture."
+    ),
+    "STRUCT_EMBEDDED_FILES": lambda f: (
+        f"Le PDF contient {f.details.get('file_count', '')} fichier(s) embarqué(s), "
+        f"qui pourraient être malveillants."
+        if f.details else "Le PDF contient des fichiers embarqués."
+    ),
+    "STRUCT_HIDDEN_ANNOTATIONS": lambda f: (
+        "Des annotations cachées ont été trouvées dans le PDF."
+    ),
+    "STRUCT_SUSPICIOUS_ANNOTATIONS": lambda f: (
+        "Des types d'annotations suspects ont été trouvés dans le PDF "
+        "(pièces jointes, multimédia, etc.)."
+    ),
+    "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
+        "Le document a été modifié par un outil différent de son créateur."
+    ),
+}
+
+
+# =============================================================================
+# VERDICT TEMPLATES
+# =============================================================================
+
+# Verdicts are selected based on risk level.
+# When tampering or dates are the dominant theme, we pick a more specific verdict.
+VERDICTS: dict[str, dict[str, str]] = {
+    "CRITICAL": {
+        "default": "Do not trust this document.",
+        "tampering": "This document shows clear signs of modification.",
+        "dates": "Dates in this document indicate modifications after its creation.",
+        "identity": "Do not trust this document — identity information is fraudulent.",
+        "security": "Do not trust this document — it contains dangerous content.",
+    },
+    "HIGH": {
+        "default": "This document is likely fraudulent.",
+        "tampering": "This document has been altered after creation.",
+        "dates": "This document contains suspicious date inconsistencies.",
+        "identity": "The originator of this document could not be verified.",
+        "origin": "This document was created with suspicious tools.",
+    },
+    "MEDIUM": {
+        "default": "This document has issues that need verification.",
+        "tampering": "This document may have been edited.",
+        "dates": "Dates in this document are inconsistent.",
+        "origin": "The origin of this document raises questions.",
+    },
+    "LOW": {
+        "default": "This document appears legitimate. No issues detected.",
+    },
+}
+
+VERDICTS_FR: dict[str, dict[str, str]] = {
+    "CRITICAL": {
+        "default": "Ne faites pas confiance à ce document.",
+        "tampering": "Ce document présente des signes évidents de modification.",
+        "dates": "Les dates de ce document indiquent une ou des modifications ultérieures à la date de création.",
+        "identity": "Les informations d'identité de ce document sont frauduleuses.",
+        "security": "Ce document contient du contenu dangereux.",
+    },
+    "HIGH": {
+        "default": "Ce document est probablement frauduleux.",
+        "tampering": "Ce document a été modifié après sa création.",
+        "dates": "Ce document contient des incohérences de dates suspectes.",
+        "identity": "L'émetteur de ce document n'a pas pu être vérifié.",
+        "origin": "Ce document a été créé avec des outils suspects.",
+    },
+    "MEDIUM": {
+        "default": "Ce document présente des anomalies qui nécessitent une vérification.",
+        "tampering": "Ce document a peut-être été modifié.",
+        "dates": "Les dates de ce document sont incohérentes.",
+        "origin": "L'origine de ce document soulève des questions.",
+    },
+    "LOW": {
+        "default": "Ce document semble légitime. Aucun problème détecté.",
+    },
+}
+
+
+# =============================================================================
+# POSITIVE SIGNAL TEMPLATES
+# =============================================================================
+
+# When a module has score >= 90 and no flags, we mention it as a positive signal.
+# Maps module name -> positive sentence.
+POSITIVE_SIGNALS: dict[str, str] = {
+    "metadata": "The document metadata is consistent and clean.",
+    "content": "All dates and references in the document are consistent.",
+    "visual": "No suspicious visual elements were detected.",
+    "fonts": "Font usage is consistent with a professional document.",
+    "images": "Images show no signs of manipulation.",
+    "structure": "The PDF structure is clean with no signs of editing.",
+    "external": "Company identification numbers were verified successfully.",
+}
+
+# Special positive signal for trusted signatures (detected via flag code)
+SIGNATURE_POSITIVE = "The document carries a valid EU-trusted digital signature."
+
+POSITIVE_SIGNALS_FR: dict[str, str] = {
+    "metadata": "Les métadonnées du document sont cohérentes et propres.",
+    "content": "Toutes les dates et références du document sont cohérentes.",
+    "visual": "Aucun élément visuel suspect n'a été détecté.",
+    "fonts": "L'utilisation des polices est cohérente avec un document professionnel.",
+    "images": "Les images ne présentent aucun signe de manipulation.",
+    "structure": "La structure PDF est propre, sans signe de modification.",
+    "external": "Les numéros d'identification de l'entreprise ont été vérifiés avec succès.",
+}
+
+SIGNATURE_POSITIVE_FR = "Le document porte une signature numérique valide reconnue par l'UE."
+
+
+# =============================================================================
+# CORE LOGIC
+# =============================================================================
+
+def _group_flags_by_theme(flags: list[Flag]) -> dict[str, list[Flag]]:
+    """
+    Group flags by user-facing theme.
+
+    Args:
+        flags: All flags from all modules, sorted by severity.
+
+    Returns:
+        Dict mapping theme name to list of flags in that theme.
+        Flags with unknown codes go into "other".
+    """
+    groups: dict[str, list[Flag]] = {}
+
+    for flag in flags:
+        theme = FLAG_THEME_MAP.get(flag.code, "other")
+        if theme not in groups:
+            groups[theme] = []
+        groups[theme].append(flag)
+
+    return groups
+
+
+def _get_dominant_theme(grouped: dict[str, list[Flag]]) -> str | None:
+    """
+    Find the theme with the most severe flags.
+
+    We score each theme by summing severity weights of its flags.
+    The theme with the highest total wins.
+
+    Args:
+        grouped: Flags grouped by theme.
+
+    Returns:
+        The dominant theme name, or None if no flags.
+    """
+    severity_weight = {"critical": 50, "high": 30, "medium": 15, "low": 5}
+
+    # Exclude themes that aren't used for verdict selection
+    verdict_themes = {"origin", "tampering", "dates", "identity", "security"}
+
+    best_theme = None
+    best_score = 0
+
+    for theme, flags in grouped.items():
+        if theme not in verdict_themes:
+            continue
+        total = sum(severity_weight.get(f.severity, 0) for f in flags)
+        if total > best_score:
+            best_score = total
+            best_theme = theme
+
+    return best_theme
+
+
+def _build_verdict(risk_level: str, dominant_theme: str | None, lang: str = "en") -> str:
+    """
+    Pick the most appropriate verdict based on risk level and dominant theme.
+
+    Args:
+        risk_level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+        dominant_theme: The most prominent theme, or None.
+        lang: Language code ("en" or "fr").
+
+    Returns:
+        A short verdict sentence.
+    """
+    verdicts = VERDICTS_FR if lang == "fr" else VERDICTS
+    level_verdicts = verdicts.get(risk_level, verdicts["MEDIUM"])
+
+    # Try theme-specific verdict first, fall back to default
+    if dominant_theme and dominant_theme in level_verdicts:
+        return level_verdicts[dominant_theme]
+    return level_verdicts["default"]
+
+
+def _flag_to_sentence(flag: Flag, lang: str = "en") -> str:
+    """
+    Convert a single flag into a human-readable sentence.
+
+    Uses the template if available, otherwise falls back to flag.message.
+
+    Args:
+        flag: A Flag object.
+        lang: Language code ("en" or "fr").
+
+    Returns:
+        A sentence describing the finding.
+    """
+    templates = SENTENCE_TEMPLATES_FR if lang == "fr" else SENTENCE_TEMPLATES
+    template_fn = templates.get(flag.code)
+    if template_fn:
+        try:
+            return template_fn(flag)
+        except (KeyError, TypeError, AttributeError):
+            # If the template fails (missing details key, etc.), fall back
+            pass
+    # Fallback: use the flag's own message
+    return flag.message
+
+
+def _build_bullets(
+    grouped: dict[str, list[Flag]],
+    module_results: list[ModuleResult],
+    lang: str = "en",
+) -> list[str]:
+    """
+    Build a concise list of issues found.
+
+    Only shows problems — no positive signals. Keeps it short:
+    one bullet per theme, only the most severe flag.
+
+    Args:
+        grouped: Flags grouped by theme.
+        module_results: All module results (unused, kept for API compat).
+
+    Returns:
+        List of sentences, each one becoming a bullet point in the UI.
+        Empty list if no issues (the verdict already says "appears legitimate").
+    """
+    bullets: list[str] = []
+
+    # Order themes by importance
+    theme_order = [
+        "tampering", "dates", "identity", "origin",
+        "security", "visual", "images", "fonts", "other",
+    ]
+
+    severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    mentioned_codes: set[str] = set()
+
+    for theme in theme_order:
+        if theme not in grouped:
+            continue
+
+        flags = grouped[theme]
+
+        # Skip signature theme (informational, not an issue)
+        if theme == "signature":
+            continue
+
+        # Sort by severity, pick only the most severe flag per theme
+        sorted_flags = sorted(flags, key=lambda f: severity_order.get(f.severity, 4))
+
+        for flag in sorted_flags:
+            if flag.code in mentioned_codes:
+                continue
+            # Skip low-severity flags — not worth a bullet
+            if flag.severity == "low":
+                continue
+
+            sentence = _flag_to_sentence(flag, lang)
+            if sentence and sentence not in bullets:
+                bullets.append(sentence)
+                mentioned_codes.add(flag.code)
+                if len([c for c in mentioned_codes if c in [f.code for f in flags]]) >= 2:
+                    break  # Max 2 bullets per theme
+
+    return bullets
+
+
+def _get_positive_signals(
+    grouped: dict[str, list[Flag]],
+    module_results: list[ModuleResult],
+    lang: str = "en",
+) -> list[str]:
+    """
+    Generate positive sentences for modules that are clean.
+
+    A module is "clean" if it has score >= 90 and no flags.
+    We also check for trusted signatures as a special positive signal.
+
+    Args:
+        grouped: Flags grouped by theme.
+        module_results: All module results.
+
+    Returns:
+        List of positive signal sentences.
+    """
+    positives: list[str] = []
+
+    sig_positive = SIGNATURE_POSITIVE_FR if lang == "fr" else SIGNATURE_POSITIVE
+    pos_signals = POSITIVE_SIGNALS_FR if lang == "fr" else POSITIVE_SIGNALS
+
+    # Check for trusted digital signature (special case — it's a flag but positive)
+    if "signature" in grouped:
+        for flag in grouped["signature"]:
+            if flag.code == "STRUCT_SIGNATURE_TRUSTED":
+                positives.append(sig_positive)
+                break
+
+    # Check clean modules
+    # Only mention positive signals if there are also negative findings
+    # (for a fully clean doc, the verdict already says "appears legitimate")
+    has_negative_flags = any(
+        theme not in ("signature", "fonts") and theme in grouped
+        for theme in grouped
+    )
+
+    if not has_negative_flags:
+        return positives
+
+    # Pick up to 2 positive signals to keep it concise
+    count = 0
+    intro = "En revanche, " if lang == "fr" else "On the positive side, "
+    for module in module_results:
+        if count >= 2:
+            break
+        if module.score >= 90 and len(module.flags) == 0:
+            signal = pos_signals.get(module.module)
+            if signal:
+                positives.append(intro + signal[0].lower() + signal[1:]
+                                 if count == 0 and positives == []
+                                 else signal.capitalize() if not signal[0].isupper()
+                                 else signal)
+                count += 1
+
+    return positives
+
+
+# =============================================================================
+# PUBLIC API
+# =============================================================================
+
+def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisSummary:
+    """
+    Generate a rich, template-based summary of the analysis.
+
+    This is the main entry point. It produces a verdict (short bold statement)
+    and a list of bullet-point findings.
+
+    Args:
+        result: The complete analysis result from TrustyFileAnalyzer.
+        lang: Language code ("en" or "fr"). Defaults to "en".
+
+    Returns:
+        AnalysisSummary with verdict and bullets.
+
+    Example:
+        >>> summary = generate_rich_summary(result, lang="fr")
+        >>> print(summary.verdict)
+        "Ce document semble légitime. Aucun problème détecté."
+    """
+    all_flags = collect_all_flags(result.modules)
+
+    # Group flags by user-facing theme
+    grouped = _group_flags_by_theme(all_flags)
+
+    # Find the dominant theme for verdict selection
+    dominant_theme = _get_dominant_theme(grouped)
+
+    # Build verdict
+    verdict = _build_verdict(result.risk_level, dominant_theme, lang)
+
+    # Build bullet list of findings
+    bullets = _build_bullets(grouped, result.modules, lang)
+
+    # Clean document: no bullets needed, verdict says it all
+    return AnalysisSummary(verdict=verdict, bullets=bullets)
+
+
+def get_flag_sentence(flag: Flag, lang: str = "en") -> str:
+    """
+    Return a translated human-readable sentence for a single flag.
+
+    Public wrapper around _flag_to_sentence(), intended for use by the UI.
+
+    Args:
+        flag: A Flag object from any analysis module.
+        lang: Language code ("en" or "fr"). Defaults to "en".
+
+    Returns:
+        A translated sentence, or flag.message as fallback.
+    """
+    return _flag_to_sentence(flag, lang)

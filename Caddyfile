@@ -1,0 +1,71 @@
+# Caddy reverse proxy for SEO
+# - Crawlers (Googlebot, etc.) get a static HTML page with meta tags
+# - Real users get proxied to Streamlit (transparent)
+
+:{$PORT}
+
+# Match crawler user-agents (case-insensitive)
+@crawler header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
+
+# Static files served to everyone (robots.txt, sitemap.xml, static assets)
+handle /robots.txt {
+	root * /app
+	file_server
+}
+handle /sitemap.xml {
+	root * /app
+	file_server
+}
+handle /favicon.ico {
+	root * /app/static
+	file_server
+}
+handle /favicon.png {
+	root * /app/static
+	rewrite * /favicon-48x48.png
+	file_server
+}
+handle /favicon-48x48.png {
+	root * /app/static
+	file_server
+}
+handle /favicon-192x192.png {
+	root * /app/static
+	file_server
+}
+handle /apple-touch-icon.png {
+	root * /app/static
+	file_server
+}
+handle /site.webmanifest {
+	root * /app/static
+	file_server
+}
+handle /og-image.png {
+	root * /app/static
+	rewrite * /upload_icon_medium.png
+	file_server
+}
+
+# Crawler requesting /en -> English SEO page
+@crawler_en {
+	header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
+	path /en
+}
+handle @crawler_en {
+	root * /app
+	rewrite * /seo-en.html
+	file_server
+}
+
+# All other crawler requests -> French SEO page (default)
+handle @crawler {
+	root * /app
+	rewrite * /seo-fr.html
+	file_server
+}
+
+# Everyone else -> Streamlit
+handle {
+	reverse_proxy 127.0.0.1:8501
+}
