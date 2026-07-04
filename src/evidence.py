@@ -81,3 +81,64 @@ def aggregate_soft(evidence: list["Evidence"], prior: float = PRIOR_LOG_ODDS) ->
         capped = _group_capped_soft_sum(items)
         logit += capped if direction == "tamper" else -capped
     return logit
+
+
+HARD_NEGATIVE_CEILING = 15
+HARD_POSITIVE_FLOOR = 85
+BAND_GENUINE_MIN = 80
+BAND_REVIEW_MIN = 50
+BAND_SUSPICIOUS_CRITICAL_MAX = 20  # below this, risk is CRITICAL
+
+
+@dataclass
+class AggregateResult:
+    score: int
+    band: str          # GENUINE | REVIEW | SUSPICIOUS | UNVERIFIABLE
+    risk_level: str    # LOW | MEDIUM | HIGH | CRITICAL | UNVERIFIABLE
+    score_low: int
+    score_high: int
+    ledger: list  # list[Evidence]
+
+
+def _band_and_risk(score: int) -> tuple[str, str]:
+    if score >= BAND_GENUINE_MIN:
+        return "GENUINE", "LOW"
+    if score >= BAND_REVIEW_MIN:
+        return "REVIEW", "MEDIUM"
+    if score >= BAND_SUSPICIOUS_CRITICAL_MAX:
+        return "SUSPICIOUS", "HIGH"
+    return "SUSPICIOUS", "CRITICAL"
+
+
+def _band_width(evidence: list["Evidence"]) -> int:
+    soft = [e for e in evidence if e.kind == "soft"]
+    mean_conf = (sum(e.confidence for e in soft) / len(soft)) if soft else 1.0
+    dirs = {e.direction for e in soft}
+    conflict = 1 if {"tamper", "genuine"} <= dirs else 0
+    return round(8 * (1 - mean_conf) + 4 * conflict)
+
+
+def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
+                       prior: float = PRIOR_LOG_ODDS) -> AggregateResult:
+    if not analyzable:
+        return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
+                               score_low=0, score_high=0, ledger=list(evidence))
+
+    logit = aggregate_soft(evidence, prior=prior)
+    score = round(100 * (1 - sigmoid(logit)))
+    score = max(0, min(100, score))
+
+    has_hard_neg = any(e.kind == "hard" and e.direction == "tamper" for e in evidence)
+    has_hard_pos = any(e.kind == "hard" and e.direction == "genuine" for e in evidence)
+    if has_hard_neg:
+        score = min(score, HARD_NEGATIVE_CEILING)      # tampering veto wins
+    elif has_hard_pos:
+        score = max(score, HARD_POSITIVE_FLOOR)
+
+    band, risk = _band_and_risk(score)
+    half = _band_width(evidence)
+    return AggregateResult(
+        score=score, band=band, risk_level=risk,
+        score_low=max(0, score - half), score_high=min(100, score + half),
+        ledger=list(evidence),
+    )
