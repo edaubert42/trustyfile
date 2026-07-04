@@ -18,9 +18,10 @@ Why PyMuPDF?
 import fitz  # PyMuPDF is imported as "fitz" (historical name from MuPDF library)
 import hashlib
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # Set up logging - we use logging instead of print() for production code
 # This lets us control verbosity and save logs to files if needed
@@ -36,8 +37,10 @@ class PDFMetadata:
     A completely empty metadata section is suspicious for professional documents!
 
     Attributes:
-        creation_date: When the PDF was first created
-        mod_date: When the PDF was last modified
+        creation_date: When the PDF was first created (timezone-aware, UTC)
+        mod_date: When the PDF was last modified (timezone-aware, UTC)
+        creation_date_raw: The original, unparsed creationDate string from the PDF
+        mod_date_raw: The original, unparsed modDate string from the PDF
         producer: Software that created/saved this PDF (e.g., "Adobe PDF Library 15.0")
         creator: Original application (e.g., "Microsoft Word")
         author: Author name (if set)
@@ -47,6 +50,8 @@ class PDFMetadata:
     """
     creation_date: datetime | None = None
     mod_date: datetime | None = None
+    creation_date_raw: str | None = None
+    mod_date_raw: str | None = None
     producer: str | None = None
     creator: str | None = None
     author: str | None = None
@@ -115,43 +120,67 @@ def calculate_file_hash(file_path: str | Path) -> str:
     return sha256_hash.hexdigest()
 
 
+def _now_utc() -> datetime:
+    """Timezone-aware 'now' in UTC — compare only against aware datetimes."""
+    return datetime.now(timezone.utc)
+
+
 def parse_pdf_date(date_string: str | None) -> datetime | None:
     """
-    Parse PDF date format into Python datetime.
+    Parse a PDF date string into a timezone-aware UTC datetime.
 
-    PDF dates have a weird format: "D:20240115143052+01'00'"
-    Meaning: D: prefix, then YYYYMMDDHHmmSS, then timezone offset
+    PDF dates look like "D:20240115143052+01'00'" (D: prefix, YYYYMMDDHHmmSS,
+    then an optional timezone: 'Z', or +/-HH'mm'). Shorter forms are valid and
+    default the missing components (per ISO 32000): "D:2024" == 2024-01-01 00:00:00.
 
     Args:
         date_string: PDF date string or None
 
     Returns:
-        datetime object or None if parsing fails
+        Timezone-aware datetime (normalized to UTC), or None only when the
+        string is truly unparseable (itself a tamper signal the caller should
+        surface — see extract_metadata's MALFORMED_DATE handling).
 
     Example:
-        >>> parse_pdf_date("D:20240115143052+01'00'")
-        datetime(2024, 1, 15, 14, 30, 52)
+        >>> parse_pdf_date("D:20240115143052+02'00'")
+        datetime(2024, 1, 15, 12, 30, 52, tzinfo=timezone.utc)
     """
     if not date_string:
         return None
 
+    s = date_string.strip()
+    if s.startswith("D:"):
+        s = s[2:]
+
+    # Split off timezone: 'Z', or +HH'mm' / -HH'mm' (apostrophes optional).
+    tz = timezone.utc
+    m = re.search(r"(Z|[+\-]\d{2}'?\d{2}'?)$", s)
+    if m:
+        tzraw = m.group(1)
+        s = s[: m.start()]
+        if tzraw != "Z":
+            sign = 1 if tzraw[0] == "+" else -1
+            digits = tzraw[1:].replace("'", "")
+            hh, mm = int(digits[:2]), int(digits[2:4])
+            tz = timezone(sign * timedelta(hours=hh, minutes=mm))
+
+    # Fill missing components with their spec defaults: year required, then
+    # month=01, day=01, hour=00, min=00, sec=00.
+    if len(s) < 4 or not s[:4].isdigit():
+        logger.warning(f"Could not parse PDF date '{date_string}'")
+        return None
+    fields = [s[0:4], s[4:6], s[6:8], s[8:10], s[10:12], s[12:14]]
     try:
-        # Remove the "D:" prefix if present
-        if date_string.startswith("D:"):
-            date_string = date_string[2:]
-
-        # Take only the first 14 characters (YYYYMMDDHHmmSS)
-        # We ignore timezone for simplicity in MVP
-        date_part = date_string[:14]
-
-        # Pad with zeros if the date is shorter (some PDFs omit seconds)
-        date_part = date_part.ljust(14, "0")
-
-        return datetime.strptime(date_part, "%Y%m%d%H%M%S")
-
-    except (ValueError, TypeError) as e:
-        # Log the error but don't crash - malformed dates happen often
-        logger.warning(f"Could not parse PDF date '{date_string}': {e}")
+        year = int(fields[0])
+        month = int(fields[1]) if fields[1] else 1
+        day = int(fields[2]) if fields[2] else 1
+        hour = int(fields[3]) if fields[3] else 0
+        minute = int(fields[4]) if fields[4] else 0
+        second = int(fields[5]) if fields[5] else 0
+        dt = datetime(year, month, day, hour, minute, second, tzinfo=tz)
+        return dt.astimezone(timezone.utc)
+    except (ValueError, TypeError):
+        logger.warning(f"Could not parse PDF date '{date_string}'")
         return None
 
 
@@ -177,6 +206,8 @@ def extract_metadata(doc: fitz.Document) -> tuple[PDFMetadata, dict]:
     metadata = PDFMetadata(
         creation_date=parse_pdf_date(raw.get("creationDate")),
         mod_date=parse_pdf_date(raw.get("modDate")),
+        creation_date_raw=raw.get("creationDate"),
+        mod_date_raw=raw.get("modDate"),
         producer=raw.get("producer"),
         creator=raw.get("creator"),
         author=raw.get("author"),

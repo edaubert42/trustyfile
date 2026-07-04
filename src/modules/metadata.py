@@ -16,7 +16,7 @@ Severity levels:
 - critical: Almost certainly manipulated
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
 
@@ -283,8 +283,19 @@ def check_dates(
     Returns:
         List of Flag objects for any suspicious findings
     """
+    def _aware(d: datetime | None) -> datetime | None:
+        """Coerce a naive datetime to UTC-aware so comparisons never raise
+        TypeError. parse_pdf_date already returns aware datetimes, but tests
+        (and other callers) may still pass naive ones directly."""
+        if d is not None and d.tzinfo is None:
+            return d.replace(tzinfo=timezone.utc)
+        return d
+
+    creation_date = _aware(creation_date)
+    mod_date = _aware(mod_date)
+
     flags = []
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
 
     # Check 1: Future creation date
     if creation_date and creation_date > now + timedelta(days=1):
