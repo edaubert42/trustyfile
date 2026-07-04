@@ -17,7 +17,7 @@ How it works:
 """
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 import datefinder
 from src.models import Flag, ModuleResult
@@ -673,6 +673,7 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     invoice_dates = [d for d in dates if d.date_type == "invoice"]
     due_dates = [d for d in dates if d.date_type == "due"]
     order_dates = [d for d in dates if d.date_type == "order"]
+    service_dates = [d for d in dates if d.date_type == "service"]
 
     # Only run checks if we identified an invoice date (confirms it's an invoice)
     if not invoice_dates:
@@ -708,6 +709,26 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
                         "invoice_date": invoice_date.isoformat(),
                         "order_date": od.date.isoformat(),
                     }
+                ))
+
+    # Check: Service date vs Invoice date
+    # A service/delivery date materially AFTER the invoice date is an anachronism
+    # (you cannot invoice for a service not yet rendered). 1-day tolerance.
+    if invoice_dates and service_dates:
+        invoice_date = invoice_dates[0].date
+        for sd in service_dates:
+            if sd.date > invoice_date + timedelta(days=1):
+                flags.append(Flag(
+                    severity="high",
+                    code="CONTENT_ANACHRONISM_SERVICE",
+                    message=(
+                        f"Service date ({sd.date.strftime('%Y-%m-%d')}) is after "
+                        f"invoice date ({invoice_date.strftime('%Y-%m-%d')})"
+                    ),
+                    details={
+                        "invoice_date": invoice_date.isoformat(),
+                        "service_date": sd.date.isoformat(),
+                    },
                 ))
 
     return flags
@@ -769,6 +790,13 @@ def check_date_vs_creation(
     """
     if not creation_date:
         return []
+
+    # parse_pdf_date now returns timezone-aware (UTC) datetimes, but the
+    # dates extracted from document text are naive (no zone info available).
+    # Coerce the metadata date to naive-UTC here so the comparison below is
+    # naive-vs-naive, like-with-like, instead of raising a TypeError.
+    if creation_date.tzinfo is not None:
+        creation_date = creation_date.astimezone(timezone.utc).replace(tzinfo=None)
 
     flags = []
 
@@ -1728,6 +1756,22 @@ def check_legal_mentions(text: str) -> list[Flag]:
                     "siren_from_document": list(doc_sirens),
                 }
             ))
+
+    # Flag ABSENCE of any legal identifier on invoice-like documents.
+    # French invoices legally require a SIRET/SIREN; none present is suspicious.
+    # Gate on invoice-like text so we don't flag letters/attestations.
+    text_lower = text.lower()
+    looks_like_invoice = any(
+        kw in text_lower for kw in ("facture", "tva", "montant", "total ttc")
+    )
+    has_any_id = bool(sirets or sirens or vats)
+    if looks_like_invoice and not has_any_id:
+        flags.append(Flag(
+            severity="medium",
+            code="CONTENT_MISSING_COMPANY_ID",
+            message="French invoice has no SIRET, SIREN or VAT number (legally required)",
+            details={"explanation": "Registered French companies must print their SIRET/SIREN on invoices."},
+        ))
 
     return flags
 

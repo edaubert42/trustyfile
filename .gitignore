@@ -15,6 +15,9 @@ samples/
 # Streamlit secrets (API keys)
 .streamlit/secrets.toml
 
+# SDD scratch (review packages, progress ledger)
+.superpowers/
+
 # OS
 .DS_Store
 Thumbs.db

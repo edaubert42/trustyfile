@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from src.models import AnalysisResult, ModuleResult
+from src.models import AnalysisResult, ModuleResult, Flag
 from src.extractors.pdf_extractor import extract_pdf_data, PDFData
 from src.modules.metadata import analyze_metadata
 from src.modules.content import analyze_content
@@ -107,6 +107,28 @@ class TrustyFileAnalyzer:
         # Extract PDF data
         logger.info(f"Analyzing: {file_path}")
         pdf_data = extract_pdf_data(file_path)
+
+        # Fail closed: unreadable input must not score as trustworthy.
+        if not pdf_data.extraction_ok:
+            logger.warning("Extraction failed — returning UNVERIFIABLE-equivalent result")
+            unverifiable = ModuleResult(
+                module="extraction",
+                flags=[Flag(
+                    severity="high",
+                    code="EXTRACTION_FAILED",
+                    message="Document could not be parsed as a valid PDF",
+                    details={"error": pdf_data.extraction_error},
+                )],
+                score=0,
+                confidence=1.0,
+            )
+            elapsed_ms = int((time.time() - start_time) * 1000)
+            return create_analysis_result(
+                file_hash=pdf_data.file_hash,
+                module_results=[unverifiable],
+                analysis_time_ms=elapsed_ms,
+                document_type="unknown",
+            )
 
         # Detect document type before running modules
         # This determines which modules get reduced confidence (to avoid false positives)

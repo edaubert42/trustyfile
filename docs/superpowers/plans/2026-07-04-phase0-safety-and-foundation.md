@@ -879,8 +879,12 @@ In `src/modules/content.py` `check_legal_mentions`, insert before `return flags`
     # French invoices legally require a SIRET/SIREN; none present is suspicious.
     # Gate on invoice-like text so we don't flag letters/attestations.
     text_lower = text.lower()
+    # French-only indicators: this check flags FRENCH invoices missing FRENCH
+    # legal IDs (SIRET/SIREN/VAT). Do NOT include the English "invoice" — a
+    # foreign/English invoice legitimately has no SIRET and must not be flagged
+    # (guards test_non_french_document_not_flagged).
     looks_like_invoice = any(
-        kw in text_lower for kw in ("facture", "invoice", "tva", "montant", "total ttc")
+        kw in text_lower for kw in ("facture", "tva", "montant", "total ttc")
     )
     has_any_id = bool(sirets or sirens or vats)
     if looks_like_invoice and not has_any_id:

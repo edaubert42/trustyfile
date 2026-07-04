@@ -455,3 +455,19 @@ class TestAnalyzeMetadata:
         pdf_data = make_pdf_data()
         result = analyze_metadata(pdf_data)
         assert result.confidence == 0.3
+
+
+def test_canva_classified_as_image_editor():
+    """Canva is a design/image editor, not an online converter.
+
+    It used to appear in both SUSPICIOUS_PRODUCERS/HIGHLY_SUSPICIOUS_PRODUCERS
+    (-> META_ONLINE_CONVERTER) and the in-function IMAGE_EDITORS list
+    (-> META_IMAGE_EDITOR), and since IMAGE_EDITORS is checked first,
+    META_ONLINE_CONVERTER could never actually fire for "canva" — a
+    contradictory, unreachable classification. Canva was removed from the
+    converter lists so the taxonomy is unambiguous.
+    """
+    from src.modules.metadata import check_producer
+    flags = check_producer("Canva", None)
+    assert any(f.code == "META_IMAGE_EDITOR" for f in flags)
+    assert not any(f.code == "META_ONLINE_CONVERTER" for f in flags)

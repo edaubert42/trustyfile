@@ -92,11 +92,17 @@ class TestCheckScreenshotDimensions:
         assert len(flags) == 1
 
     def test_within_tolerance(self):
-        """Close to screen resolution (within 50px) should still match."""
-        # 1920x1080 + ~30px tolerance
-        images = [make_image(width=1950, height=1060)]
+        """Within the tightened 20px tolerance should match; beyond it should not."""
+        # 1920x1080 + 10px each way → still a screenshot
+        images = [make_image(width=1930, height=1075)]
         flags = check_screenshot_dimensions(images)
         assert len(flags) == 1
+
+    def test_beyond_tolerance_not_flagged(self):
+        """A4 at 90 PPI (744x1052) must NOT match iPad (768x1024) — the FP that drove 50→20px."""
+        images = [make_image(width=744, height=1052)]
+        flags = check_screenshot_dimensions(images)
+        assert len(flags) == 0
 
     def test_normal_image_not_flagged(self):
         """A small logo (200x100) is not a screenshot."""
@@ -177,12 +183,12 @@ class TestCheckHeavyCompression:
     def test_heavy_compression_flagged(self):
         """
         1000x1000 RGB = 3,000,000 bytes uncompressed.
-        If file is 50,000 bytes → ratio = 60:1 → flagged.
+        File 25,000 bytes → ratio 120:1 → exceeds the 80:1 threshold → flagged.
         """
         images = [make_image(
             width=1000, height=1000,
             filter="DCTDecode",  # JPEG
-            size_bytes=50000,
+            size_bytes=25000,
         )]
         flags = check_heavy_compression(images)
         assert len(flags) == 1

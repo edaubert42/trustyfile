@@ -400,3 +400,21 @@ class TestGenerateSummary:
         # Rich summary should describe the findings, not just list counts
         assert "converter" in summary.lower()
         assert "date" in summary.lower()
+
+
+def test_scanner_pipeline_handles_non_numeric_hours():
+    from src.scoring import create_analysis_result
+    from src.models import ModuleResult, Flag
+    bad = ModuleResult(
+        module="structure",
+        flags=[Flag(
+            severity="critical",
+            code="META_DOCUMENT_MODIFIED",
+            message="x",
+            details={"time_difference_hours": "not-a-number"},
+        )],
+        score=0, confidence=1.0,
+    )
+    # Must not raise, even for an identity document (the branch that reads hours).
+    result = create_analysis_result("hash", [bad], document_type="identity")
+    assert result.trust_score is not None

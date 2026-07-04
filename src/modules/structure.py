@@ -1047,154 +1047,28 @@ def has_digital_signature(pdf_path: str) -> bool:
 
 def verify_signature_dss(pdf_path: str) -> dict:
     """
-    Verify PDF digital signature using EU DSS (Digital Signature Services) API.
+    Report presence of a digital signature WITHOUT uploading the document.
 
-    This is the official EU tool for validating electronic signatures.
-    It checks against the EU Trusted Lists (LOTL).
-
-    API: https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/services/rest/
-
-    Args:
-        pdf_path: Path to the PDF file
-
-    Returns:
-        dict with:
-        - has_signature: bool
-        - is_valid: bool (signature is cryptographically valid)
-        - is_trusted: bool (uses EU trusted certificate - QC from LOTL)
-        - signer: str (signer name if available)
-        - signature_level: str (e.g., "AdESeal-QC", "QES", etc.)
-        - error: str (if verification failed)
+    Phase 0: the previous implementation POSTed the whole PDF to the EU DSS
+    demo API, violating the 'document never leaves the machine' constraint.
+    Real offline cryptographic validation (ByteRange, chain, post-signing diff)
+    arrives in Phase 2 via pyHanko. Until then we only detect presence locally
+    and never assert trust.
     """
+    present = False
     try:
-        import requests
-        import base64
-    except ImportError:
-        return {"has_signature": False, "error": "requests library not installed"}
-
-    # Check if signature is present first
-    if not has_digital_signature(pdf_path):
-        return {"has_signature": False, "is_valid": False, "is_trusted": False}
-
-    try:
-        # Read PDF and encode as base64
-        with open(pdf_path, 'rb') as f:
-            pdf_bytes = f.read()
-        pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
-
-        # DSS REST API endpoint for validation
-        dss_url = "https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/services/rest/validation/validateSignature"
-
-        # Request payload
-        payload = {
-            "signedDocument": {
-                "bytes": pdf_base64,
-                "name": "document.pdf"
-            }
-        }
-
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-
-        response = requests.post(dss_url, json=payload, headers=headers, timeout=30)
-
-        if response.status_code == 200:
-            result = response.json()
-
-            # Parse SimpleReport (cleaner format than raw response)
-            simple_report = result.get("SimpleReport", {})
-            valid_count = simple_report.get("ValidSignaturesCount", 0)
-            total_count = simple_report.get("SignaturesCount", 0)
-
-            # Get signatures from SimpleReport
-            signatures = simple_report.get("signatureOrTimestampOrEvidenceRecord", [])
-
-            if not signatures:
-                return {
-                    "has_signature": True,
-                    "is_valid": None,
-                    "is_trusted": False,
-                    "unverifiable": True,
-                    "error": "No signatures found in DSS response"
-                }
-
-            # Check first signature
-            sig_wrapper = signatures[0]
-            sig = sig_wrapper.get("Signature", {})
-
-            signer_name = sig.get("SignedBy", "")
-            signing_time = sig.get("SigningTime", "")
-
-            # Get signature level (e.g., "AdESeal-QC", "QES", "AdES", etc.)
-            level_info = sig.get("SignatureLevel", {})
-            if isinstance(level_info, dict):
-                level_value = level_info.get("value", "")
-                level_desc = level_info.get("description", "")
-            else:
-                level_value = str(level_info)
-                level_desc = ""
-
-            # Determine trust level based on signature level
-            # QC = Qualified Certificate (from EU Trusted List)
-            # QES = Qualified Electronic Signature
-            # AdESeal-QC = Advanced Electronic Seal with Qualified Certificate
-            has_qc = "QC" in level_value or "QES" in level_value
-
-            # Check if fully valid (PASSED) or indeterminate
-            # Indeterminate with QC is still trustworthy (certificate might just be expired)
-            is_fully_valid = valid_count > 0
-
-            # A signature is "trusted" if it uses a Qualified Certificate from EU list
-            # Even if "Indeterminate" (e.g., expired cert), QC means it was issued by trusted CA
-            is_trusted = has_qc
-
-            # "Valid" means the signature is cryptographically correct
-            # Even Indeterminate signatures are valid if they have QC
-            is_valid = is_fully_valid or has_qc
-
-            return {
-                "has_signature": True,
-                "is_valid": is_valid,
-                "is_trusted": is_trusted,
-                "is_fully_valid": is_fully_valid,
-                "signer": signer_name,
-                "signing_time": signing_time,
-                "signature_level": level_value,
-                "signature_level_description": level_desc,
-                "has_qualified_certificate": has_qc,
-            }
-
-        else:
-            return {
-                "has_signature": True,
-                "is_valid": False,
-                "is_trusted": False,
-                "error": f"DSS API error: HTTP {response.status_code}"
-            }
-
-    except requests.Timeout:
-        return {
-            "has_signature": True,
-            "is_valid": False,
-            "is_trusted": False,
-            "error": "DSS API timeout"
-        }
-    except requests.RequestException as e:
-        return {
-            "has_signature": True,
-            "is_valid": False,
-            "is_trusted": False,
-            "error": f"DSS API request failed: {e}"
-        }
+        present = has_digital_signature(pdf_path)
     except Exception as e:
-        return {
-            "has_signature": True,
-            "is_valid": False,
-            "is_trusted": False,
-            "error": f"Signature verification error: {e}"
-        }
+        logger.error(f"Signature presence check failed: {e}")
+    return {
+        "has_signature": present,
+        "is_valid": False,
+        "is_trusted": False,
+        "is_fully_valid": False,
+        "signer": None,
+        "signature_level": "",
+        "note": "offline — signature present but not cryptographically verified",
+    }
 
 
 def count_incremental_updates(pdf_path: str) -> int:
