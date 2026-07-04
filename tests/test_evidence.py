@@ -48,3 +48,18 @@ def test_genuine_evidence_lowers_logit():
 def test_sigmoid_monotonic():
     assert sigmoid(-10) < sigmoid(0) < sigmoid(10)
     assert 0.0 < sigmoid(0) < 1.0
+
+
+def test_group_cap_applies_half_weight_to_extra_items():
+    # Same (group, direction) bucket: largest weight at full strength, the
+    # rest at half. weights = [2.0, 1.0, 1.0] -> 2.0 + 0.5*(1.0+1.0) = 3.0
+    items = [_soft("A", 2.0), _soft("B", 1.0), _soft("C", 1.0)]
+    assert aggregate_soft(items) == PRIOR_LOG_ODDS + 3.0
+    assert aggregate_soft(items) == -1.0
+
+
+def test_aggregate_soft_skips_hard_evidence():
+    hard = Evidence(code="H", weight=5.0, kind="hard", direction="tamper",
+                     group="g", message="H")
+    soft = _soft("S", 1.5)
+    assert aggregate_soft([hard, soft]) == PRIOR_LOG_ODDS + 1.5
