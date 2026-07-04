@@ -1,4 +1,3 @@
-import pytest
 from src.extractors.pdf_extractor import extract_pdf_data, PDFData
 
 
@@ -23,3 +22,20 @@ def test_valid_pdf_sets_flags(tmp_path):
     assert data.is_pdf is True
     assert data.is_encrypted is False
     assert data.file_size_bytes > 0
+
+
+def test_nonexistent_file_does_not_raise():
+    data = extract_pdf_data("/tmp/tf_nope_12345.pdf")
+    assert isinstance(data, PDFData)
+    assert data.extraction_ok is False
+
+
+def test_password_protected_pdf_fails_closed(tmp_path):
+    import fitz
+    p = tmp_path / "enc.pdf"
+    doc = fitz.open()
+    doc.insert_page(0, "secret invoice")
+    doc.save(str(p), encryption=fitz.PDF_ENCRYPT_AES_256, user_pw="pw", owner_pw="pw")
+    doc.close()
+    data = extract_pdf_data(str(p))
+    assert data.extraction_ok is False

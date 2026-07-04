@@ -288,8 +288,21 @@ def extract_pdf_data(file_path: str | Path) -> PDFData:
     file_path = Path(file_path)  # Convert to Path object for easier handling
     file_size = file_path.stat().st_size if file_path.exists() else 0
 
-    # Hash first — works even if the PDF is corrupt.
-    file_hash = calculate_file_hash(file_path)
+    # Hash first — works even if the PDF is corrupt. But hashing itself touches
+    # the filesystem (open/read), so a nonexistent path or a permissions error
+    # would raise here, *before* the try/except below that's meant to catch
+    # every extraction failure. Guard it separately so extract_pdf_data keeps
+    # its "never raises" contract even when the file can't be read at all.
+    try:
+        file_hash = calculate_file_hash(file_path)
+    except OSError:
+        file_hash = "unknown"
+
+    # Tracks whether we know the document is encrypted. Set as soon as we
+    # learn it (right after fitz.open succeeds) so that if authentication
+    # later fails and extraction blows up, the except branch below can still
+    # report is_encrypted=True instead of silently defaulting to False.
+    is_encrypted = False
 
     try:
         # Open the PDF with PyMuPDF
@@ -334,6 +347,7 @@ def extract_pdf_data(file_path: str | Path) -> PDFData:
             raw_metadata={},
             text_by_page=[],
             is_pdf=False,
+            is_encrypted=is_encrypted,
             file_size_bytes=file_size,
             extraction_ok=False,
             extraction_error=str(e),
