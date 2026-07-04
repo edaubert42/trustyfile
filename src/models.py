@@ -115,6 +115,10 @@ class AnalysisResult:
     document_type: DocumentType = "unknown"  # Detected document type
     modules: list[ModuleResult] = field(default_factory=list)
     analysis_time_ms: int = 0
+    band: str = "GENUINE"            # GENUINE | REVIEW | SUSPICIOUS | UNVERIFIABLE
+    score_low: int = 0               # lower bound of the score band
+    score_high: int = 100            # upper bound of the score band
+    evidence_ledger: list = field(default_factory=list)  # list[Evidence]
 
 
 @dataclass
