@@ -113,3 +113,31 @@ def test_multisession_same_producer_not_hard(corpus):
     # Same-producer edits are never HARD -- a SOFT revision flag is acceptable.
     codes = _codes(corpus["legit_multisession_template_fill.pdf"])
     assert "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED" not in codes
+
+
+# =============================================================================
+# TASK 6: Signal 5 — opaque image patch over live text
+# =============================================================================
+def test_image_patch_over_amount_flagged(corpus):
+    # A small opaque image (90x14pt) is pasted directly over the still-present
+    # "1 200,00 €" total -- the raster version of the cover-and-retype attack,
+    # and per the design notes the MOST COMMON real-world form of it.
+    codes = _codes(corpus["forged_image_patch_over_amount.pdf"])
+    assert "OVERLAY_IMAGE_OVER_VALUE" in codes
+
+
+def test_ocr_sandwich_not_flagged_by_image_signal(corpus):
+    # full-page image + invisible text underneath -> the image IS the page
+    # (fails the localized-area test) AND the OCR text is render-mode 3
+    # (excluded from painted spans) -- neither image-over-text code may fire.
+    codes = _codes(corpus["legit_ocr_sandwich.pdf"])
+    assert "OVERLAY_IMAGE_OVER_VALUE" not in codes
+    assert "OVERLAY_IMAGE_OVER_TEXT" not in codes
+
+
+def test_clean_invoice_no_image_overlay_flags(corpus):
+    # clean_invoice.pdf has no images at all -- guards against a spurious
+    # image-over-text match (e.g. matching on an empty image-info list).
+    codes = _codes(corpus["clean_invoice.pdf"])
+    assert "OVERLAY_IMAGE_OVER_VALUE" not in codes
+    assert "OVERLAY_IMAGE_OVER_TEXT" not in codes

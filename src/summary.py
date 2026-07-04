@@ -41,6 +41,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_CONFLICTING_TEXT": "tampering",
     "OVERLAY_REVISION_VALUE_CHANGED": "tampering",
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": "tampering",
+    "OVERLAY_IMAGE_OVER_VALUE": "tampering",
+    "OVERLAY_IMAGE_OVER_TEXT": "tampering",
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
@@ -231,6 +233,20 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         else ("A value changed between two saved revisions of this document, "
               "corroborated by the changing revision having been saved by an "
               "interactive editing tool.")
+    ),
+    "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
+        f"An opaque image patch covers a still-present value "
+        f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
+        f"underneath the image."
+        if f.details and f.details.get('covered')
+        else "An opaque image patch covers a value that is still recoverable underneath it."
+    ),
+    "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
+        f"An opaque image patch covers still-present text "
+        f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
+        f"underneath the image."
+        if f.details and f.details.get('covered')
+        else "An opaque image patch covers text that is still recoverable underneath it."
     ),
 
     # --- dates ---
@@ -497,6 +513,18 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
               "document, corroboré par le fait que la version ayant introduit "
               "ce changement a été enregistrée par un outil d'édition "
               "interactif.")
+    ),
+    "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
+        f"Une image opaque recouvre une valeur toujours présente "
+        f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('covered')
+        else "Une image opaque recouvre une valeur encore récupérable en dessous."
+    ),
+    "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
+        f"Une image opaque recouvre du texte toujours présent "
+        f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('covered')
+        else "Une image opaque recouvre du texte encore récupérable en dessous."
     ),
 
     # --- dates ---

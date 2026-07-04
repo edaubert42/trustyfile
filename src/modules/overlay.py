@@ -24,6 +24,7 @@ CONFLICT_IOU_MIN = 0.6
 LOCALIZED_FILL_MAX_AREA_FRAC = 0.10
 LINE_HEIGHT_LO, LINE_HEIGHT_HI = 0.5, 2.5
 MAX_FILL_ASPECT = 25.0
+FULL_WIDTH_BAND_FRAC = 0.85  # image width >= this * page width => header/logo band, not a patch
 HORIZONTAL_TOL_DEG = 4.0
 SIZE_MATCH_FRAC = 0.10
 INTERACTIVE_EDITOR_PRODUCERS = (
@@ -756,6 +757,107 @@ def _signal_revision_value_changed(pdf_data, raw_bytes: bytes | None) -> list[Fl
 
 
 # =============================================================================
+# SIGNAL 5 (Task 6) — OPAQUE IMAGE PATCH OVER LIVE TEXT
+# =============================================================================
+# Signals 1-3 only ever look at VECTOR fills from page.get_drawings() — but the
+# design notes flag that the MOST COMMON real-world form of "cover a value and
+# retype" is cheaper than drawing a rectangle: paste a small raster image (a
+# screenshot crop, a solid-colour PNG) over the value instead. That never shows
+# up in get_drawings(); it shows up in page.get_image_info(). The detection
+# shape is otherwise identical to Signal 1 (opaque-fill-over-text): find a
+# LOCALIZED image placement that CONTAINS a still-painted text span underneath.
+#
+# This signal is ALWAYS SOFT, even with editor-Producer corroboration (unlike
+# Signals 1/3/4's HARD escalation path): get_image_info() has no seqno field
+# comparable to get_texttrace()'s, so paint order relative to the text below it
+# is not provable the way it is for vector fills — we only know the image and
+# the text occupy the same rectangle, not which one a viewer would render on
+# top. Treating that as HARD would be a fraud accusation the geometry can't
+# back up, so it stays a heuristic finding (REVIEW), never a HARD veto.
+def _localized_image_placements(page) -> list[dict]:
+    """Image placements small enough to plausibly be a value-covering patch.
+
+    Two exclusions, both false-positive guards:
+      - area < LOCALIZED_FILL_MAX_AREA_FRAC * page area: rules out full-page
+        scans and the OCR-sandwich pattern (the image IS the page background,
+        not a patch placed over something).
+      - width < FULL_WIDTH_BAND_FRAC * page width: rules out a full-width
+        header/logo band, which spans the page horizontally like a banner
+        rather than sitting over a single value.
+    """
+    placements = []
+    page_rect = page.rect
+    if page_rect.get_area() <= 0:
+        return placements
+    infos = page.get_image_info(xrefs=True)
+    for info in infos:
+        bbox = info.get("bbox")
+        if not bbox:
+            continue
+        rect = fitz.Rect(bbox)
+        if rect.is_empty or rect.is_infinite:
+            continue
+        if rect.get_area() >= LOCALIZED_FILL_MAX_AREA_FRAC * page_rect.get_area():
+            continue  # full-page scan / OCR-sandwich background, not a patch
+        if page_rect.width > 0 and rect.width >= FULL_WIDTH_BAND_FRAC * page_rect.width:
+            continue  # full-width header/logo band
+        placements.append(info)
+    return placements
+
+
+def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
+    """Signal 5 — a localized IMAGE placement covers still-present live text.
+
+    For each localized image placement I, look for a painted span T (type 0/2,
+    so invisible OCR text is never mistaken for hidden content) with
+    containment(T.bbox, I.bbox) >= CONTAINMENT_MIN — the image sits directly
+    over text that PyMuPDF can still extract. PLACEHOLDER GUARD: symmetric with
+    Signals 1/3 — a covered placeholder ("0,00", "XXX") is benign template
+    scaffolding, not hidden content, so it is skipped.
+    """
+    hits = []
+    for info in _localized_image_placements(page):
+        irect = fitz.Rect(info["bbox"])
+        for t in spans:
+            if containment(fitz.Rect(t["bbox"]), irect) < CONTAINMENT_MIN:
+                continue
+            if is_placeholder(span_text(t)):
+                continue                   # covered placeholder = benign template scaffolding
+            hits.append({"image": info, "covered": t})
+            break                          # one report per image is enough
+    return hits
+
+
+def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
+    """Build the Signal-5 flag. NEVER HARD — see the module comment above
+    `_localized_image_placements` for why image paint order isn't provable.
+
+    `OVERLAY_IMAGE_OVER_VALUE` (critical) when the covered text is value-bearing
+    (money/date/IBAN/SIRET/SIREN/VAT/bare number, via the same `_is_value_bearing`
+    helper Signal 4 uses); otherwise the lower-severity `OVERLAY_IMAGE_OVER_TEXT`.
+    """
+    text = span_text(hit["covered"]).strip()
+    details = {"page": page_num, "covered": text}
+    if _is_value_bearing(text):
+        return Flag(
+            severity="critical",
+            code="OVERLAY_IMAGE_OVER_VALUE",
+            message=(f"An opaque image patch on page {page_num + 1} covers a "
+                     f"still-present value (\"{text}\"), which remains "
+                     "recoverable underneath the image."),
+            details=details,
+        )
+    return Flag(
+        severity="high",
+        code="OVERLAY_IMAGE_OVER_TEXT",
+        message=(f"An opaque image patch on page {page_num + 1} covers "
+                 f"still-present text (\"{text}\"), which remains recoverable "
+                 "underneath the image."),
+        details=details,
+    )
+
+
+# =============================================================================
 # FLAG CONSTRUCTION
 # =============================================================================
 def _cover_and_retype_flag(hit: dict, page_num: int, confirmed: bool) -> Flag:
@@ -828,6 +930,16 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
                      f"page {page_num + 1}: \"{ta}\" and \"{tb}\"."),
             details={"page": page_num, "values": [ta, tb]},
         ))
+
+    # Signal 5 (Task 6): raster version of the cover-and-retype attack. Its own
+    # try/except so a get_image_info() hiccup on this page can't sink the
+    # geometry signals above, which already ran successfully.
+    try:
+        for hit in _signal_image_over_text(page, spans):
+            flags.append(_image_over_text_flag(hit, page_num))
+    except Exception as exc:
+        logger.warning("overlay: image-over-text signal failed on page %d: %s",
+                       page_num, exc)
 
     return flags
 
