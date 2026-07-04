@@ -8,6 +8,8 @@ toward "tampered" (direction="tamper") or "genuine" (direction="genuine").
 score; "soft" evidence is heuristic and is combined in log-odds space.
 """
 
+import math
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Literal
 from src.models import Flag
@@ -46,3 +48,36 @@ def flag_to_evidence(flag: Flag, module: str) -> Evidence:
         confidence=1.0,
         details=flag.details,
     )
+
+
+def sigmoid(x: float) -> float:
+    if x >= 0:
+        z = math.exp(-x)
+        return 1.0 / (1.0 + z)
+    z = math.exp(x)
+    return z / (1.0 + z)
+
+
+def _group_capped_soft_sum(items: list["Evidence"]) -> float:
+    """Diminishing-returns cap within a correlation group: the largest item at
+    full weight, the rest at half weight. Prevents correlated weak flags (e.g.
+    producer + font + structure all reflecting one edit) from stacking linearly."""
+    if not items:
+        return 0.0
+    weights = sorted((abs(i.weight) * i.confidence for i in items), reverse=True)
+    return weights[0] + 0.5 * sum(weights[1:])
+
+
+def aggregate_soft(evidence: list["Evidence"], prior: float = PRIOR_LOG_ODDS) -> float:
+    """Posterior logit = prior + Σ group-capped soft weights (tamper +, genuine −)."""
+    logit = prior
+    # Split by (group, direction) so tamper and genuine contributions cap separately.
+    buckets: dict[tuple[str, str], list[Evidence]] = defaultdict(list)
+    for e in evidence:
+        if e.kind != "soft":
+            continue
+        buckets[(e.group, e.direction)].append(e)
+    for (group, direction), items in buckets.items():
+        capped = _group_capped_soft_sum(items)
+        logit += capped if direction == "tamper" else -capped
+    return logit
