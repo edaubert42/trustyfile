@@ -842,17 +842,17 @@ def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
         return Flag(
             severity="critical",
             code="OVERLAY_IMAGE_OVER_VALUE",
-            message=(f"An opaque image patch on page {page_num + 1} covers a "
+            message=(f"An image on page {page_num + 1} is placed over a "
                      f"still-present value (\"{text}\"), which remains "
-                     "recoverable underneath the image."),
+                     "recoverable underneath it."),
             details=details,
         )
     return Flag(
         severity="high",
         code="OVERLAY_IMAGE_OVER_TEXT",
-        message=(f"An opaque image patch on page {page_num + 1} covers "
+        message=(f"An image on page {page_num + 1} is placed over "
                  f"still-present text (\"{text}\"), which remains recoverable "
-                 "underneath the image."),
+                 "underneath it."),
         details=details,
     )
 

@@ -235,18 +235,18 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
               "interactive editing tool.")
     ),
     "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
-        f"An opaque image patch covers a still-present value "
+        f"An image is placed over a still-present value "
         f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
-        f"underneath the image."
+        f"underneath it."
         if f.details and f.details.get('covered')
-        else "An opaque image patch covers a value that is still recoverable underneath it."
+        else "An image is placed over a value that is still recoverable underneath it."
     ),
     "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
-        f"An opaque image patch covers still-present text "
+        f"An image is placed over still-present text "
         f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
-        f"underneath the image."
+        f"underneath it."
         if f.details and f.details.get('covered')
-        else "An opaque image patch covers text that is still recoverable underneath it."
+        else "An image is placed over text that is still recoverable underneath it."
     ),
 
     # --- dates ---
@@ -515,16 +515,16 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
               "interactif.")
     ),
     "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
-        f"Une image opaque recouvre une valeur toujours présente "
+        f"Une image est placée sur une valeur toujours présente "
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
-        else "Une image opaque recouvre une valeur encore récupérable en dessous."
+        else "Une image est placée sur une valeur encore récupérable en dessous."
     ),
     "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
-        f"Une image opaque recouvre du texte toujours présent "
+        f"Une image est placée sur du texte toujours présent "
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
-        else "Une image opaque recouvre du texte encore récupérable en dessous."
+        else "Une image est placée sur du texte encore récupérable en dessous."
     ),
 
     # --- dates ---

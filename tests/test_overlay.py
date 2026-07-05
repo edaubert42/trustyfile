@@ -141,3 +141,15 @@ def test_clean_invoice_no_image_overlay_flags(corpus):
     codes = _codes(corpus["clean_invoice.pdf"])
     assert "OVERLAY_IMAGE_OVER_VALUE" not in codes
     assert "OVERLAY_IMAGE_OVER_TEXT" not in codes
+
+
+def test_image_patch_over_plain_text_flagged_as_text_not_value(corpus):
+    # Same localized-opaque-image mechanism as test_image_patch_over_amount_flagged,
+    # but the covered span ("Total HT:") is letters-only (no digits) -- must resolve
+    # to the lower-severity OVERLAY_IMAGE_OVER_TEXT, never the value-bearing
+    # OVERLAY_IMAGE_OVER_VALUE. This is the only fixture that exercises the
+    # plain-text branch of Signal 5 (forged_image_patch_over_amount.pdf's numeric
+    # total always resolves to OVERLAY_IMAGE_OVER_VALUE instead).
+    codes = _codes(corpus["forged_image_patch_over_text.pdf"])
+    assert "OVERLAY_IMAGE_OVER_TEXT" in codes
+    assert "OVERLAY_IMAGE_OVER_VALUE" not in codes

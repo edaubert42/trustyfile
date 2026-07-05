@@ -274,6 +274,23 @@ def _forge_image_patch(src: str, dst: str) -> None:
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
 
 
+def _forge_image_patch_over_text(src: str, dst: str) -> None:
+    """TAMPER (unit-coverage fixture only -- NOT part of corpus_expectations):
+    cover a PLAIN, non-value label ("Total HT:", letters only, no digits) with a
+    small localized opaque image, leaving the label text underneath still
+    extractable. Same insert_image pattern/size as _forge_image_patch above,
+    but targets a letters-only span so it exercises the OVERLAY_IMAGE_OVER_TEXT
+    branch of Signal 5 -- forged_image_patch_over_amount.pdf's numeric total
+    always resolves to the value-bearing OVERLAY_IMAGE_OVER_VALUE code instead,
+    so that branch has no coverage without this fixture."""
+    doc = fitz.open(src); page = doc[0]
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 90, 14)); pix.clear_with(255)
+    # "Total HT:" sits at bbox (370, 352.2, 411.1, 362.2); this rect fully
+    # contains it (90x14pt, well under 10% page area, not full-width).
+    page.insert_image(fitz.Rect(365, 349, 455, 363), pixmap=pix)  # opaque patch over the label
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+
+
 def _forge_text_deleted_retyped(src: str, dst: str) -> None:
     """TAMPER (boundary): remove the original via redaction, retype in place, saved
     incrementally by an INTERACTIVE EDITOR. Signals 1-3 must NOT fire (no ghost, no
@@ -342,6 +359,8 @@ def build_corpus(out_dir: str) -> dict:
     _forge_image_patch(str(legit), str(f4)); forged.append(str(f4))
     f5 = out / "suspicious" / "forged_text_deleted_retyped.pdf"
     _forge_text_deleted_retyped(str(legit), str(f5)); forged.append(str(f5))
+    f6 = out / "suspicious" / "forged_image_patch_over_text.pdf"
+    _forge_image_patch_over_text(str(legit), str(f6)); forged.append(str(f6))
 
     lto = out / "legitimate" / "legit_template_overlay.pdf"
     _legit_template_overlay(str(legit), str(lto)); legitimate.append(str(lto))
