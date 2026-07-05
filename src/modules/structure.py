@@ -41,6 +41,25 @@ from src.modules.metadata import check_dates
 
 logger = logging.getLogger(__name__)
 
+# Filenames used by the EU e-invoice standards for their embedded XML payload.
+# Their presence marks a legitimate structured e-invoice (see check_embedded_files).
+_EINVOICE_XML_NAMES = frozenset({
+    "factur-x.xml", "zugferd-invoice.xml", "xrechnung.xml", "order-x.xml", "cii.xml",
+})
+_EINVOICE_XML_KEYWORDS = ("factur-x", "facturx", "zugferd", "xrechnung", "order-x")
+
+
+def _is_einvoice_attachment(name: str) -> bool:
+    """True if `name` is a recognised EU e-invoice XML payload (Factur-X etc.).
+
+    Matches the standard filenames exactly, plus any *.xml whose name contains a
+    known e-invoice keyword (covers vendor variants like 'ZUGFeRD-invoice.xml').
+    """
+    n = (name or "").lower()
+    if not n.endswith(".xml"):
+        return False
+    return n in _EINVOICE_XML_NAMES or any(k in n for k in _EINVOICE_XML_KEYWORDS)
+
 
 # =============================================================================
 # PDF MODIFICATION HISTORY FUNCTIONS
@@ -1445,24 +1464,34 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
                 any(f["name"].lower().endswith(ext) for ext in dangerous_extensions)
                 for f in embedded_files
             )
+            # A recognised e-invoice XML (Factur-X / ZUGFeRD / XRechnung / Order-X)
+            # is the EU e-invoicing STANDARD — its embedded XML payload is required,
+            # not suspicious. When one is present the document is a legitimate
+            # structured e-invoice, so its attachments (the XML itself plus normal
+            # companions like a delivery note) are expected. We still run the
+            # dangerous-extension check regardless, so a malicious .exe/.js is never
+            # excused by a factur-x.xml sitting next to it.
+            is_einvoice = any(_is_einvoice_attachment(f["name"]) for f in embedded_files)
 
             if has_dangerous:
-                severity = "critical"
-                message = "PDF contains embedded executable files (malware risk!)"
+                flags.append(Flag(
+                    severity="critical",
+                    code="STRUCT_EMBEDDED_FILES",
+                    message="PDF contains embedded executable files (malware risk!)",
+                    details={"file_count": embedded_count, "files": embedded_files,
+                             "warning": "Embedded executable files are dangerous."},
+                ))
+            elif is_einvoice:
+                # Recognised structured e-invoice — legitimacy signal, no flag.
+                logger.info("Embedded e-invoice XML detected (Factur-X/ZUGFeRD) — not flagged")
             else:
-                severity = "high"
-                message = f"PDF contains {embedded_count} embedded file(s)"
-
-            flags.append(Flag(
-                severity=severity,
-                code="STRUCT_EMBEDDED_FILES",
-                message=message,
-                details={
-                    "file_count": embedded_count,
-                    "files": embedded_files,
-                    "warning": "Embedded files in invoices are suspicious."
-                }
-            ))
+                flags.append(Flag(
+                    severity="high",
+                    code="STRUCT_EMBEDDED_FILES",
+                    message=f"PDF contains {embedded_count} embedded file(s)",
+                    details={"file_count": embedded_count, "files": embedded_files,
+                             "warning": "Embedded files in invoices are suspicious."},
+                ))
 
         doc.close()
 
