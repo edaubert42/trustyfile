@@ -79,8 +79,26 @@ def find_amount(page) -> dict | None:
                         best = {"rect": fitz.Rect(span["bbox"]), "text": mm.group(),
                                 "value": val, "size": span.get("size", 10.0),
                                 "origin": span.get("origin", (span["bbox"][0], span["bbox"][3])),
+                                "font": span.get("font", ""),
                                 "span_text": span.get("text", mm.group())}
     return best
+
+
+def _match_base14(font: str) -> str:
+    """Map the original font name to the closest base-14 face (helv/tiro/cour).
+
+    We can't re-embed an arbitrary subset font, so we match the FAMILY (serif /
+    monospace / sans) to avoid a font *mismatch* — otherwise a font-consistency
+    detector could 'detect' the tamper via the wrong font instead of the
+    cover-and-retype geometry, inflating apparent detection. Family match is an
+    accepted approximation; exact glyphs are not reproduced.
+    """
+    n = (font or "").lower()
+    if any(k in n for k in ("times", "serif", "georgia", "roman", "minion")):
+        return "tiro"
+    if any(k in n for k in ("cour", "mono", "consol")):
+        return "cour"
+    return "helv"
 
 
 def _format_like(value: float, sample: str) -> str:
@@ -93,12 +111,16 @@ def _format_like(value: float, sample: str) -> str:
 
 
 def _cover_and_retype(page, hit: dict, new_text, bg=(1, 1, 1)):
-    """Draw an opaque background-coloured box over the amount and retype it AT THE
-    SAME font size and baseline — the canonical 'cover a value and retype' edit,
-    made realistic so the retyped value blends in the way a real forgery does."""
+    """Draw an opaque background-coloured box over the amount and retype it at the
+    SAME font family, size and baseline — the canonical 'cover a value and retype'
+    edit, made realistic so the retyped value blends in the way a real forgery
+    does (a size/font mismatch would be an artificial giveaway that a detector
+    could key on instead of the geometry). NOTE: `bg` defaults to white; a total
+    on a shaded cell would need the page background sampled — accepted limitation
+    for the current white-invoice bases."""
     page.draw_rect(hit["rect"], color=bg, fill=bg, width=0)
     page.insert_text(fitz.Point(hit["rect"].x0, hit["origin"][1]), new_text,
-                     fontname="helv", fontsize=hit["size"])
+                     fontname=_match_base14(hit.get("font", "")), fontsize=hit["size"])
 
 
 def tamper_cover_retype(src: str, dst: str, producer: str) -> dict | None:
@@ -107,23 +129,24 @@ def tamper_cover_retype(src: str, dst: str, producer: str) -> dict | None:
     Returns a manifest dict, or None if no amount could be located in the base.
     """
     doc = fitz.open(src)
-    hit = find_amount(doc[0])
-    if hit is None:
+    try:
+        hit = find_amount(doc[0])
+        if hit is None:
+            return None
+        old_text, val = hit["text"], hit["value"]
+        new_val = round(val * 1.2 + 5, 2)
+        # rebuild the WHOLE span with only the number swapped, preserving the original
+        # format and any currency suffix ("1 200,00 €" -> "1 445,00 €") so the retype
+        # is realistic (same char class, size, baseline) rather than a giveaway.
+        new_money = _format_like(new_val, old_text)
+        new_text = hit["span_text"].replace(old_text, new_money, 1)
+        _cover_and_retype(doc[0], hit, new_text)
+        doc.set_metadata({"producer": producer, "creator": "invoice tool",
+                          "creationDate": "D:20250115103000", "modDate": "D:20250115103000"})
+        Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        doc.save(dst)
+    finally:
         doc.close()
-        return None
-    old_text, val = hit["text"], hit["value"]
-    new_val = round(val * 1.2 + 5, 2)
-    # rebuild the WHOLE span with only the number swapped, preserving the original
-    # format and any currency suffix ("1 200,00 €" -> "1 445,00 €") so the retype
-    # is realistic (same char class, size, baseline) rather than a giveaway.
-    new_money = _format_like(new_val, old_text)
-    new_text = hit["span_text"].replace(old_text, new_money, 1)
-    _cover_and_retype(doc[0], hit, new_text)
-    doc.set_metadata({"producer": producer, "creator": "invoice tool",
-                      "creationDate": "D:20250115103000", "modDate": "D:20250115103000"})
-    Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    doc.save(dst)
-    doc.close()
     is_editor = "acrobat" in producer.lower()
     return {"attack": "cover_retype_editor" if is_editor else "cover_retype_plain",
             "old_value": old_text, "new_value": new_text, "producer": producer,
@@ -133,12 +156,14 @@ def tamper_cover_retype(src: str, dst: str, producer: str) -> dict | None:
 def tamper_metadata_backdate(src: str, dst: str) -> dict:
     """Set ModDate 45 days after CreationDate and an online-converter Producer."""
     doc = fitz.open(src)
-    doc.set_metadata({"producer": CONVERTER_PRODUCER,
-                      "creationDate": "D:20250115103000",
-                      "modDate": "D:20250301103000"})
-    Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    doc.save(dst)
-    doc.close()
+    try:
+        doc.set_metadata({"producer": CONVERTER_PRODUCER,
+                          "creationDate": "D:20250115103000",
+                          "modDate": "D:20250301103000"})
+        Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        doc.save(dst)
+    finally:
+        doc.close()
     return {"attack": "metadata_backdate", "producer": CONVERTER_PRODUCER,
             "expect_band": "REVIEW"}
 
@@ -146,19 +171,20 @@ def tamper_metadata_backdate(src: str, dst: str) -> dict:
 def tamper_image_patch(src: str, dst: str) -> dict | None:
     """Paste a small opaque white image over the total (raster cover attack)."""
     doc = fitz.open(src)
-    hit = find_amount(doc[0])
-    if hit is None:
+    try:
+        hit = find_amount(doc[0])
+        if hit is None:
+            return None
+        rect, old_text = hit["rect"], hit["text"]
+        # a solid-white PNG the size of the amount, pasted over it
+        pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, max(2, int(rect.width)),
+                                                 max(2, int(rect.height))), False)
+        pix.clear_with(255)
+        doc[0].insert_image(rect, pixmap=pix)
+        Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        doc.save(dst)
+    finally:
         doc.close()
-        return None
-    rect, old_text = hit["rect"], hit["text"]
-    # a solid-white PNG the size of the amount, pasted over it
-    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, max(2, int(rect.width)),
-                                             max(2, int(rect.height))), False)
-    pix.clear_with(255)
-    doc[0].insert_image(rect, pixmap=pix)
-    Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    doc.save(dst)
-    doc.close()
     return {"attack": "image_patch", "old_value": old_text, "expect_band": "REVIEW"}
 
 

@@ -214,6 +214,11 @@ def analyze_ela(image: np.ndarray, n: float = ELA_THRESHOLD_SIGMAS) -> dict:
     total_area = sum(zone["area"] for zone in zones)
     height, width = image.shape[:2]
     ratio = total_area / (height * width)
+    # Residual: is_grid is computed over the UNION of zones, so a splice sharing
+    # the same extracted image as a large barcode/table lattice could hide among
+    # its tiles (2 outliers don't lift the CV). Low risk — ELA runs per-image and
+    # the overlay/metadata/revision signals are independent — but ELA is not
+    # authoritative on barcoded pages; treat it as one signal among several.
     is_grid = _zones_form_regular_grid(zones)
     return {
         "zones": zones,

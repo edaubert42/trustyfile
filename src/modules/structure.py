@@ -1472,7 +1472,11 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
             # and every executable or opaque payload is still surfaced or blocked.
             dangerous_extensions = ['.exe', '.js', '.jse', '.vbs', '.bat', '.cmd',
                                     '.ps1', '.dll', '.jar', '.scr', '.com', '.msi',
-                                    '.hta', '.wsf', '.lnk']
+                                    '.hta', '.wsf', '.lnk',
+                                    # macro-enabled Office documents are common
+                                    # malware carriers — active content, not inert docs
+                                    '.docm', '.xlsm', '.xlsb', '.xlam', '.xltm',
+                                    '.dotm', '.pptm', '.potm']
             benign_companion_extensions = ['.pdf', '.xml', '.txt', '.csv', '.png',
                                            '.jpg', '.jpeg', '.tif', '.tiff', '.gif']
 
