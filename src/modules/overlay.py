@@ -236,9 +236,12 @@ def _page_angle(page) -> float:
     """Baseline text angle for the page, derived from page.rotation.
 
     get_texttrace() reports each span's `dir` in the page's *rotated* coordinate
-    system, so horizontal body text on a 90°-rotated page still reads dir≈(1,0).
-    We keep the baseline at 0 for the common 0/180 case and only shift for the
-    90/270 landscape rotations, matching is_horizontal()'s comparison.
+    system, so horizontal body text on a 90°/270° page reports dir≈(0,1) — its
+    baseline angle is 90°, not 0°. We keep the baseline at 0 for the common
+    0/180 case and shift to 90 for the 90/270 landscape rotations, so
+    is_horizontal() compares each span against the correct axis. (Getting this
+    wrong can only silence the detector on a rotated page — a false negative,
+    never a false positive.)
     """
     rot = int(getattr(page, "rotation", 0) or 0) % 360
     return 90.0 if rot in (90, 270) else 0.0
@@ -343,7 +346,8 @@ def _pair_is_conflict(a: dict, b: dict, page_angle: float) -> bool:
     ca = char_class(ta)
     if ca == "excluded" or ca != char_class(tb):
         return False
-    if not (is_horizontal(a["dir"], page_angle) and is_horizontal(b["dir"], page_angle)):
+    da, db = a.get("dir", (1.0, 0.0)), b.get("dir", (1.0, 0.0))
+    if not (is_horizontal(da, page_angle) and is_horizontal(db, page_angle)):
         return False
     sa, sb = a.get("size", 0.0), b.get("size", 0.0)
     if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > SIZE_MATCH_FRAC:

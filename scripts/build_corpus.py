@@ -335,6 +335,7 @@ corpus_expectations = {
     "legit_ocr_sandwich.pdf":          {"label": "legit", "expect_no_overlay": True},
     "legit_french_accents.pdf":        {"label": "legit", "expect_no_overlay": True},
     "legit_rightaligned_template.pdf": {"label": "legit", "expect_no_overlay": True},   # placeholder + real value, high IoU, no fill -> Signal-2 placeholder guard clears it
+    "legit_flattened_form.pdf":        {"label": "legit", "expect_no_overlay": True},   # editor Producer ("Adobe Acrobat Form Filler") but value painted OVER field bg -> no under-span, no HARD
     # legit-but-ambiguous: a REAL value changed across a revision, but NOT by an editor.
     # REVIEW is acceptable (honest uncertainty); it must NEVER reach a HARD *_CONFIRMED* code.
     "legit_multisession_template_fill.pdf": {"label": "legit", "expect_no_hard": True},
