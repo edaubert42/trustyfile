@@ -95,8 +95,16 @@ def _has_combining_mark(s: str) -> bool:
     return any(unicodedata.category(ch) in ("Mn", "Mc") for ch in s)
 
 
+# Currency symbols and their base-14-font renderings, treated as separators so a
+# monetary amount classifies as "numeric" regardless of an attached symbol. Note
+# base-14 Helvetica renders € as U+00B7 (middle dot) and ¥ can render oddly, so
+# both the real glyphs and their substitutes are stripped. (Same U+00B7 quirk the
+# placeholder guard already accounts for.)
+_CURRENCY_STRIP = "€$£¥·.,-"
+
+
 def char_class(s: str) -> str:
-    stripped = "".join(ch for ch in s if not ch.isspace() and ch not in "€$£.,-")
+    stripped = "".join(ch for ch in s if not ch.isspace() and ch not in _CURRENCY_STRIP)
     if _has_combining_mark(s) or s != unicodedata.normalize("NFC", s):
         return "excluded"
     if not stripped:
