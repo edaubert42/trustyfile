@@ -36,6 +36,20 @@ def test_char_class_excludes_combining_marks():
     assert char_class("TOTAL") == "alpha"
     assert char_class(unicodedata.normalize("NFD", "é")) == "excluded"   # e + combining acute
 
+
+def test_char_class_treats_currency_amounts_as_numeric():
+    # A monetary amount is 'numeric' for conflict purposes whether or not it
+    # carries a currency symbol. Base-14 Helvetica renders € as U+00B7 (middle
+    # dot), so a retyped "€ 866,56" surfaces as "· 866,56" — it must still match
+    # a plain "717,97" so a cover-and-retype of an amount is detected.
+    assert char_class("717,97") == "numeric"
+    assert char_class("· 866,56") == "numeric"   # € rendered as middle dot
+    assert char_class("€ 866,56") == "numeric"
+    assert char_class("866,56 ¥") == "numeric"   # yen
+    # guard: currency stripping must not collapse real prose into numeric
+    assert char_class("Facture") == "alpha"
+    assert char_class("REF·A12") == "mixed"      # letters+digits still mixed
+
 def test_norm_and_conflict():
     assert norm("1 200,00 €") == norm("1200,00€")
     assert norm("9 200,00") != norm("1 200,00")
