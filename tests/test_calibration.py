@@ -85,6 +85,45 @@ def test_reference_invoice_all_ids_invalid_is_review_not_suspicious(tmp_path):
 
 
 # =============================================================================
+# FIX #3 — ELA fires on repetitive texture (table cells / 2D barcodes), not just
+# edits. Found on mustang_gnuaccounting_505.pdf: 34 uniformly-sized zones on a
+# 9x8 lattice (a barcode/table) reported as FORENSICS_ELA_MAJOR_EDIT. A real
+# splice is a few irregular regions, never a uniform grid.
+# =============================================================================
+def _grid_zones(rows, cols, w=110, h=105, step_x=140, step_y=148):
+    """A regular lattice of near-uniform tiles — the barcode/table signature."""
+    return [{"x": c * step_x + 120, "y": r * step_y + 250,
+             "w": w + (r + c) % 5, "h": h + c % 4, "area": w * h}
+            for r in range(rows) for c in range(cols)]
+
+
+def test_regular_grid_zones_detected_as_texture():
+    from src.modules.forensics import _zones_form_regular_grid
+    assert _zones_form_regular_grid(_grid_zones(6, 6)) is True
+
+
+def test_few_irregular_zones_are_not_texture():
+    from src.modules.forensics import _zones_form_regular_grid
+    zones = [{"x": 100, "y": 100, "w": 400, "h": 60, "area": 24000},
+             {"x": 540, "y": 700, "w": 120, "h": 30, "area": 3600}]
+    assert _zones_form_regular_grid(zones) is False
+
+
+def test_single_large_edit_is_not_texture():
+    from src.modules.forensics import _zones_form_regular_grid
+    assert _zones_form_regular_grid([{"x": 200, "y": 300, "w": 250, "h": 90, "area": 22500}]) is False
+
+
+def test_analyze_ela_suppresses_regular_grid(monkeypatch):
+    import src.modules.forensics as F
+    monkeypatch.setattr(F, "detect_suspicious_regions", lambda *a, **k: _grid_zones(6, 6))
+    img = np.zeros((1600, 1400, 3), dtype=np.uint8)
+    res = F.analyze_ela(img)
+    assert res["is_suspicious"] is False, "a uniform grid of zones must not read as an edit"
+    assert res["is_grid"] is True
+
+
+# =============================================================================
 # FIX #2 — an embedded e-invoice XML (Factur-X / ZUGFeRD / XRechnung) is the EU
 # standard and a LEGITIMACY signal, not "suspicious embedded file". Found on:
 # facturx_invoice_EN16931.pdf, mustang_Facture_F20180027.pdf, mustang_gnu*.pdf.
