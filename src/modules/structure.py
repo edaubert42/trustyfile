@@ -1458,38 +1458,66 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
                     "size": info.get("size", 0),
                 })
 
-            # Determine severity based on file types
-            dangerous_extensions = ['.exe', '.js', '.vbs', '.bat', '.cmd', '.ps1', '.dll']
-            has_dangerous = any(
-                any(f["name"].lower().endswith(ext) for ext in dangerous_extensions)
-                for f in embedded_files
-            )
-            # A recognised e-invoice XML (Factur-X / ZUGFeRD / XRechnung / Order-X)
-            # is the EU e-invoicing STANDARD — its embedded XML payload is required,
-            # not suspicious. When one is present the document is a legitimate
-            # structured e-invoice, so its attachments (the XML itself plus normal
-            # companions like a delivery note) are expected. We still run the
-            # dangerous-extension check regardless, so a malicious .exe/.js is never
-            # excused by a factur-x.xml sitting next to it.
-            is_einvoice = any(_is_einvoice_attachment(f["name"]) for f in embedded_files)
+            # Classify each embedded file. IMPORTANT (security): the decision is
+            # PER FILE, never per document — a recognised e-invoice XML excuses
+            # only ITSELF, never other payloads riding along beside it. The threat
+            # is hidden ACTIVE or OPAQUE content, so:
+            #   - dangerous : active-content extensions -> always critical
+            #   - einvoice  : the required Factur-X/ZUGFeRD/XRechnung XML -> never flagged
+            #   - benign    : transparent doc/image companions (delivery note, logo) —
+            #                 expected in an e-invoice, not flagged there
+            #   - opaque    : archives / blobs / unknown types -> always surfaced
+            # NOTE: extension-based typing can be spoofed (rename a blob to .pdf).
+            # That residual is accepted: TrustyFile never opens/executes attachments,
+            # and every executable or opaque payload is still surfaced or blocked.
+            dangerous_extensions = ['.exe', '.js', '.jse', '.vbs', '.bat', '.cmd',
+                                    '.ps1', '.dll', '.jar', '.scr', '.com', '.msi',
+                                    '.hta', '.wsf', '.lnk']
+            benign_companion_extensions = ['.pdf', '.xml', '.txt', '.csv', '.png',
+                                           '.jpg', '.jpeg', '.tif', '.tiff', '.gif']
 
-            if has_dangerous:
+            def _ext_in(name: str, exts: list) -> bool:
+                return any(name.lower().endswith(ext) for ext in exts)
+
+            dangerous_files = [f for f in embedded_files if _ext_in(f["name"], dangerous_extensions)]
+            einvoice_files = [f for f in embedded_files if _is_einvoice_attachment(f["name"])]
+            companion_files = [f for f in embedded_files
+                               if not _ext_in(f["name"], dangerous_extensions)
+                               and not _is_einvoice_attachment(f["name"])]
+
+            if dangerous_files:
+                # Executable/active content is dangerous regardless of any
+                # factur-x.xml sitting next to it — the allowlist never excuses it.
                 flags.append(Flag(
                     severity="critical",
                     code="STRUCT_EMBEDDED_FILES",
                     message="PDF contains embedded executable files (malware risk!)",
-                    details={"file_count": embedded_count, "files": embedded_files,
+                    details={"file_count": len(dangerous_files), "files": dangerous_files,
                              "warning": "Embedded executable files are dangerous."},
                 ))
-            elif is_einvoice:
-                # Recognised structured e-invoice — legitimacy signal, no flag.
-                logger.info("Embedded e-invoice XML detected (Factur-X/ZUGFeRD) — not flagged")
-            else:
+            elif einvoice_files:
+                # Recognised structured e-invoice. Transparent document/image
+                # companions are expected; only OPAQUE payloads are surfaced (low),
+                # so a hidden blob can never ride along unflagged.
+                opaque = [f for f in companion_files
+                          if not _ext_in(f["name"], benign_companion_extensions)]
+                if opaque:
+                    flags.append(Flag(
+                        severity="low",
+                        code="STRUCT_EMBEDDED_FILES",
+                        message=f"e-invoice carries {len(opaque)} opaque attachment(s)",
+                        details={"file_count": len(opaque), "files": opaque,
+                                 "warning": "Opaque (non-document) attachment in an e-invoice — review."},
+                    ))
+                else:
+                    logger.info("e-invoice with recognised XML + document companions — not flagged")
+            elif companion_files:
+                # Non-e-invoice PDF with unexplained embedded files — original suspicion.
                 flags.append(Flag(
                     severity="high",
                     code="STRUCT_EMBEDDED_FILES",
-                    message=f"PDF contains {embedded_count} embedded file(s)",
-                    details={"file_count": embedded_count, "files": embedded_files,
+                    message=f"PDF contains {len(companion_files)} embedded file(s)",
+                    details={"file_count": len(companion_files), "files": companion_files,
                              "warning": "Embedded files in invoices are suspicious."},
                 ))
 

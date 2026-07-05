@@ -152,11 +152,35 @@ def test_embedded_facturx_xml_not_flagged(tmp_path):
     assert r.band == "GENUINE", f"a Factur-X invoice must stay GENUINE, got {r.band}/{r.trust_score}"
 
 
-def test_einvoice_with_companion_attachment_not_flagged(tmp_path):
-    # A recognised e-invoice may also carry a delivery note etc. — still legit.
+def _embedded_flag(result):
+    for m in result.modules:
+        for f in m.flags:
+            if f.code == "STRUCT_EMBEDDED_FILES":
+                return f
+    return None
+
+
+def test_einvoice_benign_document_companion_not_flagged(tmp_path):
+    # A recognised e-invoice may carry a transparent business document (delivery
+    # note PDF, images) — expected, so no flag and the doc stays GENUINE.
     p = str(tmp_path / "facturx_plus.pdf")
     _embeds(p, [("factur-x.xml", b"<x/>"), ("Bon_de_livraison.pdf", b"%PDF-1.4 fake")])
-    assert "STRUCT_EMBEDDED_FILES" not in _codes(TrustyFileAnalyzer(enable_external=False).analyze(p))
+    r = TrustyFileAnalyzer(enable_external=False).analyze(p)
+    assert _embedded_flag(r) is None, "a transparent doc companion must not be flagged"
+    assert r.band == "GENUINE", f"a legit e-invoice + delivery note must stay GENUINE, got {r.band}"
+
+
+def test_hidden_opaque_payload_beside_facturx_is_surfaced(tmp_path):
+    # SECURITY (allowlist-semantic-escape): an OPAQUE payload (blob/archive) dropped
+    # next to a factur-x.xml must NOT ride along unflagged — the allowlist excuses
+    # only the required XML itself, never a sibling payload.
+    p = str(tmp_path / "escape.pdf")
+    _embeds(p, [("factur-x.xml", b"<x/>"), ("secret_notes.bin", b"\x00\x01payload")])
+    flag = _embedded_flag(TrustyFileAnalyzer(enable_external=False).analyze(p))
+    assert flag is not None, "an e-invoice XML must not excuse an opaque sibling payload"
+    assert any(f["name"] == "secret_notes.bin" for f in flag.details["files"])
+    assert not any(f["name"] == "factur-x.xml" for f in flag.details["files"]), \
+        "the required e-invoice XML itself must not be listed as suspicious"
 
 
 def test_unexpected_embedded_file_still_flagged(tmp_path):
