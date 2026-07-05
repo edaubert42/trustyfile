@@ -34,6 +34,16 @@ FLAG_THEME_MAP: dict[str, str] = {
     "FONTS_MIDLINE_CHANGE": "tampering",
     "IMAGES_PASTE_NOISE_ANOMALY": "tampering",
 
+    # tampering: opaque-box cover-and-retype / edit-trace overlays (Phase 2)
+    "OVERLAY_COVER_AND_RETYPE": "tampering",
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": "tampering",
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": "tampering",
+    "OVERLAY_CONFLICTING_TEXT": "tampering",
+    "OVERLAY_REVISION_VALUE_CHANGED": "tampering",
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": "tampering",
+    "OVERLAY_IMAGE_OVER_VALUE": "tampering",
+    "OVERLAY_IMAGE_OVER_TEXT": "tampering",
+
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
     "META_FUTURE_CREATION_DATE": "tampering",
@@ -177,6 +187,66 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "A region of the document shows abnormal noise patterns consistent "
         "with a copy-paste operation."
+    ),
+    "OVERLAY_COVER_AND_RETYPE": lambda f: (
+        f"A value appears to have been covered and replaced: "
+        f"\"{f.details.get('covered', '')}\" was hidden and "
+        f"\"{f.details.get('replacement', '')}\" placed over it."
+        if f.details and f.details.get('covered') is not None
+        else "A value appears to have been covered by a box and retyped over it."
+    ),
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": lambda f: (
+        f"A value was covered and replaced: "
+        f"\"{f.details.get('covered', '')}\" was hidden and "
+        f"\"{f.details.get('replacement', '')}\" placed over it. This is "
+        f"corroborated by the document's Producer/Creator, which shows it "
+        f"was saved by an interactive editing tool."
+        if f.details and f.details.get('covered') is not None
+        else ("A value was covered by a box and retyped over it, corroborated "
+              "by the document's Producer/Creator showing an interactive "
+              "editing tool was used.")
+    ),
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
+        f"An opaque box covers still-present text "
+        f"(\"{f.details.get('hidden', '')}\"), which remains recoverable underneath."
+        if f.details and f.details.get('hidden')
+        else "An opaque box covers text that is still recoverable underneath it."
+    ),
+    "OVERLAY_CONFLICTING_TEXT": lambda f: (
+        "Two conflicting values overlap at the same position, "
+        "suggesting the original value was retyped."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED": lambda f: (
+        f"A value changed between two saved revisions of this document: "
+        f"\"{f.details.get('old_value', '')}\" became "
+        f"\"{f.details.get('new_value', '')}\"."
+        if f.details and f.details.get('old_value') is not None
+        else "A value changed between two saved revisions of this document."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": lambda f: (
+        f"A value changed between two saved revisions of this document: "
+        f"\"{f.details.get('old_value', '')}\" became "
+        f"\"{f.details.get('new_value', '')}\". This is corroborated by the "
+        f"revision that made the change having been saved by an interactive "
+        f"editing tool."
+        if f.details and f.details.get('old_value') is not None
+        else ("A value changed between two saved revisions of this document, "
+              "corroborated by the changing revision having been saved by an "
+              "interactive editing tool.")
+    ),
+    "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
+        f"An image is placed over a still-present value "
+        f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
+        f"underneath it."
+        if f.details and f.details.get('covered')
+        else "An image is placed over a value that is still recoverable underneath it."
+    ),
+    "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
+        f"An image is placed over still-present text "
+        f"(\"{f.details.get('covered', '')}\"), which remains recoverable "
+        f"underneath it."
+        if f.details and f.details.get('covered')
+        else "An image is placed over text that is still recoverable underneath it."
     ),
 
     # --- dates ---
@@ -396,6 +466,65 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "Une zone du document présente des patterns de bruit anormaux "
         "cohérents avec une opération de copier-coller."
+    ),
+    "OVERLAY_COVER_AND_RETYPE": lambda f: (
+        f"Une valeur semble avoir été masquée puis remplacée : "
+        f"« {f.details.get('covered', '')} » a été cachée et "
+        f"« {f.details.get('replacement', '')} » placée par-dessus."
+        if f.details and f.details.get('covered') is not None
+        else "Une valeur semble avoir été masquée par un rectangle puis ressaisie par-dessus."
+    ),
+    "OVERLAY_COVER_AND_RETYPE_CONFIRMED": lambda f: (
+        f"Une valeur a été masquée puis remplacée : "
+        f"« {f.details.get('covered', '')} » a été cachée et "
+        f"« {f.details.get('replacement', '')} » placée par-dessus. Ceci est "
+        f"corroboré par les métadonnées Producer/Creator du document, qui "
+        f"indiquent qu'il a été enregistré par un outil d'édition interactif."
+        if f.details and f.details.get('covered') is not None
+        else ("Une valeur a été masquée par un rectangle puis ressaisie "
+              "par-dessus, corroboré par les métadonnées Producer/Creator du "
+              "document indiquant l'usage d'un outil d'édition interactif.")
+    ),
+    "OVERLAY_OPAQUE_FILL_OVER_TEXT": lambda f: (
+        f"Un rectangle opaque recouvre du texte toujours présent "
+        f"(« {f.details.get('hidden', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('hidden')
+        else "Un rectangle opaque recouvre du texte encore récupérable en dessous."
+    ),
+    "OVERLAY_CONFLICTING_TEXT": lambda f: (
+        "Deux valeurs contradictoires se superposent au même endroit, "
+        "suggérant que la valeur d'origine a été ressaisie."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED": lambda f: (
+        f"Une valeur a changé entre deux versions enregistrées de ce document : "
+        f"« {f.details.get('old_value', '')} » est devenue "
+        f"« {f.details.get('new_value', '')} »."
+        if f.details and f.details.get('old_value') is not None
+        else "Une valeur a changé entre deux versions enregistrées de ce document."
+    ),
+    "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": lambda f: (
+        f"Une valeur a changé entre deux versions enregistrées de ce document : "
+        f"« {f.details.get('old_value', '')} » est devenue "
+        f"« {f.details.get('new_value', '')} ». Ceci est corroboré par le fait "
+        f"que la version ayant introduit ce changement a été enregistrée par "
+        f"un outil d'édition interactif."
+        if f.details and f.details.get('old_value') is not None
+        else ("Une valeur a changé entre deux versions enregistrées de ce "
+              "document, corroboré par le fait que la version ayant introduit "
+              "ce changement a été enregistrée par un outil d'édition "
+              "interactif.")
+    ),
+    "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
+        f"Une image est placée sur une valeur toujours présente "
+        f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('covered')
+        else "Une image est placée sur une valeur encore récupérable en dessous."
+    ),
+    "OVERLAY_IMAGE_OVER_TEXT": lambda f: (
+        f"Une image est placée sur du texte toujours présent "
+        f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
+        if f.details and f.details.get('covered')
+        else "Une image est placée sur du texte encore récupérable en dessous."
     ),
 
     # --- dates ---
