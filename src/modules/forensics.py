@@ -143,6 +143,57 @@ def detect_suspicious_regions(
     return suspicious
 
 
+# --- Grid / repetitive-texture guard for ELA ------------------------------
+# ELA lights up on repetitive high-frequency texture — table cell borders and 2D
+# barcodes (QR / Datamatrix / the French 2D-Doc) — exactly as it does on a real
+# edit. A genuine splice is a FEW irregular regions; a table/barcode is MANY
+# near-uniform tiles on a regular lattice. We suppress the latter so legitimate
+# invoices with a barcode or a bordered table don't read as "major edit".
+ELA_GRID_MIN_ZONES = 6      # a real edit is a handful of regions, not dozens
+ELA_GRID_SIZE_CV_MAX = 0.35 # zone dimensions this uniform = machine-drawn tiles
+ELA_GRID_MIN_ROWS = 3
+ELA_GRID_MIN_COLS = 3
+
+
+def _cv(values: list[float]) -> float:
+    """Coefficient of variation (std / mean). 0 = perfectly uniform."""
+    if not values:
+        return 1.0
+    m = float(np.mean(values))
+    return float(np.std(values)) / m if m > 0 else 1.0
+
+
+def _count_clusters(sorted_vals: list[float], tol: float) -> int:
+    """Number of clusters in sorted values, splitting where the gap exceeds tol."""
+    if not sorted_vals:
+        return 0
+    clusters = 1
+    for prev, cur in zip(sorted_vals, sorted_vals[1:]):
+        if cur - prev > tol:
+            clusters += 1
+    return clusters
+
+
+def _zones_form_regular_grid(zones: list[dict]) -> bool:
+    """True if the suspicious zones look like a table/barcode lattice, not an edit.
+
+    Requires all three: enough zones (dozens, not a few), near-uniform tile size,
+    and a genuine 2-D lattice (>=3 rows AND >=3 columns of aligned centres). A
+    single region, a couple of irregular blobs, or a single row/column all fail.
+    """
+    if len(zones) < ELA_GRID_MIN_ZONES:
+        return False
+    widths = [z["w"] for z in zones]
+    heights = [z["h"] for z in zones]
+    if _cv(widths) > ELA_GRID_SIZE_CV_MAX or _cv(heights) > ELA_GRID_SIZE_CV_MAX:
+        return False
+    col_tol = float(np.median(widths)) * 0.5
+    row_tol = float(np.median(heights)) * 0.5
+    ncols = _count_clusters(sorted(z["x"] + z["w"] / 2 for z in zones), col_tol)
+    nrows = _count_clusters(sorted(z["y"] + z["h"] / 2 for z in zones), row_tol)
+    return ncols >= ELA_GRID_MIN_COLS and nrows >= ELA_GRID_MIN_ROWS
+
+
 def analyze_ela(image: np.ndarray, n: float = ELA_THRESHOLD_SIGMAS) -> dict:
     """
     Run full ELA analysis on a single image.
@@ -155,18 +206,27 @@ def analyze_ela(image: np.ndarray, n: float = ELA_THRESHOLD_SIGMAS) -> dict:
         n: Threshold sensitivity (standard deviations)
 
     Returns:
-        Dict with keys: zones, total_suspicious_area, suspicious_ratio, is_suspicious
+        Dict with keys: zones, total_suspicious_area, suspicious_ratio,
+        is_grid, is_suspicious
     """
     ela_image = compute_ela(image)
     zones = detect_suspicious_regions(ela_image, n)
     total_area = sum(zone["area"] for zone in zones)
     height, width = image.shape[:2]
     ratio = total_area / (height * width)
+    # Residual: is_grid is computed over the UNION of zones, so a splice sharing
+    # the same extracted image as a large barcode/table lattice could hide among
+    # its tiles (2 outliers don't lift the CV). Low risk — ELA runs per-image and
+    # the overlay/metadata/revision signals are independent — but ELA is not
+    # authoritative on barcoded pages; treat it as one signal among several.
+    is_grid = _zones_form_regular_grid(zones)
     return {
         "zones": zones,
         "total_suspicious_area": total_area,
         "suspicious_ratio": ratio,
-        "is_suspicious": ratio > ELA_SUSPICIOUS_RATIO,
+        "is_grid": is_grid,
+        # repetitive texture (barcode/table) is NOT an edit, even above threshold
+        "is_suspicious": (ratio > ELA_SUSPICIOUS_RATIO) and not is_grid,
     }
 
 
