@@ -757,7 +757,7 @@ def _signal_revision_value_changed(pdf_data, raw_bytes: bytes | None) -> list[Fl
 
 
 # =============================================================================
-# SIGNAL 5 (Task 6) — OPAQUE IMAGE PATCH OVER LIVE TEXT
+# SIGNAL 5 (Task 6) — IMAGE PATCH OVER LIVE TEXT
 # =============================================================================
 # Signals 1-3 only ever look at VECTOR fills from page.get_drawings() — but the
 # design notes flag that the MOST COMMON real-world form of "cover a value and
