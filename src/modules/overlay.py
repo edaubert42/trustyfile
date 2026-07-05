@@ -27,6 +27,15 @@ MAX_FILL_ASPECT = 25.0
 FULL_WIDTH_BAND_FRAC = 0.85  # image width >= this * page width => header/logo band, not a patch
 HORIZONTAL_TOL_DEG = 4.0
 SIZE_MATCH_FRAC = 0.10
+# Tools capable of the cover-a-value-and-retype edit. Presence of one of these
+# is the C2 corroborator that upgrades a geometry-only finding (SOFT/REVIEW) to a
+# HARD tamper verdict. HUMAN DECISION (whole-branch review): LibreOffice STAYS on
+# this list even though it is also an authoring tool — LibreOffice Draw is a real
+# fraud vector (open a finished PDF, box a value, retype). This does NOT endanger
+# legit LibreOffice-authored invoices: the HARD path still requires the
+# cover-and-retype GEOMETRY to be present first, which a from-scratch invoice
+# never has, so the geometry gate filters legit authoring before provenance is
+# ever consulted.
 INTERACTIVE_EDITOR_PRODUCERS = (
     "acrobat", "foxit", "pdf-xchange", "pdfxchange", "libreoffice",
     "nitro", "sejda", "pdfescape", "master pdf",
