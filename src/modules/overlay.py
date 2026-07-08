@@ -126,6 +126,23 @@ def norm(s: str) -> str:
     return "".join(s.split()).replace("\u202f", "").replace("\xa0", "").casefold()
 
 
+# A monetary amount embedded anywhere in a span's text ("571,04" in
+# "Gesamtbetrag: 571,04 \u20ac"). The (?<!\d)\u2026(?!\d) anchors avoid matching a
+# fragment of a longer digit run. Used only to compare the amount portion of two
+# spans in the embedded-span cover-and-retype path \u2014 never for classification.
+_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?!\d)")
+
+
+def amount_token(text: str) -> str | None:
+    """The first monetary amount substring in `text`, or None.
+
+    Lets the embedded-span path compare just the number when the original value
+    is wrapped in a label span ("Gesamtbetrag: 571,04 \u20ac" -> "571,04").
+    """
+    m = _AMOUNT_RE.search(text or "")
+    return m.group() if m else None
+
+
 def is_horizontal(span_dir, page_angle_deg: float) -> bool:
     import math
     dx, dy = span_dir
@@ -394,16 +411,13 @@ def _signal_cover_and_retype(fills: list[dict], spans: list[dict], page_angle: f
         inside = [s for s in spans if containment(fitz.Rect(s["bbox"]), frect) >= CONTAINMENT_MIN]
         under = [s for s in inside if s.get("seqno", 0) < f.get("seqno", 0)]
         over = [s for s in inside if s.get("seqno", 0) > f.get("seqno", 0)]
-        found = None
-        for a in under:
-            if is_placeholder(span_text(a)):
-                continue                   # covered a placeholder -> benign template fill
-            for b in over:
-                if _pair_is_conflict(a, b, page_angle):
-                    found = (a, b)
-                    break
-            if found:
-                break
+        found = _find_cover_pair(under, over, page_angle)
+        # Embedded-span fallback: the box covers only PART of a wider span (label
+        # + amount + currency as one text object, e.g. "Gesamtbetrag: 571,04 €"),
+        # so the original never sits fully inside the box. Match a span the box
+        # sits WITHIN, comparing the amount portions rather than the whole text.
+        if found is None:
+            found = _find_embedded_cover_pair(f, frect, over, spans, page_angle)
         if found:
             a, b = found
             hits.append({"fill": f, "under": a, "over": b})
@@ -411,6 +425,75 @@ def _signal_cover_and_retype(fills: list[dict], spans: list[dict], page_angle: f
             consumed_spans.add(id(a))
             consumed_spans.add(id(b))
     return hits, consumed_spans, consumed_fills
+
+
+def _find_cover_pair(under: list, over: list, page_angle: float):
+    """Standard path: original A and retype B are each fully inside the box."""
+    for a in under:
+        if is_placeholder(span_text(a)):
+            continue                       # covered a placeholder -> benign template fill
+        for b in over:
+            if _pair_is_conflict(a, b, page_angle):
+                return (a, b)
+    return None
+
+
+def _find_embedded_cover_pair(f, frect, over: list, spans: list, page_angle: float):
+    """Embedded path: the box sits WITHIN a wider original span. A qualifying
+    original A is painted before the box, has the box contained in its bbox, and
+    carries an amount that differs from a retyped amount B inside the box."""
+    over_amt = [b for b in over if amount_token(span_text(b))]
+    if not over_amt:
+        return None
+    for a in spans:
+        if a.get("seqno", 0) >= f.get("seqno", 0):
+            continue                       # A must be painted before the box
+        if not _box_on_span_row(frect, fitz.Rect(a["bbox"])):
+            continue                       # the box must sit on A's row, within its width
+        for b in over_amt:
+            if _amounts_conflict(a, b, page_angle):
+                return (a, b)
+    return None
+
+
+def _box_on_span_row(frect: fitz.Rect, sbbox: fitz.Rect) -> bool:
+    """True if fill `frect` sits on span `sbbox`'s text row and within its width.
+
+    Row containment (vertical overlap + horizontal containment) rather than area
+    containment: a cover box drawn from a search-rect is often a little taller
+    than the text-span bbox, so strict area-containment would miss a box that
+    plainly covers part of the line. FP-safe: the box must still lie inside the
+    span's horizontal extent (>= CONTAINMENT_MIN of the box width) on the same
+    row — i.e. it genuinely covers that span's text, not a neighbour's."""
+    y_overlap = min(frect.y1, sbbox.y1) - max(frect.y0, sbbox.y0)
+    if y_overlap <= 0.3 * min(frect.height, sbbox.height):
+        return False                       # not the same row
+    x_inside = min(frect.x1, sbbox.x1) - max(frect.x0, sbbox.x0)
+    return frect.width > 0 and x_inside / frect.width >= CONTAINMENT_MIN
+
+
+def _amounts_conflict(a: dict, b: dict, page_angle: float) -> bool:
+    """Conflict test on the AMOUNT portion of two spans (for the embedded path).
+
+    True when both spans carry a horizontal, same-size monetary amount, the
+    covered (A) amount is a real value (not a placeholder), and the two amounts
+    differ. Comparing extracted amounts — not whole-span text — is what lets a
+    label-wrapped original ("Gesamtbetrag: 571,04 €") conflict with a bare
+    retype ("690,25")."""
+    aa, ba = amount_token(span_text(a)), amount_token(span_text(b))
+    if not aa or not ba:
+        return False
+    if is_placeholder(aa):
+        return False                       # covered a placeholder -> benign scaffolding
+    if norm(aa) == norm(ba):
+        return False                       # same amount = faux-bold / re-stamp, not a change
+    da, db = a.get("dir", (1.0, 0.0)), b.get("dir", (1.0, 0.0))
+    if not (is_horizontal(da, page_angle) and is_horizontal(db, page_angle)):
+        return False
+    sa, sb = a.get("size", 0.0), b.get("size", 0.0)
+    if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > SIZE_MATCH_FRAC:
+        return False                       # different font size = different field
+    return True
 
 
 def _signal_opaque_fill_over_text(fills: list[dict], spans: list[dict],
