@@ -1117,7 +1117,13 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
                                              consumed_spans, consumed_fills):
         t = span_text(hit["hidden"]).strip()
         flags.append(Flag(
-            severity="high", code="OVERLAY_OPAQUE_FILL_OVER_TEXT",
+            # critical (not high): a lone geometry signal must reach the design's
+            # REVIEW floor ("geometry alone -> REVIEW", phase2 design §4/§8). At
+            # high (weight 1.5) with the -4.0 prior a lone occurrence scored
+            # ~92/GENUINE; at critical (3.0) it lands ~73/REVIEW, consistent with
+            # Signal 3. Still SOFT — only editor-Producer provenance escalates to
+            # HARD. Fires 0x on the legit corpus, so it never demotes a legit doc.
+            severity="critical", code="OVERLAY_OPAQUE_FILL_OVER_TEXT",
             message=(f"An opaque box on page {page_num + 1} covers still-present "
                      f"text (\"{t}\"), which remains recoverable underneath."),
             details={"page": page_num, "hidden": t},
@@ -1126,7 +1132,11 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
     for hit in _signal_conflicting_text(spans, page_angle, consumed_spans):
         ta, tb = span_text(hit["a"]).strip(), span_text(hit["b"]).strip()
         flags.append(Flag(
-            severity="high", code="OVERLAY_CONFLICTING_TEXT",
+            # critical (not high): same REVIEW-floor rationale as
+            # OVERLAY_OPAQUE_FILL_OVER_TEXT above — two conflicting values at one
+            # position is a smoking gun that must not read GENUINE. SOFT; provenance
+            # still required for HARD. Fires 0x on the legit corpus.
+            severity="critical", code="OVERLAY_CONFLICTING_TEXT",
             message=(f"Two conflicting values overlap at the same position on "
                      f"page {page_num + 1}: \"{ta}\" and \"{tb}\"."),
             details={"page": page_num, "values": [ta, tb]},
