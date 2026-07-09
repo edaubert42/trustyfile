@@ -18,6 +18,9 @@ scikit-image>=0.22.0     # Advanced image analysis (ELA, noise analysis)
 datefinder>=0.7.3        # Date extraction from text
 python-dateutil>=2.8.2   # Date parsing utilities
 
+# XML (e-invoice / Factur-X) — SAFE parsing of untrusted embedded XML
+defusedxml>=0.7.1        # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
+
 # Web Interface
 streamlit>=1.37.0        # MVP frontend
 

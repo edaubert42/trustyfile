@@ -65,6 +65,7 @@ MODULE_WEIGHTS = {
     "images": 0.8,      # Embedded images
     "forensics": 0.9,   # Image forensics (ELA)
     "structure": 1.3,   # PDF structure (incremental updates, JS, etc.) - very reliable
+    "arithmetic": 1.2,  # totals-block identity + e-invoice XML cross-check (deterministic)
     "external": 1.5,    # External verification (very reliable when available)
     "identity": 1.5,   # MRZ check digit validation (cryptographically reliable)
 }

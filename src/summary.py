@@ -44,6 +44,10 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_IMAGE_OVER_VALUE": "tampering",
     "OVERLAY_IMAGE_OVER_TEXT": "tampering",
 
+    # tampering: arithmetic inconsistencies (e-invoice numbers that don't add up)
+    "ARITH_XML_INTERNAL_INCONSISTENT": "tampering",
+    "ARITH_XML_VISIBLE_MISMATCH": "tampering",
+
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
     "META_FUTURE_CREATION_DATE": "tampering",
@@ -247,6 +251,19 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"underneath it."
         if f.details and f.details.get('covered')
         else "An image is placed over text that is still recoverable underneath it."
+    ),
+    "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
+        f"The embedded e-invoice data does not add up: basis "
+        f"{f.details.get('basis', 0):,.2f} + tax {f.details.get('tax', 0):,.2f} "
+        f"does not equal the grand total {f.details.get('grand', 0):,.2f}."
+        if f.details else "The embedded e-invoice totals do not add up."
+    ),
+    "ARITH_XML_VISIBLE_MISMATCH": lambda f: (
+        f"The total printed on the page ({f.details.get('visible', 0):,.2f}) does "
+        f"not match any total in the document's embedded e-invoice data. The "
+        f"visible and machine-readable amounts disagree."
+        if f.details else ("The printed total does not match the embedded "
+                            "e-invoice data.")
     ),
 
     # --- dates ---
@@ -525,6 +542,19 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
         else "Une image est placée sur du texte encore récupérable en dessous."
+    ),
+    "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
+        f"Les données de la facture électronique intégrée ne sont pas cohérentes : "
+        f"base {f.details.get('basis', 0):,.2f} + taxe {f.details.get('tax', 0):,.2f} "
+        f"ne correspond pas au total {f.details.get('grand', 0):,.2f}."
+        if f.details else "Les totaux de la facture électronique intégrée ne sont pas cohérents."
+    ),
+    "ARITH_XML_VISIBLE_MISMATCH": lambda f: (
+        f"Le total imprimé sur la page ({f.details.get('visible', 0):,.2f}) ne "
+        f"correspond à aucun total des données de facture électronique intégrées. "
+        f"Les montants visibles et lisibles par machine divergent."
+        if f.details else ("Le total imprimé ne correspond pas aux données de "
+                           "facture électronique intégrées.")
     ),
 
     # --- dates ---
