@@ -109,7 +109,7 @@ Lone → REVIEW; stacked → SUSPICIOUS (evidence ledger, group=`arithmetic`).
 
 - `analyzer.py`: import + `module_results.append(analyze_arithmetic(pdf_data))`.
 - `scoring.py` `MODULE_WEIGHTS`: `"arithmetic": 1.2` (deterministic, reliable).
-- `summary.py`: `FLAG_THEME_MAP` → `"tampering"` for all three; EN + FR
+- `summary.py`: `FLAG_THEME_MAP` → `"tampering"` for both shipped codes; EN + FR
   `SENTENCE_TEMPLATES` entries.
 
 ## Error handling
@@ -118,24 +118,53 @@ Never raises. Missing text, no XML, malformed/namespaced XML, unparseable
 amounts, no confident anchors → skip that check, `confidence` reduced; when
 nothing is checkable, `score=100, confidence≈0.3` (silence, not suspicion).
 
-## Testing
+## Testing (as shipped)
 
-- **Unit:** anchor extraction FR/EN/DE; identity check + tolerance boundary;
-  namespace-robust XML parse; the deposit/`DuePayable` no-flag guard (visible =
-  DuePayable ≠ GrandTotal must NOT flag); malformed XML → no crash, no flag.
-- **Round-trip (new tamper generators in `generate_tampered.py`):**
-  (1) edit the visible total, leave the XML → `ARITH_XML_VISIBLE_MISMATCH`;
-  (2) break `HT+VAT=TTC` in the text → `ARITH_TOTALS_MISMATCH`.
-  Gives a measurable detection count like the overlay tampers.
-- **Hard gate:** all 16 real invoices (esp. e-invoices with charges/deposits/
-  multi-rate) → **0 new arithmetic flags**, band unchanged.
+- **Unit:** namespace-robust XML parse (ZUGFeRD 1.0/2.x/Factur-X); X-internal
+  consistent vs inconsistent; X-cross match vs mismatch; the deposit/`DuePayable`
+  no-flag guard (visible = DuePayable ≠ GrandTotal must NOT flag); XXE +
+  billion-laughs payloads → `None` (no crash, no flag); malformed XML → `None`.
+- **Real-corpus detection:** a clean visible-total edit on a real ZUGFeRD invoice
+  (`mustang_gnuaccounting_505`, 571,04 → 671,04, XML untouched) →
+  `ARITH_XML_VISIBLE_MISMATCH`; the same invoice untouched → no flag.
+- **Hard gate:** all 16 real invoices → **0 arithmetic flags**; X-internal is
+  consistent on all 5 corpus e-invoices (incl. the one with a 5.00 charge and the
+  two with prepaid deposits).
+
+## Visible-text arithmetic is NOT FP-safe (all variants tried and rejected)
+
+Every attempt to verify arithmetic from the *visible text* was built and then
+removed after adversarial review reproduced false positives on ordinary
+legitimate invoices. The root cause is shared: real invoices routinely contain
+amounts the visible labels don't cleanly account for.
+
+- **Line-item summation** (`sum(lines) = subtotal`) — broken by document-level
+  charges/allowances (corpus: `facturx_invoice_EN16931` has a 5.00 charge, lines
+  `60+28+7=95 ≠ basis 100`). Never built.
+- **Totals-block identity** (`HT + VAT = TTC`) — FP on shipping charges and on
+  `net à payer` deposit lines (visible net is the pre-charge goods total, not the
+  taxable base). Built, then removed (commit reverting Check T).
+- **VAT-rate consistency** (`VAT ≈ TTC·R/(1+R)`, charge-immune) — still FP:
+  (a) an exempt / out-of-scope / zero-rated line (French *débours*, disbursements,
+  reimbursed fees) is a de-facto second rate that is **never printed as "0%"**, so
+  the single-rate guard can't see it and the formula over-expects VAT; (b)
+  `net à payer`-only invoices (standard FR practice) leave the check picking a
+  stray `Total heures`/`Total remise` line as the total. Built, then reverted.
+
+**Conclusion:** the taxable base is not reliably recoverable from visible invoice
+text, so any visible-text arithmetic check trades false positives for coverage —
+unacceptable under the zero-FP gate. The base is only authoritative in the
+embedded XML (`TaxBasisTotalAmount` already reflects charges/exemptions), which is
+why the shipped checks are XML-only. A visible-text check would need robust
+per-line taxability parsing (which line is taxed, at what rate, what's exempt) —
+a much larger effort with its own FP surface, out of scope.
 
 ## Deferred (future)
 
 - HARD escalation of `ARITH_XML_VISIBLE_MISMATCH` once the multi-total mapping is
   corpus-proven zero-FP.
-- Line-item table summation (`sum(lines) = HT`, `qty × unit = line`).
-- VAT-rate derivation check (`VAT ≈ HT × rate`) for single-rate invoices.
+- Full per-line taxability parsing — the only FP-safe route to visible-text
+  arithmetic (see above); large, not attempted.
 - **Position-aware visible-total extraction.** v1 uses same-row label→amount
   parsing, which only catches totals printed inline (`Gesamtbetrag: 571,04 €`);
   table-laid-out totals (label and amount in separate columns that `get_text`
