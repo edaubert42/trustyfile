@@ -13,8 +13,11 @@ checks, run on a single uploaded PDF, integrated with the evidence ledger.
 
 ## Constraints (global, verbatim)
 
-- **Fully local.** The document is never sent to any service. Stdlib + PyMuPDF
-  only (`xml.etree.ElementTree` for XML; no new pip deps).
+- **Fully local.** The document is never sent to any service. PyMuPDF + stdlib,
+  plus `defusedxml` for XML. The embedded XML is untrusted adversarial input, so
+  it MUST be parsed with `defusedxml` (blocks XXE — which would exfiltrate local
+  files / break the no-service guarantee — and billion-laughs DoS), never with
+  stdlib `xml.etree`.
 - Never raises on malformed input — any failure skips that check and lowers
   confidence (CLAUDE.md), never crashes.
 - SOFT evidence only in v1 (no `HARD_NEGATIVE_CODES` entry). HARD escalation is
@@ -118,3 +121,30 @@ nothing is checkable, `score=100, confidence≈0.3` (silence, not suspicion).
   corpus-proven zero-FP.
 - Line-item table summation (`sum(lines) = HT`, `qty × unit = line`).
 - VAT-rate derivation check (`VAT ≈ HT × rate`) for single-rate invoices.
+- **Position-aware visible-total extraction.** v1 uses same-row label→amount
+  parsing, which only catches totals printed inline (`Gesamtbetrag: 571,04 €`);
+  table-laid-out totals (label and amount in separate columns that `get_text`
+  linearises apart) are not extracted — a coverage limit, never a false positive
+  (unextracted = no check). Only 1/16 corpus docs expose an inline grand total;
+  the reliable e-invoice detector is therefore the XML-internal check, which
+  needs no visible extraction and runs on all 5 corpus e-invoices.
+
+## Implementation notes (discovered during build)
+
+- **Security:** embedded XML is parsed with `defusedxml` (blocks XXE + billion-
+  laughs); a blocked/malformed payload → `None`, never a crash or a flag.
+- **ZUGFeRD version spread:** the document monetary summation is located by the
+  element that directly carries `GrandTotalAmount`, which is version-agnostic —
+  ZUGFeRD 2.x/Factur-X name it `...HeaderMonetarySummation`, ZUGFeRD 1.0 names it
+  `...MonetarySummation` (and reuses that tag at line level, which has no
+  `GrandTotalAmount`, so it is never mis-selected).
+- **Complementary with the overlay module (not overlapping):** a *cover-and-
+  retype* leaves the original value in the text layer, so arithmetic reads the
+  unchanged (consistent) text and stays silent — overlay is the detector there.
+  Arithmetic catches the *clean* edit (text actually replaced, no leftover, no
+  box), where the visible/XML or HT+VAT/TTC values now disagree — which overlay
+  cannot see. Together they cover both edit styles.
+- **Real deposit cases validated:** `mustang_Facture_F20180027` (grand 110, due
+  100) and `mustang_EN16931_Teilrechnung` (grand 197.65, due 147.65) both carry a
+  legitimate prepaid `DuePayableAmount ≠ GrandTotalAmount`; the set-membership
+  cross-check clears both (0 FP).
