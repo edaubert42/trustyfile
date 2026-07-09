@@ -44,8 +44,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_IMAGE_OVER_VALUE": "tampering",
     "OVERLAY_IMAGE_OVER_TEXT": "tampering",
 
-    # tampering: arithmetic inconsistencies (numbers that don't add up)
-    "ARITH_TOTALS_MISMATCH": "tampering",
+    # tampering: arithmetic inconsistencies (e-invoice numbers that don't add up)
     "ARITH_XML_INTERNAL_INCONSISTENT": "tampering",
     "ARITH_XML_VISIBLE_MISMATCH": "tampering",
 
@@ -252,12 +251,6 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"underneath it."
         if f.details and f.details.get('covered')
         else "An image is placed over text that is still recoverable underneath it."
-    ),
-    "ARITH_TOTALS_MISMATCH": lambda f: (
-        f"The invoice totals do not add up: net {f.details.get('net', 0):,.2f} + "
-        f"tax {f.details.get('tax', 0):,.2f} does not equal the stated total "
-        f"{f.details.get('grand', 0):,.2f}."
-        if f.details else "The invoice totals do not add up (net + tax != total)."
     ),
     "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
         f"The embedded e-invoice data does not add up: basis "
@@ -549,12 +542,6 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
         else "Une image est placée sur du texte encore récupérable en dessous."
-    ),
-    "ARITH_TOTALS_MISMATCH": lambda f: (
-        f"Les totaux de la facture ne sont pas cohérents : HT "
-        f"{f.details.get('net', 0):,.2f} + TVA {f.details.get('tax', 0):,.2f} "
-        f"ne correspond pas au total indiqué {f.details.get('grand', 0):,.2f}."
-        if f.details else "Les totaux de la facture ne sont pas cohérents (HT + TVA ≠ TTC)."
     ),
     "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
         f"Les données de la facture électronique intégrée ne sont pas cohérentes : "

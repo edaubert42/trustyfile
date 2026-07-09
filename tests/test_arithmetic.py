@@ -12,7 +12,7 @@ import pytest
 
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.arithmetic import (
-    analyze_arithmetic, check_totals_block, find_visible_grand_total,
+    analyze_arithmetic, find_visible_grand_total,
     xml_totals, internal_check, cross_check, TOLERANCE,
 )
 
@@ -64,48 +64,40 @@ def _codes(pdf_path):
 
 
 # =============================================================================
-# Check T — visible totals-block identity
+# Visible grand-total extraction (feeds the XML cross-check only)
 # =============================================================================
-def test_totals_block_consistent_no_flag():
-    # HT 100,00 + TVA 20,00 = TTC 120,00 -> the identity holds -> no flag.
-    flag = check_totals_block("Total HT 100,00\nTVA 20,00\nTotal TTC 120,00")
-    assert flag is None
-
-
-def test_totals_block_broken_flags_mismatch():
-    # A forger edits the TTC to 220,00 but leaves HT/VAT -> 100+20 != 220.
-    flag = check_totals_block("Total HT 100,00\nTVA 20,00\nTotal TTC 220,00")
-    assert flag is not None and flag.code == "ARITH_TOTALS_MISMATCH"
-
-
-def test_totals_block_english_anchors():
-    flag = check_totals_block("Subtotal 100.00\nVAT 20.00\nTotal 220.00")
-    assert flag is not None and flag.code == "ARITH_TOTALS_MISMATCH"
-
-
-def test_totals_block_german_anchors():
-    flag = check_totals_block("Nettobetrag 100,00\nMwSt 20,00\nGesamtbetrag 220,00")
-    assert flag is not None and flag.code == "ARITH_TOTALS_MISMATCH"
-
-
-def test_totals_block_within_tolerance_no_flag():
-    # 1-cent per-line-vs-total VAT rounding must NOT flag (<= TOLERANCE).
-    assert check_totals_block("Total HT 100,00\nTVA 19,99\nTotal TTC 120,00") is None
-
-
-def test_totals_block_missing_anchor_no_check():
-    # No VAT line -> cannot form the identity -> silence, not a guess.
-    assert check_totals_block("Total HT 100,00\nTotal TTC 120,00") is None
-
-
-def test_totals_block_ambiguous_grand_no_check():
-    # Two DIFFERENT grand-total values -> ambiguous -> skip (fail-safe, no flag).
-    txt = "Total HT 100,00\nTVA 20,00\nTotal TTC 120,00\nTotal 999,00"
-    assert check_totals_block(txt) is None
-
-
 def test_find_visible_grand_total_picks_ttc():
     assert find_visible_grand_total("Total HT 100,00\nTVA 20,00\nTotal TTC 120,00") == pytest.approx(120.0)
+
+
+def test_find_visible_grand_total_ambiguous_is_none():
+    # Two DIFFERENT grand-labeled values -> ambiguous -> None (cross-check skips).
+    assert find_visible_grand_total("Total TTC 120,00\nTotal 999,00") is None
+
+
+def test_find_visible_grand_total_none_when_no_label():
+    assert find_visible_grand_total("Merci de votre confiance\nArticle A 10,00") is None
+
+
+# =============================================================================
+# NO visible-text totals identity check (removed as FP-unsafe — see review)
+# =============================================================================
+def test_no_totals_identity_flag_on_shipping_charge(tmp_path):
+    # Legit invoice with a document-level shipping charge: goods 100 + shipping 10
+    # = base 110, VAT 20% = 22, total 132 (internally correct). The old visible
+    # HT+VAT=TTC check false-flagged this (100+22 != 132). It must NOT fire now.
+    p = _pdf(tmp_path, "shipping.pdf",
+             ["Sous-total: 100,00", "Frais de livraison: 10,00",
+              "TVA (20%): 22,00", "Total TTC: 132,00"])
+    assert _codes(p) == set(), _codes(p)
+
+
+def test_no_totals_identity_flag_on_deposit_amount_due(tmp_path):
+    # Legit deposit invoice showing the reduced amount due ("Net à payer"), not the
+    # grand total. The old check false-flagged this (100+20 != 70). No flag now.
+    p = _pdf(tmp_path, "deposit_text.pdf",
+             ["Total HT: 100,00", "TVA (20%): 20,00", "Net a payer: 70,00"])
+    assert _codes(p) == set(), _codes(p)
 
 
 # =============================================================================
@@ -207,13 +199,6 @@ def test_analyze_flags_xml_internal_inconsistent(tmp_path):
     codes = _codes(p)
     assert "ARITH_XML_INTERNAL_INCONSISTENT" in codes, codes
     assert "ARITH_XML_VISIBLE_MISMATCH" not in codes  # no visible total to compare
-
-
-def test_analyze_flags_totals_mismatch_text_only(tmp_path):
-    # Plain PDF (no XML): a broken HT+VAT=TTC identity in the visible text.
-    p = _pdf(tmp_path, "text_only.pdf",
-             ["Total HT 100,00", "TVA 20,00", "Total TTC 220,00"])
-    assert "ARITH_TOTALS_MISMATCH" in _codes(p)
 
 
 def test_analyze_deposit_einvoice_no_flag(tmp_path):

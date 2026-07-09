@@ -27,7 +27,21 @@ checks, run on a single uploaded PDF, integrated with the evidence ledger.
 
 ## The two checks
 
-### Check T — visible totals-block equation (all PDFs)
+### Check T — visible totals-block equation — REMOVED after review (not shipped)
+
+> **Post-review decision:** the adversarial review reproduced a false positive:
+> `HT + VAT = TTC` fails on legitimate invoices with a document-level charge
+> (shipping) or deduction (prepaid deposit / "net à payer"), because the visible
+> "net/subtotal" is the *pre-charge* goods total, not the taxable base — the same
+> charge/deposit hazard that already killed line-item summation. Only the XML
+> carries the true post-charge `TaxBasisTotalAmount`, so the identity is verified
+> there (Check X-internal), which is charge-robust. Check T is **not shipped** in
+> v1. The visible grand total is still extracted, but used ONLY to feed the XML
+> cross-check (set-membership, which tolerates the deposit case). A charge-immune
+> visible-text check (VAT-rate consistency: `tax ≈ grand × rate/(1+rate)`) is the
+> way to revive text-side coverage later — see Deferred.
+
+*(original design, retained for context):*
 Label-anchor three amounts in the page text and verify the identity:
 
     HT (net/subtotal) + VAT (tax) ≈ TTC (grand total)     within TOLERANCE
@@ -85,7 +99,8 @@ corpus — widened only if a *legitimate* invoice needs it, never for a tamper.
 |---|---|---|---|
 | `ARITH_XML_VISIBLE_MISMATCH` | high | soft/tamper | visible total ∉ XML total set |
 | `ARITH_XML_INTERNAL_INCONSISTENT` | high | soft/tamper | XML basis+tax ≠ grand |
-| `ARITH_TOTALS_MISMATCH` | medium | soft/tamper | visible HT+VAT ≠ TTC |
+
+*(`ARITH_TOTALS_MISMATCH` was specced but removed pre-merge — see Check T above.)*
 
 Lone → REVIEW; stacked → SUSPICIOUS (evidence ledger, group=`arithmetic`).
 `details` carries the parsed components + delta for the summary sentence.

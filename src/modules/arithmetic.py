@@ -1,17 +1,21 @@
 """
 Arithmetic consistency detector (module: arithmetic).
 
-Catches invoices whose numbers contradict each other — a forger who edited one
-value (usually the total) but not the dependent ones. Two independent, fully
-local checks:
+Catches e-invoices whose numbers contradict each other — a forger who edited one
+value (the total) but not the dependent ones. Two checks on the embedded
+Factur-X / ZUGFeRD / XRechnung XML:
 
-  T  visible totals-block identity   HT + VAT ≈ TTC        (works on any PDF)
-  X  embedded e-invoice XML          basis+tax=grand  AND  visible-total ∈ XML totals
+  X-internal  the XML's own identity     basis + tax ≈ grand
+  X-cross     visible-vs-machine          the prominent visible total ∈ {grand, due, basis}
 
-Both are SOFT in v1 (heuristic on the text side; deterministic on the XML side
-but withheld from HARD until the multi-total mapping is corpus-proven — see the
-design spec, docs/superpowers/specs/2026-07-09-arithmetic-consistency-design.md).
-Never raises: any failure skips that check and lowers confidence.
+Both are SOFT in v1 (deterministic, but withheld from HARD until the multi-total
+mapping is corpus-proven — see the design spec, docs/superpowers/specs/
+2026-07-09-arithmetic-consistency-design.md). A visible-text-only totals identity
+(HT + VAT = TTC) was intentionally NOT shipped: it false-positives on legitimate
+invoices with a document-level charge or prepaid deposit (the visible net is the
+pre-charge goods total, not the taxable base). Only the XML carries the true
+post-charge basis, so the identity is verified there. Never raises: any failure
+skips that check and lowers confidence.
 """
 import logging
 import re
@@ -39,108 +43,71 @@ logger = logging.getLogger(__name__)
 # A single calibrated constant; widened only if a LEGIT invoice needs it.
 TOLERANCE = 0.02
 
-# --- Label anchors (lower-cased; matched as substrings of a text line) ---------
-# Order of classification matters: the most specific label wins. A line is NET if
-# it carries an HT/net anchor, TAX if a VAT anchor, else GRAND if a grand anchor —
-# so "Total HT" is net (not grand) even though it contains "total".
-_NET_ANCHORS = (
-    "total ht", "montant ht", "sous-total", "sous total", "subtotal",
-    "net amount", "nettobetrag", "zwischensumme",
-)
-_TAX_ANCHORS = (
-    "tva", "t.v.a", "vat", "mwst", "ust", "sales tax", "tax amount",
-)
+# --- Grand-total anchors (lower-cased; matched as substrings of a text line) ----
+# We deliberately do NOT re-derive the totals-block identity (HT + VAT = TTC) from
+# the visible text: that check false-positives on legitimate invoices carrying a
+# document-level charge (shipping/handling) or deduction (prepaid deposit,
+# "net a payer") between the subtotal and the total, because the visible
+# "subtotal/net" is the pre-charge goods total, not the taxable base. Only the
+# XML carries the true post-charge TaxBasisTotalAmount, so the internal identity
+# is checked THERE (charge-robust). Here we extract just the prominent visible
+# total, used ONLY for the XML cross-check (set membership, which tolerates the
+# deposit case). See the design spec's "Deferred" note (VAT-rate consistency is
+# the charge-immune way to revive a visible-text check later).
 _GRAND_ANCHORS = (
-    "total ttc", "montant ttc", "total à payer", "total a payer", "net à payer",
+    "total ttc", "montant ttc", "total \u00e0 payer", "total a payer", "net \u00e0 payer",
     "net a payer", "amount due", "grand total", "gesamtbetrag", "bruttobetrag",
     "total", "montant total",
 )
 
+# A line that carries one of these NET/subtotal markers is NOT the grand total,
+# even if it also contains the greedy bare "total" anchor ("Total HT",
+# "Sous-total", "Nettobetrag"). Disqualifying them keeps the grand-total
+# extraction from collapsing to "ambiguous" on every invoice that shows a
+# subtotal line alongside the total.
+_NOT_GRAND_MARKERS = (
+    "total ht", "montant ht", "sous-total", "sous total", "subtotal",
+    "net amount", "nettobetrag", "zwischensumme",
+)
+
 # A monetary amount inside a line ("1 200,00", "104.90", "1.200,00"). Same
-# anchored shape as overlay._AMOUNT_RE (rejects date fragments via (?![.,]?\d)).
-_LINE_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s  .,]*[.,]\d{2}(?![.,]?\d)")
+# anchored shape as overlay._AMOUNT_RE (rejects date fragments via the trailing
+# lookahead), tolerant of NBSP/narrow-NBSP thousands separators.
+_LINE_AMOUNT_RE = re.compile("(?<!\\d)\\d[\\d\\s.,]*[.,]\\d{2}(?![.,]?\\d)")
 
 
-def _line_role(line: str) -> str | None:
-    """Classify a text line as 'net', 'tax', or 'grand' by its label — most
-    specific first. None if the line carries no totals-block label."""
-    low = line.casefold()
-    if any(a in low for a in _NET_ANCHORS):
-        return "net"
-    if any(a in low for a in _TAX_ANCHORS):
-        return "tax"
-    if any(a in low for a in _GRAND_ANCHORS):
-        return "grand"
-    return None
-
-
-def _amount_after_label(line: str, role: str) -> float | None:
-    """The amount on `line` that follows the matched label keyword (values sit to
-    the right of their label on an invoice row). None if no amount follows it."""
-    low = line.casefold()
-    anchors = {"net": _NET_ANCHORS, "tax": _TAX_ANCHORS, "grand": _GRAND_ANCHORS}[role]
-    pos = max((low.find(a) + len(a) for a in anchors if a in low), default=-1)
-    if pos < 0:
-        return None
-    m = _LINE_AMOUNT_RE.search(line, pos)
-    return _money_value(m.group(0)) if m else None
-
-
-def _collect_labeled_amounts(text: str) -> dict[str, set[float]]:
-    """Map each role to the DISTINCT values found on lines carrying that label.
-    A role with more than one distinct value is ambiguous (see callers)."""
-    found: dict[str, set[float]] = {"net": set(), "tax": set(), "grand": set()}
+def _grand_total_candidates(text: str) -> set:
+    """Distinct amounts on lines carrying a grand-total label (the value sits to
+    the right of its label on an invoice row)."""
+    out = set()
     for raw in (text or "").splitlines():
-        role = _line_role(raw)
-        if role is None:
+        low = raw.casefold()
+        if any(m in low for m in _NOT_GRAND_MARKERS):
+            continue  # a net/subtotal line, never the grand total
+        pos = max((low.find(a) + len(a) for a in _GRAND_ANCHORS if a in low), default=-1)
+        if pos < 0:
             continue
-        val = _amount_after_label(raw, role)
-        if val is not None:
-            found[role].add(round(val, 2))
-    return found
+        m = _LINE_AMOUNT_RE.search(raw, pos)
+        if m:
+            val = _money_value(m.group(0))
+            if val is not None:
+                out.add(round(val, 2))
+    return out
 
 
-def _unique(vals: set[float]) -> float | None:
-    """The single value in `vals`, or None if empty or ambiguous (>1 distinct)."""
-    return next(iter(vals)) if len(vals) == 1 else None
-
-
-def find_visible_grand_total(text: str) -> float | None:
+def find_visible_grand_total(text: str):
     """The unambiguous visible grand total (TTC / amount due), or None.
 
     None when no grand-total label is found OR when grand-labeled lines disagree
-    (ambiguous) — in both cases the cross-check must stay silent rather than guess.
+    (ambiguous) -- in both cases the XML cross-check must stay silent rather than
+    guess. Used only to feed the cross-check.
 
     Examples:
         >>> find_visible_grand_total("Total HT 100,00\\nTVA 20,00\\nTotal TTC 120,00")
         120.0
     """
-    return _unique(_collect_labeled_amounts(text)["grand"])
-
-
-def check_totals_block(text: str) -> Flag | None:
-    """Check T — verify the visible identity HT + VAT ≈ TTC.
-
-    Runs ONLY when all three roles resolve to a single unambiguous value each
-    (no anchors / a missing role / conflicting duplicates → no check, no flag).
-    Returns an ARITH_TOTALS_MISMATCH flag when the identity is violated beyond
-    TOLERANCE, else None.
-    """
-    found = _collect_labeled_amounts(text)
-    net, tax, grand = _unique(found["net"]), _unique(found["tax"]), _unique(found["grand"])
-    if net is None or tax is None or grand is None:
-        return None  # not enough unambiguous anchors — silence beats a guess
-    delta = (net + tax) - grand
-    if abs(delta) <= TOLERANCE:
-        return None
-    return Flag(
-        severity="medium",
-        code="ARITH_TOTALS_MISMATCH",
-        message=(f"The invoice totals do not add up: net {net:,.2f} + tax "
-                 f"{tax:,.2f} = {net + tax:,.2f}, but the stated total is "
-                 f"{grand:,.2f} (a discrepancy of {delta:+,.2f})."),
-        details={"net": net, "tax": tax, "grand": grand, "delta": round(delta, 2)},
-    )
+    cands = _grand_total_candidates(text)
+    return next(iter(cands)) if len(cands) == 1 else None
 
 
 # =============================================================================
@@ -305,16 +272,12 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
     confidence = 1.0
     checked_anything = False
 
-    # Check T — visible totals-block identity.
+    # Extract the prominent visible grand total (fed to the XML cross-check only;
+    # the visible-text identity check was removed — see _GRAND_ANCHORS comment).
     try:
-        f = check_totals_block(text)
-        if f is not None:
-            flags.append(f)
-        # A confident grand total means Check T had something to work with.
         visible_grand = find_visible_grand_total(text)
-        checked_anything = checked_anything or visible_grand is not None
     except Exception as exc:
-        logger.warning("arithmetic: totals-block check failed: %s", exc)
+        logger.warning("arithmetic: visible-total extraction failed: %s", exc)
         confidence = min(confidence, 0.5)
         visible_grand = None
 
