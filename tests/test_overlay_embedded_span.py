@@ -92,6 +92,54 @@ def test_embedded_span_placeholder_under_not_flagged(tmp_path):
     assert not (_HARD_OVERLAY & codes), f"placeholder cover must not be HARD: {codes}"
 
 
+def _white_box_over_span(path, span_text, cover, extra_over=None):
+    """A WHITE (bg-matching) box over part of `span_text`; `cover` is the token to
+    box. Optionally stamp `extra_over` over the box. Exercises the embedded path
+    past the colour gate (unlike the shaded-box test above)."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(56, 610), span_text, fontname="helv", fontsize=12)
+    rects = page.search_for(cover)
+    assert rects, f"test setup: could not locate {cover!r}"
+    page.draw_rect(rects[0], color=(1, 1, 1), fill=(1, 1, 1), width=0)   # white = page bg
+    if extra_over is not None:
+        page.insert_text(fitz.Point(rects[0].x0, rects[0].y1 - 1), extra_over,
+                         fontname="helv", fontsize=12)
+    doc.set_metadata({"producer": EDITOR, "creationDate": "D:20250115103000"})
+    doc.save(path); doc.close()
+    return path
+
+
+def test_white_box_over_single_amount_no_retype_not_confirmed(tmp_path):
+    # A white box over an amount with NOTHING different stamped over it (no second
+    # amount) reaches the embedded path but must NOT be a cover-and-retype: there
+    # is no conflicting retyped value. (A bare cover may be Signal 1 SOFT, but it
+    # must never be the HARD _CONFIRMED cover-and-retype.)
+    p = _white_box_over_span(str(tmp_path / "single.pdf"),
+                             "Gesamtbetrag: 571,04 EUR", "571,04")
+    assert "OVERLAY_COVER_AND_RETYPE_CONFIRMED" not in _codes(_analyze(p))
+
+
+def test_white_box_over_date_with_retype_not_confirmed(tmp_path):
+    # A DATE (not money) covered in a wide span, with an amount stamped over it,
+    # must not be read as a cover-and-retype: _money_value rejects the date, so
+    # the amounts-conflict test can't fire. Guards the date/phone FP path.
+    p = _white_box_over_span(str(tmp_path / "date.pdf"),
+                             "Fällig am 10.01.20 - Rechnung", "10.01.20",
+                             extra_over="690,25")
+    codes = _codes(_analyze(p))
+    assert not (_HARD_OVERLAY & codes), f"a covered date must not be HARD: {codes}"
+
+
+def test_white_box_same_value_restamp_not_confirmed(tmp_path):
+    # Same amount re-stamped in a different style ("1.200,00" -> "1 200,00") is
+    # not a value change; _money_value equality must suppress it.
+    p = _white_box_over_span(str(tmp_path / "restamp.pdf"),
+                             "Total: 1.200,00 EUR", "1.200,00", extra_over="1 200,00")
+    codes = _codes(_analyze(p))
+    assert not (_HARD_OVERLAY & codes), f"same-value re-stamp must not be HARD: {codes}"
+
+
 @pytest.fixture(scope="module")
 def legit_corpus(tmp_path_factory):
     d = tmp_path_factory.mktemp("corpus")

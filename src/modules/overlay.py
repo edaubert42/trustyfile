@@ -477,16 +477,21 @@ def _amounts_conflict(a: dict, b: dict, page_angle: float) -> bool:
 
     True when both spans carry a horizontal, same-size monetary amount, the
     covered (A) amount is a real value (not a placeholder), and the two amounts
-    differ. Comparing extracted amounts — not whole-span text — is what lets a
-    label-wrapped original ("Gesamtbetrag: 571,04 €") conflict with a bare
-    retype ("690,25")."""
-    aa, ba = amount_token(span_text(a)), amount_token(span_text(b))
-    if not aa or not ba:
-        return False
-    if is_placeholder(aa):
+    differ NUMERICALLY. Comparing parsed numeric values (via _money_value) — not
+    whole-span text — is what lets a label-wrapped original ("Gesamtbetrag:
+    571,04 €") conflict with a bare retype ("690,25"), while REJECTING dates /
+    phone numbers / ids (which _money_value returns None for) and treating two
+    equal amounts written in different styles ("1.200,00" vs "1 200,00") as the
+    SAME value, not a spurious change."""
+    at, bt = span_text(a), span_text(b)
+    av, bv = _money_value(at), _money_value(bt)
+    if av is None or bv is None:
+        return False                       # a non-amount (date/phone/id) never conflicts
+    a_tok = amount_token(at)
+    if a_tok and is_placeholder(a_tok):
         return False                       # covered a placeholder -> benign scaffolding
-    if norm(aa) == norm(ba):
-        return False                       # same amount = faux-bold / re-stamp, not a change
+    if av == bv:
+        return False                       # same value (any styling) = re-stamp, not a change
     da, db = a.get("dir", (1.0, 0.0)), b.get("dir", (1.0, 0.0))
     if not (is_horizontal(da, page_angle) and is_horizontal(db, page_angle)):
         return False
