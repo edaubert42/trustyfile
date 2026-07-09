@@ -107,6 +107,18 @@ def test_embedded_image_over_date_not_flagged(tmp_path):
     assert "OVERLAY_IMAGE_OVER_VALUE" not in codes, codes
 
 
+def test_embedded_image_over_four_digit_year_date_not_flagged(tmp_path):
+    # FP guard (regression): a European dd.mm.YYYY date has a money-looking
+    # prefix ("10.01" of "10.01.2020"). amount_token must reject it so an image
+    # over the date is NOT read as covering a value. (The 2-digit-year case
+    # above is rejected for a different reason; this pins the 4-digit case, which
+    # a PAID/date stamp over an invoice date would otherwise trip.)
+    p = _embedded_image(str(tmp_path / "emb_date4.pdf"), label="Faellig am ",
+                        amount="10.01.2020", suffix=" - Rechnung")
+    codes = _codes(_analyze(p))
+    assert "OVERLAY_IMAGE_OVER_VALUE" not in codes, codes
+
+
 def test_image_on_amount_line_but_off_the_number_not_flagged(tmp_path):
     # THE FP-CRITICAL GUARD: a small image sits on the total line but over the
     # LABEL word ("Gesamtbetrag"), not over the number. A logo/icon inline with a

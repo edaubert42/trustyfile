@@ -127,10 +127,15 @@ def norm(s: str) -> str:
 
 
 # A monetary amount embedded anywhere in a span's text ("571,04" in
-# "Gesamtbetrag: 571,04 \u20ac"). The (?<!\d)\u2026(?!\d) anchors avoid matching a
-# fragment of a longer digit run. Used only to compare the amount portion of two
-# spans in the embedded-span cover-and-retype path \u2014 never for classification.
-_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?!\d)")
+# "Gesamtbetrag: 571,04 \u20ac"). The (?<!\d) prefix and the (?![.,]?\d) suffix
+# together stop a fragment of a longer dotted run from matching: the suffix
+# rejects a 2-decimal group that is itself followed by "<sep><digit>", so a
+# European date "10.01.2020" no longer yields the money-looking "10.01" (the
+# decimals "01" are followed by ".2"). A real amount at a sentence end
+# ("1.200,00.") is unaffected \u2014 its "." is followed by a space/end, not a digit.
+# Used only to compare the amount portion of two spans in the embedded-span
+# cover-and-retype paths (Signals 3 and 5) \u2014 never for classification.
+_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?![.,]?\d)")
 
 
 def amount_token(text: str) -> str | None:
