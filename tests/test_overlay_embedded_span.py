@@ -131,6 +131,19 @@ def test_white_box_over_date_with_retype_not_confirmed(tmp_path):
     assert not (_HARD_OVERLAY & codes), f"a covered date must not be HARD: {codes}"
 
 
+def test_white_box_over_four_digit_year_date_not_confirmed(tmp_path):
+    # Regression for the shared amount_token date-fragment fix: a dd.mm.YYYY date
+    # ("10.01.2020") covered in a wide span, with an amount stamped over it, must
+    # not be read as a cover-and-retype. amount_token must not yield the
+    # money-looking "10.01" prefix of the date.
+    p = _white_box_over_span(str(tmp_path / "date4.pdf"),
+                             "Faellig am 10.01.2020 - Rechnung", "10.01.2020",
+                             extra_over="690,25")
+    codes = _codes(_analyze(p))
+    assert not (_HARD_OVERLAY & codes), f"a covered 4-digit-year date must not be HARD: {codes}"
+    assert "OVERLAY_COVER_AND_RETYPE" not in codes, codes
+
+
 def test_white_box_same_value_restamp_not_confirmed(tmp_path):
     # Same amount re-stamped in a different style ("1.200,00" -> "1 200,00") is
     # not a value change; _money_value equality must suppress it.

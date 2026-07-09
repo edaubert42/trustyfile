@@ -127,10 +127,15 @@ def norm(s: str) -> str:
 
 
 # A monetary amount embedded anywhere in a span's text ("571,04" in
-# "Gesamtbetrag: 571,04 \u20ac"). The (?<!\d)\u2026(?!\d) anchors avoid matching a
-# fragment of a longer digit run. Used only to compare the amount portion of two
-# spans in the embedded-span cover-and-retype path \u2014 never for classification.
-_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?!\d)")
+# "Gesamtbetrag: 571,04 \u20ac"). The (?<!\d) prefix and the (?![.,]?\d) suffix
+# together stop a fragment of a longer dotted run from matching: the suffix
+# rejects a 2-decimal group that is itself followed by "<sep><digit>", so a
+# European date "10.01.2020" no longer yields the money-looking "10.01" (the
+# decimals "01" are followed by ".2"). A real amount at a sentence end
+# ("1.200,00.") is unaffected \u2014 its "." is followed by a space/end, not a digit.
+# Used only to compare the amount portion of two spans in the embedded-span
+# cover-and-retype paths (Signals 3 and 5) \u2014 never for classification.
+_AMOUNT_RE = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?![.,]?\d)")
 
 
 def amount_token(text: str) -> str | None:
@@ -914,6 +919,82 @@ def _localized_image_placements(page) -> list[dict]:
     return placements
 
 
+def _amount_char_xrange(span: dict) -> tuple[float, float] | None:
+    """Horizontal [x0, x1] of the FIRST monetary amount inside a span's text.
+
+    Reconstructs the span string exactly as span_text() does (same per-char
+    decode + skip), keeping each character's x-extent from its get_texttrace
+    bbox (char = (unicode, glyph, origin, bbox)), then returns the x-span of the
+    amount_token() substring. None if the span carries no amount or the chars
+    lack usable bboxes. Lets the embedded image path require the patch to cover
+    the NUMBER itself, not merely the line the number sits on.
+    """
+    tok = amount_token(span_text(span))
+    if tok is None:
+        return None
+    decoded = []                           # (char, x0, x1) aligned to span_text()
+    for c in span.get("chars", []):
+        try:
+            ch = chr(c[0])
+        except (TypeError, ValueError):
+            continue                        # matches span_text()'s skip -> indices stay aligned
+        bbox = c[3] if len(c) >= 4 else None
+        decoded.append((ch, bbox[0], bbox[2]) if bbox else (ch, None, None))
+    s = "".join(d[0] for d in decoded)
+    start = s.find(tok)
+    if start < 0:
+        return None
+    sub = decoded[start:start + len(tok)]
+    xs0 = [d[1] for d in sub if d[1] is not None]
+    xs1 = [d[2] for d in sub if d[2] is not None]
+    if not xs0 or not xs1:
+        return None
+    return (min(xs0), max(xs1))
+
+
+def _image_covers_amount(irect: fitz.Rect, xrange: tuple[float, float]) -> bool:
+    """True if image `irect` horizontally covers >= CONTAINMENT_MIN of the
+    amount's own x-range — i.e. the patch actually hides the number, rather than
+    landing on a label or a neighbouring word of the same line."""
+    ax0, ax1 = xrange
+    aw = ax1 - ax0
+    if aw <= 0:
+        return False
+    overlap = min(irect.x1, ax1) - max(irect.x0, ax0)
+    return overlap / aw >= CONTAINMENT_MIN
+
+
+def _find_embedded_image_cover(irect: fitz.Rect, spans: list[dict]):
+    """Embedded path for Signal 5: the image covers only the AMOUNT PORTION of a
+    wider span (label + amount + currency as one text object), so whole-span
+    containment missed it. Return the covered span, or None.
+
+    FP guards, in order — each mirrors the Signal-3 embedded path:
+      - amount_token present            (the span carries a monetary amount)
+      - _money_value(tok) is not None   (reject dates / phones / ids)
+      - not is_placeholder(tok)         ("0,00" -> benign template scaffolding)
+      - _box_on_span_row                (image sits on the span's row, within it)
+      - _image_covers_amount            (image covers the NUMBER's x-range) <- the
+                                         discriminator vs a logo elsewhere on the line
+    """
+    for t in spans:
+        tok = amount_token(span_text(t))
+        if tok is None:
+            continue
+        if _money_value(tok) is None:
+            continue                        # a non-amount (date/phone/id) is never a hidden value
+        if is_placeholder(tok):
+            continue                        # covered a placeholder -> benign scaffolding
+        if not _box_on_span_row(irect, fitz.Rect(t["bbox"])):
+            continue
+        xrange = _amount_char_xrange(t)
+        if xrange is None:
+            continue
+        if _image_covers_amount(irect, xrange):
+            return t
+    return None
+
+
 def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
     """Signal 5 — a localized IMAGE placement covers still-present live text.
 
@@ -923,17 +1004,28 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
     over text that PyMuPDF can still extract. PLACEHOLDER GUARD: symmetric with
     Signals 1/3 — a covered placeholder ("0,00", "XXX") is benign template
     scaffolding, not hidden content, so it is skipped.
+
+    EMBEDDED FALLBACK: when no whole span sits inside the image, the amount may
+    be embedded in a WIDER span and the patch covers only the number
+    ("Gesamtbetrag: 571,04 €"); _find_embedded_image_cover matches on the
+    amount's own x-range. All five image-patch misses on the real-invoice corpus
+    were this shape.
     """
     hits = []
     for info in _localized_image_placements(page):
         irect = fitz.Rect(info["bbox"])
+        covered = None
         for t in spans:
             if containment(fitz.Rect(t["bbox"]), irect) < CONTAINMENT_MIN:
                 continue
             if is_placeholder(span_text(t)):
                 continue                   # covered placeholder = benign template scaffolding
-            hits.append({"image": info, "covered": t})
+            covered = t
             break                          # one report per image is enough
+        if covered is None:
+            covered = _find_embedded_image_cover(irect, spans)
+        if covered is not None:
+            hits.append({"image": info, "covered": covered})
     return hits
 
 
