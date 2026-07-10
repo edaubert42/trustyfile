@@ -117,3 +117,15 @@ Items marked ✅VERIFIED were reproduced by running the actual code.
 32. JPEG ghost / noise / splicing forensics.
 33. Plain-PDF amount consistency (visible-text arithmetic) — previously proven FP-unsafe;
     revisit only with a fundamentally better approach.
+
+## Post-review residual risks (logged 2026-07-10, accepted for now)
+
+- SIREN/VAT cross-check is same-line only: a fraudster printing a valid
+  foreign VAT on a different line from the SIRET escapes. A page-wide,
+  corroboration-only SOFT-medium fallback was suggested in review; revisit
+  with calibration data.
+- The corpus band gate (test_corpus_bands.py) skips when the gitignored
+  corpus is absent — the executable zero-FP guarantee runs only on machines
+  holding the real documents, not in a bare CI checkout.
+- Fix 7 trade-off: a French invoice omitting ALL legal-form/registry
+  keywords is not held to French legal-id requirements (FP-first gate).
