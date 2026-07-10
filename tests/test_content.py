@@ -505,6 +505,52 @@ class TestCheckFutureInvoiceDate:
         flags = check_future_document_date(dates)
         assert len(flags) == 0
 
+    @staticmethod
+    def _freeze_now(monkeypatch, frozen):
+        """Pin content.datetime.now() so ambiguity fixtures are deterministic."""
+        import src.modules.content as content_mod
+
+        class _FakeDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen if tz is None else frozen.replace(tzinfo=tz)
+
+        monkeypatch.setattr(content_mod, "datetime", _FakeDatetime)
+
+    def test_ambiguous_us_date_not_flagged(self, monkeypatch):
+        """A numeric date that is only 'future' under day-first reading must NOT flag.
+
+        With now=2026-07-10, '01/12/2026' read day-first is Dec 1 2026 (future);
+        read month-first (US) it is Jan 12 2026 (past). Ambiguous → plausibly a
+        legit US invoice, not a fabrication. Verified real FP from the audit.
+        """
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 12, 1), context="Invoice Date: 01/12/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert flags == [], f"ambiguous US-format date must not flag: {flags}"
+
+    def test_ambiguous_date_both_readings_future_still_flagged(self, monkeypatch):
+        """If BOTH day-first and month-first readings are future, flag stands."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        # 05/06/2028: day-first Jun 5 2028, month-first May 6 2028 — both future.
+        dates = [make_extracted_date(
+            datetime(2028, 6, 5), context="Facture du 05/06/2028", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_FUTURE_DOCUMENT_DATE"
+
+    def test_unambiguous_future_date_still_flagged(self, monkeypatch):
+        """day>12 is unambiguous — future-date detection must not be weakened."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2027, 3, 25), context="Invoice Date: 25/03/2027", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert len(flags) == 1
+
 
 # =============================================================================
 # TEST extract_amounts

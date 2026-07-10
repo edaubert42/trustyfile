@@ -734,6 +734,38 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     return flags
 
 
+# Numeric date whose day and month slots are BOTH <= 12: "01/12/2026" is
+# Dec 1 (French day-first) or Jan 12 (US month-first) — the digits alone
+# cannot tell us which. Used to avoid flagging a legit US date as "future".
+_AMBIGUOUS_NUMERIC_DATE_RE = re.compile(r"\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})\b")
+
+
+def _month_first_reading(extracted: ExtractedDate) -> datetime | None:
+    """The month-first (US) reading of an ambiguous numeric date, if any.
+
+    Re-parses the numeric date from the flag candidate's context. Returns the
+    swapped datetime only when the date is genuinely ambiguous (both slots
+    <= 12 and the swap is a valid calendar date) and the context's day-first
+    reading is the one we extracted (so we swap the RIGHT occurrence).
+    Returns None for unambiguous or non-numeric dates.
+    """
+    for m in _AMBIGUOUS_NUMERIC_DATE_RE.finditer(extracted.context or ""):
+        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if year < 100:
+            year += 2000
+        if not (1 <= day <= 12 and 1 <= month <= 12):
+            continue  # unambiguous — day-first is the only reading
+        try:
+            day_first = datetime(year, month, day)
+            month_first = datetime(year, day, month)
+        except ValueError:
+            continue
+        # Only the occurrence that produced this ExtractedDate counts.
+        if day_first.date() == extracted.date.date():
+            return month_first
+    return None
+
+
 def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     """
     Check if the document/invoice/letter date is in the future.
@@ -742,6 +774,12 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     it suggests the date was manually set or fabricated.
 
     We check dates of type "invoice", "document", and "creation".
+
+    FP guard (verified audit finding): numeric dates are parsed day-first
+    (French convention), but a US document writes month-first. For an
+    AMBIGUOUS date (both slots <= 12) we flag only if BOTH readings are in
+    the future — "01/12/2026" seen in July 2026 is Dec 1 (future) OR Jan 12
+    (past), so it must not flag; "05/06/2028" is future either way, so it does.
     """
     flags = []
     now = datetime.now()
@@ -750,6 +788,11 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     doc_dates = [d for d in dates if d.date_type in ("invoice", "document", "creation")]
 
     for d in doc_dates:
+        # Skip ambiguous numeric dates whose US (month-first) reading is NOT
+        # in the future — plausibly a legit US-format document, not fraud.
+        alt = _month_first_reading(d)
+        if alt is not None and alt <= now + timedelta(days=1):
+            continue
         # Allow 1 day tolerance for timezone differences
         if d.date > now + timedelta(days=1):
             flags.append(Flag(
