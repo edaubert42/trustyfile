@@ -448,6 +448,20 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
 
     all_flags.extend(check_missing_metadata(pdf_data.raw_metadata))
 
+    # PyMuPDF had to REPAIR the file structure to open it. Sloppy producers
+    # emit malformed PDFs, but hand-edited bytes are the classic cause —
+    # a medium note (2026-07 audit: the extractor computed this signal and
+    # nothing consumed it).
+    if getattr(pdf_data, "is_repaired", False):
+        all_flags.append(Flag(
+            severity="medium",
+            code="META_DOCUMENT_REPAIRED",
+            message="PDF structure was broken and had to be repaired to open",
+            details={"explanation": "The file's internal structure did not parse "
+                                    "cleanly — either a sloppy generator or "
+                                    "hand-edited file bytes."},
+        ))
+
     # Calculate score: start at 100, subtract points for each flag
     score = 100
     for flag in all_flags:

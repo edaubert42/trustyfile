@@ -36,6 +36,7 @@ def make_pdf_data(
     mod_date: datetime | None = None,
     author: str | None = None,
     raw_metadata: dict | None = None,
+    is_repaired: bool = False,
 ) -> PDFData:
     """
     Build a PDFData object for testing without needing an actual PDF file.
@@ -67,6 +68,7 @@ def make_pdf_data(
         metadata=metadata,
         raw_metadata=raw_metadata,
         text_by_page=["Test content"],
+        is_repaired=is_repaired,
     )
 
 
@@ -477,3 +479,26 @@ def test_canva_classified_as_image_editor():
     flags = check_producer("Canva", None)
     assert any(f.code == "META_IMAGE_EDITOR" for f in flags)
     assert not any(f.code == "META_ONLINE_CONVERTER" for f in flags)
+
+
+# =============================================================================
+# TEST is_repaired flag (free structural signal, previously unused)
+# =============================================================================
+
+class TestRepairedDocument:
+    """PyMuPDF repairing the file to open it means the PDF structure was
+    broken — sloppy producers do exist, but hand-edited bytes are the classic
+    cause, so it's worth a medium note (2026-07 audit: signal was extracted
+    by pdf_extractor and consumed by nothing)."""
+
+    def test_repaired_pdf_flagged_medium(self):
+        pdf_data = make_pdf_data(producer="Some Tool", is_repaired=True)
+        result = analyze_metadata(pdf_data)
+        repaired = [f for f in result.flags if f.code == "META_DOCUMENT_REPAIRED"]
+        assert len(repaired) == 1
+        assert repaired[0].severity == "medium"
+
+    def test_clean_pdf_not_flagged_repaired(self):
+        pdf_data = make_pdf_data(producer="Some Tool", is_repaired=False)
+        result = analyze_metadata(pdf_data)
+        assert not [f for f in result.flags if f.code == "META_DOCUMENT_REPAIRED"]
