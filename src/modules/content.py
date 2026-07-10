@@ -734,7 +734,39 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     return flags
 
 
-def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
+# Numeric date whose day and month slots are BOTH <= 12: "01/12/2026" is
+# Dec 1 (French day-first) or Jan 12 (US month-first) — the digits alone
+# cannot tell us which. Used to avoid flagging a legit US date as "future".
+_AMBIGUOUS_NUMERIC_DATE_RE = re.compile(r"\b(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})\b")
+
+
+def _month_first_reading(extracted: ExtractedDate) -> datetime | None:
+    """The month-first (US) reading of an ambiguous numeric date, if any.
+
+    Re-parses the numeric date from the flag candidate's context. Returns the
+    swapped datetime only when the date is genuinely ambiguous (both slots
+    <= 12 and the swap is a valid calendar date) and the context's day-first
+    reading is the one we extracted (so we swap the RIGHT occurrence).
+    Returns None for unambiguous or non-numeric dates.
+    """
+    for m in _AMBIGUOUS_NUMERIC_DATE_RE.finditer(extracted.context or ""):
+        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if year < 100:
+            year += 2000
+        if not (1 <= day <= 12 and 1 <= month <= 12):
+            continue  # unambiguous — day-first is the only reading
+        try:
+            day_first = datetime(year, month, day)
+            month_first = datetime(year, day, month)
+        except ValueError:
+            continue
+        # Only the occurrence that produced this ExtractedDate counts.
+        if day_first.date() == extracted.date.date():
+            return month_first
+    return None
+
+
+def check_future_document_date(dates: list[ExtractedDate], full_text: str = "") -> list[Flag]:
     """
     Check if the document/invoice/letter date is in the future.
 
@@ -742,14 +774,37 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     it suggests the date was manually set or fabricated.
 
     We check dates of type "invoice", "document", and "creation".
+
+    FP guard (verified audit finding): numeric dates are parsed day-first
+    (French convention), but a US document writes month-first. For an
+    AMBIGUOUS date (both slots <= 12) we flag only if BOTH readings are in
+    the future — "01/12/2026" seen in July 2026 is Dec 1 (future) OR Jan 12
+    (past), so it must not flag; "05/06/2028" is future either way, so it does.
+
+    The exemption is withheld when `full_text` shows French markers
+    (facture/TVA/SIRET/SIREN): a French document is day-first by convention,
+    so its day-first reading is authoritative — otherwise a fraudster could
+    date a French invoice up to 11 months ahead via an ambiguous date
+    (adversarial-review tightening).
     """
     flags = []
     now = datetime.now()
+
+    # French documents write day-first; only non-French docs get the
+    # month-first ambiguity exemption below.
+    is_french_doc = bool(re.search(
+        r"\bfactures?\b|\btva\b|\bsiret\b|\bsiren\b", (full_text or "").lower()
+    ))
 
     # Check document-level dates: invoice, document (letter), creation
     doc_dates = [d for d in dates if d.date_type in ("invoice", "document", "creation")]
 
     for d in doc_dates:
+        # Skip ambiguous numeric dates whose US (month-first) reading is NOT
+        # in the future — plausibly a legit US-format document, not fraud.
+        alt = None if is_french_doc else _month_first_reading(d)
+        if alt is not None and alt <= now + timedelta(days=1):
+            continue
         # Allow 1 day tolerance for timezone differences
         if d.date > now + timedelta(days=1):
             flags.append(Flag(
@@ -949,43 +1004,59 @@ def extract_invoice_reference(text: str) -> tuple[str | None, str | None]:
         Tuple of (reference_number, context) or (None, None) if not found
     """
     refs = extract_all_invoice_references(text)
+    # Prefer the document's own number (invoice family) over external refs.
+    for ref, context, family in refs:
+        if family == "invoice":
+            return ref, context
     if refs:
-        return refs[0]
+        return refs[0][0], refs[0][1]
     return None, None
 
 
-def extract_all_invoice_references(text: str) -> list[tuple[str, str]]:
+def extract_all_invoice_references(text: str) -> list[tuple[str, str, str]]:
     """
-    Extract ALL invoice reference numbers from the document.
+    Extract ALL reference numbers from the document, tagged by keyword family.
 
     This finds every occurrence of a reference number, which is useful
     for cross-checking consistency (did someone change it in one place
-    but forget another?).
+    but forget another?). The family tag ("invoice" or "external") says
+    WHICH kind of keyword introduced the number — only same-family
+    occurrences are comparable.
 
     Args:
         text: Full text of the document
 
     Returns:
-        List of (reference_number, context) tuples for all occurrences
+        List of (reference_number, context, family) tuples for all occurrences
     """
     results = []
     seen_positions = set()  # Avoid duplicate matches at same position
 
-    # Keywords that precede invoice numbers (French and English)
-    # Be specific to avoid matching unrelated numbers like postal codes
-    keywords = [
-        r"facture\s*n[°o]?\s*:?\s*",
-        r"facture\s+du\s+\d{2}/\d{2}/\d{4}\s*n[°o]?\s*",  # "Facture du XX/XX/XXXX n°"
-        r"n[°o]\s*(?:de\s*)?facture\s*:?\s*",
-        r"référence\s*facture\s*:?\s*",
-        r"invoice\s*#?\s*:?\s*",
-        r"invoice\s*n[°o]?\s*:?\s*",
-        r"votre\s*référence\s*:?\s*",  # "Your reference"
-        r"notre\s*référence\s*:?\s*",  # "Our reference"
-        r"document\s*n[°o]?\s*:?\s*",
-        r"commande\s*n[°o]?\s*:?\s*",  # Order number
-        r"order\s*#?\s*:?\s*",
-    ]
+    # Keywords that precede reference numbers (French and English), grouped by
+    # FAMILY. Only the "invoice" family identifies the document's own number;
+    # "external" references (customer PO, order number) legitimately differ
+    # from the invoice number on virtually every B2B invoice, so consistency
+    # is only ever checked WITHIN the invoice family (verified audit FP).
+    keyword_families = {
+        "invoice": [
+            r"facture\s*n[°o]?\s*:?\s*",
+            r"facture\s+du\s+\d{2}/\d{2}/\d{4}\s*n[°o]?\s*",  # "Facture du XX/XX/XXXX n°"
+            r"n[°o]\s*(?:de\s*)?facture\s*:?\s*",
+            r"référence\s*facture\s*:?\s*",
+            r"invoice\s*#?\s*:?\s*",
+            r"invoice\s*n[°o]?\s*:?\s*",
+        ],
+        "external": [
+            r"votre\s*référence\s*:?\s*",  # customer's own reference
+            r"notre\s*référence\s*:?\s*",  # sender's filing reference
+            r"commande\s*n[°o]?\s*:?\s*",  # order number
+            r"order\s*#?\s*:?\s*",
+            # An internal "Document n°" (dossier/archive id) legitimately
+            # differs from the invoice number (adversarial-review finding) —
+            # extracted for display, never compared against "Facture n°".
+            r"document\s*n[°o]?\s*:?\s*",
+        ],
+    }
 
     # Patterns to EXCLUDE (these are not invoice references)
     exclude_patterns = [
@@ -1004,37 +1075,38 @@ def extract_all_invoice_references(text: str) -> list[tuple[str, str]]:
     # Matches: 2024-001, FAC-202401-0023, INV2024001234, 20240115-042, etc.
     ref_pattern = r"([A-Z]{0,5}[-]?\d{4,}[-]?\d*[A-Z]?)"
 
-    for keyword in keywords:
-        pattern = keyword + ref_pattern
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            # Avoid duplicates at the same position
-            if match.start() in seen_positions:
-                continue
+    for family, keywords in keyword_families.items():
+        for keyword in keywords:
+            pattern = keyword + ref_pattern
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                # Avoid duplicates at the same position
+                if match.start() in seen_positions:
+                    continue
 
-            # Get extended context to check for exclusions
-            start_ctx = max(0, match.start() - 50)
-            end_ctx = min(len(text), match.end() + 10)
-            extended_context = text[start_ctx:end_ctx].lower()
+                # Get extended context to check for exclusions
+                start_ctx = max(0, match.start() - 50)
+                end_ctx = min(len(text), match.end() + 10)
+                extended_context = text[start_ctx:end_ctx].lower()
 
-            # Skip if context matches an exclusion pattern
-            should_exclude = False
-            for excl in exclude_patterns:
-                if re.search(excl, extended_context, re.IGNORECASE):
-                    should_exclude = True
-                    break
+                # Skip if context matches an exclusion pattern
+                should_exclude = False
+                for excl in exclude_patterns:
+                    if re.search(excl, extended_context, re.IGNORECASE):
+                        should_exclude = True
+                        break
 
-            if should_exclude:
-                continue
+                if should_exclude:
+                    continue
 
-            seen_positions.add(match.start())
+                seen_positions.add(match.start())
 
-            ref = match.group(1).upper()  # Normalize to uppercase
-            # Get context around the match
-            start = max(0, match.start() - 30)
-            end = min(len(text), match.end() + 10)
-            context = text[start:end].strip()
+                ref = match.group(1).upper()  # Normalize to uppercase
+                # Get context around the match
+                start = max(0, match.start() - 30)
+                end = min(len(text), match.end() + 10)
+                context = text[start:end].strip()
 
-            results.append((ref, context))
+                results.append((ref, context, family))
 
     return results
 
@@ -1187,28 +1259,31 @@ def check_reference_consistency(text: str) -> list[Flag]:
     """
     flags = []
 
-    # Find all references in the document
+    # Find all references, keeping only the INVOICE family: the document's own
+    # number. External references (customer PO, order number) legitimately
+    # differ from the invoice number, so they are never compared (audit FP).
     all_refs = extract_all_invoice_references(text)
+    invoice_refs = [(ref, ctx) for ref, ctx, family in all_refs if family == "invoice"]
 
-    if len(all_refs) < 2:
-        return flags  # Only one or no reference found, nothing to compare
+    if len(invoice_refs) < 2:
+        return flags  # Only one or no invoice number found, nothing to compare
 
-    # Extract just the reference numbers (normalized to uppercase)
-    ref_numbers = [ref for ref, context in all_refs]
-
-    # Check if all references are the same
-    unique_refs = set(ref_numbers)
+    # Check if all invoice-number occurrences agree
+    unique_refs = set(ref for ref, _ in invoice_refs)
 
     if len(unique_refs) > 1:
-        # Multiple different reference numbers found!
+        # The document's own number differs between occurrences — the classic
+        # header-edited-footer-forgotten tamper trace. SOFT high (not critical):
+        # multi-invoice statements/reminders can legitimately cite several
+        # invoice numbers, so a lone hit must not wreck the score.
         flags.append(Flag(
-            severity="critical",
+            severity="high",
             code="CONTENT_INCONSISTENT_REFERENCES",
-            message=f"Document contains different reference numbers: {', '.join(sorted(unique_refs))}",
+            message=f"Document contains different invoice numbers: {', '.join(sorted(unique_refs))}",
             details={
                 "references_found": [
                     {"reference": ref, "context": ctx[:60]}
-                    for ref, ctx in all_refs
+                    for ref, ctx in invoice_refs
                 ],
                 "unique_references": list(unique_refs),
             }
@@ -1690,82 +1765,114 @@ def check_legal_mentions(text: str) -> list[Flag]:
     rcs_list = extract_rcs(text)
     capitals = extract_capital_social(text)
 
-    # Check SIRET validity
+    # Checksum validation of company identifiers — ONE flag per ENTITY.
+    # SIRET ⊃ SIREN, and the FR-VAT embeds the SIREN, so one bad entity number
+    # surfaces in up to three forms. Flagging each form triple-counts a single
+    # fact (verified audit FP: legit demo invoices dropped to 51/REVIEW). The
+    # first invalid form flags; later forms sharing the same 9-digit SIREN
+    # root are folded into that flag's details instead of stacking.
+    entity_flags: dict[str, Flag] = {}
+
+    def _flag_invalid_id(root: str, code: str, message: str,
+                         key: str, value: str, context: str) -> None:
+        prior = entity_flags.get(root)
+        if prior is not None:
+            prior.details.setdefault("related_invalid_forms", []).append(
+                {key: value, "context": context}
+            )
+            return
+        flag = Flag(
+            severity="high",
+            code=code,
+            message=message,
+            details={key: value, "context": context},
+        )
+        entity_flags[root] = flag
+        flags.append(flag)
+
+    # Check SIRET validity (root = first 9 digits = SIREN)
     for siret, is_valid, context in sirets:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_SIRET",
-                message=f"Invalid SIRET checksum: {siret}",
-                details={
-                    "siret": siret,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(siret[:9], "CONTENT_INVALID_SIRET",
+                             f"Invalid SIRET checksum: {siret}", "siret", siret, context)
 
     # Check SIREN validity
     for siren, is_valid, context in sirens:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_SIREN",
-                message=f"Invalid SIREN checksum: {siren}",
-                details={
-                    "siren": siren,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(siren, "CONTENT_INVALID_SIREN",
+                             f"Invalid SIREN checksum: {siren}", "siren", siren, context)
 
-    # Check VAT validity
+    # Check VAT validity (root = the 9 SIREN digits after FR + 2-digit key)
     for vat, is_valid, context in vats:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_VAT",
-                message=f"Invalid French VAT number: {vat}",
-                details={
-                    "vat": vat,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(vat[4:13], "CONTENT_INVALID_VAT",
+                             f"Invalid French VAT number: {vat}", "vat", vat, context)
 
-    # Check SIRET/SIREN consistency with VAT
-    # The SIREN in VAT should match the SIREN or first 9 digits of SIRET
+    # Check SIRET/SIREN consistency with VAT — SAME LINE ONLY.
+    # The SIREN embedded in a French VAT (chars 5-13) must match the SIRET/
+    # SIREN printed alongside it. A legal footer line ("SIRET 552… – TVA
+    # FR03…") names ONE party, so a same-line disagreement is a genuine
+    # self-contradiction (edited one identifier, forgot the other).
+    # Page-wide pooling falsely flagged standard two-party invoices —
+    # seller's SIRET + buyer's VAT (reverse-charge) — verified audit FP.
+    # And when PDF extraction collapses a two-party footer onto ONE line,
+    # party-role keywords reveal it: two or more distinct roles on the line
+    # mean the identifiers belong to different companies — do not compare.
+    _party_roles = ("fournisseur", "vendeur", "émetteur", "emetteur", "prestataire",
+                    "client", "acheteur", "destinataire", "preneur")
     if vats and (sirets or sirens):
-        vat_sirens = set()
-        for vat, is_valid, _ in vats:
-            if is_valid:
-                vat_sirens.add(vat[4:])  # Extract SIREN from VAT (last 9 digits)
+        for line in text.splitlines():
+            line_vat_sirens = {
+                vat[4:] for vat, is_valid, _ in extract_french_vat(line) if is_valid
+            }
+            if not line_vat_sirens:
+                continue
+            line_lower = line.lower()
+            if sum(1 for role in _party_roles if role in line_lower) >= 2:
+                continue  # line names two parties — identifiers not comparable
+            line_doc_sirens = {
+                siret[:9] for siret, is_valid, _ in extract_siret(line) if is_valid
+            } | {
+                siren for siren, is_valid, _ in extract_siren(line) if is_valid
+            }
+            if line_doc_sirens and not line_vat_sirens & line_doc_sirens:
+                flags.append(Flag(
+                    severity="high",  # SOFT: pairing is a layout heuristic, not arithmetic
+                    code="CONTENT_SIREN_VAT_MISMATCH",
+                    message="SIREN in VAT number doesn't match the SIRET/SIREN printed on the same line",
+                    details={
+                        "siren_from_vat": sorted(line_vat_sirens),
+                        "siren_from_document": sorted(line_doc_sirens),
+                        "line": line.strip()[:120],
+                    }
+                ))
 
-        doc_sirens = set()
-        for siret, is_valid, _ in sirets:
-            if is_valid:
-                doc_sirens.add(siret[:9])  # First 9 digits of SIRET
-        for siren, is_valid, _ in sirens:
-            if is_valid:
-                doc_sirens.add(siren)
-
-        # Check if VAT SIREN matches document SIREN
-        if vat_sirens and doc_sirens and not vat_sirens.intersection(doc_sirens):
-            flags.append(Flag(
-                severity="critical",
-                code="CONTENT_SIREN_VAT_MISMATCH",
-                message="SIREN in VAT number doesn't match SIRET/SIREN in document",
-                details={
-                    "siren_from_vat": list(vat_sirens),
-                    "siren_from_document": list(doc_sirens),
-                }
-            ))
-
-    # Flag ABSENCE of any legal identifier on invoice-like documents.
+    # Flag ABSENCE of any legal identifier on FRENCH invoice-like documents.
     # French invoices legally require a SIRET/SIREN; none present is suspicious.
-    # Gate on invoice-like text so we don't flag letters/attestations.
+    # Two guards (verified audit FP on an Indian Flipkart invoice):
+    #  1. WORD-BOUNDARY matching — "manufacturer" contains "facture" as a
+    #     substring, so plain `in` misclassified English invoices as French.
+    #  2. A FRENCH-JURISDICTION marker is required — Belgian/Swiss francophone
+    #     invoices also say "facture"/"TVA" but their issuers have no SIRET
+    #     regime; only a doc claiming a French legal form or registry mention
+    #     is held to French requirements.
     text_lower = text.lower()
     looks_like_invoice = any(
-        kw in text_lower for kw in ("facture", "tva", "montant", "total ttc")
+        re.search(pat, text_lower)
+        for pat in (r"\bfactures?\b", r"\btva\b", r"\bmontants?\b", r"\btotal ttc\b")
+    )
+    # Markers are French-SPECIFIC tokens only: bare "sci" (matches sci-fi),
+    # and standalone "naf"/"ape" (need the "code NAF/APE" context) were too
+    # broad (adversarial-review finding).
+    french_marker = re.search(
+        r"\b(siret|siren|r\.?c\.?s|sarl|sas|sasu|eurl|"
+        r"auto-entrepreneur|micro-entreprise)\b"
+        r"|code\s+(naf|ape)\b"
+        r"|tva\s+intracommunautaire\s*:?\s*fr",
+        text_lower,
     )
     has_any_id = bool(sirets or sirens or vats)
-    if looks_like_invoice and not has_any_id:
+    if looks_like_invoice and french_marker and not has_any_id:
         flags.append(Flag(
             severity="medium",
             code="CONTENT_MISSING_COMPANY_ID",
@@ -1827,7 +1934,7 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
     # Run date checks
     all_flags.extend(check_impossible_dates(dates))
     all_flags.extend(check_date_logic(dates))
-    all_flags.extend(check_future_document_date(first_page_dates))
+    all_flags.extend(check_future_document_date(first_page_dates, full_text))
 
     # Check document date vs PDF creation date (first page only)
     all_flags.extend(check_date_vs_creation(first_page_dates, pdf_data.metadata.creation_date))

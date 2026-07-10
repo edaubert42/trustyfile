@@ -22,12 +22,14 @@ PRIOR_LOG_ODDS: float = -4.0
 # (Grows as later phases add signature/2D-Doc/Factur-X/MRZ-checksum codes.)
 HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     "EXTRACTION_FAILED",           # Phase 0: unreadable → not trustworthy
-    "CONTENT_SIREN_VAT_MISMATCH",  # deterministic FR VAT-key ↔ SIREN contradiction (cross-field)
-    # NOTE: a SINGLE-id checksum failure (SIRET/SIREN/VAT) is NOT hard — it fails
-    # on reference/template invoices, foreign companies, and OCR slips. Calibrated
-    # to SOFT high (emitted at severity="high" in content.py): a bad id alone →
-    # REVIEW, and only stacks to SUSPICIOUS with other tamper signals. Real FPs:
+    # NOTE: identifier checks are NOT hard. A SINGLE-id checksum failure
+    # (SIRET/SIREN/VAT) fails on reference/template invoices, foreign companies,
+    # and OCR slips — calibrated to SOFT high. Real FPs:
     # facturx_invoice_EN16931.pdf, mustang_Facture_F20180027.pdf (both legit).
+    # CONTENT_SIREN_VAT_MISMATCH was demoted to SOFT high too (2026-07 audit):
+    # page-wide pooling hard-capped legit two-party/reverse-charge invoices at
+    # 15; even the same-line pairing that replaced it is a layout heuristic,
+    # not an arithmetic certainty about ONE party's identifiers.
     "OVERLAY_COVER_AND_RETYPE_CONFIRMED",           # Phase 2 Task 4: geometry + editor Producer (C2)
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
 })

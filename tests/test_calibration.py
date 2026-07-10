@@ -78,10 +78,20 @@ def test_reference_invoice_all_ids_invalid_is_review_not_suspicious(tmp_path):
     doc.save(p)
     doc.close()
     r = TrustyFileAnalyzer(enable_external=False).analyze(p)
-    codes = {f.code for m in r.modules for f in m.flags}
-    assert "CONTENT_INVALID_SIRET" in codes and "CONTENT_INVALID_VAT" in codes
-    assert r.band == "REVIEW", f"all-ids-invalid must be REVIEW, got {r.band}/{r.trust_score}"
-    assert r.trust_score >= 20, "must not fall to SUSPICIOUS from identifier checks alone"
+    all_flags = [f for m in r.modules for f in m.flags]
+    codes = {f.code for f in all_flags}
+    assert "CONTENT_INVALID_SIRET" in codes
+    # Per-entity dedup (2026-07 audit): each fake entity flags ONCE — its VAT
+    # form is folded into the SIRET flag's details, not emitted separately.
+    siret_flags = [f for f in all_flags if f.code == "CONTENT_INVALID_SIRET"]
+    assert len(siret_flags) == 2, "two fake entities → exactly two flags"
+    assert all((f.details or {}).get("related_invalid_forms") for f in siret_flags), \
+        "each entity's VAT form must be folded into its flag's details"
+    assert "CONTENT_INVALID_VAT" not in codes, "same-root VAT must not double-flag"
+    # The guard-rail this test exists for: identifier checksum failures alone
+    # must never sink a document toward SUSPICIOUS (was HARD-clamped to 15).
+    assert r.band in ("GENUINE", "REVIEW"), f"got {r.band}/{r.trust_score}"
+    assert r.trust_score >= 50, "must never approach SUSPICIOUS from identifier checks alone"
 
 
 # =============================================================================

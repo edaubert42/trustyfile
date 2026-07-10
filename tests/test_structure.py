@@ -128,6 +128,105 @@ class TestCheckIncrementalUpdates:
         assert len(flags) == 0
 
 
+def create_incrementally_saved_pdf(filename: str = "resaved.pdf", saves: int = 1) -> str:
+    """A PDF re-saved `saves` times incrementally (each adds one %%EOF)."""
+    path = os.path.join(TEST_DIR, filename)
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((100, 100), "Signed document content")
+    doc.save(path)
+    doc.close()
+    for _ in range(saves):
+        doc = fitz.open(path)
+        doc[0].insert_text((100, 120 + 10 * _), "annotation pass")
+        doc.saveIncr()
+        doc.close()
+    return path
+
+
+class TestSignatureHandling:
+    """A merely-unverified signature is NOT an invalid signature (audit FP #4).
+
+    The offline verifier never validates cryptographically, so every signed
+    document used to fall through to STRUCT_SIGNATURE_INVALID (high) — a
+    factually wrong claim. And each real signing pass appends exactly one
+    incremental update, so signature presence must excuse matching updates.
+    """
+
+    def test_present_signature_reports_unverified_not_invalid(self, monkeypatch):
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed1.pdf", saves=2)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        codes = {f.code for f in flags}
+        assert "STRUCT_SIGNATURE_INVALID" not in codes, codes
+        unverified = [f for f in flags if f.code == "STRUCT_SIGNATURE_UNVERIFIED"]
+        assert len(unverified) == 1
+        assert unverified[0].severity == "low"
+
+    def test_signature_presence_excuses_one_update(self, monkeypatch):
+        """1 signature + 1 incremental update = a normal signing pass."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed2.pdf", saves=1)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
+
+    def test_multi_signer_document_not_critical(self, monkeypatch):
+        """3 signers + 3 updates = routine multi-party attestation, no flag."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed3.pdf", saves=3)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 3)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
+
+    def test_updates_beyond_signature_count_still_flagged(self, monkeypatch):
+        """Edits EXCEEDING the signature count remain suspicious."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed4.pdf", saves=3)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1  # 3 edits - 1 excused = 2 effective
+
+    def test_unsigned_pdf_updates_unchanged(self):
+        """No signature → incremental updates flagged exactly as before."""
+        path = create_incrementally_saved_pdf("unsigned.pdf", saves=2)
+        flags = check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1
+
+    def test_empty_signature_field_does_not_launder_tamper_edit(self):
+        """Adversarial-review finding: an EMPTY, UNSIGNED signature field must
+        not excuse an incremental update. Attack: edit the amount and add an
+        empty AcroForm signature widget in one saveIncr() pass — the field
+        represents ZERO signing passes (adding it IS the edit)."""
+        import src.modules.structure as structure
+        path = os.path.join(TEST_DIR, "laundered.pdf")
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((100, 100), "Total: 1000 EUR")
+        doc.save(path)
+        doc.close()
+        # Tamper pass: change content + add empty signature field, one update
+        doc = fitz.open(path)
+        page = doc[0]
+        page.insert_text((100, 120), "Total: 9000 EUR")
+        w = fitz.Widget()
+        w.field_type = fitz.PDF_WIDGET_TYPE_SIGNATURE
+        w.field_name = "Sig1"
+        w.rect = fitz.Rect(400, 700, 500, 730)
+        page.add_widget(w)
+        doc.saveIncr()
+        doc.close()
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1, "empty signature field must not excuse the tamper edit"
+
+
 # =============================================================================
 # TEST check_javascript
 # =============================================================================
@@ -197,6 +296,20 @@ class TestCheckEmbeddedFiles:
         embedded_flags = [f for f in flags if f.code == "STRUCT_EMBEDDED_FILES"]
         assert len(embedded_flags) == 1
         assert embedded_flags[0].severity == "high"
+
+    def test_ubl_einvoice_attachment_not_flagged(self):
+        """A UBL e-invoice XML (the other EN 16931 syntax, used by Peppol) is a
+        LEGITIMATE attachment, like Factur-X/ZUGFeRD CII — must not be flagged.
+        Verified audit FP: i2d_AzureInterior.pdf embeds UBL-Invoice-2.1.xml."""
+        path = os.path.join(TEST_DIR, "ubl.pdf")
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((100, 100), "Invoice with UBL e-invoice data")
+        doc.embfile_add("UBL-Invoice-2.1.xml", b"<Invoice/>", filename="UBL-Invoice-2.1.xml")
+        doc.save(path)
+        doc.close()
+        flags = check_embedded_files(path)
+        assert [f for f in flags if f.code == "STRUCT_EMBEDDED_FILES"] == []
 
 
 # =============================================================================

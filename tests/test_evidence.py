@@ -137,10 +137,12 @@ def test_extraction_failed_is_hard_negative():
     assert e.kind == "hard" and e.direction == "tamper"
 
 
-def test_siren_vat_mismatch_is_hard_negative():
-    # deterministic arithmetic contradiction between two fields
-    e = flag_to_evidence(Flag("critical", "CONTENT_SIREN_VAT_MISMATCH", "x"), "content")
-    assert e.kind == "hard" and e.direction == "tamper"
+def test_siren_vat_mismatch_is_soft():
+    # Demoted from HARD (audit): the pairing of "which VAT belongs to which
+    # SIRET" is a same-line heuristic, not an arithmetic certainty — a legit
+    # layout quirk must never be able to cap the score at 15.
+    e = flag_to_evidence(Flag("high", "CONTENT_SIREN_VAT_MISMATCH", "x"), "content")
+    assert e.kind == "soft" and e.direction == "tamper"
 
 
 def test_generic_flag_stays_soft_tamper():

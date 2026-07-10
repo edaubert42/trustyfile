@@ -505,6 +505,136 @@ class TestCheckFutureInvoiceDate:
         flags = check_future_document_date(dates)
         assert len(flags) == 0
 
+    @staticmethod
+    def _freeze_now(monkeypatch, frozen):
+        """Pin content.datetime.now() so ambiguity fixtures are deterministic."""
+        import src.modules.content as content_mod
+
+        class _FakeDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen if tz is None else frozen.replace(tzinfo=tz)
+
+        monkeypatch.setattr(content_mod, "datetime", _FakeDatetime)
+
+    def test_ambiguous_us_date_not_flagged(self, monkeypatch):
+        """A numeric date that is only 'future' under day-first reading must NOT flag.
+
+        With now=2026-07-10, '01/12/2026' read day-first is Dec 1 2026 (future);
+        read month-first (US) it is Jan 12 2026 (past). Ambiguous → plausibly a
+        legit US invoice, not a fabrication. Verified real FP from the audit.
+        """
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 12, 1), context="Invoice Date: 01/12/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert flags == [], f"ambiguous US-format date must not flag: {flags}"
+
+    def test_ambiguous_date_both_readings_future_still_flagged(self, monkeypatch):
+        """If BOTH day-first and month-first readings are future, flag stands."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        # 05/06/2028: day-first Jun 5 2028, month-first May 6 2028 — both future.
+        dates = [make_extracted_date(
+            datetime(2028, 6, 5), context="Facture du 05/06/2028", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_FUTURE_DOCUMENT_DATE"
+
+    def test_unambiguous_future_date_still_flagged(self, monkeypatch):
+        """day>12 is unambiguous — future-date detection must not be weakened."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2027, 3, 25), context="Invoice Date: 25/03/2027", date_type="invoice",
+        )]
+        flags = check_future_document_date(dates)
+        assert len(flags) == 1
+
+    def test_french_document_gets_no_us_date_exemption(self, monkeypatch):
+        """Adversarial-review tightening: a FRENCH document is day-first by
+        convention — the US-ambiguity exemption must not let 'Facture du
+        01/09/2026' (Sep 1, future) pass as 'maybe Jan 9'."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 9, 1), context="Facture du 01/09/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(
+            dates, full_text="FACTURE N° 2024-01\nSIRET 552 081 317 66522\nFacture du 01/09/2026",
+        )
+        assert len(flags) == 1, "French doc: day-first is authoritative, no exemption"
+
+    def test_us_document_exemption_still_applies_with_full_text(self, monkeypatch):
+        """No French markers in the text → the ambiguity exemption holds."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 12, 1), context="Invoice Date: 01/12/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(
+            dates, full_text="INVOICE #889\nInvoice Date: 01/12/2026\nTotal: $4,999.00",
+        )
+        assert flags == []
+
+
+# =============================================================================
+# TEST check_reference_consistency
+# =============================================================================
+
+class TestCheckReferenceConsistency:
+    """Reference numbers are compared only within the same keyword family."""
+
+    def test_invoice_vs_customer_reference_not_flagged(self):
+        """Verified audit FP: invoice number != customer PO is NORMAL.
+
+        'Votre référence' (the customer's own order ref) and 'Commande n°'
+        legitimately differ from the invoice number on virtually every B2B
+        invoice — they must never be compared against 'Facture n°'.
+        """
+        text = (
+            "Facture N° FA-2024-01123\n"
+            "Votre référence : CMD-2024-0456\n"
+            "Notre référence : FA-2024-01123\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_conflicting_invoice_numbers_flagged_high(self):
+        """Two DIFFERENT invoice numbers on one document is the real fraud
+        signal (header edited, footer forgotten) — flagged, at high (SOFT)."""
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Total TTC : 1 200,00 EUR\n"
+            "Rappel : facture n° FA-2024-200 payable sous 30 jours\n"
+        )
+        flags = check_reference_consistency(text)
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_INCONSISTENT_REFERENCES"
+        assert flags[0].severity == "high"
+
+    def test_same_reference_everywhere_not_flagged(self):
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Rappel : facture n° FA-2024-100 payable sous 30 jours\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_differing_customer_references_not_flagged(self):
+        """Multiple external refs (PO + order number) are never compared."""
+        text = (
+            "Votre référence : CMD-2024-0456\n"
+            "Commande n° 78901\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_internal_document_number_not_compared_to_invoice_number(self):
+        """Adversarial-review finding: an internal 'Document n°' (dossier id)
+        legitimately differs from the invoice number — must not be compared."""
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Document n° 5678901\n"
+            "Total TTC : 1 200,00 EUR\n"
+        )
+        assert check_reference_consistency(text) == []
+
 
 # =============================================================================
 # TEST extract_amounts
@@ -721,8 +851,12 @@ class TestCheckLegalMentions:
         assert invalid[0].severity == "high"
 
     def test_missing_company_id_flagged(self):
-        """French invoice without any company ID → medium flag."""
-        text = "Facture n° 2024-001\nMontant: 100€\nTVA: 20%"
+        """French invoice without any company ID → medium flag.
+
+        The fixture shows a French legal form (SAS) — since the audit fix,
+        invoice-ness alone ("facture"/"TVA" also appear on Belgian/Swiss
+        invoices) is not enough to demand a SIRET."""
+        text = "Facture n° 2024-001\nSAS Exemple\nMontant: 100€\nTVA: 20%"
         flags = check_legal_mentions(text)
         missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
         assert len(missing) == 1
@@ -734,24 +868,125 @@ class TestCheckLegalMentions:
         missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
         assert len(missing) == 0
 
-    def test_siren_vat_mismatch_flagged(self):
-        """
-        SIREN in VAT doesn't match SIRET → critical flag.
+    def test_manufacturer_substring_not_french_invoice(self):
+        """Verified audit FP: 'manufacturer' contains 'facture' as a substring —
+        an Indian Flipkart invoice was classified as a French invoice missing
+        its SIRET. Keyword matching must use word boundaries."""
+        text = (
+            "Tax Invoice #IN-2024-889\n"
+            "*keep this invoice and manufacturer box for warranty purposes.\n"
+            "Grand Total: Rs. 4,999.00\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"] == []
 
-        Important: both SIRET and VAT must have VALID checksums,
-        otherwise the code skips the mismatch check.
-        FR03383960135 is the correct VAT for SIREN 383960135.
+    def test_francophone_non_french_invoice_not_flagged(self):
+        """A Belgian invoice says 'facture' and 'TVA' but its issuer has no
+        SIRET regime — only docs showing a FRENCH-jurisdiction marker
+        (legal form / registry mention) must be held to French requirements."""
+        text = (
+            "FACTURE 2024-117\n"
+            "SPRL Lumière, Rue Neuve 12, 1000 Bruxelles\n"
+            "TVA : BE 0123.456.749\n"
+            "Total TTC : 250,00 EUR\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"] == []
+
+    def test_french_invoice_with_legal_form_still_flagged(self):
+        """A doc claiming a French legal form (SARL) with 'facture' and no
+        SIRET/SIREN/VAT keeps the flag — detection must not be weakened."""
+        text = (
+            "FACTURE N° 2024-042\n"
+            "SARL Dupont Rénovation, 12 rue de la Paix, 75002 Paris\n"
+            "Montant total TTC : 1 500,00 €\n"
+        )
+        flags = check_legal_mentions(text)
+        missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
+        assert len(missing) == 1
+
+    def test_siren_vat_same_line_mismatch_flagged(self):
+        """
+        SIRET and VAT on the SAME LINE naming different SIRENs → flag.
+
+        A legal footer line names ONE party; its SIRET and VAT disagreeing on
+        the SIREN root is a self-contradiction (edited one, forgot the other).
+        Both identifiers must have VALID checksums or the check skips.
         """
         text = (
             "Facture\n"
-            "SIRET: 55208131766522\n"   # SIREN = 552081317
-            "TVA: FR82383960135\n"       # SIREN = 383960135 (different company, valid VAT!)
+            # SIREN from SIRET = 552081317; SIREN from VAT = 383960135
+            "SIRET: 55208131766522 - TVA intracommunautaire : FR82383960135\n"
             "Total: 100€"
         )
         flags = check_legal_mentions(text)
         mismatch = [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"]
         assert len(mismatch) == 1
-        assert mismatch[0].severity == "critical"
+        assert mismatch[0].severity == "high"  # SOFT — no longer a hard cap
+
+    def test_siren_vat_two_party_invoice_not_flagged(self):
+        """Verified audit FP: seller SIRET + buyer VAT on separate lines is a
+        standard two-party (e.g. reverse-charge) invoice — must NOT flag."""
+        text = (
+            "FACTURE\n"
+            "Vendeur : EDF SA - SIRET 552 081 317 66522\n"
+            "Client : SOCIETE GENERALE - TVA intracommunautaire : FR13542107651\n"
+            "Autoliquidation - TVA due par le preneur\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
+
+    def test_siren_vat_same_line_consistent_not_flagged(self):
+        """Classic footer with MATCHING SIRET and VAT (same SIREN root)."""
+        text = "SIRET 552 081 317 66522 - TVA : FR03552081317\n"
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
+
+    def test_siren_vat_two_parties_on_one_line_not_flagged(self):
+        """Adversarial-review finding: PDF text extraction can collapse a
+        two-party footer onto ONE line. Party-role keywords between the
+        identifiers mean the line names TWO parties — do not compare."""
+        text = (
+            "Fournisseur EDF SIRET 552 081 317 66522 - "
+            "Client SG TVA intracommunautaire : FR13542107651\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
+
+    def test_invalid_ids_one_flag_per_entity(self):
+        """Verified audit FP: one fake entity must count ONCE, not 3 times.
+
+        SIRET ⊃ SIREN and the FR-VAT embeds the SIREN, so an invalid
+        '987654321' entity used to emit INVALID_SIRET + INVALID_SIREN +
+        INVALID_VAT — triple-counting one fact and dragging legit demo
+        invoices (facturx_invoice_EN16931) to 51/REVIEW.
+        """
+        text = (
+            "Facture\n"
+            "SIRET : 98765432100029\n"     # root 987654321 — invalid checksum
+            "SIREN : 987654321\n"           # same root
+            "TVA : FR05987654321\n"         # same root
+            "Total TTC 100,00\n"
+        )
+        flags = check_legal_mentions(text)
+        checksum_flags = [f for f in flags if f.code in
+                          ("CONTENT_INVALID_SIRET", "CONTENT_INVALID_SIREN", "CONTENT_INVALID_VAT")]
+        assert len(checksum_flags) == 1, [f.code for f in checksum_flags]
+        # The folded flag keeps the other invalid forms visible in details.
+        details = checksum_flags[0].details or {}
+        assert details.get("related_invalid_forms"), details
+
+    def test_invalid_ids_two_entities_two_flags(self):
+        """Two DIFFERENT fake entities are two facts — two flags."""
+        text = (
+            "Facture\n"
+            "SIRET : 98765432100029\n"     # root 987654321 — invalid
+            "TVA : FR32123456789\n"         # root 123456789 — different entity, invalid
+        )
+        flags = check_legal_mentions(text)
+        checksum_flags = [f for f in flags if f.code in
+                          ("CONTENT_INVALID_SIRET", "CONTENT_INVALID_SIREN", "CONTENT_INVALID_VAT")]
+        assert len(checksum_flags) == 2, [f.code for f in checksum_flags]
 
 
 # =============================================================================
