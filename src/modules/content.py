@@ -1750,44 +1750,48 @@ def check_legal_mentions(text: str) -> list[Flag]:
     rcs_list = extract_rcs(text)
     capitals = extract_capital_social(text)
 
-    # Check SIRET validity
+    # Checksum validation of company identifiers — ONE flag per ENTITY.
+    # SIRET ⊃ SIREN, and the FR-VAT embeds the SIREN, so one bad entity number
+    # surfaces in up to three forms. Flagging each form triple-counts a single
+    # fact (verified audit FP: legit demo invoices dropped to 51/REVIEW). The
+    # first invalid form flags; later forms sharing the same 9-digit SIREN
+    # root are folded into that flag's details instead of stacking.
+    entity_flags: dict[str, Flag] = {}
+
+    def _flag_invalid_id(root: str, code: str, message: str,
+                         key: str, value: str, context: str) -> None:
+        prior = entity_flags.get(root)
+        if prior is not None:
+            prior.details.setdefault("related_invalid_forms", []).append(
+                {key: value, "context": context}
+            )
+            return
+        flag = Flag(
+            severity="high",
+            code=code,
+            message=message,
+            details={key: value, "context": context},
+        )
+        entity_flags[root] = flag
+        flags.append(flag)
+
+    # Check SIRET validity (root = first 9 digits = SIREN)
     for siret, is_valid, context in sirets:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_SIRET",
-                message=f"Invalid SIRET checksum: {siret}",
-                details={
-                    "siret": siret,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(siret[:9], "CONTENT_INVALID_SIRET",
+                             f"Invalid SIRET checksum: {siret}", "siret", siret, context)
 
     # Check SIREN validity
     for siren, is_valid, context in sirens:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_SIREN",
-                message=f"Invalid SIREN checksum: {siren}",
-                details={
-                    "siren": siren,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(siren, "CONTENT_INVALID_SIREN",
+                             f"Invalid SIREN checksum: {siren}", "siren", siren, context)
 
-    # Check VAT validity
+    # Check VAT validity (root = the 9 SIREN digits after FR + 2-digit key)
     for vat, is_valid, context in vats:
         if not is_valid:
-            flags.append(Flag(
-                severity="high",
-                code="CONTENT_INVALID_VAT",
-                message=f"Invalid French VAT number: {vat}",
-                details={
-                    "vat": vat,
-                    "context": context,
-                }
-            ))
+            _flag_invalid_id(vat[4:13], "CONTENT_INVALID_VAT",
+                             f"Invalid French VAT number: {vat}", "vat", vat, context)
 
     # Check SIRET/SIREN consistency with VAT — SAME LINE ONLY.
     # The SIREN embedded in a French VAT (chars 5-13) must match the SIRET/

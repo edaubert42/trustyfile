@@ -867,6 +867,41 @@ class TestCheckLegalMentions:
         flags = check_legal_mentions(text)
         assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
 
+    def test_invalid_ids_one_flag_per_entity(self):
+        """Verified audit FP: one fake entity must count ONCE, not 3 times.
+
+        SIRET ⊃ SIREN and the FR-VAT embeds the SIREN, so an invalid
+        '987654321' entity used to emit INVALID_SIRET + INVALID_SIREN +
+        INVALID_VAT — triple-counting one fact and dragging legit demo
+        invoices (facturx_invoice_EN16931) to 51/REVIEW.
+        """
+        text = (
+            "Facture\n"
+            "SIRET : 98765432100029\n"     # root 987654321 — invalid checksum
+            "SIREN : 987654321\n"           # same root
+            "TVA : FR05987654321\n"         # same root
+            "Total TTC 100,00\n"
+        )
+        flags = check_legal_mentions(text)
+        checksum_flags = [f for f in flags if f.code in
+                          ("CONTENT_INVALID_SIRET", "CONTENT_INVALID_SIREN", "CONTENT_INVALID_VAT")]
+        assert len(checksum_flags) == 1, [f.code for f in checksum_flags]
+        # The folded flag keeps the other invalid forms visible in details.
+        details = checksum_flags[0].details or {}
+        assert details.get("related_invalid_forms"), details
+
+    def test_invalid_ids_two_entities_two_flags(self):
+        """Two DIFFERENT fake entities are two facts — two flags."""
+        text = (
+            "Facture\n"
+            "SIRET : 98765432100029\n"     # root 987654321 — invalid
+            "TVA : FR32123456789\n"         # root 123456789 — different entity, invalid
+        )
+        flags = check_legal_mentions(text)
+        checksum_flags = [f for f in flags if f.code in
+                          ("CONTENT_INVALID_SIRET", "CONTENT_INVALID_SIREN", "CONTENT_INVALID_VAT")]
+        assert len(checksum_flags) == 2, [f.code for f in checksum_flags]
+
 
 # =============================================================================
 # TEST analyze_content — Integration
