@@ -830,24 +830,42 @@ class TestCheckLegalMentions:
         missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
         assert len(missing) == 0
 
-    def test_siren_vat_mismatch_flagged(self):
+    def test_siren_vat_same_line_mismatch_flagged(self):
         """
-        SIREN in VAT doesn't match SIRET → critical flag.
+        SIRET and VAT on the SAME LINE naming different SIRENs → flag.
 
-        Important: both SIRET and VAT must have VALID checksums,
-        otherwise the code skips the mismatch check.
-        FR03383960135 is the correct VAT for SIREN 383960135.
+        A legal footer line names ONE party; its SIRET and VAT disagreeing on
+        the SIREN root is a self-contradiction (edited one, forgot the other).
+        Both identifiers must have VALID checksums or the check skips.
         """
         text = (
             "Facture\n"
-            "SIRET: 55208131766522\n"   # SIREN = 552081317
-            "TVA: FR82383960135\n"       # SIREN = 383960135 (different company, valid VAT!)
+            # SIREN from SIRET = 552081317; SIREN from VAT = 383960135
+            "SIRET: 55208131766522 - TVA intracommunautaire : FR82383960135\n"
             "Total: 100€"
         )
         flags = check_legal_mentions(text)
         mismatch = [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"]
         assert len(mismatch) == 1
-        assert mismatch[0].severity == "critical"
+        assert mismatch[0].severity == "high"  # SOFT — no longer a hard cap
+
+    def test_siren_vat_two_party_invoice_not_flagged(self):
+        """Verified audit FP: seller SIRET + buyer VAT on separate lines is a
+        standard two-party (e.g. reverse-charge) invoice — must NOT flag."""
+        text = (
+            "FACTURE\n"
+            "Vendeur : EDF SA - SIRET 552 081 317 66522\n"
+            "Client : SOCIETE GENERALE - TVA intracommunautaire : FR13542107651\n"
+            "Autoliquidation - TVA due par le preneur\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
+
+    def test_siren_vat_same_line_consistent_not_flagged(self):
+        """Classic footer with MATCHING SIRET and VAT (same SIREN root)."""
+        text = "SIRET 552 081 317 66522 - TVA : FR03552081317\n"
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
 
 
 # =============================================================================

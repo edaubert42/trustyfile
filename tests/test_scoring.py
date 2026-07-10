@@ -226,8 +226,8 @@ class TestEvidenceLedgerScoring:
         assert r.trust_score < 80
 
     def test_hard_negative_flag_clamps(self):
-        results = [make_result("content", 0, 1.0,
-                   flags=[make_flag("critical", "CONTENT_SIREN_VAT_MISMATCH")])]
+        results = [make_result("overlay", 0, 1.0,
+                   flags=[make_flag("critical", "OVERLAY_COVER_AND_RETYPE_CONFIRMED")])]
         r = create_analysis_result("h", results)
         assert r.trust_score <= 15 and r.risk_level == "CRITICAL"
 

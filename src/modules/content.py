@@ -1789,33 +1789,36 @@ def check_legal_mentions(text: str) -> list[Flag]:
                 }
             ))
 
-    # Check SIRET/SIREN consistency with VAT
-    # The SIREN in VAT should match the SIREN or first 9 digits of SIRET
+    # Check SIRET/SIREN consistency with VAT — SAME LINE ONLY.
+    # The SIREN embedded in a French VAT (chars 5-13) must match the SIRET/
+    # SIREN printed alongside it. A legal footer line ("SIRET 552… – TVA
+    # FR03…") names ONE party, so a same-line disagreement is a genuine
+    # self-contradiction (edited one identifier, forgot the other).
+    # Page-wide pooling falsely flagged standard two-party invoices —
+    # seller's SIRET + buyer's VAT (reverse-charge) — verified audit FP.
     if vats and (sirets or sirens):
-        vat_sirens = set()
-        for vat, is_valid, _ in vats:
-            if is_valid:
-                vat_sirens.add(vat[4:])  # Extract SIREN from VAT (last 9 digits)
-
-        doc_sirens = set()
-        for siret, is_valid, _ in sirets:
-            if is_valid:
-                doc_sirens.add(siret[:9])  # First 9 digits of SIRET
-        for siren, is_valid, _ in sirens:
-            if is_valid:
-                doc_sirens.add(siren)
-
-        # Check if VAT SIREN matches document SIREN
-        if vat_sirens and doc_sirens and not vat_sirens.intersection(doc_sirens):
-            flags.append(Flag(
-                severity="critical",
-                code="CONTENT_SIREN_VAT_MISMATCH",
-                message="SIREN in VAT number doesn't match SIRET/SIREN in document",
-                details={
-                    "siren_from_vat": list(vat_sirens),
-                    "siren_from_document": list(doc_sirens),
-                }
-            ))
+        for line in text.splitlines():
+            line_vat_sirens = {
+                vat[4:] for vat, is_valid, _ in extract_french_vat(line) if is_valid
+            }
+            if not line_vat_sirens:
+                continue
+            line_doc_sirens = {
+                siret[:9] for siret, is_valid, _ in extract_siret(line) if is_valid
+            } | {
+                siren for siren, is_valid, _ in extract_siren(line) if is_valid
+            }
+            if line_doc_sirens and not line_vat_sirens & line_doc_sirens:
+                flags.append(Flag(
+                    severity="high",  # SOFT: pairing is a layout heuristic, not arithmetic
+                    code="CONTENT_SIREN_VAT_MISMATCH",
+                    message="SIREN in VAT number doesn't match the SIRET/SIREN printed on the same line",
+                    details={
+                        "siren_from_vat": sorted(line_vat_sirens),
+                        "siren_from_document": sorted(line_doc_sirens),
+                        "line": line.strip()[:120],
+                    }
+                ))
 
     # Flag ABSENCE of any legal identifier on invoice-like documents.
     # French invoices legally require a SIRET/SIREN; none present is suspicious.
