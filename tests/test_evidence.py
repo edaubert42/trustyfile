@@ -180,6 +180,22 @@ def test_genuine_evidence_cannot_launder_tamper():
         assert with_genuine == alone, f"genuine must not offset tamper at weight {sev_weight}"
 
 
+def test_genuine_evidence_cannot_launder_stacked_mediums():
+    # Adversarial review F3: four independent medium tamper flags = REVIEW;
+    # a genuine flag must not lift that to GENUINE. The guard thresholds on
+    # NET group-capped tamper contribution, not any single flag's weight.
+    from src.evidence import Evidence, aggregate_evidence
+    mediums = [
+        Evidence(f"CODE_{i}", 0.7, "soft", "tamper", f"module{i}", "m")
+        for i in range(4)
+    ]
+    genuine = Evidence("ARITH_XML_CONSISTENT", 0.7, "soft", "genuine", "arithmetic", "m")
+    alone = aggregate_evidence(mediums)
+    with_genuine = aggregate_evidence(mediums + [genuine])
+    assert with_genuine.score == alone.score, \
+        "genuine must not offset a REVIEW-grade stack of mediums"
+
+
 def test_genuine_evidence_still_offsets_weak_noise():
     # The positive path's purpose: lifting clean docs and offsetting
     # incidental <=medium noise (system fonts, minor quirks) on documents

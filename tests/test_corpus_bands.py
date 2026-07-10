@@ -56,3 +56,31 @@ def test_corpus_is_nonempty_when_present():
     assert len(CORPUS) >= 10, (
         f"expected the full real-invoice corpus, found only {len(CORPUS)} files"
     )
+
+
+# =============================================================================
+# Symmetric TAMPER gate (adversarial review F4): calibration changes that
+# silently push tampered documents into GENUINE must fail here, not ship.
+# =============================================================================
+
+TAMPER_CORPUS = sorted(glob.glob(os.path.join("samples", "suspicious", "**", "*.pdf"),
+                                 recursive=True))
+
+# Documented exceptions: doc basename -> reason a GENUINE band is tolerated.
+# Empty as of 2026-07-10 — every tampered corpus doc reaches REVIEW or worse.
+TAMPER_GENUINE_EXCEPTIONS: dict[str, str] = {}
+
+
+@pytest.mark.skipif(not TAMPER_CORPUS, reason="tamper corpus not present (gitignored)")
+@pytest.mark.parametrize("pdf_path", TAMPER_CORPUS,
+                         ids=[os.path.basename(p) for p in TAMPER_CORPUS])
+def test_tampered_corpus_doc_never_genuine(pdf_path):
+    """Each tampered document must land in REVIEW or worse."""
+    result = TrustyFileAnalyzer(enable_external=False).analyze(pdf_path)
+    name = os.path.basename(pdf_path)
+    if result.band == "GENUINE" and name in TAMPER_GENUINE_EXCEPTIONS:
+        pytest.xfail(TAMPER_GENUINE_EXCEPTIONS[name])
+    flags = [f"{f.severity}:{f.code}" for m in result.modules for f in m.flags]
+    assert result.band != "GENUINE", (
+        f"{name}: tampered doc scored {result.trust_score}/GENUINE; flags: {flags}"
+    )
