@@ -33,8 +33,15 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     "OVERLAY_COVER_AND_RETYPE_CONFIRMED",           # Phase 2 Task 4: geometry + editor Producer (C2)
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
 })
-HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # populated in Phase 2/3 (signatures, Factur-X, 2D-Doc)
-GENUINE_CODES: frozenset[str] = frozenset(set())        # soft positive signals, populated later
+HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # future: cryptographically verified signatures (pyHanko)
+# Soft positive signals — evidence FOR the document. Only signals an attacker
+# cannot cheaply manufacture belong here (an empty signature FIELD, for
+# instance, is attacker-controllable and must never be genuine-direction).
+GENUINE_CODES: frozenset[str] = frozenset({
+    "STRUCT_SIGNATURE_TRUSTED",          # EU-trusted, validated signature
+    "STRUCT_SIGNATURE_TRUSTED_EXPIRED",  # QC signature, cert since expired
+    "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
+})
 
 
 @dataclass
@@ -144,6 +151,23 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
+
+    # Genuine evidence must not LAUNDER tamper evidence. Consistency signals
+    # (matching e-invoice XML, trusted signature) say "the layers agree" —
+    # but when hard or high-grade tamper evidence exists, the document's
+    # integrity is already in question, so agreement proves nothing. Without
+    # this, a fraudster who leaves the XML intact while patching the visible
+    # layer (or its metadata) earns a trust boost that lifts a tampered
+    # document back into GENUINE (observed on the tamper corpus: 73/REVIEW →
+    # 85/GENUINE). Genuine evidence still lifts clean documents and offsets
+    # incidental ≤medium noise (system fonts, minor quirks) — its purpose.
+    strong_tamper = any(
+        e.direction == "tamper" and
+        (e.kind == "hard" or abs(e.weight) >= SEVERITY_WEIGHTS["high"])
+        for e in evidence
+    )
+    if strong_tamper:
+        evidence = [e for e in evidence if e.direction != "genuine"]
 
     logit = aggregate_soft(evidence, prior=prior)
     score = round(100 * (1 - sigmoid(logit)))

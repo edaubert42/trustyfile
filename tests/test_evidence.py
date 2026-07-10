@@ -148,3 +148,45 @@ def test_siren_vat_mismatch_is_soft():
 def test_generic_flag_stays_soft_tamper():
     e = flag_to_evidence(Flag("medium", "META_SUSPICIOUS_PRODUCER", "x"), "metadata")
     assert e.kind == "soft" and e.direction == "tamper"
+
+
+def test_trusted_signature_is_genuine_evidence():
+    # Latent inversion bug (2026-07 audit): with GENUINE_CODES empty, a valid
+    # EU-trusted signature was scored as TAMPER evidence. It must vouch FOR.
+    for code in ("STRUCT_SIGNATURE_TRUSTED", "STRUCT_SIGNATURE_TRUSTED_EXPIRED"):
+        e = flag_to_evidence(Flag("low", code, "x"), "structure")
+        assert e.kind == "soft" and e.direction == "genuine", code
+
+
+def test_consistent_einvoice_xml_is_genuine_evidence():
+    # Machine-verified consistency between the visible layer and the embedded
+    # e-invoice XML (totals/IBAN) is positive integrity evidence.
+    e = flag_to_evidence(Flag("medium", "ARITH_XML_CONSISTENT", "x"), "arithmetic")
+    assert e.kind == "soft" and e.direction == "genuine"
+
+
+def test_genuine_evidence_cannot_launder_tamper():
+    # A fraudster who patches the visible layer (or its metadata) but leaves
+    # the e-invoice XML intact must NOT earn a trust boost: with hard or
+    # high-grade tamper evidence present, genuine-direction evidence is
+    # dropped. (Observed on the tamper corpus: 73/REVIEW -> 85/GENUINE
+    # without this.)
+    from src.evidence import Evidence, aggregate_evidence
+    for sev_weight in (3.0, 1.5):  # critical and high both block vouching
+        tamper = Evidence("OVERLAY_OPAQUE_FILL_OVER_TEXT", sev_weight, "soft", "tamper", "overlay", "m")
+        genuine = Evidence("ARITH_XML_CONSISTENT", 0.7, "soft", "genuine", "arithmetic", "m")
+        alone = aggregate_evidence([tamper]).score
+        with_genuine = aggregate_evidence([tamper, genuine]).score
+        assert with_genuine == alone, f"genuine must not offset tamper at weight {sev_weight}"
+
+
+def test_genuine_evidence_still_offsets_weak_noise():
+    # The positive path's purpose: lifting clean docs and offsetting
+    # incidental <=medium noise (system fonts, minor quirks) on documents
+    # whose layers verifiably agree.
+    from src.evidence import Evidence, aggregate_evidence
+    noise = Evidence("FONTS_SYSTEM_FONTS", 0.7, "soft", "tamper", "fonts", "m")
+    genuine = Evidence("ARITH_XML_CONSISTENT", 0.7, "soft", "genuine", "arithmetic", "m")
+    alone = aggregate_evidence([noise]).score
+    with_genuine = aggregate_evidence([noise, genuine]).score
+    assert with_genuine > alone, "genuine evidence must offset medium-or-below noise"

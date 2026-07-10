@@ -379,6 +379,7 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
     try:
         xml_bytes = _extract_einvoice_xml(pdf_data.file_path)
         totals = xml_totals(xml_bytes)
+        fi = fc = None
         if totals is not None:
             checked_anything = True
             fi = internal_check(totals)
@@ -391,6 +392,32 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
         if fib is not None:
             checked_anything = True
             flags.append(fib)
+
+        # Positive signal (GENUINE direction in the evidence ledger): the
+        # machine-readable XML agrees with what the human sees. Requires
+        # (a) an internally consistent XML, (b) no failed check, and
+        # (c) at least ONE successful CROSS-LAYER match — visible total in
+        # the XML totals set, or visible IBAN ∩ XML payee IBAN. XML alone
+        # proves nothing about the visible layer, so it earns nothing.
+        if totals is not None and fi is None and fc is None and fib is None:
+            cross_matched = visible_grand is not None
+            visible_i = _visible_ibans(text)
+            xml_i = _xml_ibans(xml_bytes)
+            iban_matched = bool(visible_i and xml_i
+                                and not visible_i.isdisjoint(xml_i))
+            if cross_matched or iban_matched:
+                checked_anything = True
+                flags.append(Flag(
+                    severity="medium",  # 0.7 nats, genuine direction (GENUINE_CODES)
+                    code="ARITH_XML_CONSISTENT",
+                    message=("The embedded e-invoice data matches the visible "
+                             "document"
+                             + (" (grand total verified)" if cross_matched else "")
+                             + (" (payment IBAN verified)" if iban_matched else "")
+                             + " — machine-verified integrity evidence."),
+                    details={"total_verified": cross_matched,
+                             "iban_verified": iban_matched},
+                ))
     except Exception as exc:
         logger.warning("arithmetic: e-invoice XML check failed for %s: %s",
                        getattr(pdf_data, "file_path", "?"), exc)
@@ -402,6 +429,8 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
 
     score = 100
     for f in flags:
+        if f.code == "ARITH_XML_CONSISTENT":
+            continue  # positive signal — never reduces the module score
         score -= {"low": 5, "medium": 15, "high": 30, "critical": 50}.get(f.severity, 0)
     return ModuleResult(module="arithmetic", flags=flags, score=max(0, score),
                         confidence=confidence)
