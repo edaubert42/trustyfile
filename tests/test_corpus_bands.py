@@ -67,8 +67,15 @@ TAMPER_CORPUS = sorted(glob.glob(os.path.join("samples", "suspicious", "**", "*.
                                  recursive=True))
 
 # Documented exceptions: doc basename -> reason a GENUINE band is tolerated.
-# Empty as of 2026-07-10 — every tampered corpus doc reaches REVIEW or worse.
-TAMPER_GENUINE_EXCEPTIONS: dict[str, str] = {}
+TAMPER_GENUINE_EXCEPTIONS: dict[str, str] = {
+    # User decision (2026-07, post-adversarial-review): the image-over-plain-
+    # text signal stays at high because legit stamp/seal/signature images
+    # over text are common and unrepresented in the corpus. A lone hit is
+    # therefore 92/GENUINE (flag visible in the report). Covering a VALUE
+    # (OVERLAY_IMAGE_OVER_VALUE) is critical and NOT excepted.
+    "forged_image_patch_over_text.pdf":
+        "image-over-plain-text is deliberately high (FP-first) — lone flag stays GENUINE",
+}
 
 
 @pytest.mark.skipif(not TAMPER_CORPUS, reason="tamper corpus not present (gitignored)")

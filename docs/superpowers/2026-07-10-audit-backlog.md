@@ -129,3 +129,17 @@ Items marked ✅VERIFIED were reproduced by running the actual code.
   holding the real documents, not in a bare CI checkout.
 - Fix 7 trade-off: a French invoice omitting ALL legal-form/registry
   keywords is not held to French legal-id requirements (FP-first gate).
+
+## P1 sign-offs (2026-07-10, user decisions after adversarial review)
+
+- F2 SIGNED OFF: a lone demoted tell (future document date, embedded macro
+  file, off-domain QR, unknown SIRET, AI-producer string) scores 92-96 and
+  stays GENUINE-banded, with the flag visible in the report. Rationale:
+  each demotion traces to a real legit trip path; single weak heuristics
+  must not force REVIEW. The symmetric tamper-corpus gate freezes current
+  detection so future drift fails loudly.
+- F1 REVERTED: OVERLAY_IMAGE_OVER_TEXT stays high (not critical) — the
+  corpus has no stamped/signed legit docs to validate a critical, and
+  stamp/seal/signature images over live text are common. Documented
+  exception: forged_image_patch_over_text.pdf is GENUINE at 92 (lone flag).
+  Revisit if a stamped/signed legit sample set is assembled.
