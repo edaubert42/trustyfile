@@ -199,6 +199,33 @@ class TestSignatureHandling:
         upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
         assert len(upd) == 1
 
+    def test_empty_signature_field_does_not_launder_tamper_edit(self):
+        """Adversarial-review finding: an EMPTY, UNSIGNED signature field must
+        not excuse an incremental update. Attack: edit the amount and add an
+        empty AcroForm signature widget in one saveIncr() pass — the field
+        represents ZERO signing passes (adding it IS the edit)."""
+        import src.modules.structure as structure
+        path = os.path.join(TEST_DIR, "laundered.pdf")
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((100, 100), "Total: 1000 EUR")
+        doc.save(path)
+        doc.close()
+        # Tamper pass: change content + add empty signature field, one update
+        doc = fitz.open(path)
+        page = doc[0]
+        page.insert_text((100, 120), "Total: 9000 EUR")
+        w = fitz.Widget()
+        w.field_type = fitz.PDF_WIDGET_TYPE_SIGNATURE
+        w.field_name = "Sig1"
+        w.rect = fitz.Rect(400, 700, 500, 730)
+        page.add_widget(w)
+        doc.saveIncr()
+        doc.close()
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1, "empty signature field must not excuse the tamper edit"
+
 
 # =============================================================================
 # TEST check_javascript

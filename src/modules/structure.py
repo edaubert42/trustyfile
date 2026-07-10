@@ -1068,14 +1068,19 @@ def has_digital_signature(pdf_path: str) -> bool:
 
 def count_signature_fields(pdf_path: str) -> int:
     """
-    Count digital-signature fields in the PDF (presence only, no validation).
+    Count SIGNED digital-signature fields in the PDF (no crypto validation).
 
-    Each signing pass appends exactly one incremental update, so the field
-    count bounds how many updates a legitimately-signed document accumulates
-    (e.g. a 3-signer attestation has 3 fields and 3 updates).
+    Each signing pass appends exactly one incremental update, so the SIGNED
+    field count bounds how many updates a legitimately-signed document
+    accumulates (e.g. a 3-signer attestation has 3 signed fields, 3 updates).
 
-    Returns at least 1 when has_digital_signature() found a signature via
-    the raw-object scan even if no widget is countable, 0 on any error.
+    Empty/unsigned signature fields are deliberately NOT counted: adding an
+    empty field is itself an edit representing zero signing passes — counting
+    it would let a fraudster launder a tamper edit by dropping an empty
+    AcroForm signature widget into the same incremental save (adversarial-
+    review finding, reproduced).
+
+    Returns 0 on any error.
     """
     count = 0
     try:
@@ -1083,7 +1088,8 @@ def count_signature_fields(pdf_path: str) -> int:
         try:
             for page_num in range(len(doc)):
                 for widget in doc[page_num].widgets() or []:
-                    if widget.field_type_string == "Signature":
+                    if (widget.field_type_string == "Signature"
+                            and getattr(widget, "is_signed", False)):
                         count += 1
         finally:
             doc.close()
@@ -1091,6 +1097,32 @@ def count_signature_fields(pdf_path: str) -> int:
         logger.error(f"Error counting signature fields: {e}")
         return 0
     return count
+
+
+def _has_signature_value(pdf_path: str) -> bool:
+    """
+    True if the PDF contains an actual signature VALUE dictionary — evidence
+    a signing pass really happened. An unsigned field only carries /FT /Sig;
+    the /Type /Sig (or PKCS7/ETSI SubFilter) value dict exists once signed.
+    Used as a fallback when the signed widget is not countable via AcroForm.
+    """
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            for xref in range(1, doc.xref_length()):
+                try:
+                    obj_str = doc.xref_object(xref)
+                except Exception:
+                    continue
+                if obj_str and ('/Type /Sig' in obj_str
+                                or '/SubFilter /adbe.pkcs7' in obj_str
+                                or '/SubFilter /ETSI' in obj_str):
+                    return True
+        finally:
+            doc.close()
+    except Exception as e:
+        logger.error(f"Error scanning for signature value: {e}")
+    return False
 
 
 def verify_signature_dss(pdf_path: str) -> dict:
@@ -1236,15 +1268,23 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
                 details=signature_info
             ))
 
-    # A signature's very existence explains incremental updates: each signing
-    # pass appends exactly one. Excuse up to one update per signature field —
-    # a 3-signer attestation with 3 updates is routine, not "edited 3 times".
-    # Edits BEYOND the signature count remain fully suspicious.
+    # A REAL signature explains incremental updates: each signing pass appends
+    # exactly one. Excuse up to one update per SIGNED field — a 3-signer
+    # attestation with 3 updates is routine, not "edited 3 times". Edits
+    # BEYOND the signed count remain fully suspicious, and an empty/unsigned
+    # signature field excuses NOTHING (adding it is itself an edit — a
+    # fraudster could otherwise launder a tamper edit with an empty widget).
     # (Previously only `signature_trusted` excused updates, but the offline
     # verifier can never assert trust, so signed docs were always penalized.)
     excused = 0
     if has_signature:
-        excused = max(count_signature_fields(pdf_path), 1)
+        signed_count = count_signature_fields(pdf_path)
+        if signed_count > 0:
+            excused = signed_count
+        elif _has_signature_value(pdf_path):
+            # A signature value exists but isn't countable via AcroForm
+            # widgets (e.g. object-level signature) — excuse one signing pass.
+            excused = 1
     effective_edits = edits - excused
 
     if effective_edits <= 0:

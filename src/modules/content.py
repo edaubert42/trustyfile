@@ -766,7 +766,7 @@ def _month_first_reading(extracted: ExtractedDate) -> datetime | None:
     return None
 
 
-def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
+def check_future_document_date(dates: list[ExtractedDate], full_text: str = "") -> list[Flag]:
     """
     Check if the document/invoice/letter date is in the future.
 
@@ -780,9 +780,21 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     AMBIGUOUS date (both slots <= 12) we flag only if BOTH readings are in
     the future — "01/12/2026" seen in July 2026 is Dec 1 (future) OR Jan 12
     (past), so it must not flag; "05/06/2028" is future either way, so it does.
+
+    The exemption is withheld when `full_text` shows French markers
+    (facture/TVA/SIRET/SIREN): a French document is day-first by convention,
+    so its day-first reading is authoritative — otherwise a fraudster could
+    date a French invoice up to 11 months ahead via an ambiguous date
+    (adversarial-review tightening).
     """
     flags = []
     now = datetime.now()
+
+    # French documents write day-first; only non-French docs get the
+    # month-first ambiguity exemption below.
+    is_french_doc = bool(re.search(
+        r"\bfactures?\b|\btva\b|\bsiret\b|\bsiren\b", (full_text or "").lower()
+    ))
 
     # Check document-level dates: invoice, document (letter), creation
     doc_dates = [d for d in dates if d.date_type in ("invoice", "document", "creation")]
@@ -790,7 +802,7 @@ def check_future_document_date(dates: list[ExtractedDate]) -> list[Flag]:
     for d in doc_dates:
         # Skip ambiguous numeric dates whose US (month-first) reading is NOT
         # in the future — plausibly a legit US-format document, not fraud.
-        alt = _month_first_reading(d)
+        alt = None if is_french_doc else _month_first_reading(d)
         if alt is not None and alt <= now + timedelta(days=1):
             continue
         # Allow 1 day tolerance for timezone differences
@@ -1033,13 +1045,16 @@ def extract_all_invoice_references(text: str) -> list[tuple[str, str, str]]:
             r"référence\s*facture\s*:?\s*",
             r"invoice\s*#?\s*:?\s*",
             r"invoice\s*n[°o]?\s*:?\s*",
-            r"document\s*n[°o]?\s*:?\s*",
         ],
         "external": [
             r"votre\s*référence\s*:?\s*",  # customer's own reference
             r"notre\s*référence\s*:?\s*",  # sender's filing reference
             r"commande\s*n[°o]?\s*:?\s*",  # order number
             r"order\s*#?\s*:?\s*",
+            # An internal "Document n°" (dossier/archive id) legitimately
+            # differs from the invoice number (adversarial-review finding) —
+            # extracted for display, never compared against "Facture n°".
+            r"document\s*n[°o]?\s*:?\s*",
         ],
     }
 
@@ -1800,6 +1815,11 @@ def check_legal_mentions(text: str) -> list[Flag]:
     # self-contradiction (edited one identifier, forgot the other).
     # Page-wide pooling falsely flagged standard two-party invoices —
     # seller's SIRET + buyer's VAT (reverse-charge) — verified audit FP.
+    # And when PDF extraction collapses a two-party footer onto ONE line,
+    # party-role keywords reveal it: two or more distinct roles on the line
+    # mean the identifiers belong to different companies — do not compare.
+    _party_roles = ("fournisseur", "vendeur", "émetteur", "emetteur", "prestataire",
+                    "client", "acheteur", "destinataire", "preneur")
     if vats and (sirets or sirens):
         for line in text.splitlines():
             line_vat_sirens = {
@@ -1807,6 +1827,9 @@ def check_legal_mentions(text: str) -> list[Flag]:
             }
             if not line_vat_sirens:
                 continue
+            line_lower = line.lower()
+            if sum(1 for role in _party_roles if role in line_lower) >= 2:
+                continue  # line names two parties — identifiers not comparable
             line_doc_sirens = {
                 siret[:9] for siret, is_valid, _ in extract_siret(line) if is_valid
             } | {
@@ -1838,9 +1861,13 @@ def check_legal_mentions(text: str) -> list[Flag]:
         re.search(pat, text_lower)
         for pat in (r"\bfactures?\b", r"\btva\b", r"\bmontants?\b", r"\btotal ttc\b")
     )
+    # Markers are French-SPECIFIC tokens only: bare "sci" (matches sci-fi),
+    # and standalone "naf"/"ape" (need the "code NAF/APE" context) were too
+    # broad (adversarial-review finding).
     french_marker = re.search(
-        r"\b(siret|siren|r\.?c\.?s|naf|ape|sarl|sas|sasu|eurl|sci|"
+        r"\b(siret|siren|r\.?c\.?s|sarl|sas|sasu|eurl|"
         r"auto-entrepreneur|micro-entreprise)\b"
+        r"|code\s+(naf|ape)\b"
         r"|tva\s+intracommunautaire\s*:?\s*fr",
         text_lower,
     )
@@ -1907,7 +1934,7 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
     # Run date checks
     all_flags.extend(check_impossible_dates(dates))
     all_flags.extend(check_date_logic(dates))
-    all_flags.extend(check_future_document_date(first_page_dates))
+    all_flags.extend(check_future_document_date(first_page_dates, full_text))
 
     # Check document date vs PDF creation date (first page only)
     all_flags.extend(check_date_vs_creation(first_page_dates, pdf_data.metadata.creation_date))

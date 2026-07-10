@@ -551,6 +551,30 @@ class TestCheckFutureInvoiceDate:
         flags = check_future_document_date(dates)
         assert len(flags) == 1
 
+    def test_french_document_gets_no_us_date_exemption(self, monkeypatch):
+        """Adversarial-review tightening: a FRENCH document is day-first by
+        convention — the US-ambiguity exemption must not let 'Facture du
+        01/09/2026' (Sep 1, future) pass as 'maybe Jan 9'."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 9, 1), context="Facture du 01/09/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(
+            dates, full_text="FACTURE N° 2024-01\nSIRET 552 081 317 66522\nFacture du 01/09/2026",
+        )
+        assert len(flags) == 1, "French doc: day-first is authoritative, no exemption"
+
+    def test_us_document_exemption_still_applies_with_full_text(self, monkeypatch):
+        """No French markers in the text → the ambiguity exemption holds."""
+        self._freeze_now(monkeypatch, datetime(2026, 7, 10))
+        dates = [make_extracted_date(
+            datetime(2026, 12, 1), context="Invoice Date: 01/12/2026", date_type="invoice",
+        )]
+        flags = check_future_document_date(
+            dates, full_text="INVOICE #889\nInvoice Date: 01/12/2026\nTotal: $4,999.00",
+        )
+        assert flags == []
+
 
 # =============================================================================
 # TEST check_reference_consistency
@@ -598,6 +622,16 @@ class TestCheckReferenceConsistency:
         text = (
             "Votre référence : CMD-2024-0456\n"
             "Commande n° 78901\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_internal_document_number_not_compared_to_invoice_number(self):
+        """Adversarial-review finding: an internal 'Document n°' (dossier id)
+        legitimately differs from the invoice number — must not be compared."""
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Document n° 5678901\n"
+            "Total TTC : 1 200,00 EUR\n"
         )
         assert check_reference_consistency(text) == []
 
@@ -905,6 +939,17 @@ class TestCheckLegalMentions:
     def test_siren_vat_same_line_consistent_not_flagged(self):
         """Classic footer with MATCHING SIRET and VAT (same SIREN root)."""
         text = "SIRET 552 081 317 66522 - TVA : FR03552081317\n"
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
+
+    def test_siren_vat_two_parties_on_one_line_not_flagged(self):
+        """Adversarial-review finding: PDF text extraction can collapse a
+        two-party footer onto ONE line. Party-role keywords between the
+        identifiers mean the line names TWO parties — do not compare."""
+        text = (
+            "Fournisseur EDF SIRET 552 081 317 66522 - "
+            "Client SG TVA intracommunautaire : FR13542107651\n"
+        )
         flags = check_legal_mentions(text)
         assert [f for f in flags if f.code == "CONTENT_SIREN_VAT_MISMATCH"] == []
 
