@@ -289,11 +289,70 @@ def test_analyze_flags_xml_visible_mismatch(tmp_path):
 
 
 def test_analyze_clean_einvoice_no_flag(tmp_path):
-    # visible matches XML AND HT+VAT=TTC -> clean.
+    # visible matches XML AND HT+VAT=TTC -> clean of TAMPER flags; the
+    # machine-verified consistency itself earns the positive flag.
     p = _pdf(tmp_path, "clean_ei.pdf",
              ["Total HT 100,00", "TVA 4,90", "Total TTC 104,90"],
              xml=_cii_xml("100.00", "4.90", "104.90"))
-    assert _codes(p) == set()
+    assert _codes(p) == {"ARITH_XML_CONSISTENT"}
+
+
+# =============================================================================
+# Positive signal — ARITH_XML_CONSISTENT (visible layer matches embedded XML)
+# =============================================================================
+def test_consistent_einvoice_earns_positive_flag(tmp_path):
+    # XML internally consistent AND the visible total cross-matches -> the
+    # document has machine-verified integrity evidence (genuine direction).
+    p = _pdf(tmp_path, "positive.pdf",
+             ["Facture", "Total TTC 120,00"],
+             xml=_cii_xml("100.00", "20.00", "120.00"))
+    from src.extractors.pdf_extractor import extract_pdf_data
+    r = analyze_arithmetic(extract_pdf_data(p))
+    consistent = [f for f in r.flags if f.code == "ARITH_XML_CONSISTENT"]
+    assert len(consistent) == 1
+    assert consistent[0].severity == "medium"  # 0.7 nats genuine
+
+
+def test_no_positive_flag_when_internal_check_fails(tmp_path):
+    p = _pdf(tmp_path, "bad_internal.pdf",
+             ["Facture", "Total TTC 130,00"],
+             xml=_cii_xml("100.00", "20.00", "130.00"))  # 100+20 != 130
+    assert "ARITH_XML_CONSISTENT" not in _codes(p)
+
+
+def test_no_positive_flag_when_visible_mismatches(tmp_path):
+    p = _pdf(tmp_path, "bad_cross.pdf",
+             ["Facture", "Total TTC 999,00"],
+             xml=_cii_xml("100.00", "20.00", "120.00"))
+    assert "ARITH_XML_CONSISTENT" not in _codes(p)
+
+
+def test_no_positive_flag_without_cross_layer_evidence(tmp_path):
+    # XML alone (no visible total, no visible IBAN) proves nothing about the
+    # VISIBLE layer -> no positive flag (a fraudster could leave the XML
+    # untouched and edit only what the human sees).
+    p = _pdf(tmp_path, "no_cross.pdf",
+             ["Facture sans total apparent"],
+             xml=_cii_xml("100.00", "20.00", "120.00"))
+    assert "ARITH_XML_CONSISTENT" not in _codes(p)
+
+
+def test_iban_match_alone_earns_positive_flag(tmp_path):
+    # No visible grand total, but the visible IBAN matches the XML payee IBAN
+    # -> cross-layer integrity evidence exists.
+    p = _pdf(tmp_path, "iban_positive.pdf",
+             ["Facture", f"IBAN : {IBAN_A}"],
+             xml=_cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A]))
+    assert "ARITH_XML_CONSISTENT" in _codes(p)
+
+
+def test_no_positive_flag_when_iban_mismatches(tmp_path):
+    p = _pdf(tmp_path, "iban_bad.pdf",
+             ["Facture", f"IBAN : {IBAN_B}", "Total TTC 120,00"],
+             xml=_cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A]))
+    codes = _codes(p)
+    assert "ARITH_IBAN_MISMATCH" in codes
+    assert "ARITH_XML_CONSISTENT" not in codes
 
 
 def test_analyze_flags_xml_internal_inconsistent(tmp_path):
@@ -350,6 +409,6 @@ def test_real_einvoice_clean_visible_edit_detected(tmp_path):
 
 @pytest.mark.skipif(not os.path.exists(_REAL), reason="real invoice sample not present")
 def test_real_einvoice_untouched_no_flag():
-    # The same real e-invoice, unmodified, must produce no arithmetic flag
-    # (internal XML consistent, and no spurious text mismatch).
-    assert _codes(_REAL) == set()
+    # The same real e-invoice, unmodified, must produce no TAMPER flag —
+    # and now earns the machine-verified consistency positive signal.
+    assert _codes(_REAL) == {"ARITH_XML_CONSISTENT"}

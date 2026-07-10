@@ -33,8 +33,15 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     "OVERLAY_COVER_AND_RETYPE_CONFIRMED",           # Phase 2 Task 4: geometry + editor Producer (C2)
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
 })
-HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # populated in Phase 2/3 (signatures, Factur-X, 2D-Doc)
-GENUINE_CODES: frozenset[str] = frozenset(set())        # soft positive signals, populated later
+HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # future: cryptographically verified signatures (pyHanko)
+# Soft positive signals — evidence FOR the document. Only signals an attacker
+# cannot cheaply manufacture belong here (an empty signature FIELD, for
+# instance, is attacker-controllable and must never be genuine-direction).
+GENUINE_CODES: frozenset[str] = frozenset({
+    "STRUCT_SIGNATURE_TRUSTED",          # EU-trusted, validated signature
+    "STRUCT_SIGNATURE_TRUSTED_EXPIRED",  # QC signature, cert since expired
+    "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
+})
 
 
 @dataclass
@@ -89,16 +96,21 @@ def _group_capped_soft_sum(items: list["Evidence"]) -> float:
     return weights[0] + 0.5 * sum(weights[1:])
 
 
-def aggregate_soft(evidence: list["Evidence"], prior: float = PRIOR_LOG_ODDS) -> float:
-    """Posterior logit = prior + Σ group-capped soft weights (tamper +, genuine −)."""
-    logit = prior
-    # Split by (group, direction) so tamper and genuine contributions cap separately.
+def _soft_buckets(evidence: list["Evidence"]) -> dict[tuple[str, str], list["Evidence"]]:
+    """Soft evidence split by (group, direction) — the group-capping unit."""
     buckets: dict[tuple[str, str], list[Evidence]] = defaultdict(list)
     for e in evidence:
         if e.kind != "soft":
             continue
         buckets[(e.group, e.direction)].append(e)
-    for (group, direction), items in buckets.items():
+    return buckets
+
+
+def aggregate_soft(evidence: list["Evidence"], prior: float = PRIOR_LOG_ODDS) -> float:
+    """Posterior logit = prior + Σ group-capped soft weights (tamper +, genuine −)."""
+    logit = prior
+    # Split by (group, direction) so tamper and genuine contributions cap separately.
+    for (group, direction), items in _soft_buckets(evidence).items():
         capped = _group_capped_soft_sum(items)
         logit += capped if direction == "tamper" else -capped
     return logit
@@ -144,6 +156,33 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
+
+    # Genuine evidence must not LAUNDER tamper evidence. Consistency signals
+    # (matching e-invoice XML, trusted signature) say "the layers agree" —
+    # but when meaningful tamper evidence exists, the document's integrity is
+    # already in question, so agreement proves nothing. Without this, a
+    # fraudster who leaves the XML intact while patching the visible layer
+    # (or its metadata) earns a trust boost that lifts a tampered document
+    # back into GENUINE (observed on the tamper corpus: 73/REVIEW → 85).
+    #
+    # The threshold is the NET group-capped tamper contribution, not any
+    # single flag: four stacked mediums are as disqualifying as one high
+    # (adversarial review: 4 mediums = 77/REVIEW was laundered to 87/GENUINE
+    # under a per-flag test). Genuine evidence still lifts clean documents
+    # and offsets small incidental noise — its purpose.
+    #
+    # Only SOFT genuine evidence is dropped: a future HARD positive
+    # (cryptographically verified signature) is a deliberate floor decision,
+    # not something soft heuristics may silently strip.
+    has_hard_tamper = any(e.kind == "hard" and e.direction == "tamper" for e in evidence)
+    net_tamper = sum(
+        _group_capped_soft_sum(items)
+        for (_, direction), items in _soft_buckets(evidence).items()
+        if direction == "tamper"
+    )
+    if has_hard_tamper or net_tamper >= SEVERITY_WEIGHTS["high"]:
+        evidence = [e for e in evidence
+                    if not (e.kind == "soft" and e.direction == "genuine")]
 
     logit = aggregate_soft(evidence, prior=prior)
     score = round(100 * (1 - sigmoid(logit)))

@@ -1048,6 +1048,13 @@ def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
                      "recoverable underneath it."),
             details=details,
         )
+    # HIGH — deliberately BELOW the value-bearing branch. This was briefly
+    # bumped to critical (2026-07) to close a band-level miss, then reverted
+    # after adversarial review: the "0 legit corpus FPs" justification only
+    # held because the corpus has no stamped/signed documents — a legit
+    # "PAID"/seal/signature IMAGE over live text is common and fires this
+    # exact branch. FP-first: a lone hit stays GENUINE (92) with the flag
+    # visible in the report; covering an actual VALUE stays critical above.
     return Flag(
         severity="high",
         code="OVERLAY_IMAGE_OVER_TEXT",

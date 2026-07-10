@@ -595,8 +595,12 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
             if any(kw in ctx for kw in future_ok_keywords):
                 continue
 
+            # MEDIUM, not critical (2026-07 judge panel): single regex-extracted
+            # date with a hand-built, incomplete expiry-keyword allowlist —
+            # multi-year contracts, financing schedules and OCR digit misreads
+            # all trip it legitimately.
             flags.append(Flag(
-                severity="critical",
+                severity="medium",
                 code="CONTENT_FAR_FUTURE_DATE",
                 message=f"Date is more than 1 year in the future: {ed.date.strftime('%Y-%m-%d')}",
                 details={
@@ -807,8 +811,12 @@ def check_future_document_date(dates: list[ExtractedDate], full_text: str = "") 
             continue
         # Allow 1 day tolerance for timezone differences
         if d.date > now + timedelta(days=1):
+            # HIGH, not critical (2026-07 judge panel): the comparison is
+            # deterministic but WHICH date is "the document date" rests on
+            # keyword context heuristics over OCR-able free text — a
+            # single-source classification, not corroborated proof.
             flags.append(Flag(
-                severity="critical",
+                severity="high",
                 code="CONTENT_FUTURE_DOCUMENT_DATE",
                 message=f"Document date is in the future: {d.date.strftime('%Y-%m-%d')}",
                 details={

@@ -232,8 +232,11 @@ def check_qr_codes(
                 for exp in expected_domains
             )
             if not domain_matches:
+                # HIGH, not critical (2026-07 judge panel): legit invoices
+                # carry QR codes pointing at payment gateways / e-invoicing
+                # portals whose domain is deliberately NOT printed as text.
                 flags.append(Flag(
-                    severity="critical",
+                    severity="high",
                     code="VISUAL_QR_DOMAIN_MISMATCH",
                     message=f"QR code domain ({domain}) doesn't match expected domains",
                     details={

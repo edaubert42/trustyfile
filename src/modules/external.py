@@ -587,8 +587,12 @@ def analyze_external(
                 logger.warning(f"SIRET verification failed: {error}")
                 # Only flag as low severity if it's a network error
                 if "not found" in error.lower():
+                    # HIGH, not critical (2026-07 judge panel): the negative
+                    # comes from a third-party text-search API — registry
+                    # indexing lag for newly-registered companies and API
+                    # wording drift are real legit trip paths.
                     all_flags.append(Flag(
-                        severity="critical",
+                        severity="high",
                         code="EXTERNAL_SIRET_NOT_FOUND",
                         message=f"SIRET {siret} not found in official registry",
                         details={"siret": siret, "error": error}
@@ -648,8 +652,10 @@ def analyze_external(
             if error:
                 logger.warning(f"SIREN verification failed: {error}")
                 if "not found" in error.lower():
+                    # HIGH, not critical — same registry-lag/API-wording
+                    # rationale as EXTERNAL_SIRET_NOT_FOUND above.
                     all_flags.append(Flag(
-                        severity="critical",
+                        severity="high",
                         code="EXTERNAL_SIREN_NOT_FOUND",
                         message=f"SIREN {siren} not found in official registry",
                         details={"siren": siren, "error": error}

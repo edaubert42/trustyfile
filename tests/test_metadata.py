@@ -84,24 +84,26 @@ class TestCheckProducerAI:
         "chatgpt", "openai", "claude", "anthropic", "gemini",
         "bard", "copilot", "jasper ai", "copy.ai",
     ])
-    def test_ai_tools_flagged_critical(self, ai_tool):
-        """Every AI tool in the list should trigger a critical flag."""
+    def test_ai_tools_flagged(self, ai_tool):
+        """Every AI tool in the list should trigger a flag — at MEDIUM since the
+        2026-07 judge panel: substring on a spoofable field, brand-collision
+        keywords (Copilot/Gemini/Claude) have legit paths."""
         flags = check_producer(ai_tool, None)
         assert len(flags) == 1
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "medium"
         assert flags[0].code == "META_AI_GENERATED"
 
     def test_ai_tool_in_creator_field(self):
         """AI tool detected in creator (not producer) should still flag."""
         flags = check_producer(None, "ChatGPT export")
         assert len(flags) == 1
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "medium"
 
     def test_ai_tool_case_insensitive(self):
         """Detection should work regardless of capitalization."""
         flags = check_producer("CHATGPT", None)
         assert len(flags) == 1
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "medium"
 
 
 # =============================================================================
@@ -197,7 +199,7 @@ class TestCheckProducerPriority:
         # "chatgpt" is AI, and if by coincidence it also matched a converter,
         # we should get the critical AI flag, not a high converter flag.
         flags = check_producer("chatgpt", None)
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "medium"
         assert flags[0].code == "META_AI_GENERATED"
 
     def test_returns_only_one_flag(self):
@@ -216,12 +218,14 @@ class TestCheckDatesFuture:
     We allow 1 day tolerance for timezone differences.
     """
 
-    def test_future_date_flagged_critical(self):
-        """Creation date 1 year in the future → critical."""
+    def test_future_date_flagged_high(self):
+        """Creation date 1 year in the future → high (2026-07 judge panel:
+        single unauthenticated timestamp; scanner clock drift is a real
+        legit trip path — never critical)."""
         future = datetime.now() + timedelta(days=365)
         flags = check_dates(future, None)
         assert len(flags) == 1
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "high"
         assert flags[0].code == "META_FUTURE_CREATION_DATE"
 
     def test_near_future_within_tolerance(self):
@@ -247,8 +251,10 @@ class TestCheckDatesModification:
     Any modification > 2 seconds after creation is suspicious.
     """
 
-    def test_modification_days_later_flagged_critical(self):
-        """Modified 30 days after creation → critical."""
+    def test_modification_days_later_flagged_high(self):
+        """Modified 30 days after creation → high (2026-07 judge panel:
+        graded severity — gap >30min is high, <=30min is medium; sign/
+        flatten/optimize pipelines rewrite ModDate legitimately)."""
         creation = datetime(2024, 1, 15, 10, 0, 0)
         mod = creation + timedelta(days=30)
         flags = check_dates(creation, mod)
@@ -256,7 +262,7 @@ class TestCheckDatesModification:
         # Find the modification flag specifically
         mod_flags = [f for f in flags if f.code == "META_DOCUMENT_MODIFIED"]
         assert len(mod_flags) == 1
-        assert mod_flags[0].severity == "critical"
+        assert mod_flags[0].severity == "high"
         assert "30 days" in mod_flags[0].message
 
     def test_modification_hours_later_flagged(self):
@@ -396,13 +402,13 @@ class TestAnalyzeMetadata:
         assert len(result.flags) == 0
 
     def test_ai_generated_drops_score(self):
-        """AI-generated document should lose 50 points (critical = 50)."""
+        """AI-generated document should lose 15 points (medium = 15)."""
         pdf_data = make_pdf_data(
             producer="ChatGPT",
             creation_date=datetime.now() - timedelta(days=1),
         )
         result = analyze_metadata(pdf_data)
-        assert result.score == 50  # 100 - 50 (critical)
+        assert result.score == 85  # 100 - 15 (medium)
         assert any(f.code == "META_AI_GENERATED" for f in result.flags)
 
     def test_converter_drops_score(self):

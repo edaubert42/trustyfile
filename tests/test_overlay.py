@@ -153,3 +153,16 @@ def test_image_patch_over_plain_text_flagged_as_text_not_value(corpus):
     codes = _codes(corpus["forged_image_patch_over_text.pdf"])
     assert "OVERLAY_IMAGE_OVER_TEXT" in codes
     assert "OVERLAY_IMAGE_OVER_VALUE" not in codes
+
+
+def test_image_patch_over_plain_text_is_high(corpus):
+    # Deliberately HIGH, not critical (user decision after adversarial
+    # review, 2026-07): legit stamp/seal/signature IMAGES over live text are
+    # common and the corpus has no stamped docs to validate a critical. The
+    # lone-flag 92/GENUINE band miss on this fixture is a documented
+    # exception in the tamper corpus gate. Value-covering stays critical.
+    from src.extractors.pdf_extractor import extract_pdf_data
+    from src.modules.overlay import analyze_overlay
+    flags = analyze_overlay(extract_pdf_data(corpus["forged_image_patch_over_text.pdf"])).flags
+    sev = {f.code: f.severity for f in flags}
+    assert sev.get("OVERLAY_IMAGE_OVER_TEXT") == "high"

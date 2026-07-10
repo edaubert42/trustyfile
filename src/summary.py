@@ -1019,6 +1019,11 @@ def _build_bullets(
             # Skip low-severity flags — not worth a bullet
             if flag.severity == "low":
                 continue
+            # Skip GENUINE-direction flags — positive evidence is presented in
+            # the positive-signals section, never as a finding bullet.
+            from src.evidence import GENUINE_CODES
+            if flag.code in GENUINE_CODES:
+                continue
 
             sentence = _flag_to_sentence(flag, lang)
             if sentence and sentence not in bullets:
@@ -1059,6 +1064,18 @@ def _get_positive_signals(
             if flag.code == "STRUCT_SIGNATURE_TRUSTED":
                 positives.append(sig_positive)
                 break
+
+    # Machine-verified e-invoice consistency (flag with genuine direction)
+    for flags_in_theme in grouped.values():
+        if any(f.code == "ARITH_XML_CONSISTENT" for f in flags_in_theme):
+            positives.append(
+                "Les données de facture électronique intégrées correspondent au "
+                "document visible (totaux/IBAN vérifiés)."
+                if lang == "fr" else
+                "The embedded e-invoice data matches the visible document "
+                "(totals/IBAN verified)."
+            )
+            break
 
     # Check clean modules
     # Only mention positive signals if there are also negative findings

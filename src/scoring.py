@@ -152,20 +152,22 @@ def count_flags_by_severity(flags: list[Flag]) -> dict[str, int]:
 # =============================================================================
 
 def _is_scanner_pipeline_critical(flag: Flag) -> bool:
-    """True if this CRITICAL is the known scanner→viewer false positive.
+    """True if this flag is the known scanner→viewer false positive.
 
     Authentic scanned identity documents are saved by the scanner, then opened
     minutes later by a viewer (Adobe, Preview…), which stamps a new ModDate and
-    trips META_DOCUMENT_MODIFIED as "critical". A gap under 30 minutes is a
-    plausible scan-then-view workflow, not tampering.
+    trips META_DOCUMENT_MODIFIED. A gap under 30 minutes is a plausible
+    scan-then-view workflow, not tampering. (Keys on code + gap, not severity —
+    the 2026-07 judge panel re-graded this code from a flat critical to
+    medium/high, and the identity-doc exemption must survive that.)
     """
-    if flag.severity != "critical" or flag.code != "META_DOCUMENT_MODIFIED":
+    if flag.code != "META_DOCUMENT_MODIFIED" or flag.severity == "low":
         return False
     hours = (flag.details or {}).get("time_difference_hours", 999)
     try:
         return float(hours) < 0.5  # under 30 minutes
     except (TypeError, ValueError):
-        return False  # unparseable → treat as a genuine critical
+        return False  # unparseable → treat as genuine tamper evidence
 
 
 def create_analysis_result(

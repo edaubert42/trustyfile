@@ -1413,14 +1413,17 @@ def check_javascript(pdf_path: str) -> list[Flag]:
         doc.close()
 
         if js_found:
+            # HIGH, not critical (2026-07 judge panel): a raw '/JS' substring
+            # scan — Acrobat/LiveCycle fillable invoices and government/tax
+            # forms routinely embed field-calculation JavaScript legitimately.
             flags.append(Flag(
-                severity="critical",
+                severity="high",
                 code="STRUCT_JAVASCRIPT_DETECTED",
-                message="PDF contains JavaScript code (very suspicious for documents)",
+                message="PDF contains JavaScript code (suspicious for static documents)",
                 details={
                     "locations": js_locations,
-                    "warning": "JavaScript in PDFs can be used for malware or phishing. "
-                              "Legitimate invoices never contain JavaScript."
+                    "warning": "JavaScript in PDFs can be used for malware or phishing, "
+                              "though fillable forms embed calculation scripts legitimately."
                 }
             ))
 
@@ -1552,13 +1555,17 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
             # NOTE: extension-based typing can be spoofed (rename a blob to .pdf).
             # That residual is accepted: TrustyFile never opens/executes attachments,
             # and every executable or opaque payload is still surfaced or blocked.
-            dangerous_extensions = ['.exe', '.js', '.jse', '.vbs', '.bat', '.cmd',
-                                    '.ps1', '.dll', '.jar', '.scr', '.com', '.msi',
-                                    '.hta', '.wsf', '.lnk',
-                                    # macro-enabled Office documents are common
-                                    # malware carriers — active content, not inert docs
-                                    '.docm', '.xlsm', '.xlsb', '.xlam', '.xltm',
-                                    '.dotm', '.pptm', '.potm']
+            # Pure executables: ~zero legit rate inside an invoice → critical.
+            executable_extensions = ['.exe', '.js', '.jse', '.vbs', '.bat', '.cmd',
+                                     '.ps1', '.dll', '.jar', '.scr', '.com', '.msi',
+                                     '.hta', '.wsf', '.lnk']
+            # Macro-enabled Office documents are common malware carriers, but
+            # accounts-payable workflows DO attach legit macro spreadsheets
+            # (reconciliation/order templates) → high, not critical
+            # (2026-07 judge panel).
+            macro_office_extensions = ['.docm', '.xlsm', '.xlsb', '.xlam', '.xltm',
+                                       '.dotm', '.pptm', '.potm']
+            dangerous_extensions = executable_extensions + macro_office_extensions
             benign_companion_extensions = ['.pdf', '.xml', '.txt', '.csv', '.png',
                                            '.jpg', '.jpeg', '.tif', '.tiff', '.gif']
 
@@ -1574,12 +1581,16 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
             if dangerous_files:
                 # Executable/active content is dangerous regardless of any
                 # factur-x.xml sitting next to it — the allowlist never excuses it.
+                only_macro = all(_ext_in(f["name"], macro_office_extensions)
+                                 for f in dangerous_files)
                 flags.append(Flag(
-                    severity="critical",
+                    severity="high" if only_macro else "critical",
                     code="STRUCT_EMBEDDED_FILES",
-                    message="PDF contains embedded executable files (malware risk!)",
+                    message=("PDF contains embedded macro-enabled Office file(s) (active content)"
+                             if only_macro else
+                             "PDF contains embedded executable files (malware risk!)"),
                     details={"file_count": len(dangerous_files), "files": dangerous_files,
-                             "warning": "Embedded executable files are dangerous."},
+                             "warning": "Embedded active content is dangerous."},
                 ))
             elif einvoice_files:
                 # Recognised structured e-invoice. Transparent document/image
