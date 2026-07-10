@@ -116,9 +116,12 @@ FLAG_THEME_MAP: dict[str, str] = {
     "FONTS_SYSTEM_FONTS": "fonts",
     "FONTS_NOT_EMBEDDED": "fonts",
 
-    # signature (positive — handled separately in positive signals)
+    # signature — positive codes (TRUSTED*, UNVERIFIED) are low severity and
+    # filtered out of bullets by the low-severity skip; negative ones
+    # (NOT_TRUSTED, UNVERIFIABLE, INVALID) surface as bullets like any finding.
     "STRUCT_SIGNATURE_TRUSTED": "signature",
     "STRUCT_SIGNATURE_TRUSTED_EXPIRED": "signature",
+    "STRUCT_SIGNATURE_UNVERIFIED": "signature",
     "STRUCT_SIGNATURE_NOT_TRUSTED": "signature",
     "STRUCT_SIGNATURE_UNVERIFIABLE": "signature",
     "STRUCT_SIGNATURE_INVALID": "signature",
@@ -437,6 +440,17 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
         "The document was modified by a different tool than its creator."
     ),
+    # --- signature (negative findings only; positive codes never bullet) ---
+    "STRUCT_SIGNATURE_INVALID": lambda f: (
+        "The document's digital signature failed cryptographic verification — "
+        "the content was likely modified after signing."
+    ),
+    "STRUCT_SIGNATURE_NOT_TRUSTED": lambda f: (
+        "The document is signed, but the certificate is not on the EU trusted list."
+    ),
+    "STRUCT_SIGNATURE_UNVERIFIABLE": lambda f: (
+        "The document has a signature in a format that could not be verified."
+    ),
 }
 
 
@@ -740,6 +754,19 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
         "Le document a été modifié par un outil différent de son créateur."
     ),
+    # --- signature (constats négatifs uniquement ; les codes positifs ne
+    # produisent jamais de puce) ---
+    "STRUCT_SIGNATURE_INVALID": lambda f: (
+        "La signature numérique du document a échoué à la vérification "
+        "cryptographique — le contenu a probablement été modifié après signature."
+    ),
+    "STRUCT_SIGNATURE_NOT_TRUSTED": lambda f: (
+        "Le document est signé, mais le certificat ne figure pas sur la liste "
+        "de confiance de l'UE."
+    ),
+    "STRUCT_SIGNATURE_UNVERIFIABLE": lambda f: (
+        "Le document porte une signature dans un format qui n'a pas pu être vérifié."
+    ),
 }
 
 
@@ -965,10 +992,13 @@ def _build_bullets(
     """
     bullets: list[str] = []
 
-    # Order themes by importance
+    # Order themes by importance. "signature" IS included: a broken/invalid
+    # signature is a real finding the user must see — only the low-severity
+    # informational codes (TRUSTED*, UNVERIFIED) are filtered below. (An
+    # earlier version silently hid ALL signature findings — audit bug.)
     theme_order = [
         "tampering", "dates", "identity", "origin",
-        "security", "visual", "images", "fonts", "other",
+        "security", "signature", "visual", "images", "fonts", "other",
     ]
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -979,10 +1009,6 @@ def _build_bullets(
             continue
 
         flags = grouped[theme]
-
-        # Skip signature theme (informational, not an issue)
-        if theme == "signature":
-            continue
 
         # Sort by severity, pick only the most severe flag per theme
         sorted_flags = sorted(flags, key=lambda f: severity_order.get(f.severity, 4))

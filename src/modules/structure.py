@@ -1064,6 +1064,33 @@ def has_digital_signature(pdf_path: str) -> bool:
         return False
 
 
+def count_signature_fields(pdf_path: str) -> int:
+    """
+    Count digital-signature fields in the PDF (presence only, no validation).
+
+    Each signing pass appends exactly one incremental update, so the field
+    count bounds how many updates a legitimately-signed document accumulates
+    (e.g. a 3-signer attestation has 3 fields and 3 updates).
+
+    Returns at least 1 when has_digital_signature() found a signature via
+    the raw-object scan even if no widget is countable, 0 on any error.
+    """
+    count = 0
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            for page_num in range(len(doc)):
+                for widget in doc[page_num].widgets() or []:
+                    if widget.field_type_string == "Signature":
+                        count += 1
+        finally:
+            doc.close()
+    except Exception as e:
+        logger.error(f"Error counting signature fields: {e}")
+        return 0
+    return count
+
+
 def verify_signature_dss(pdf_path: str) -> dict:
     """
     Report presence of a digital signature WITHOUT uploading the document.
@@ -1143,13 +1170,11 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
 
     # Check for digital signature
     has_signature = has_digital_signature(pdf_path)
-    signature_trusted = False
     signature_info = {}
 
     if has_signature and verify_signatures:
-        # Verify signature via EU DSS API
+        # Local, presence-only verification (document never leaves the machine)
         signature_info = verify_signature_dss(pdf_path)
-        signature_trusted = signature_info.get("is_trusted", False)
 
         # Add flag about signature status
         signer = signature_info.get("signer", "Unknown")
@@ -1189,22 +1214,36 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
                 message="Document has signature but format not recognized by EU DSS",
                 details=signature_info
             ))
-        elif signature_info.get("has_signature"):
-            # Signature is invalid
+        elif signature_info.get("is_invalid"):
+            # Cryptographically verified and REJECTED (future pyHanko path).
+            # The offline presence-only verifier never sets this.
             flags.append(Flag(
                 severity="high",
                 code="STRUCT_SIGNATURE_INVALID",
                 message="Document has INVALID digital signature",
                 details=signature_info
             ))
+        elif signature_info.get("has_signature"):
+            # Signature present but NOT verified (offline verifier never
+            # asserts validity). Calling this "INVALID" was a verified audit
+            # FP — every legitimately signed document was flagged high.
+            flags.append(Flag(
+                severity="low",  # informational, like the trusted branches
+                code="STRUCT_SIGNATURE_UNVERIFIED",
+                message="Document has a digital signature (present, not cryptographically verified locally)",
+                details=signature_info
+            ))
 
-    # Only trusted signatures excuse 1 incremental update
-    if signature_trusted and edits == 1:
-        # Trusted signature + 1 update = legitimate, don't flag edits
-        return flags
-
-    # Calculate effective edits (subtract 1 if trusted signature)
-    effective_edits = edits - 1 if signature_trusted else edits
+    # A signature's very existence explains incremental updates: each signing
+    # pass appends exactly one. Excuse up to one update per signature field —
+    # a 3-signer attestation with 3 updates is routine, not "edited 3 times".
+    # Edits BEYOND the signature count remain fully suspicious.
+    # (Previously only `signature_trusted` excused updates, but the offline
+    # verifier can never assert trust, so signed docs were always penalized.)
+    excused = 0
+    if has_signature:
+        excused = max(count_signature_fields(pdf_path), 1)
+    effective_edits = edits - excused
 
     if effective_edits <= 0:
         return flags
@@ -1220,9 +1259,9 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
         severity = "medium"
         message = f"PDF has {effective_edits} incremental update(s)"
 
-    # Add context about untrusted signature if present
-    if has_signature and not signature_trusted:
-        message += " (signature present but NOT trusted)"
+    # Add context when edits exceed what the signature(s) can explain
+    if has_signature:
+        message += f" (beyond the {excused} explained by signing passes)"
 
     flags.append(Flag(
         severity=severity,
@@ -1232,10 +1271,11 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
             "eof_count": eof_count,
             "edit_count": edits,
             "has_signature": has_signature,
-            "signature_trusted": signature_trusted,
+            "excused_by_signatures": excused,
             "effective_edits": effective_edits,
             "explanation": "Each edit adds a new version to the PDF. "
-                          "Only EU-trusted digital signatures excuse 1 update."
+                          "Each signature field excuses one update (a signing "
+                          "pass appends exactly one version)."
         }
     ))
 

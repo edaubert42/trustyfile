@@ -128,6 +128,78 @@ class TestCheckIncrementalUpdates:
         assert len(flags) == 0
 
 
+def create_incrementally_saved_pdf(filename: str = "resaved.pdf", saves: int = 1) -> str:
+    """A PDF re-saved `saves` times incrementally (each adds one %%EOF)."""
+    path = os.path.join(TEST_DIR, filename)
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((100, 100), "Signed document content")
+    doc.save(path)
+    doc.close()
+    for _ in range(saves):
+        doc = fitz.open(path)
+        doc[0].insert_text((100, 120 + 10 * _), "annotation pass")
+        doc.saveIncr()
+        doc.close()
+    return path
+
+
+class TestSignatureHandling:
+    """A merely-unverified signature is NOT an invalid signature (audit FP #4).
+
+    The offline verifier never validates cryptographically, so every signed
+    document used to fall through to STRUCT_SIGNATURE_INVALID (high) — a
+    factually wrong claim. And each real signing pass appends exactly one
+    incremental update, so signature presence must excuse matching updates.
+    """
+
+    def test_present_signature_reports_unverified_not_invalid(self, monkeypatch):
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed1.pdf", saves=2)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        codes = {f.code for f in flags}
+        assert "STRUCT_SIGNATURE_INVALID" not in codes, codes
+        unverified = [f for f in flags if f.code == "STRUCT_SIGNATURE_UNVERIFIED"]
+        assert len(unverified) == 1
+        assert unverified[0].severity == "low"
+
+    def test_signature_presence_excuses_one_update(self, monkeypatch):
+        """1 signature + 1 incremental update = a normal signing pass."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed2.pdf", saves=1)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
+
+    def test_multi_signer_document_not_critical(self, monkeypatch):
+        """3 signers + 3 updates = routine multi-party attestation, no flag."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed3.pdf", saves=3)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 3)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
+
+    def test_updates_beyond_signature_count_still_flagged(self, monkeypatch):
+        """Edits EXCEEDING the signature count remain suspicious."""
+        import src.modules.structure as structure
+        path = create_incrementally_saved_pdf("signed4.pdf", saves=3)
+        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
+        monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
+        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1  # 3 edits - 1 excused = 2 effective
+
+    def test_unsigned_pdf_updates_unchanged(self):
+        """No signature → incremental updates flagged exactly as before."""
+        path = create_incrementally_saved_pdf("unsigned.pdf", saves=2)
+        flags = check_incremental_updates(path, verify_signatures=True)
+        upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
+        assert len(upd) == 1
+
+
 # =============================================================================
 # TEST check_javascript
 # =============================================================================
