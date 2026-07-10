@@ -270,6 +270,20 @@ class TestCheckEmbeddedFiles:
         assert len(embedded_flags) == 1
         assert embedded_flags[0].severity == "high"
 
+    def test_ubl_einvoice_attachment_not_flagged(self):
+        """A UBL e-invoice XML (the other EN 16931 syntax, used by Peppol) is a
+        LEGITIMATE attachment, like Factur-X/ZUGFeRD CII — must not be flagged.
+        Verified audit FP: i2d_AzureInterior.pdf embeds UBL-Invoice-2.1.xml."""
+        path = os.path.join(TEST_DIR, "ubl.pdf")
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_text((100, 100), "Invoice with UBL e-invoice data")
+        doc.embfile_add("UBL-Invoice-2.1.xml", b"<Invoice/>", filename="UBL-Invoice-2.1.xml")
+        doc.save(path)
+        doc.close()
+        flags = check_embedded_files(path)
+        assert [f for f in flags if f.code == "STRUCT_EMBEDDED_FILES"] == []
+
 
 # =============================================================================
 # TEST check_acroform

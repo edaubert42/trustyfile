@@ -46,7 +46,9 @@ logger = logging.getLogger(__name__)
 _EINVOICE_XML_NAMES = frozenset({
     "factur-x.xml", "zugferd-invoice.xml", "xrechnung.xml", "order-x.xml", "cii.xml",
 })
-_EINVOICE_XML_KEYWORDS = ("factur-x", "facturx", "zugferd", "xrechnung", "order-x")
+# "ubl" covers the OTHER EN 16931 syntax (OASIS UBL, used by Peppol), e.g.
+# "UBL-Invoice-2.1.xml" — as legitimate an e-invoice payload as Factur-X CII.
+_EINVOICE_XML_KEYWORDS = ("factur-x", "facturx", "zugferd", "xrechnung", "order-x", "ubl")
 
 
 def _is_einvoice_attachment(name: str) -> bool:
