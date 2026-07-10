@@ -137,48 +137,51 @@ class TrustyFileAnalyzer:
         doc_type = detect_document_type(pdf_data)
         logger.info(f"Document type detected: {doc_type}")
 
-        # Run all modules
+        # Run all modules with per-module crash isolation. Adversarial PDFs
+        # are this tool's threat model — one MuPDF error inside one module
+        # must degrade THAT module, never abort the whole analysis (2026-07
+        # audit: previously any module exception crashed analyze() outright).
         module_results = []
+        crashed_modules: list[str] = []
 
-        # Module A: Metadata Analysis
-        logger.debug("Running metadata analysis...")
-        module_results.append(analyze_metadata(pdf_data))
+        def _run(name: str, fn) -> None:
+            """Run one analysis module; on crash, record a MODULE_ERROR result.
 
-        # Module B: Content Analysis
-        logger.debug("Running content analysis...")
-        module_results.append(analyze_content(pdf_data))
+            The degraded result carries one LOW flag (negligible ledger
+            weight — the crash is recorded for the user, not treated as
+            tamper evidence) and confidence 0.0.
+            """
+            logger.debug("Running %s analysis...", name)
+            try:
+                module_results.append(fn())
+            except Exception as exc:
+                logger.warning("Module '%s' crashed on %s: %s",
+                               name, file_path, exc, exc_info=True)
+                crashed_modules.append(name)
+                module_results.append(ModuleResult(
+                    module=name,
+                    flags=[Flag(
+                        severity="low",
+                        code="MODULE_ERROR",
+                        message=(f"The '{name}' analysis failed on this document "
+                                 "and was skipped"),
+                        details={"module": name, "error": str(exc)},
+                    )],
+                    score=100,
+                    confidence=0.0,
+                ))
 
-        # Module C: Visual Analysis
-        logger.debug("Running visual analysis...")
-        module_results.append(analyze_visual(
-            pdf_data,
-            expected_domains=expected_domains,
-            check_qr=self.enable_qr_scan,
-        ))
-
-        # Module D: Font Analysis
-        logger.debug("Running font analysis...")
-        module_results.append(analyze_fonts(pdf_data))
-
-        # Module F: Image Analysis
-        logger.debug("Running image analysis...")
-        module_results.append(analyze_images(pdf_data))
-
-        # Module E: Structure Analysis
-        logger.debug("Running structure analysis...")
-        module_results.append(analyze_structure(pdf_data))
-
-        # Module Overlay: cover-and-retype / edit-trace detection (Phase 2)
-        logger.debug("Running overlay analysis...")
-        module_results.append(analyze_overlay(pdf_data))
-
-        # Module Arithmetic: totals-block identity + e-invoice XML cross-check
-        logger.debug("Running arithmetic consistency analysis...")
-        module_results.append(analyze_arithmetic(pdf_data))
-
-        # Module H: Forensic Analysis (ELA)
-        logger.debug("Running forensic analysis...")
-        module_results.append(analyze_forensics(file_path))
+        _run("metadata", lambda: analyze_metadata(pdf_data))                      # Module A
+        _run("content", lambda: analyze_content(pdf_data))                        # Module B
+        _run("visual", lambda: analyze_visual(pdf_data,                           # Module C
+                                              expected_domains=expected_domains,
+                                              check_qr=self.enable_qr_scan))
+        _run("fonts", lambda: analyze_fonts(pdf_data))                            # Module D
+        _run("images", lambda: analyze_images(pdf_data))                          # Module F
+        _run("structure", lambda: analyze_structure(pdf_data))                    # Module E
+        _run("overlay", lambda: analyze_overlay(pdf_data))                        # cover-and-retype
+        _run("arithmetic", lambda: analyze_arithmetic(pdf_data))                  # totals + e-invoice XML
+        _run("forensics", lambda: analyze_forensics(file_path))                   # Module H (ELA)
 
         # Module Identity: MRZ analysis (passports, ID cards).
         # Triggered if:
@@ -186,12 +189,15 @@ class TrustyFileAnalyzer:
         #   - doc is "unknown" AND passes the quick pre-check (identity keywords OR face photo).
         #     Scanned IDs have no text → classifier returns "unknown" → pre-check saves the day.
         # The pre-check (keywords + face detection at 100 DPI) is much faster than OCR itself.
-        _run_identity = doc_type == "identity" or (
-            doc_type == "unknown" and is_likely_identity_doc(pdf_data)
-        )
+        try:
+            _run_identity = doc_type == "identity" or (
+                doc_type == "unknown" and is_likely_identity_doc(pdf_data)
+            )
+        except Exception as exc:
+            logger.warning("Identity pre-check crashed: %s", exc)
+            _run_identity = False
         if _run_identity:
-            logger.debug("Running identity/MRZ analysis...")
-            module_results.append(analyze_identity(pdf_data))
+            _run("identity", lambda: analyze_identity(pdf_data))
             # If the classifier missed it (returned "unknown" because the scan has no
             # text layer), override so scoring uses identity-specific multipliers and caps.
             if doc_type == "unknown":
@@ -200,11 +206,30 @@ class TrustyFileAnalyzer:
 
         # Module G: External Verification (optional)
         if self.enable_external:
-            logger.debug("Running external verification...")
-            module_results.append(analyze_external(
+            _run("external", lambda: analyze_external(
                 pdf_data,
                 verify_iban=self.enable_iban_check,
                 iban_api_key=self.iban_api_key,
+            ))
+
+        # Fail closed on systemic failure: when three or more modules crash,
+        # the document defeated the analysis pipeline — the result cannot be
+        # trusted in either direction, so it must be UNVERIFIABLE rather than
+        # a high score computed from the few modules that survived.
+        if len(crashed_modules) >= 3:
+            logger.warning("Analysis degraded: %d modules crashed (%s) — UNVERIFIABLE",
+                           len(crashed_modules), ", ".join(crashed_modules))
+            module_results.append(ModuleResult(
+                module="analysis",
+                flags=[Flag(
+                    severity="high",
+                    code="EXTRACTION_FAILED",
+                    message=(f"{len(crashed_modules)} analysis modules failed on this "
+                             "document — result is unverifiable"),
+                    details={"crashed_modules": crashed_modules},
+                )],
+                score=0,
+                confidence=1.0,
             ))
 
         # Calculate analysis time
