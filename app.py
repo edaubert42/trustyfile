@@ -105,18 +105,19 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5) -> byte
     """
     import fitz
     doc = fitz.open(pdf_path)
-    page = doc[page_num]
+    try:
+        page = doc[page_num]
 
-    # Create a matrix for zoom
-    mat = fitz.Matrix(zoom, zoom)
+        # Create a matrix for zoom
+        mat = fitz.Matrix(zoom, zoom)
 
-    # Render page to pixmap (image)
-    pix = page.get_pixmap(matrix=mat)
+        # Render page to pixmap (image)
+        pix = page.get_pixmap(matrix=mat)
 
-    # Convert to PNG bytes
-    img_bytes = pix.tobytes("png")
-
-    doc.close()
+        # Convert to PNG bytes
+        img_bytes = pix.tobytes("png")
+    finally:
+        doc.close()
     return img_bytes
 
 
@@ -124,8 +125,10 @@ def get_pdf_page_count(pdf_path: str) -> int:
     """Get the number of pages in a PDF."""
     import fitz
     doc = fitz.open(pdf_path)
-    count = len(doc)
-    doc.close()
+    try:
+        count = len(doc)
+    finally:
+        doc.close()
     return count
 
 

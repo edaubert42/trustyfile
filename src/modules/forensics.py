@@ -403,38 +403,41 @@ def extract_images_as_arrays(pdf_path: str) -> list[dict]:
         logger.error(f"Could not open PDF for forensics: {e}")
         return []
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        image_list = page.get_images(full=True)
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            image_list = page.get_images(full=True)
 
-        for img_data in image_list:
-            xref = img_data[0]
-            try:
-                # Extract raw image bytes from PDF
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                width = base_image["width"]
-                height = base_image["height"]
+            for img_data in image_list:
+                xref = img_data[0]
+                try:
+                    # Extract raw image bytes from PDF
+                    base_image = doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    width = base_image["width"]
+                    height = base_image["height"]
 
-                # Skip images too small for ELA
-                if width < MIN_IMAGE_WIDTH or height < MIN_IMAGE_HEIGHT:
+                    # Skip images too small for ELA
+                    if width < MIN_IMAGE_WIDTH or height < MIN_IMAGE_HEIGHT:
+                        continue
+
+                    # Decode bytes into numpy array (OpenCV format)
+                    image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+                    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+                    if image is not None:
+                        images.append({
+                            "image": image,
+                            "page": page_num + 1,
+                            "xref": xref,
+                        })
+                except Exception as e:
+                    logger.warning(f"Could not extract image xref={xref}: {e}")
                     continue
+    finally:
+        # Always close the doc, even if an exception escapes the loop above
+        doc.close()
 
-                # Decode bytes into numpy array (OpenCV format)
-                image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-                image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-
-                if image is not None:
-                    images.append({
-                        "image": image,
-                        "page": page_num + 1,
-                        "xref": xref,
-                    })
-            except Exception as e:
-                logger.warning(f"Could not extract image xref={xref}: {e}")
-                continue
-
-    doc.close()
     return images
 
 

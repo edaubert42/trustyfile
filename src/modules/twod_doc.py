@@ -817,68 +817,70 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
 
     try:
         doc = fitz.open(pdf_path)
+        try:
 
-        # Only scan page 1 — 2D-DOC barcodes are always on the first page
-        page = doc[0]
+            # Only scan page 1 — 2D-DOC barcodes are always on the first page
+            page = doc[0]
 
-        # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
-        # Render at 100 DPI just for the visual check
-        pf_zoom = 100 / 72
-        pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
-        pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
-        pf_w, pf_h = pf_img.size
+            # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
+            # Render at 100 DPI just for the visual check
+            pf_zoom = 100 / 72
+            pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
+            pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
+            pf_w, pf_h = pf_img.size
 
-        # Check each quadrant for DataMatrix-like patterns
-        quadrant_defs = [
-            ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
-            ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
-        ]
+            # Check each quadrant for DataMatrix-like patterns
+            quadrant_defs = [
+                ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
+                ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
+            ]
 
-        candidate_quadrants = []
-        for quad_name, box in quadrant_defs:
-            if _has_datamatrix_candidate(pf_img.crop(box)):
-                candidate_quadrants.append(quad_name)
+            candidate_quadrants = []
+            for quad_name, box in quadrant_defs:
+                if _has_datamatrix_candidate(pf_img.crop(box)):
+                    candidate_quadrants.append(quad_name)
 
-        if not candidate_quadrants:
-            logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
+            if not candidate_quadrants:
+                logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
+                return []
+
+            logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
+
+            # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
+            zoom = dpi / 72
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+            full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+            img_w, img_h = full_img.size
+
+            quad_boxes = {
+                "top-left": (0, 0, img_w // 2, img_h // 2),
+                "top-right": (img_w // 2, 0, img_w, img_h // 2),
+            }
+
+            for quad_name in candidate_quadrants:
+                crop = full_img.crop(quad_boxes[quad_name])
+                barcodes = scan_datamatrix_from_image(crop)
+
+                for barcode in barcodes:
+                    if not barcode.data.startswith(HEADER_MARKER):
+                        continue
+
+                    parsed = parse_twod_doc(barcode.data)
+                    if parsed:
+                        results.append(parsed)
+                        logger.info(
+                            f"Found 2D-DOC in {quad_name} of page 1: "
+                            f"type={parsed.header.document_type}, "
+                            f"name={parsed.beneficiary_name}"
+                        )
+
+                # Stop if we found a 2D-DOC
+                if results:
+                    break
+
+        finally:
+            # Always release the document handle, even on exceptions/early returns
             doc.close()
-            return []
-
-        logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
-
-        # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
-        zoom = dpi / 72
-        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-        full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-        img_w, img_h = full_img.size
-
-        quad_boxes = {
-            "top-left": (0, 0, img_w // 2, img_h // 2),
-            "top-right": (img_w // 2, 0, img_w, img_h // 2),
-        }
-
-        for quad_name in candidate_quadrants:
-            crop = full_img.crop(quad_boxes[quad_name])
-            barcodes = scan_datamatrix_from_image(crop)
-
-            for barcode in barcodes:
-                if not barcode.data.startswith(HEADER_MARKER):
-                    continue
-
-                parsed = parse_twod_doc(barcode.data)
-                if parsed:
-                    results.append(parsed)
-                    logger.info(
-                        f"Found 2D-DOC in {quad_name} of page 1: "
-                        f"type={parsed.header.document_type}, "
-                        f"name={parsed.beneficiary_name}"
-                    )
-
-            # Stop if we found a 2D-DOC
-            if results:
-                break
-
-        doc.close()
 
     except Exception as e:
         logger.error(f"Error scanning PDF for 2D-DOC: {e}")
@@ -1889,10 +1891,12 @@ def verify_pdf_with_2d_doc(pdf_path: str) -> list[TwoDocVerificationResult]:
     # Step 2: Extract visible text from PDF
     try:
         doc = fitz.open(pdf_path)
-        full_text = ""
-        for page in doc:
-            full_text += page.get_text() + "\n"
-        doc.close()
+        try:
+            full_text = ""
+            for page in doc:
+                full_text += page.get_text() + "\n"
+        finally:
+            doc.close()
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
         return []

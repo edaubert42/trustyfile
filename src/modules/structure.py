@@ -429,161 +429,174 @@ def compare_versions_by_objects(raw_bytes: bytes, eof_positions: list[int]) -> l
             })
             continue
 
+        # From here on, old_doc must always be closed — wrap the rest of this
+        # iteration in try/finally so any exception or `continue` still closes it.
         try:
-            new_doc = fitz.open(stream=new_bytes, filetype="pdf")
-        except Exception as e:
-            logger.debug(f"Could not open version {i + 2}: {e}")
-            old_doc.close()
-            diffs.append({
-                "from_version": i + 1,
-                "to_version": i + 2,
-                "changes": [],
-                "object_changes": [],
-            })
-            continue
-
-        # Skip linearization stubs: if a version has 0 pages, it's not a
-        # real document version — it's just a PDF header/linearization hint.
-        # Comparing it would show ALL text as "added", which is meaningless.
-        if len(old_doc) == 0 or len(new_doc) == 0:
-            logger.debug(
-                f"Skipping version pair {i+1}->{i+2}: "
-                f"old has {len(old_doc)} pages, new has {len(new_doc)} pages "
-                f"(likely a linearization stub)"
-            )
-            old_doc.close()
-            new_doc.close()
-            diffs.append({
-                "from_version": i + 1,
-                "to_version": i + 2,
-                "changes": [],
-                "object_changes": [],
-            })
-            continue
-
-        # =====================================================================
-        # Part 1: Page-level text diff using get_text()
-        # =====================================================================
-        # PyMuPDF's get_text() is much more reliable than parsing raw content
-        # streams ourselves. It handles font encoding, kerning, positioning,
-        # etc. We use it here because both truncated PDFs opened successfully.
-        changes = []
-        all_pages = max(len(old_doc), len(new_doc))
-
-        for page_idx in range(all_pages):
-            old_text = ""
-            new_text = ""
-
-            if page_idx < len(old_doc):
-                old_text = old_doc[page_idx].get_text("text").strip()
-            if page_idx < len(new_doc):
-                new_text = new_doc[page_idx].get_text("text").strip()
-
-            if old_text == new_text:
-                continue  # No changes on this page
-
-            # Diff the page text line by line
-            # Filter out whitespace-only lines BEFORE diffing.
-            # PDF text extraction often has inconsistent blank lines between
-            # versions (extra spaces, empty lines). If we include them,
-            # the diff shows surrounding unchanged text as "moved", which
-            # is noisy. We only want to see lines with real content changes.
-            old_lines = [l for l in old_text.splitlines() if l.strip()]
-            new_lines = [l for l in new_text.splitlines() if l.strip()]
-
-            # Also normalize whitespace within lines: collapse multiple
-            # spaces into one. PDF editors often change internal spacing
-            # without changing the visible text (e.g. "Paypal  " vs "Paypal").
-            old_normalized = [' '.join(l.split()) for l in old_lines]
-            new_normalized = [' '.join(l.split()) for l in new_lines]
-
-            matcher = difflib.SequenceMatcher(None, old_normalized, new_normalized)
-
-            removed = []
-            added = []
-            for op, i1, i2, j1, j2 in matcher.get_opcodes():
-                if op == 'equal':
-                    continue
-                elif op == 'delete':
-                    # Use original lines (not normalized) for display
-                    removed.extend(old_lines[i1:i2])
-                elif op == 'insert':
-                    added.extend(new_lines[j1:j2])
-                elif op == 'replace':
-                    removed.extend(old_lines[i1:i2])
-                    added.extend(new_lines[j1:j2])
-
-            if removed or added:
-                changes.append({
-                    "page": page_idx + 1,
-                    "removed": removed,
-                    "added": added,
-                })
-
-        # =====================================================================
-        # Part 2: Object-level change inventory (metadata for detailed view)
-        # =====================================================================
-        # This tells us WHICH objects were modified (fonts, images, streams...)
-        # but we don't use it for the text diff — get_text() handles that above.
-        object_changes = []
-        content_to_page = _find_page_content_xrefs(new_doc)
-        old_content_to_page = _find_page_content_xrefs(old_doc)
-        for xref, page in old_content_to_page.items():
-            if xref not in content_to_page:
-                content_to_page[xref] = page
-
-        max_xref = max(old_doc.xref_length(), new_doc.xref_length())
-
-        for xref in range(1, max_xref):
             try:
-                old_obj = old_doc.xref_object(xref) if xref < old_doc.xref_length() else ""
-                new_obj = new_doc.xref_object(xref) if xref < new_doc.xref_length() else ""
-            except Exception:
+                new_doc = fitz.open(stream=new_bytes, filetype="pdf")
+            except Exception as e:
+                logger.debug(f"Could not open version {i + 2}: {e}")
+                diffs.append({
+                    "from_version": i + 1,
+                    "to_version": i + 2,
+                    "changes": [],
+                    "object_changes": [],
+                })
                 continue
 
-            if old_obj == new_obj:
-                continue
+            # new_doc opened successfully — it too must always be closed.
+            try:
+                _diff_entry = _compare_version_pair(old_doc, new_doc, i)
+            finally:
+                new_doc.close()
+        finally:
+            old_doc.close()
 
-            # Classify the modified object
-            page_num = content_to_page.get(xref)
-            check_str = new_obj or old_obj
-            obj_type = "unknown"
-            if page_num and ('/Length' in check_str or not check_str):
-                obj_type = "content_stream"
-            elif '/Font' in check_str:
-                obj_type = "font"
-            elif '/Image' in check_str or '/XObject' in check_str:
-                obj_type = "image"
-            elif '/Type /Page' in check_str:
-                obj_type = "page_definition"
-            elif '/Catalog' in check_str:
-                obj_type = "catalog"
-            elif '/Info' in check_str:
-                obj_type = "metadata"
-
-            object_changes.append({
-                "xref": xref,
-                "page": page_num,
-                "type": obj_type,
-            })
-
-        # Detect the tool used for each version before closing
-        from_tool = _detect_tool(old_doc)
-        to_tool = _detect_tool(new_doc)
-
-        old_doc.close()
-        new_doc.close()
-
-        diffs.append({
-            "from_version": i + 1,
-            "to_version": i + 2,
-            "from_tool": from_tool,
-            "to_tool": to_tool,
-            "changes": changes,
-            "object_changes": object_changes,
-        })
+        diffs.append(_diff_entry)
 
     return diffs
+
+
+def _compare_version_pair(old_doc: fitz.Document, new_doc: fitz.Document, i: int) -> dict:
+    """Compare an already-open (old_doc, new_doc) version pair.
+
+    Extracted from compare_versions_by_objects() so the caller can guarantee
+    both documents are closed via try/finally regardless of how this returns.
+    """
+    # Skip linearization stubs: if a version has 0 pages, it's not a
+    # real document version — it's just a PDF header/linearization hint.
+    # Comparing it would show ALL text as "added", which is meaningless.
+    if len(old_doc) == 0 or len(new_doc) == 0:
+        logger.debug(
+            f"Skipping version pair {i+1}->{i+2}: "
+            f"old has {len(old_doc)} pages, new has {len(new_doc)} pages "
+            f"(likely a linearization stub)"
+        )
+        return {
+            "from_version": i + 1,
+            "to_version": i + 2,
+            "changes": [],
+            "object_changes": [],
+        }
+
+    # =====================================================================
+    # Part 1: Page-level text diff using get_text()
+    # =====================================================================
+    # PyMuPDF's get_text() is much more reliable than parsing raw content
+    # streams ourselves. It handles font encoding, kerning, positioning,
+    # etc. We use it here because both truncated PDFs opened successfully.
+    changes = []
+    all_pages = max(len(old_doc), len(new_doc))
+
+    for page_idx in range(all_pages):
+        old_text = ""
+        new_text = ""
+
+        if page_idx < len(old_doc):
+            old_text = old_doc[page_idx].get_text("text").strip()
+        if page_idx < len(new_doc):
+            new_text = new_doc[page_idx].get_text("text").strip()
+
+        if old_text == new_text:
+            continue  # No changes on this page
+
+        # Diff the page text line by line
+        # Filter out whitespace-only lines BEFORE diffing.
+        # PDF text extraction often has inconsistent blank lines between
+        # versions (extra spaces, empty lines). If we include them,
+        # the diff shows surrounding unchanged text as "moved", which
+        # is noisy. We only want to see lines with real content changes.
+        old_lines = [l for l in old_text.splitlines() if l.strip()]
+        new_lines = [l for l in new_text.splitlines() if l.strip()]
+
+        # Also normalize whitespace within lines: collapse multiple
+        # spaces into one. PDF editors often change internal spacing
+        # without changing the visible text (e.g. "Paypal  " vs "Paypal").
+        old_normalized = [' '.join(l.split()) for l in old_lines]
+        new_normalized = [' '.join(l.split()) for l in new_lines]
+
+        matcher = difflib.SequenceMatcher(None, old_normalized, new_normalized)
+
+        removed = []
+        added = []
+        for op, i1, i2, j1, j2 in matcher.get_opcodes():
+            if op == 'equal':
+                continue
+            elif op == 'delete':
+                # Use original lines (not normalized) for display
+                removed.extend(old_lines[i1:i2])
+            elif op == 'insert':
+                added.extend(new_lines[j1:j2])
+            elif op == 'replace':
+                removed.extend(old_lines[i1:i2])
+                added.extend(new_lines[j1:j2])
+
+        if removed or added:
+            changes.append({
+                "page": page_idx + 1,
+                "removed": removed,
+                "added": added,
+            })
+
+    # =====================================================================
+    # Part 2: Object-level change inventory (metadata for detailed view)
+    # =====================================================================
+    # This tells us WHICH objects were modified (fonts, images, streams...)
+    # but we don't use it for the text diff — get_text() handles that above.
+    object_changes = []
+    content_to_page = _find_page_content_xrefs(new_doc)
+    old_content_to_page = _find_page_content_xrefs(old_doc)
+    for xref, page in old_content_to_page.items():
+        if xref not in content_to_page:
+            content_to_page[xref] = page
+
+    max_xref = max(old_doc.xref_length(), new_doc.xref_length())
+
+    for xref in range(1, max_xref):
+        try:
+            old_obj = old_doc.xref_object(xref) if xref < old_doc.xref_length() else ""
+            new_obj = new_doc.xref_object(xref) if xref < new_doc.xref_length() else ""
+        except Exception:
+            continue
+
+        if old_obj == new_obj:
+            continue
+
+        # Classify the modified object
+        page_num = content_to_page.get(xref)
+        check_str = new_obj or old_obj
+        obj_type = "unknown"
+        if page_num and ('/Length' in check_str or not check_str):
+            obj_type = "content_stream"
+        elif '/Font' in check_str:
+            obj_type = "font"
+        elif '/Image' in check_str or '/XObject' in check_str:
+            obj_type = "image"
+        elif '/Type /Page' in check_str:
+            obj_type = "page_definition"
+        elif '/Catalog' in check_str:
+            obj_type = "catalog"
+        elif '/Info' in check_str:
+            obj_type = "metadata"
+
+        object_changes.append({
+            "xref": xref,
+            "page": page_num,
+            "type": obj_type,
+        })
+
+    # Detect the tool used for each version before the caller closes both docs
+    from_tool = _detect_tool(old_doc)
+    to_tool = _detect_tool(new_doc)
+
+    return {
+        "from_version": i + 1,
+        "to_version": i + 2,
+        "from_tool": from_tool,
+        "to_tool": to_tool,
+        "changes": changes,
+        "object_changes": object_changes,
+    }
 
 
 def extract_text_per_version(raw_bytes: bytes, eof_positions: list[int]) -> list[dict]:
@@ -619,26 +632,28 @@ def extract_text_per_version(raw_bytes: bytes, eof_positions: list[int]) -> list
             # fitz.open() accepts a bytes stream with filetype="pdf"
             doc = fitz.open(stream=truncated, filetype="pdf")
 
-            # Skip versions with 0 pages — these are linearization stubs
-            # (small PDF headers that don't contain any real content).
-            # Comparing them would show ALL text as "added", which is useless.
-            if len(doc) == 0:
+            # doc is now open — guarantee it's closed on every path below,
+            # including exceptions raised while reading pages.
+            try:
+                # Skip versions with 0 pages — these are linearization stubs
+                # (small PDF headers that don't contain any real content).
+                # Comparing them would show ALL text as "added", which is useless.
+                if len(doc) == 0:
+                    logger.debug(f"Skipping version {version_num}: 0 pages (linearization stub)")
+                    continue
+
+                pages_text = {}
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text("text").strip()
+                    pages_text[str(page_num + 1)] = text
+
+                versions.append({
+                    "version": version_num,
+                    "pages": pages_text,
+                })
+            finally:
                 doc.close()
-                logger.debug(f"Skipping version {version_num}: 0 pages (linearization stub)")
-                continue
-
-            pages_text = {}
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text = page.get_text("text").strip()
-                pages_text[str(page_num + 1)] = text
-
-            doc.close()
-
-            versions.append({
-                "version": version_num,
-                "pages": pages_text,
-            })
 
         except Exception as e:
             # Some truncations may not produce a valid PDF
@@ -914,22 +929,22 @@ def check_xmp_toolkit_mismatch(pdf_path: str, producer: str | None, creator: str
 
     try:
         doc = fitz.open(pdf_path)
-
-        # Find the XMP metadata stream
-        xmp_text = None
-        xref_len = doc.xref_length()
-        for xref in range(1, xref_len):
-            try:
-                obj = doc.xref_object(xref)
-                if obj and '/Subtype /XML' in obj:
-                    stream = doc.xref_stream(xref)
-                    if stream:
-                        xmp_text = stream.decode('utf-8', errors='replace')
-                        break
-            except Exception:
-                continue
-
-        doc.close()
+        try:
+            # Find the XMP metadata stream
+            xmp_text = None
+            xref_len = doc.xref_length()
+            for xref in range(1, xref_len):
+                try:
+                    obj = doc.xref_object(xref)
+                    if obj and '/Subtype /XML' in obj:
+                        stream = doc.xref_stream(xref)
+                        if stream:
+                            xmp_text = stream.decode('utf-8', errors='replace')
+                            break
+                except Exception:
+                    continue
+        finally:
+            doc.close()
 
         if not xmp_text:
             return flags  # No XMP metadata found
@@ -1032,34 +1047,31 @@ def has_digital_signature(pdf_path: str) -> bool:
     """
     try:
         doc = fitz.open(pdf_path)
+        try:
+            # Method 1: Check for signature fields in AcroForm
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                for widget in page.widgets() or []:
+                    if widget.field_type_string == "Signature":
+                        return True
 
-        # Method 1: Check for signature fields in AcroForm
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            for widget in page.widgets() or []:
-                if widget.field_type_string == "Signature":
-                    doc.close()
-                    return True
+            # Method 2: Check for signature objects in the PDF structure
+            xref_len = doc.xref_length()
+            for xref in range(1, xref_len):
+                try:
+                    obj_str = doc.xref_object(xref)
+                    if obj_str and '/Type /Sig' in obj_str:
+                        return True
+                    if obj_str and '/SubFilter /adbe.pkcs7' in obj_str:
+                        return True
+                    if obj_str and '/SubFilter /ETSI' in obj_str:
+                        return True
+                except Exception:
+                    continue
 
-        # Method 2: Check for signature objects in the PDF structure
-        xref_len = doc.xref_length()
-        for xref in range(1, xref_len):
-            try:
-                obj_str = doc.xref_object(xref)
-                if obj_str and '/Type /Sig' in obj_str:
-                    doc.close()
-                    return True
-                if obj_str and '/SubFilter /adbe.pkcs7' in obj_str:
-                    doc.close()
-                    return True
-                if obj_str and '/SubFilter /ETSI' in obj_str:
-                    doc.close()
-                    return True
-            except Exception:
-                continue
-
-        doc.close()
-        return False
+            return False
+        finally:
+            doc.close()
 
     except Exception as e:
         logger.error(f"Error checking for digital signature: {e}")
@@ -1327,8 +1339,10 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
     # deliberately hid the modification — very suspicious.
     try:
         doc = fitz.open(pdf_path)
-        meta = doc.metadata
-        doc.close()
+        try:
+            meta = doc.metadata
+        finally:
+            doc.close()
         raw_creation = meta.get("creationDate", "")
         raw_mod = meta.get("modDate", "")
         if raw_creation and raw_mod and raw_creation == raw_mod:
@@ -1371,46 +1385,46 @@ def check_javascript(pdf_path: str) -> list[Flag]:
 
     try:
         doc = fitz.open(pdf_path)
-
-        # Check for JavaScript in the document
-        # PyMuPDF can extract JS from various locations
-
-        # Method 1: Check document-level JavaScript
-        js_found = False
-        js_locations = []
-
-        # Check PDF catalog for JavaScript
         try:
-            # Get the PDF trailer/catalog
-            xref_len = doc.xref_length()
+            # Check for JavaScript in the document
+            # PyMuPDF can extract JS from various locations
 
-            for xref in range(1, xref_len):
-                try:
-                    obj_str = doc.xref_object(xref)
-                    if obj_str:
-                        # Look for JavaScript indicators
-                        if '/JavaScript' in obj_str or '/JS' in obj_str:
+            # Method 1: Check document-level JavaScript
+            js_found = False
+            js_locations = []
+
+            # Check PDF catalog for JavaScript
+            try:
+                # Get the PDF trailer/catalog
+                xref_len = doc.xref_length()
+
+                for xref in range(1, xref_len):
+                    try:
+                        obj_str = doc.xref_object(xref)
+                        if obj_str:
+                            # Look for JavaScript indicators
+                            if '/JavaScript' in obj_str or '/JS' in obj_str:
+                                js_found = True
+                                js_locations.append(f"xref {xref}")
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.debug(f"Error checking xref for JS: {e}")
+
+            # Method 2: Check for JavaScript in annotations
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+
+                # Check annotations
+                for annot in page.annots() or []:
+                    annot_info = annot.info
+                    if annot_info:
+                        # Check for JavaScript actions
+                        if 'javascript' in str(annot_info).lower():
                             js_found = True
-                            js_locations.append(f"xref {xref}")
-                except Exception:
-                    continue
-        except Exception as e:
-            logger.debug(f"Error checking xref for JS: {e}")
-
-        # Method 2: Check for JavaScript in annotations
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-
-            # Check annotations
-            for annot in page.annots() or []:
-                annot_info = annot.info
-                if annot_info:
-                    # Check for JavaScript actions
-                    if 'javascript' in str(annot_info).lower():
-                        js_found = True
-                        js_locations.append(f"annotation on page {page_num + 1}")
-
-        doc.close()
+                            js_locations.append(f"annotation on page {page_num + 1}")
+        finally:
+            doc.close()
 
         if js_found:
             # HIGH, not critical (2026-07 judge panel): a raw '/JS' substring
@@ -1453,34 +1467,34 @@ def check_hidden_annotations(pdf_path: str) -> list[Flag]:
 
     try:
         doc = fitz.open(pdf_path)
+        try:
+            hidden_annots = []
+            suspicious_annots = []
 
-        hidden_annots = []
-        suspicious_annots = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
+                for annot in page.annots() or []:
+                    annot_type = annot.type[1]  # Get annotation type name
 
-            for annot in page.annots() or []:
-                annot_type = annot.type[1]  # Get annotation type name
+                    # Check for hidden annotations (opacity = 0 or invisible flag)
+                    if annot.opacity == 0:
+                        hidden_annots.append({
+                            "page": page_num + 1,
+                            "type": annot_type,
+                            "reason": "opacity is 0 (invisible)"
+                        })
 
-                # Check for hidden annotations (opacity = 0 or invisible flag)
-                if annot.opacity == 0:
-                    hidden_annots.append({
-                        "page": page_num + 1,
-                        "type": annot_type,
-                        "reason": "opacity is 0 (invisible)"
-                    })
-
-                # Check for suspicious annotation types
-                suspicious_types = ['FileAttachment', 'Sound', 'Movie', 'Screen', 'RichMedia']
-                if annot_type in suspicious_types:
-                    suspicious_annots.append({
-                        "page": page_num + 1,
-                        "type": annot_type,
-                        "reason": f"suspicious type: {annot_type}"
-                    })
-
-        doc.close()
+                    # Check for suspicious annotation types
+                    suspicious_types = ['FileAttachment', 'Sound', 'Movie', 'Screen', 'RichMedia']
+                    if annot_type in suspicious_types:
+                        suspicious_annots.append({
+                            "page": page_num + 1,
+                            "type": annot_type,
+                            "reason": f"suspicious type: {annot_type}"
+                        })
+        finally:
+            doc.close()
 
         if hidden_annots:
             flags.append(Flag(
@@ -1529,20 +1543,21 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
 
     try:
         doc = fitz.open(pdf_path)
+        try:
+            # Get embedded files
+            embedded_count = doc.embfile_count()
 
-        # Get embedded files
-        embedded_count = doc.embfile_count()
-
-        if embedded_count > 0:
             embedded_files = []
-
             for i in range(embedded_count):
                 info = doc.embfile_info(i)
                 embedded_files.append({
                     "name": info.get("name", "unknown"),
                     "size": info.get("size", 0),
                 })
+        finally:
+            doc.close()
 
+        if embedded_count > 0:
             # Classify each embedded file. IMPORTANT (security): the decision is
             # PER FILE, never per document — a recognised e-invoice XML excuses
             # only ITSELF, never other payloads riding along beside it. The threat
@@ -1618,8 +1633,6 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
                              "warning": "Embedded files in invoices are suspicious."},
                 ))
 
-        doc.close()
-
     except Exception as e:
         logger.error(f"Error checking embedded files: {e}")
 
@@ -1648,31 +1661,31 @@ def check_acroform(pdf_path: str) -> list[Flag]:
 
     try:
         doc = fitz.open(pdf_path)
+        try:
+            # Check for form fields
+            form_fields = []
+            signature_fields = []
 
-        # Check for form fields
-        form_fields = []
-        signature_fields = []
+            for page_num in range(len(doc)):
+                page = doc[page_num]
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
+                # Get widgets (form fields)
+                widgets = page.widgets()
+                if widgets:
+                    for widget in widgets:
+                        field_info = {
+                            "page": page_num + 1,
+                            "type": widget.field_type_string,
+                            "name": widget.field_name or "unnamed",
+                        }
 
-            # Get widgets (form fields)
-            widgets = page.widgets()
-            if widgets:
-                for widget in widgets:
-                    field_info = {
-                        "page": page_num + 1,
-                        "type": widget.field_type_string,
-                        "name": widget.field_name or "unnamed",
-                    }
-
-                    # Separate signature fields from other form fields
-                    if widget.field_type_string == "Signature":
-                        signature_fields.append(field_info)
-                    else:
-                        form_fields.append(field_info)
-
-        doc.close()
+                        # Separate signature fields from other form fields
+                        if widget.field_type_string == "Signature":
+                            signature_fields.append(field_info)
+                        else:
+                            form_fields.append(field_info)
+        finally:
+            doc.close()
 
         # Only flag non-signature form fields
         # Signature fields are legitimate for digitally signed documents
