@@ -25,10 +25,14 @@ CII_NS = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
 RAM = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
 
 
-def _cii_xml(basis, tax, grand, due=None, prepaid=None, ibans=None):
+def _cii_xml(basis, tax, grand, due=None, prepaid=None, ibans=None, debtor_ibans=None):
     """A minimal CII document carrying the header monetary summation, with the
     same namespace shape as real Factur-X. `due`/`prepaid`/`ibans` optional;
-    each entry in `ibans` becomes a PayeePartyCreditorFinancialAccount/IBANID."""
+    each entry in `ibans` becomes a PayeePartyCreditorFinancialAccount/IBANID
+    (the payee account — "where to pay"). Each entry in `debtor_ibans` becomes a
+    PayerPartyDebtorFinancialAccount/IBANID (the SEPA direct-debit customer
+    account — a DIFFERENT account that must never be compared to the visible
+    creditor IBAN)."""
     due = grand if due is None else due
     prepaid_el = f'<ram:TotalPrepaidAmount>{prepaid}</ram:TotalPrepaidAmount>' if prepaid is not None else ''
     iban_el = "".join(
@@ -37,6 +41,12 @@ def _cii_xml(basis, tax, grand, due=None, prepaid=None, ibans=None):
         f'</ram:PayeePartyCreditorFinancialAccount>'
         f'</ram:SpecifiedTradeSettlementPaymentMeans>'
         for i in (ibans or [])
+    ) + "".join(
+        f'<ram:SpecifiedTradeSettlementPaymentMeans>'
+        f'<ram:PayerPartyDebtorFinancialAccount><ram:IBANID>{i}</ram:IBANID>'
+        f'</ram:PayerPartyDebtorFinancialAccount>'
+        f'</ram:SpecifiedTradeSettlementPaymentMeans>'
+        for i in (debtor_ibans or [])
     )
     return (
         f'<rsm:CrossIndustryInvoice xmlns:rsm="{CII_NS}" xmlns:ram="{RAM}">'
@@ -218,6 +228,30 @@ def test_iban_no_xml_iban_skips():
     # XML has no valid IBAN (only a mandate id) -> nothing to compare against.
     xml = _cii_xml("100.00", "20.00", "120.00", ibans=["FRDEBIT"])
     assert check_iban(f"IBAN : {IBAN_B}", xml) is None
+
+
+def test_iban_debtor_only_xml_skips():
+    # SEPA direct-debit invoice: the structured account is the customer's DEBTOR
+    # account (PayerPartyDebtorFinancialAccount). The visible footer shows the
+    # vendor's CREDITOR account for reference. These are legitimately different
+    # accounts -> must NOT be compared, so no flag.
+    xml = _cii_xml("100.00", "20.00", "120.00", debtor_ibans=[IBAN_A])
+    assert check_iban(f"Prelevement SEPA. IBAN vendeur : {IBAN_B}", xml) is None
+
+
+def test_xml_ibans_ignores_debtor_account():
+    # Only the payee/creditor account is "where to pay"; a debtor account must be
+    # excluded from the comparison set entirely.
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A], debtor_ibans=[IBAN_B])
+    assert _xml_ibans(xml) == {IBAN_A}
+
+
+def test_xml_ibans_blank_id_no_raise():
+    # A blank / placeholder IBANID must not crash the mod-97 validator; it yields
+    # an empty set (the whole check then skips) instead of raising ValueError.
+    for bad in ("   ", "N/A", ""):
+        xml = _cii_xml("100.00", "20.00", "120.00", ibans=[bad])
+        assert _xml_ibans(xml) == set()
 
 
 def test_analyze_flags_iban_mismatch(tmp_path):

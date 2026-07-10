@@ -266,10 +266,21 @@ def cross_check(visible_total: float | None, totals: dict | None) -> Flag | None
 # Compared by SET DISJOINTNESS (not inequality): a legit multi-account invoice
 # still shows the XML account among its visible IBANs, so it overlaps and clears.
 def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
-    """Checksum-valid IBANs from the embedded XML's IBANID tags, normalized to
-    electronic form (no spaces, upper-case). The mod-97 filter drops non-IBAN
-    payloads that share the IBANID tag (e.g. a 'FRDEBIT' SEPA-mandate id).
-    Never raises: malformed/blocked XML → empty set."""
+    """Checksum-valid PAYEE IBANs from the embedded XML, normalized to electronic
+    form (no spaces, upper-case).
+
+    Scoped to IBANID under `PayeePartyCreditorFinancialAccount` — the account the
+    invoice is asking to be PAID TO. A `PayerPartyDebtorFinancialAccount` (the
+    customer account debited under a SEPA direct-debit mandate) is a DIFFERENT
+    account and is deliberately ignored: comparing it to the visible creditor
+    IBAN would falsely flag legitimate direct-debit invoices. The tag name is
+    stable across ZUGFeRD 1.0/2.x, Factur-X, XRechnung (all UN/CEFACT CII), so
+    `_local` namespace-stripping keeps this version-agnostic.
+
+    The mod-97 filter drops non-IBAN payloads that share the IBANID tag (e.g. a
+    'FRDEBIT' SEPA-mandate id) and the length guard keeps a blank/placeholder
+    IBANID from reaching the validator. Never raises: malformed/blocked XML,
+    missing accounts, or bad IBANID text → empty set."""
     if not xml_bytes:
         return set()
     try:
@@ -277,16 +288,20 @@ def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
     except Exception:
         return set()
     out: set[str] = set()
-    for el in root.iter():
-        if _local(el.tag) == "IBANID" and el.text:
-            cand = "".join(el.text.split()).upper()
-            if validate_iban_checksum(cand):
-                out.add(cand)
+    for acct in root.iter():
+        if _local(acct.tag) != "PayeePartyCreditorFinancialAccount":
+            continue
+        for el in acct.iter():
+            if _local(el.tag) == "IBANID" and el.text:
+                cand = "".join(el.text.split()).upper()
+                if 15 <= len(cand) <= 34 and validate_iban_checksum(cand):
+                    out.add(cand)
     return out
 
 
 # An IBAN in running text: 2 letters + 2 check digits + 11–30 alphanumerics,
-# optionally grouped with single (narrow-no-break) spaces. Purpose-built for the
+# optionally grouped with single regular (U+0020) or no-break (U+00A0) spaces —
+# the two separators PDF text extraction actually emits. Purpose-built for the
 # cross-check rather than reusing content.extract_iban, which misses IBANs with
 # LETTERS in the national part (e.g. UK, some FR) unless directly labelled
 # "IBAN:" — a gap that would falsely read a legit matching account as absent.
