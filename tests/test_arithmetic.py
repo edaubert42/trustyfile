@@ -13,22 +13,45 @@ import pytest
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.arithmetic import (
     analyze_arithmetic, find_visible_grand_total,
-    xml_totals, internal_check, cross_check, TOLERANCE,
+    xml_totals, internal_check, cross_check, check_iban, _xml_ibans, TOLERANCE,
 )
+
+# Canonical mod-97-valid test IBANs (differ from each other).
+IBAN_A = "GB82WEST12345698765432"
+IBAN_B = "DE89370400440532013000"
 
 # --- Minimal valid CII (Factur-X) monetary summation, namespace-robust target ---
 CII_NS = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"
 RAM = "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
 
 
-def _cii_xml(basis, tax, grand, due=None, prepaid=None):
-    """A minimal CII document carrying just the header monetary summation, with
-    the same namespace shape as real Factur-X. `due`/`prepaid` optional."""
+def _cii_xml(basis, tax, grand, due=None, prepaid=None, ibans=None, debtor_ibans=None):
+    """A minimal CII document carrying the header monetary summation, with the
+    same namespace shape as real Factur-X. `due`/`prepaid`/`ibans` optional;
+    each entry in `ibans` becomes a PayeePartyCreditorFinancialAccount/IBANID
+    (the payee account — "where to pay"). Each entry in `debtor_ibans` becomes a
+    PayerPartyDebtorFinancialAccount/IBANID (the SEPA direct-debit customer
+    account — a DIFFERENT account that must never be compared to the visible
+    creditor IBAN)."""
     due = grand if due is None else due
     prepaid_el = f'<ram:TotalPrepaidAmount>{prepaid}</ram:TotalPrepaidAmount>' if prepaid is not None else ''
+    iban_el = "".join(
+        f'<ram:SpecifiedTradeSettlementPaymentMeans>'
+        f'<ram:PayeePartyCreditorFinancialAccount><ram:IBANID>{i}</ram:IBANID>'
+        f'</ram:PayeePartyCreditorFinancialAccount>'
+        f'</ram:SpecifiedTradeSettlementPaymentMeans>'
+        for i in (ibans or [])
+    ) + "".join(
+        f'<ram:SpecifiedTradeSettlementPaymentMeans>'
+        f'<ram:PayerPartyDebtorFinancialAccount><ram:IBANID>{i}</ram:IBANID>'
+        f'</ram:PayerPartyDebtorFinancialAccount>'
+        f'</ram:SpecifiedTradeSettlementPaymentMeans>'
+        for i in (debtor_ibans or [])
+    )
     return (
         f'<rsm:CrossIndustryInvoice xmlns:rsm="{CII_NS}" xmlns:ram="{RAM}">'
         f'<rsm:SupplyChainTradeTransaction><ram:ApplicableHeaderTradeSettlement>'
+        f'{iban_el}'
         f'<ram:SpecifiedTradeSettlementHeaderMonetarySummation>'
         f'<ram:LineTotalAmount>{basis}</ram:LineTotalAmount>'
         f'<ram:TaxBasisTotalAmount>{basis}</ram:TaxBasisTotalAmount>'
@@ -162,6 +185,88 @@ def test_xxe_and_entity_bomb_are_defused():
            b'<!DOCTYPE d [<!ENTITY x SYSTEM "file:///etc/passwd">]><r>&x;</r>')
     assert xml_totals(bomb) is None
     assert xml_totals(xxe) is None
+
+
+# =============================================================================
+# IBAN cross-check (visible payment account vs embedded XML)
+# =============================================================================
+def test_xml_ibans_keeps_valid_drops_mandate_id():
+    # A real IBAN and a non-IBAN mandate ID ("FRDEBIT") both live in IBANID tags;
+    # only the checksum-valid IBAN survives.
+    ibans = _xml_ibans(_cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A, "FRDEBIT"]))
+    assert ibans == {IBAN_A}
+
+
+def test_iban_disjoint_flags_mismatch():
+    # The visible payment account (IBAN_B) shares NOTHING with the machine payment
+    # account (IBAN_A) -> payment-redirection signature -> flag.
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A])
+    f = check_iban(f"Paiement par virement\nIBAN : {IBAN_B}\nMerci", xml)
+    assert f is not None and f.code == "ARITH_IBAN_MISMATCH"
+
+
+def test_iban_overlap_no_flag():
+    # The XML account IS shown visibly (plus an extra account) -> not disjoint ->
+    # no flag (multi-account invoices where the real account still appears).
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A])
+    assert check_iban(f"IBAN principal : {IBAN_A}\nIBAN secondaire : {IBAN_B}", xml) is None
+
+
+def test_iban_space_formatting_normalized():
+    # Visible IBAN printed in grouped form matches the XML electronic form.
+    grouped = "GB82 WEST 1234 5698 7654 32"
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A])
+    assert check_iban(f"IBAN: {grouped}", xml) is None
+
+
+def test_iban_no_visible_iban_skips():
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A])
+    assert check_iban("Facture sans coordonnees bancaires", xml) is None
+
+
+def test_iban_no_xml_iban_skips():
+    # XML has no valid IBAN (only a mandate id) -> nothing to compare against.
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=["FRDEBIT"])
+    assert check_iban(f"IBAN : {IBAN_B}", xml) is None
+
+
+def test_iban_debtor_only_xml_skips():
+    # SEPA direct-debit invoice: the structured account is the customer's DEBTOR
+    # account (PayerPartyDebtorFinancialAccount). The visible footer shows the
+    # vendor's CREDITOR account for reference. These are legitimately different
+    # accounts -> must NOT be compared, so no flag.
+    xml = _cii_xml("100.00", "20.00", "120.00", debtor_ibans=[IBAN_A])
+    assert check_iban(f"Prelevement SEPA. IBAN vendeur : {IBAN_B}", xml) is None
+
+
+def test_xml_ibans_ignores_debtor_account():
+    # Only the payee/creditor account is "where to pay"; a debtor account must be
+    # excluded from the comparison set entirely.
+    xml = _cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A], debtor_ibans=[IBAN_B])
+    assert _xml_ibans(xml) == {IBAN_A}
+
+
+def test_xml_ibans_blank_id_no_raise():
+    # A blank / placeholder IBANID must not crash the mod-97 validator; it yields
+    # an empty set (the whole check then skips) instead of raising ValueError.
+    for bad in ("   ", "N/A", ""):
+        xml = _cii_xml("100.00", "20.00", "120.00", ibans=[bad])
+        assert _xml_ibans(xml) == set()
+
+
+def test_analyze_flags_iban_mismatch(tmp_path):
+    # End-to-end: an e-invoice whose visible IBAN was swapped, XML untouched.
+    p = _pdf(tmp_path, "iban_swap.pdf",
+             ["Facture 2025-07", f"IBAN : {IBAN_B}", "Total TTC 120,00"],
+             xml=_cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A]))
+    assert "ARITH_IBAN_MISMATCH" in _codes(p)
+
+
+def test_analyze_clean_einvoice_matching_iban_no_flag(tmp_path):
+    p = _pdf(tmp_path, "iban_ok.pdf",
+             ["Facture 2025-07", f"IBAN : {IBAN_A}", "Total TTC 120,00"],
+             xml=_cii_xml("100.00", "20.00", "120.00", ibans=[IBAN_A]))
+    assert "ARITH_IBAN_MISMATCH" not in _codes(p)
 
 
 # =============================================================================

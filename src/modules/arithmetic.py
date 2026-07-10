@@ -31,10 +31,12 @@ import fitz
 from defusedxml.ElementTree import fromstring as _xml_fromstring
 
 from src.models import Flag, ModuleResult
-# DRY: the FR/anglo money parser proven in the overlay module, and the
-# e-invoice-attachment recogniser proven in the structure module.
+# DRY: the FR/anglo money parser proven in the overlay module, the
+# e-invoice-attachment recogniser proven in the structure module, and the local
+# mod-97 IBAN validator proven in the content module.
 from src.modules.overlay import _money_value
 from src.modules.structure import _is_einvoice_attachment
+from src.modules.content import validate_iban_checksum
 
 logger = logging.getLogger(__name__)
 
@@ -255,6 +257,98 @@ def cross_check(visible_total: float | None, totals: dict | None) -> Flag | None
 
 
 # =============================================================================
+# Check I — IBAN cross-check (visible payment account vs embedded XML)
+# =============================================================================
+# Payment-redirection is the most common invoice fraud: swap the visible bank
+# account so payment goes to the fraudster. The embedded e-invoice XML carries
+# the real payee account (IBANID); if the human-visible IBAN shares NOTHING with
+# the machine-readable one, the visible layer was almost certainly redirected.
+# Compared by SET DISJOINTNESS (not inequality): a legit multi-account invoice
+# still shows the XML account among its visible IBANs, so it overlaps and clears.
+def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
+    """Checksum-valid PAYEE IBANs from the embedded XML, normalized to electronic
+    form (no spaces, upper-case).
+
+    Scoped to IBANID under `PayeePartyCreditorFinancialAccount` — the account the
+    invoice is asking to be PAID TO. A `PayerPartyDebtorFinancialAccount` (the
+    customer account debited under a SEPA direct-debit mandate) is a DIFFERENT
+    account and is deliberately ignored: comparing it to the visible creditor
+    IBAN would falsely flag legitimate direct-debit invoices. The tag name is
+    stable across ZUGFeRD 1.0/2.x, Factur-X, XRechnung (all UN/CEFACT CII), so
+    `_local` namespace-stripping keeps this version-agnostic.
+
+    The mod-97 filter drops non-IBAN payloads that share the IBANID tag (e.g. a
+    'FRDEBIT' SEPA-mandate id) and the length guard keeps a blank/placeholder
+    IBANID from reaching the validator. Never raises: malformed/blocked XML,
+    missing accounts, or bad IBANID text → empty set."""
+    if not xml_bytes:
+        return set()
+    try:
+        root = _xml_fromstring(xml_bytes)
+    except Exception:
+        return set()
+    out: set[str] = set()
+    for acct in root.iter():
+        if _local(acct.tag) != "PayeePartyCreditorFinancialAccount":
+            continue
+        for el in acct.iter():
+            if _local(el.tag) == "IBANID" and el.text:
+                cand = "".join(el.text.split()).upper()
+                if 15 <= len(cand) <= 34 and validate_iban_checksum(cand):
+                    out.add(cand)
+    return out
+
+
+# An IBAN in running text: 2 letters + 2 check digits + 11–30 alphanumerics,
+# optionally grouped with single regular (U+0020) or no-break (U+00A0) spaces —
+# the two separators PDF text extraction actually emits. Purpose-built for the
+# cross-check rather than reusing content.extract_iban, which misses IBANs with
+# LETTERS in the national part (e.g. UK, some FR) unless directly labelled
+# "IBAN:" — a gap that would falsely read a legit matching account as absent.
+# The mod-97 check filters the broad match down to genuine IBANs.
+_IBAN_TEXT_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){11,30})\b", re.I)
+
+
+def _visible_ibans(text: str) -> set[str]:
+    """Checksum-valid IBANs found in the visible text, normalized to electronic
+    form. Requiring mod-97 validity keeps the broad regex from admitting random
+    alphanumeric runs; a fraudster's *invalid* replacement IBAN is caught by the
+    standalone IBAN-checksum check, not here."""
+    out: set[str] = set()
+    for m in _IBAN_TEXT_RE.finditer(text or ""):
+        cand = "".join(m.group(1).split()).upper()
+        if 15 <= len(cand) <= 34 and validate_iban_checksum(cand):
+            out.add(cand)
+    return out
+
+
+def check_iban(text: str, xml_bytes: bytes | None) -> Flag | None:
+    """Check I — the visible payment IBAN(s) must overlap the XML payee IBAN(s).
+
+    Runs only when both the visible text and the XML carry at least one IBAN.
+    Flags ARITH_IBAN_MISMATCH only when the two sets are fully DISJOINT — none of
+    the accounts shown to the human appear in the machine-readable payment data.
+    """
+    xml_ibans = _xml_ibans(xml_bytes)
+    if not xml_ibans:
+        return None
+    visible = _visible_ibans(text)
+    if not visible:
+        return None
+    if not visible.isdisjoint(xml_ibans):
+        return None                          # the real account still appears → clear
+    return Flag(
+        severity="high",
+        code="ARITH_IBAN_MISMATCH",
+        message=("The bank account (IBAN) shown on the page does not match the "
+                 "payment account in the document's embedded e-invoice data: "
+                 f"visible {sorted(visible)} vs machine-readable {sorted(xml_ibans)}. "
+                 "This is the signature of a payment-redirection edit."),
+        details={"visible_ibans": sorted(visible), "xml_ibans": sorted(xml_ibans)},
+    )
+
+
+# =============================================================================
 # PUBLIC ENTRY POINT
 # =============================================================================
 def analyze_arithmetic(pdf_data) -> ModuleResult:
@@ -281,9 +375,10 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
         confidence = min(confidence, 0.5)
         visible_grand = None
 
-    # Check X — embedded e-invoice XML (internal + cross-check).
+    # Check X + Check I — embedded e-invoice XML (read once, reused).
     try:
-        totals = xml_totals(_extract_einvoice_xml(pdf_data.file_path))
+        xml_bytes = _extract_einvoice_xml(pdf_data.file_path)
+        totals = xml_totals(xml_bytes)
         if totals is not None:
             checked_anything = True
             fi = internal_check(totals)
@@ -292,6 +387,10 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
             fc = cross_check(visible_grand, totals)
             if fc is not None:
                 flags.append(fc)
+        fib = check_iban(text, xml_bytes)
+        if fib is not None:
+            checked_anything = True
+            flags.append(fib)
     except Exception as exc:
         logger.warning("arithmetic: e-invoice XML check failed for %s: %s",
                        getattr(pdf_data, "file_path", "?"), exc)
