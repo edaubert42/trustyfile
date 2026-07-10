@@ -992,43 +992,56 @@ def extract_invoice_reference(text: str) -> tuple[str | None, str | None]:
         Tuple of (reference_number, context) or (None, None) if not found
     """
     refs = extract_all_invoice_references(text)
+    # Prefer the document's own number (invoice family) over external refs.
+    for ref, context, family in refs:
+        if family == "invoice":
+            return ref, context
     if refs:
-        return refs[0]
+        return refs[0][0], refs[0][1]
     return None, None
 
 
-def extract_all_invoice_references(text: str) -> list[tuple[str, str]]:
+def extract_all_invoice_references(text: str) -> list[tuple[str, str, str]]:
     """
-    Extract ALL invoice reference numbers from the document.
+    Extract ALL reference numbers from the document, tagged by keyword family.
 
     This finds every occurrence of a reference number, which is useful
     for cross-checking consistency (did someone change it in one place
-    but forget another?).
+    but forget another?). The family tag ("invoice" or "external") says
+    WHICH kind of keyword introduced the number — only same-family
+    occurrences are comparable.
 
     Args:
         text: Full text of the document
 
     Returns:
-        List of (reference_number, context) tuples for all occurrences
+        List of (reference_number, context, family) tuples for all occurrences
     """
     results = []
     seen_positions = set()  # Avoid duplicate matches at same position
 
-    # Keywords that precede invoice numbers (French and English)
-    # Be specific to avoid matching unrelated numbers like postal codes
-    keywords = [
-        r"facture\s*n[°o]?\s*:?\s*",
-        r"facture\s+du\s+\d{2}/\d{2}/\d{4}\s*n[°o]?\s*",  # "Facture du XX/XX/XXXX n°"
-        r"n[°o]\s*(?:de\s*)?facture\s*:?\s*",
-        r"référence\s*facture\s*:?\s*",
-        r"invoice\s*#?\s*:?\s*",
-        r"invoice\s*n[°o]?\s*:?\s*",
-        r"votre\s*référence\s*:?\s*",  # "Your reference"
-        r"notre\s*référence\s*:?\s*",  # "Our reference"
-        r"document\s*n[°o]?\s*:?\s*",
-        r"commande\s*n[°o]?\s*:?\s*",  # Order number
-        r"order\s*#?\s*:?\s*",
-    ]
+    # Keywords that precede reference numbers (French and English), grouped by
+    # FAMILY. Only the "invoice" family identifies the document's own number;
+    # "external" references (customer PO, order number) legitimately differ
+    # from the invoice number on virtually every B2B invoice, so consistency
+    # is only ever checked WITHIN the invoice family (verified audit FP).
+    keyword_families = {
+        "invoice": [
+            r"facture\s*n[°o]?\s*:?\s*",
+            r"facture\s+du\s+\d{2}/\d{2}/\d{4}\s*n[°o]?\s*",  # "Facture du XX/XX/XXXX n°"
+            r"n[°o]\s*(?:de\s*)?facture\s*:?\s*",
+            r"référence\s*facture\s*:?\s*",
+            r"invoice\s*#?\s*:?\s*",
+            r"invoice\s*n[°o]?\s*:?\s*",
+            r"document\s*n[°o]?\s*:?\s*",
+        ],
+        "external": [
+            r"votre\s*référence\s*:?\s*",  # customer's own reference
+            r"notre\s*référence\s*:?\s*",  # sender's filing reference
+            r"commande\s*n[°o]?\s*:?\s*",  # order number
+            r"order\s*#?\s*:?\s*",
+        ],
+    }
 
     # Patterns to EXCLUDE (these are not invoice references)
     exclude_patterns = [
@@ -1047,37 +1060,38 @@ def extract_all_invoice_references(text: str) -> list[tuple[str, str]]:
     # Matches: 2024-001, FAC-202401-0023, INV2024001234, 20240115-042, etc.
     ref_pattern = r"([A-Z]{0,5}[-]?\d{4,}[-]?\d*[A-Z]?)"
 
-    for keyword in keywords:
-        pattern = keyword + ref_pattern
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            # Avoid duplicates at the same position
-            if match.start() in seen_positions:
-                continue
+    for family, keywords in keyword_families.items():
+        for keyword in keywords:
+            pattern = keyword + ref_pattern
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                # Avoid duplicates at the same position
+                if match.start() in seen_positions:
+                    continue
 
-            # Get extended context to check for exclusions
-            start_ctx = max(0, match.start() - 50)
-            end_ctx = min(len(text), match.end() + 10)
-            extended_context = text[start_ctx:end_ctx].lower()
+                # Get extended context to check for exclusions
+                start_ctx = max(0, match.start() - 50)
+                end_ctx = min(len(text), match.end() + 10)
+                extended_context = text[start_ctx:end_ctx].lower()
 
-            # Skip if context matches an exclusion pattern
-            should_exclude = False
-            for excl in exclude_patterns:
-                if re.search(excl, extended_context, re.IGNORECASE):
-                    should_exclude = True
-                    break
+                # Skip if context matches an exclusion pattern
+                should_exclude = False
+                for excl in exclude_patterns:
+                    if re.search(excl, extended_context, re.IGNORECASE):
+                        should_exclude = True
+                        break
 
-            if should_exclude:
-                continue
+                if should_exclude:
+                    continue
 
-            seen_positions.add(match.start())
+                seen_positions.add(match.start())
 
-            ref = match.group(1).upper()  # Normalize to uppercase
-            # Get context around the match
-            start = max(0, match.start() - 30)
-            end = min(len(text), match.end() + 10)
-            context = text[start:end].strip()
+                ref = match.group(1).upper()  # Normalize to uppercase
+                # Get context around the match
+                start = max(0, match.start() - 30)
+                end = min(len(text), match.end() + 10)
+                context = text[start:end].strip()
 
-            results.append((ref, context))
+                results.append((ref, context, family))
 
     return results
 
@@ -1230,28 +1244,31 @@ def check_reference_consistency(text: str) -> list[Flag]:
     """
     flags = []
 
-    # Find all references in the document
+    # Find all references, keeping only the INVOICE family: the document's own
+    # number. External references (customer PO, order number) legitimately
+    # differ from the invoice number, so they are never compared (audit FP).
     all_refs = extract_all_invoice_references(text)
+    invoice_refs = [(ref, ctx) for ref, ctx, family in all_refs if family == "invoice"]
 
-    if len(all_refs) < 2:
-        return flags  # Only one or no reference found, nothing to compare
+    if len(invoice_refs) < 2:
+        return flags  # Only one or no invoice number found, nothing to compare
 
-    # Extract just the reference numbers (normalized to uppercase)
-    ref_numbers = [ref for ref, context in all_refs]
-
-    # Check if all references are the same
-    unique_refs = set(ref_numbers)
+    # Check if all invoice-number occurrences agree
+    unique_refs = set(ref for ref, _ in invoice_refs)
 
     if len(unique_refs) > 1:
-        # Multiple different reference numbers found!
+        # The document's own number differs between occurrences — the classic
+        # header-edited-footer-forgotten tamper trace. SOFT high (not critical):
+        # multi-invoice statements/reminders can legitimately cite several
+        # invoice numbers, so a lone hit must not wreck the score.
         flags.append(Flag(
-            severity="critical",
+            severity="high",
             code="CONTENT_INCONSISTENT_REFERENCES",
-            message=f"Document contains different reference numbers: {', '.join(sorted(unique_refs))}",
+            message=f"Document contains different invoice numbers: {', '.join(sorted(unique_refs))}",
             details={
                 "references_found": [
                     {"reference": ref, "context": ctx[:60]}
-                    for ref, ctx in all_refs
+                    for ref, ctx in invoice_refs
                 ],
                 "unique_references": list(unique_refs),
             }

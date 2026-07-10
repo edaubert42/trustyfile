@@ -553,6 +553,56 @@ class TestCheckFutureInvoiceDate:
 
 
 # =============================================================================
+# TEST check_reference_consistency
+# =============================================================================
+
+class TestCheckReferenceConsistency:
+    """Reference numbers are compared only within the same keyword family."""
+
+    def test_invoice_vs_customer_reference_not_flagged(self):
+        """Verified audit FP: invoice number != customer PO is NORMAL.
+
+        'Votre référence' (the customer's own order ref) and 'Commande n°'
+        legitimately differ from the invoice number on virtually every B2B
+        invoice — they must never be compared against 'Facture n°'.
+        """
+        text = (
+            "Facture N° FA-2024-01123\n"
+            "Votre référence : CMD-2024-0456\n"
+            "Notre référence : FA-2024-01123\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_conflicting_invoice_numbers_flagged_high(self):
+        """Two DIFFERENT invoice numbers on one document is the real fraud
+        signal (header edited, footer forgotten) — flagged, at high (SOFT)."""
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Total TTC : 1 200,00 EUR\n"
+            "Rappel : facture n° FA-2024-200 payable sous 30 jours\n"
+        )
+        flags = check_reference_consistency(text)
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_INCONSISTENT_REFERENCES"
+        assert flags[0].severity == "high"
+
+    def test_same_reference_everywhere_not_flagged(self):
+        text = (
+            "Facture N° FA-2024-100\n"
+            "Rappel : facture n° FA-2024-100 payable sous 30 jours\n"
+        )
+        assert check_reference_consistency(text) == []
+
+    def test_differing_customer_references_not_flagged(self):
+        """Multiple external refs (PO + order number) are never compared."""
+        text = (
+            "Votre référence : CMD-2024-0456\n"
+            "Commande n° 78901\n"
+        )
+        assert check_reference_consistency(text) == []
+
+
+# =============================================================================
 # TEST extract_amounts
 # =============================================================================
 
