@@ -51,6 +51,7 @@ FLAG_THEME_MAP: dict[str, str] = {
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
+    "META_DOCUMENT_REPAIRED": "tampering",
     "META_FUTURE_CREATION_DATE": "tampering",
     "META_IMPOSSIBLE_DATES": "tampering",
 
@@ -64,6 +65,7 @@ FLAG_THEME_MAP: dict[str, str] = {
 
     # identity: invalid SIRET/SIREN/VAT, company mismatch
     "CONTENT_INVALID_SIRET": "identity",
+    "CONTENT_INVALID_IBAN": "identity",
     "CONTENT_INVALID_SIREN": "identity",
     "CONTENT_INVALID_VAT": "identity",
     "CONTENT_SIREN_VAT_MISMATCH": "identity",

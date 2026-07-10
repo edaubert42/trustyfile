@@ -641,6 +641,39 @@ class TestCheckReferenceConsistency:
 
 
 # =============================================================================
+# TEST check_iban_validity (local mod-97, DEFAULT check)
+# =============================================================================
+
+class TestCheckIbanValidity:
+    """Labeled-IBAN checksum validation runs by default (no network)."""
+
+    def test_labeled_invalid_iban_flagged_low(self):
+        """A string explicitly labeled IBAN that fails mod-97 → LOW flag.
+
+        Low, not higher: our own legit corpus has demo/placeholder IBANs
+        (mustang docs) that fail the checksum — a 2/16 legit trip rate.
+        Real payment-redirection fraud uses a VALID account anyway; the
+        checksum mainly catches typos and sloppy fabrication.
+        """
+        from src.modules.content import check_iban_validity
+        flags = check_iban_validity("Virement\nIBAN : FR76 1234 5678 9012 3456 7890 100\n")
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_INVALID_IBAN"
+        assert flags[0].severity == "low"
+
+    def test_unlabeled_iban_lookalike_not_flagged(self):
+        """Corpus-verified trap: Flipkart's 'Order ID: OD304175096047380001'
+        matches the unlabeled IBAN pattern and fails mod-97 — reference
+        numbers must never be flagged, only explicit 'IBAN'-labeled strings."""
+        from src.modules.content import check_iban_validity
+        assert check_iban_validity("Order ID: OD304175096047380001\n") == []
+
+    def test_valid_labeled_iban_not_flagged(self):
+        from src.modules.content import check_iban_validity
+        assert check_iban_validity("IBAN : FR7630006000011234567890189\n") == []
+
+
+# =============================================================================
 # TEST extract_amounts
 # =============================================================================
 

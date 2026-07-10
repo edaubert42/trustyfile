@@ -1891,6 +1891,47 @@ def check_legal_mentions(text: str) -> list[Flag]:
     return flags
 
 
+def check_iban_validity(text: str) -> list[Flag]:
+    """
+    Validate explicitly-labeled IBANs with the local mod-97 checksum.
+
+    Runs by DEFAULT (fully local, no network) — previously this check only
+    existed behind the opt-in external module and a vestigial API-key gate.
+
+    Only matches whose context contains the word "IBAN" are considered:
+    the unlabeled pattern also matches reference numbers (corpus-verified:
+    Flipkart's "Order ID: OD3041...") which are not IBANs at all.
+
+    Severity is LOW by design: demo/template invoices carry placeholder
+    IBANs that fail the checksum (2 of 16 legit corpus docs), and real
+    payment-redirection fraud uses a VALID account — mod-97 mainly catches
+    typos and sloppy fabrication, so it is recorded, not alarming.
+
+    Args:
+        text: Full document text
+
+    Returns:
+        List of Flag objects (one per distinct invalid labeled IBAN)
+    """
+    flags = []
+    seen: set[str] = set()
+    for iban, is_valid, context in extract_iban(text):
+        if is_valid or iban in seen:
+            continue
+        if "iban" not in context.lower():
+            continue  # unlabeled match — could be a reference number
+        seen.add(iban)
+        flags.append(Flag(
+            severity="low",
+            code="CONTENT_INVALID_IBAN",
+            message=f"IBAN fails checksum validation: {iban}",
+            details={"iban": iban, "context": context,
+                     "explanation": "The mod-97 check digit does not match — "
+                                    "a typo or a fabricated account number."},
+        ))
+    return flags
+
+
 # =============================================================================
 # MAIN ANALYSIS FUNCTION
 # =============================================================================
@@ -1956,6 +1997,9 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
 
     # Run legal mentions checks (French company information)
     all_flags.extend(check_legal_mentions(full_text))
+
+    # Local IBAN mod-97 validation (default, no network)
+    all_flags.extend(check_iban_validity(full_text))
 
     # Calculate score
     score = 100
