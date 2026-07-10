@@ -47,6 +47,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     # tampering: arithmetic inconsistencies (e-invoice numbers that don't add up)
     "ARITH_XML_INTERNAL_INCONSISTENT": "tampering",
     "ARITH_XML_VISIBLE_MISMATCH": "tampering",
+    "ARITH_IBAN_MISMATCH": "tampering",
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
@@ -251,6 +252,15 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"underneath it."
         if f.details and f.details.get('covered')
         else "An image is placed over text that is still recoverable underneath it."
+    ),
+    "ARITH_IBAN_MISMATCH": lambda f: (
+        f"The bank account shown on the page (IBAN "
+        f"{', '.join(f.details.get('visible_ibans', []))}) does not match the "
+        f"payment account in the document's embedded e-invoice data "
+        f"({', '.join(f.details.get('xml_ibans', []))}) — the signature of a "
+        f"payment-redirection edit."
+        if f.details else ("The visible bank account (IBAN) does not match the "
+                           "embedded e-invoice payment data.")
     ),
     "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
         f"The embedded e-invoice data does not add up: basis "
@@ -542,6 +552,15 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
         else "Une image est placée sur du texte encore récupérable en dessous."
+    ),
+    "ARITH_IBAN_MISMATCH": lambda f: (
+        f"Le compte bancaire indiqué sur la page (IBAN "
+        f"{', '.join(f.details.get('visible_ibans', []))}) ne correspond pas au "
+        f"compte de paiement des données de facture électronique intégrées "
+        f"({', '.join(f.details.get('xml_ibans', []))}) — signature d'une "
+        f"redirection de paiement."
+        if f.details else ("Le compte bancaire (IBAN) visible ne correspond pas "
+                           "aux données de paiement de la facture électronique intégrée.")
     ),
     "ARITH_XML_INTERNAL_INCONSISTENT": lambda f: (
         f"Les données de la facture électronique intégrée ne sont pas cohérentes : "
