@@ -1048,8 +1048,13 @@ def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
                      "recoverable underneath it."),
             details=details,
         )
+    # Critical (still SOFT) like the value-bearing branch: hiding live text
+    # under an image patch is tamper behaviour whether or not the text carries
+    # a value, and this signal fires on 0 legit corpus docs. At high, the lone
+    # flag left forged_image_patch_over_text.pdf at 92/GENUINE — a band-level
+    # miss (2026-07 audit); at critical it lands at 73/REVIEW.
     return Flag(
-        severity="high",
+        severity="critical",
         code="OVERLAY_IMAGE_OVER_TEXT",
         message=(f"An image on page {page_num + 1} is placed over "
                  f"still-present text (\"{text}\"), which remains recoverable "

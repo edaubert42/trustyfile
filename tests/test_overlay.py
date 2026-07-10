@@ -153,3 +153,15 @@ def test_image_patch_over_plain_text_flagged_as_text_not_value(corpus):
     codes = _codes(corpus["forged_image_patch_over_text.pdf"])
     assert "OVERLAY_IMAGE_OVER_TEXT" in codes
     assert "OVERLAY_IMAGE_OVER_VALUE" not in codes
+
+
+def test_image_patch_over_plain_text_is_critical(corpus):
+    # 2026-07 audit: at high, the lone flag left the tampered doc at
+    # 92/GENUINE — a band-level miss. Hiding live text under an image patch
+    # is tamper behaviour whether or not the text is value-bearing; fires on
+    # 0 legit corpus docs, so critical (still SOFT) → lone flag = 73/REVIEW.
+    from src.extractors.pdf_extractor import extract_pdf_data
+    from src.modules.overlay import analyze_overlay
+    flags = analyze_overlay(extract_pdf_data(corpus["forged_image_patch_over_text.pdf"])).flags
+    sev = {f.code: f.severity for f in flags}
+    assert sev.get("OVERLAY_IMAGE_OVER_TEXT") == "critical"
