@@ -367,13 +367,15 @@ class TestCheckImpossibleDates:
     """Dates that are logically impossible or suspicious."""
 
     def test_far_future_date(self):
-        """Date > 1 year in the future → critical flag."""
+        """Date > 1 year in the future → medium flag (2026-07 judge panel:
+        multi-year contracts/financing schedules and OCR digit misreads trip
+        it legitimately; the expiry-keyword allowlist is incomplete)."""
         future = datetime.now() + timedelta(days=400)
         dates = [make_extracted_date(future, "some context")]
         flags = check_impossible_dates(dates)
         assert len(flags) == 1
         assert flags[0].code == "CONTENT_FAR_FUTURE_DATE"
-        assert flags[0].severity == "critical"
+        assert flags[0].severity == "medium"
 
     def test_very_old_date(self):
         """Date before year 2000 → medium flag."""
@@ -490,7 +492,9 @@ class TestCheckFutureInvoiceDate:
         flags = check_future_document_date(dates)
         assert len(flags) == 1
         assert flags[0].code == "CONTENT_FUTURE_DOCUMENT_DATE"
-        assert flags[0].severity == "critical"
+        # high since the 2026-07 judge panel: which date is "the" document
+        # date rests on keyword heuristics over OCR-able text.
+        assert flags[0].severity == "high"
 
     def test_past_invoice_ok(self):
         past = datetime.now() - timedelta(days=30)

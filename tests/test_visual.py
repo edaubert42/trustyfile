@@ -119,12 +119,13 @@ class TestCheckQrCodesDomainMismatch:
         assert len(flags) == 0
 
     def test_mismatched_domain_flagged(self):
-        """QR says 'phishing.com' but expected 'edf.fr' → critical."""
+        """QR says 'phishing.com' but expected 'edf.fr' → high (2026-07 judge
+        panel: payment-gateway QRs legitimately point off-domain)."""
         qr = QRCodeInfo(data="https://phishing.com/edf/pay", page=0)
         flags = check_qr_codes([qr], expected_domains=["edf.fr"])
         mismatch = [f for f in flags if f.code == "VISUAL_QR_DOMAIN_MISMATCH"]
         assert len(mismatch) == 1
-        assert mismatch[0].severity == "critical"
+        assert mismatch[0].severity == "high"
 
     def test_no_expected_domains_no_mismatch_flag(self):
         """Without expected domains, we can't check for mismatches."""
