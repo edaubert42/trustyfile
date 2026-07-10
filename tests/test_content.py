@@ -817,8 +817,12 @@ class TestCheckLegalMentions:
         assert invalid[0].severity == "high"
 
     def test_missing_company_id_flagged(self):
-        """French invoice without any company ID → medium flag."""
-        text = "Facture n° 2024-001\nMontant: 100€\nTVA: 20%"
+        """French invoice without any company ID → medium flag.
+
+        The fixture shows a French legal form (SAS) — since the audit fix,
+        invoice-ness alone ("facture"/"TVA" also appear on Belgian/Swiss
+        invoices) is not enough to demand a SIRET."""
+        text = "Facture n° 2024-001\nSAS Exemple\nMontant: 100€\nTVA: 20%"
         flags = check_legal_mentions(text)
         missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
         assert len(missing) == 1
@@ -829,6 +833,43 @@ class TestCheckLegalMentions:
         flags = check_legal_mentions(text)
         missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
         assert len(missing) == 0
+
+    def test_manufacturer_substring_not_french_invoice(self):
+        """Verified audit FP: 'manufacturer' contains 'facture' as a substring —
+        an Indian Flipkart invoice was classified as a French invoice missing
+        its SIRET. Keyword matching must use word boundaries."""
+        text = (
+            "Tax Invoice #IN-2024-889\n"
+            "*keep this invoice and manufacturer box for warranty purposes.\n"
+            "Grand Total: Rs. 4,999.00\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"] == []
+
+    def test_francophone_non_french_invoice_not_flagged(self):
+        """A Belgian invoice says 'facture' and 'TVA' but its issuer has no
+        SIRET regime — only docs showing a FRENCH-jurisdiction marker
+        (legal form / registry mention) must be held to French requirements."""
+        text = (
+            "FACTURE 2024-117\n"
+            "SPRL Lumière, Rue Neuve 12, 1000 Bruxelles\n"
+            "TVA : BE 0123.456.749\n"
+            "Total TTC : 250,00 EUR\n"
+        )
+        flags = check_legal_mentions(text)
+        assert [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"] == []
+
+    def test_french_invoice_with_legal_form_still_flagged(self):
+        """A doc claiming a French legal form (SARL) with 'facture' and no
+        SIRET/SIREN/VAT keeps the flag — detection must not be weakened."""
+        text = (
+            "FACTURE N° 2024-042\n"
+            "SARL Dupont Rénovation, 12 rue de la Paix, 75002 Paris\n"
+            "Montant total TTC : 1 500,00 €\n"
+        )
+        flags = check_legal_mentions(text)
+        missing = [f for f in flags if f.code == "CONTENT_MISSING_COMPANY_ID"]
+        assert len(missing) == 1
 
     def test_siren_vat_same_line_mismatch_flagged(self):
         """

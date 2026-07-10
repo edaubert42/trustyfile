@@ -1824,15 +1824,28 @@ def check_legal_mentions(text: str) -> list[Flag]:
                     }
                 ))
 
-    # Flag ABSENCE of any legal identifier on invoice-like documents.
+    # Flag ABSENCE of any legal identifier on FRENCH invoice-like documents.
     # French invoices legally require a SIRET/SIREN; none present is suspicious.
-    # Gate on invoice-like text so we don't flag letters/attestations.
+    # Two guards (verified audit FP on an Indian Flipkart invoice):
+    #  1. WORD-BOUNDARY matching — "manufacturer" contains "facture" as a
+    #     substring, so plain `in` misclassified English invoices as French.
+    #  2. A FRENCH-JURISDICTION marker is required — Belgian/Swiss francophone
+    #     invoices also say "facture"/"TVA" but their issuers have no SIRET
+    #     regime; only a doc claiming a French legal form or registry mention
+    #     is held to French requirements.
     text_lower = text.lower()
     looks_like_invoice = any(
-        kw in text_lower for kw in ("facture", "tva", "montant", "total ttc")
+        re.search(pat, text_lower)
+        for pat in (r"\bfactures?\b", r"\btva\b", r"\bmontants?\b", r"\btotal ttc\b")
+    )
+    french_marker = re.search(
+        r"\b(siret|siren|r\.?c\.?s|naf|ape|sarl|sas|sasu|eurl|sci|"
+        r"auto-entrepreneur|micro-entreprise)\b"
+        r"|tva\s+intracommunautaire\s*:?\s*fr",
+        text_lower,
     )
     has_any_id = bool(sirets or sirens or vats)
-    if looks_like_invoice and not has_any_id:
+    if looks_like_invoice and french_marker and not has_any_id:
         flags.append(Flag(
             severity="medium",
             code="CONTENT_MISSING_COMPANY_ID",
