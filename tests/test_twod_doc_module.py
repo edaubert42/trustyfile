@@ -46,7 +46,7 @@ class TestFlagsFromVerification:
         res = verify_2d_doc_against_pdf(td, MATCHING_TEXT)
         flags = _flags_from_verification(res)
         assert [f.code for f in flags] == ["TWOD_DOC_CONSISTENT"]
-        assert flags[0].severity == "low"
+        assert flags[0].severity == "medium"
 
     def test_single_field_no_consistent(self):
         """<2 comparisons must NOT earn the genuine flag (spec D2)."""
@@ -91,6 +91,7 @@ class TestAnalyzeTwodDoc:
         r = analyze_twod_doc(FakePDFData())
         assert isinstance(r, ModuleResult)
         assert r.module == "twod_doc" and r.flags == [] and r.score == 100
+        assert r.confidence == 0.5
 
     def test_no_barcode_neutral(self, tmp_path):
         """A plain text-only PDF has no DataMatrix: neutral, never a penalty."""
@@ -107,7 +108,7 @@ class TestAnalyzeTwodDoc:
             text_by_page = ["Facture 100,00 EUR"]
         r = analyze_twod_doc(FakePDFData())
         assert r.flags == [] and r.score == 100
-        assert r.confidence <= 0.5
+        assert r.confidence == 0.3
 
 
 class TestEvidenceRegistration:

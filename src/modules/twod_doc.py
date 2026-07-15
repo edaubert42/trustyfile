@@ -1960,7 +1960,7 @@ def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
     if (not flags and len(result.comparisons) >= _MIN_COMPARISONS_FOR_CONSISTENT
             and result.overall_match):
         flags.append(Flag(
-            severity="low",   # weight comes from GENUINE_CODES direction
+            severity="medium",  # weight comes from GENUINE_CODES direction
             code="TWOD_DOC_CONSISTENT",
             message=(f"All {len(result.comparisons)} fields of the document's "
                      "signed 2D-Doc barcode match the visible text — "
