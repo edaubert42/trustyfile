@@ -275,3 +275,33 @@ def test_ocr_producer_suppresses_injection(tmp_path):
              invisible=[(72, 400, "FR7630006000011234567890189", 10)],
              producer="ABBYY FineReader 15")
     assert analyze_invisible(_PdfData(p)).flags == []
+
+
+# --- Task 7: analyzer registration, module weight, corpus zero-FP gate -----
+
+import glob
+import os
+
+_LEGIT = sorted(glob.glob("samples/legitimate/**/*.pdf", recursive=True))
+
+
+@pytest.mark.skipif(not _LEGIT, reason="local corpus not present")
+@pytest.mark.parametrize("path", _LEGIT, ids=os.path.basename)
+def test_no_invisible_flags_on_legit_corpus(path):
+    """Zero-FP hard gate: no legitimate sample may emit any INVISIBLE_* code."""
+    res = analyze_invisible(_PdfData(path))
+    assert res.flags == [], f"{path} -> {[f.code for f in res.flags]}"
+
+
+def test_module_registered_in_analyzer():
+    import inspect
+    import src.analyzer as analyzer
+    src_text = inspect.getsource(analyzer)
+    assert "analyze_invisible" in src_text and '_run("invisible"' in src_text
+
+
+def test_injection_code_is_not_hard_negative():
+    # Mirrors test_confirmed_code_is_hard_negative: pins that the INJECTION
+    # code stays SOFT (unlike the CONFIRMED conflict code above).
+    from src.evidence import HARD_NEGATIVE_CODES
+    assert "INVISIBLE_TEXT_INJECTION" not in HARD_NEGATIVE_CODES
