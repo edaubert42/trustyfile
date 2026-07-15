@@ -72,6 +72,54 @@ def _is_digital_native(painted: list, invisible: list) -> bool:
     return total > 0 and (_area(invisible) / total) < INVISIBLE_DOMINANCE_MAX
 
 
+def _value_token(text: str) -> str | None:
+    """A monetary amount or IBAN-shaped token in `text`, or None."""
+    tok = amount_token(text)
+    if tok:
+        return tok
+    m = _IBAN_RE.search("".join(text.split()).upper())
+    return m.group() if m else None
+
+
+def _rows_overlap(b1: fitz.Rect, b2: fitz.Rect) -> bool:
+    """Vertical overlap >= ROW_OVERLAP_MIN of the smaller span height."""
+    overlap = min(b1.y1, b2.y1) - max(b1.y0, b2.y0)
+    smaller = min(b1.height, b2.height)
+    return smaller > 0 and (overlap / smaller) >= ROW_OVERLAP_MIN
+
+
+def _near_horizontally(inv: fitz.Rect, pt: fitz.Rect, painted_span: dict) -> bool:
+    """Horizontal overlap, or a gap under the painted span's glyph advance."""
+    gap = max(pt.x0 - inv.x1, inv.x0 - pt.x1)
+    if gap <= 0:
+        return True
+    nchars = max(1, len(painted_span.get("chars", [])))
+    advance = pt.width / nchars
+    return gap < advance
+
+
+def _find_conflicts(painted: list, invisible: list, angle: float) -> list[dict]:
+    """Invisible value tokens that disagree with painted text on their row."""
+    hits = []
+    for inv in invisible:
+        hidden = span_text(inv)
+        if not _value_token(hidden) or is_placeholder(hidden):
+            continue
+        ibox = fitz.Rect(inv["bbox"])
+        for p in painted:
+            pbox = fitz.Rect(p["bbox"])
+            if not _rows_overlap(ibox, pbox):
+                continue
+            if not _near_horizontally(ibox, pbox, p):
+                continue
+            if pair_is_conflict(inv, p, angle):
+                hits.append({"hidden": hidden.strip(),
+                             "visible": span_text(p).strip(),
+                             "bbox": tuple(inv["bbox"])})
+                break                      # one conflict per invisible span
+    return hits
+
+
 def analyze_invisible(pdf_data) -> ModuleResult:
     """Flag invisible text that conflicts with or hides from the visible page.
 
@@ -84,6 +132,7 @@ def analyze_invisible(pdf_data) -> ModuleResult:
 
     flags: list[Flag] = []
     confidence = 1.0
+    conflict_instances: list[dict] = []
 
     doc = None
     try:
@@ -94,7 +143,9 @@ def analyze_invisible(pdf_data) -> ModuleResult:
                 painted, invisible = _split_spans(page)
                 if not _is_digital_native(painted, invisible):
                     continue
-                # Detection signals land here in later tasks.
+                angle = page_angle(page)
+                for hit in _find_conflicts(painted, invisible, angle):
+                    conflict_instances.append({"page": page_num, **hit})
             except Exception as exc:  # one bad page must not sink the module
                 logger.warning("invisible: page %d failed: %s", page_num, exc)
                 confidence = min(confidence, 0.5)
@@ -108,6 +159,17 @@ def analyze_invisible(pdf_data) -> ModuleResult:
                 doc.close()
             except Exception:
                 pass
+
+    if conflict_instances:
+        n = len(conflict_instances)
+        flags.append(Flag(
+            severity="high",
+            code="INVISIBLE_TEXT_VALUE_CONFLICT",
+            message=(f"{n} invisible text value(s) disagree with the visible "
+                     f"page (e.g. hidden '{conflict_instances[0]['hidden']}' "
+                     f"vs visible '{conflict_instances[0]['visible']}')"),
+            details={"count": n, "instances": conflict_instances},
+        ))
 
     score = 100
     for f in flags:

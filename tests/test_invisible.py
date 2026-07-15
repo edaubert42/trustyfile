@@ -170,3 +170,44 @@ def test_split_spans_partitions_painted_and_invisible():
         assert span_text(painted[0]) == "Visible"
     finally:
         doc.close()
+
+
+# --- INVISIBLE_TEXT_VALUE_CONFLICT (Task 3) ---------------------------------
+
+def test_conflicting_invisible_amount_flagged(tmp_path):
+    # Visible 1 025,00 with an invisible 2 025,00 on the same row/size.
+    # Label and amount are SEPARATE spans (how generators typically emit
+    # them): pair_is_conflict requires matching char classes, so the painted
+    # comparand must be the bare numeric span, not "Total: 1 025,00".
+    p = _pdf(tmp_path, "conflict.pdf",
+             painted=[(72, 100, "Facture INV-2026-001", 11),
+                      (72, 140, "Total:", 12),
+                      (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "2 025,00", 12)])
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_VALUE_CONFLICT"]
+    inst = res.flags[0].details["instances"][0]
+    assert "2" in inst["hidden"] and inst["page"] == 0
+
+
+def test_invisible_placeholder_not_flagged(tmp_path):
+    p = _pdf(tmp_path, "placeholder.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "0,00", 12)])
+    assert analyze_invisible(_PdfData(p)).flags == []
+
+
+def test_size_mismatch_not_a_conflict(tmp_path):
+    # >10% size difference -> different fields, not a shadowed value.
+    p = _pdf(tmp_path, "sizes.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "2 025,00", 7)])
+    assert analyze_invisible(_PdfData(p)).flags == []
+
+
+def test_identical_invisible_text_not_a_conflict(tmp_path):
+    # Same normalized value (a legit duplicated layer) -> no flag.
+    p = _pdf(tmp_path, "same.pdf",
+             painted=[(72, 140, "1 025,00", 12)],
+             invisible=[(72, 140, "1025,00", 12)])
+    assert analyze_invisible(_PdfData(p)).flags == []
