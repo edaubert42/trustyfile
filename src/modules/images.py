@@ -165,10 +165,28 @@ _EXIF_EDITOR_SOFTWARE = (
 _EXIF_DATE_SLACK = timedelta(hours=24)
 
 
-def _read_exif(image_bytes: bytes) -> tuple["datetime | None", "str | None"]:
+def _parse_exif_datetime(raw) -> datetime | None:
+    """Parse a raw EXIF datetime value ("%Y:%m:%d %H:%M:%S", first 19 chars).
+
+    Returns None for anything missing, too short, or malformed — a bad
+    string is treated the same as an absent tag.
+    """
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _read_exif(image_bytes: bytes) -> tuple[datetime | None, str | None]:
     """Best EXIF datetime (naive) + Software string from raw image bytes.
 
-    Prefers DateTimeOriginal (capture time) over DateTime (last save).
+    Prefers DateTimeOriginal (capture time) over DateTime (last save): a
+    photo/logo can be re-exported or re-saved long after it was captured,
+    which only bumps DateTime — using DateTimeOriginal when present avoids
+    mistaking that re-save for a "future" asset relative to the document.
+    DateTime is used only when DateTimeOriginal is absent or unparseable.
     Never raises: any parse problem returns (None, None) — EXIF is
     attacker-controllable input.
 
@@ -184,27 +202,21 @@ def _read_exif(image_bytes: bytes) -> tuple["datetime | None", "str | None"]:
         software = exif.get(_EXIF_TAG_SOFTWARE)
         software = str(software).strip() if software else None
 
-        raw_dates = [exif.get(_EXIF_TAG_DATETIME)]
+        original_raw = None
         try:
-            raw_dates.append(exif.get_ifd(_EXIF_IFD_EXIF).get(_EXIF_TAG_DATETIME_ORIGINAL))
+            original_raw = exif.get_ifd(_EXIF_IFD_EXIF).get(_EXIF_TAG_DATETIME_ORIGINAL)
         except Exception:
             pass
-        best: datetime | None = None
-        for raw in raw_dates:
-            if not raw:
-                continue
-            try:
-                dt = datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
-            except ValueError:
-                continue
-            if best is None or dt > best:
-                best = dt
+
+        best = _parse_exif_datetime(original_raw)
+        if best is None:
+            best = _parse_exif_datetime(exif.get(_EXIF_TAG_DATETIME))
         return best, software
     except Exception:
         return None, None
 
 
-def check_exif_metadata(pdf_path: str, doc_creation_date) -> list[Flag]:
+def check_exif_metadata(pdf_path: str, doc_creation_date: datetime | None) -> list[Flag]:
     """EXIF checks over every embedded raster image (one flag per code max).
 
     Args:
