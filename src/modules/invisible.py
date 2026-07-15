@@ -120,6 +120,22 @@ def _find_conflicts(painted: list, invisible: list, angle: float) -> list[dict]:
     return hits
 
 
+def _producer_haystack(pdf_data) -> str:
+    """Lower-cased Producer+Creator, '' on any failure (never raises)."""
+    try:
+        doc = fitz.open(pdf_data.file_path)
+        try:
+            meta = doc.metadata or {}
+            return (f"{meta.get('producer') or ''} "
+                    f"{meta.get('creator') or ''}").casefold()
+        finally:
+            doc.close()
+    except Exception as exc:
+        logger.warning("invisible: metadata read failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+        return ""
+
+
 def analyze_invisible(pdf_data) -> ModuleResult:
     """Flag invisible text that conflicts with or hides from the visible page.
 
@@ -133,6 +149,9 @@ def analyze_invisible(pdf_data) -> ModuleResult:
     flags: list[Flag] = []
     confidence = 1.0
     conflict_instances: list[dict] = []
+
+    haystack = _producer_haystack(pdf_data)
+    producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
 
     doc = None
     try:
@@ -162,13 +181,18 @@ def analyze_invisible(pdf_data) -> ModuleResult:
 
     if conflict_instances:
         n = len(conflict_instances)
+        if producer_is_editor:
+            code, severity = "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED", "critical"
+        else:
+            code, severity = "INVISIBLE_TEXT_VALUE_CONFLICT", "high"
         flags.append(Flag(
-            severity="high",
-            code="INVISIBLE_TEXT_VALUE_CONFLICT",
+            severity=severity,
+            code=code,
             message=(f"{n} invisible text value(s) disagree with the visible "
                      f"page (e.g. hidden '{conflict_instances[0]['hidden']}' "
                      f"vs visible '{conflict_instances[0]['visible']}')"),
-            details={"count": n, "instances": conflict_instances},
+            details={"count": n, "instances": conflict_instances,
+                     "producer_is_editor": producer_is_editor},
         ))
 
     score = 100

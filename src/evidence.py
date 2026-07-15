@@ -32,6 +32,7 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     # not an arithmetic certainty about ONE party's identifiers.
     "OVERLAY_COVER_AND_RETYPE_CONFIRMED",           # Phase 2 Task 4: geometry + editor Producer (C2)
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
+    "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED",      # Phase 7: Tr-3 shadow value + editor Producer (C2)
 })
 HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # future: cryptographically verified signatures (pyHanko)
 # Soft positive signals — evidence FOR the document. Only signals an attacker

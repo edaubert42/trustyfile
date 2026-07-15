@@ -211,3 +211,22 @@ def test_identical_invisible_text_not_a_conflict(tmp_path):
              painted=[(72, 140, "1 025,00", 12)],
              invisible=[(72, 140, "1025,00", 12)])
     assert analyze_invisible(_PdfData(p)).flags == []
+
+
+# --- INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED (Task 4) -----------------------
+
+def test_conflict_with_editor_producer_is_confirmed(tmp_path):
+    p = _pdf(tmp_path, "confirmed.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "2 025,00", 12)],
+             producer="Adobe Acrobat Pro DC 24.0")
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED"]
+    assert res.flags[0].severity == "critical"
+
+
+def test_confirmed_code_is_hard_negative():
+    from src.evidence import HARD_NEGATIVE_CODES
+    assert "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED" in HARD_NEGATIVE_CODES
+    # The SOFT base code must NOT be hard.
+    assert "INVISIBLE_TEXT_VALUE_CONFLICT" not in HARD_NEGATIVE_CODES
