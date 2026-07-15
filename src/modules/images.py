@@ -16,13 +16,16 @@ Why images matter for fraud detection:
 - Inconsistent image quality reveals editing
 """
 
+import io
 import re
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import fitz  # PyMuPDF
 import numpy as np
 import cv2
+from PIL import Image as PILImage
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
@@ -132,6 +135,143 @@ def extract_images_from_pdf(pdf_path: str) -> list[ImageInfo]:
         doc.close()
 
     return images
+
+
+# =============================================================================
+# EXIF METADATA (audit item 21)
+# =============================================================================
+# Only two conservative signals (spec D5 — F2 precedent: these can never force
+# REVIEW alone):
+#   IMAGES_EXIF_DATE_AFTER_DOC  (medium)  image claims to have been captured/
+#       modified AFTER the PDF says it was created (+24h timezone slack) —
+#       an asset from the future relative to its own document.
+#   IMAGES_EXIF_EDITOR_SOFTWARE (low)     EXIF Software names an image editor.
+#       Informational only: logos are legitimately edited.
+# Deliberately NOT flagged: EXIF dates BEFORE the document (old logos are
+# normal) and camera/device fields (screenshot detection already exists).
+
+_EXIF_TAG_DATETIME = 306          # "DateTime" (file modification)
+_EXIF_TAG_SOFTWARE = 305
+_EXIF_IFD_EXIF = 0x8769
+_EXIF_TAG_DATETIME_ORIGINAL = 36867
+
+_EXIF_EDITOR_SOFTWARE = (
+    "photoshop", "gimp", "paint.net", "paintshop", "pixelmator",
+    "affinity photo", "corel", "photopea", "ms paint", "krita",
+)
+
+# Timezone slack: EXIF datetimes are timezone-naive, so anything inside one
+# day of the document date is treated as "same time".
+_EXIF_DATE_SLACK = timedelta(hours=24)
+
+
+def _read_exif(image_bytes: bytes) -> tuple["datetime | None", "str | None"]:
+    """Best EXIF datetime (naive) + Software string from raw image bytes.
+
+    Prefers DateTimeOriginal (capture time) over DateTime (last save).
+    Never raises: any parse problem returns (None, None) — EXIF is
+    attacker-controllable input.
+
+    Example:
+        >>> _read_exif(jpeg_with_exif)      # doctest: +SKIP
+        (datetime(2026, 3, 1, 10, 0), 'Adobe Photoshop 25.0')
+    """
+    try:
+        img = PILImage.open(io.BytesIO(image_bytes))
+        exif = img.getexif()
+        if not exif:
+            return None, None
+        software = exif.get(_EXIF_TAG_SOFTWARE)
+        software = str(software).strip() if software else None
+
+        raw_dates = [exif.get(_EXIF_TAG_DATETIME)]
+        try:
+            raw_dates.append(exif.get_ifd(_EXIF_IFD_EXIF).get(_EXIF_TAG_DATETIME_ORIGINAL))
+        except Exception:
+            pass
+        best: datetime | None = None
+        for raw in raw_dates:
+            if not raw:
+                continue
+            try:
+                dt = datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
+            except ValueError:
+                continue
+            if best is None or dt > best:
+                best = dt
+        return best, software
+    except Exception:
+        return None, None
+
+
+def check_exif_metadata(pdf_path: str, doc_creation_date) -> list[Flag]:
+    """EXIF checks over every embedded raster image (one flag per code max).
+
+    Args:
+        pdf_path: The PDF to inspect.
+        doc_creation_date: PDFMetadata.creation_date (tz-aware UTC) or None —
+            when None the date check is skipped entirely.
+    """
+    late_images: list[dict] = []
+    editor_images: list[dict] = []
+
+    doc = None
+    try:
+        doc = fitz.open(pdf_path)
+        seen: set[int] = set()
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                if xref in seen:
+                    continue
+                seen.add(xref)
+                try:
+                    base = doc.extract_image(xref)
+                except Exception:
+                    continue
+                if not base or base.get("ext") not in ("jpeg", "jpg", "jpx", "tiff", "png"):
+                    continue
+                exif_dt, software = _read_exif(base.get("image", b""))
+
+                if exif_dt is not None and doc_creation_date is not None:
+                    exif_utc = exif_dt.replace(tzinfo=timezone.utc)
+                    if exif_utc > doc_creation_date + _EXIF_DATE_SLACK:
+                        late_images.append({"xref": xref,
+                                            "exif_datetime": str(exif_dt)})
+                if software and any(e in software.lower()
+                                    for e in _EXIF_EDITOR_SOFTWARE):
+                    editor_images.append({"xref": xref, "software": software})
+    except Exception as e:
+        logger.warning(f"EXIF check failed: {e}")
+        return []
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+    flags: list[Flag] = []
+    if late_images:
+        flags.append(Flag(
+            severity="medium",
+            code="IMAGES_EXIF_DATE_AFTER_DOC",
+            message=(f"{len(late_images)} embedded image(s) carry an EXIF "
+                     "timestamp LATER than the document's own creation date — "
+                     "an image added after the document supposedly existed."),
+            details={"images": late_images,
+                     "doc_creation_date": str(doc_creation_date)},
+        ))
+    if editor_images:
+        flags.append(Flag(
+            severity="low",
+            code="IMAGES_EXIF_EDITOR_SOFTWARE",
+            message=(f"{len(editor_images)} embedded image(s) were saved by an "
+                     "image editor according to their EXIF Software field. "
+                     "Common for logos; relevant only alongside other signals."),
+            details={"images": editor_images},
+        ))
+    return flags
 
 
 # =============================================================================
@@ -709,6 +849,13 @@ def analyze_images(pdf_data: PDFData) -> ModuleResult:
         all_flags.extend(check_paste_artifacts(pdf_data.file_path))
     except Exception as e:
         logger.warning(f"Paste detection failed: {e}")
+
+    # EXIF checks (audit item 21) — never let a Pillow failure sink the module
+    try:
+        all_flags.extend(check_exif_metadata(pdf_data.file_path,
+                                             pdf_data.metadata.creation_date))
+    except Exception as e:
+        logger.warning(f"EXIF analysis failed: {e}")
 
     # Calculate score
     score = 100
