@@ -412,6 +412,26 @@ def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
 _IBAN_TEXT_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){11,30})\b", re.I)
 
 
+# ISO 13616 registry: canonical IBAN length per country code. A candidate
+# whose country is absent is NOT treated as an IBAN (fail-safe). Exactly one
+# mod-97 attempt per candidate — a brute-force length search was proven to
+# fabricate "IBANs" out of ordinary reference numbers (2026-07-12 review).
+_IBAN_LENGTHS = {
+    "AL": 28, "AD": 24, "AT": 20, "AZ": 28, "BH": 22, "BY": 28, "BE": 16,
+    "BA": 20, "BR": 29, "BG": 22, "CR": 22, "HR": 21, "CY": 28, "CZ": 24,
+    "DK": 18, "DO": 28, "EG": 29, "SV": 28, "EE": 20, "FO": 18, "FI": 18,
+    "FR": 27, "GE": 22, "DE": 22, "GI": 23, "GR": 27, "GL": 18, "GT": 28,
+    "HU": 28, "IS": 26, "IQ": 23, "IE": 22, "IL": 23, "IT": 27, "JO": 30,
+    "KZ": 20, "XK": 20, "KW": 30, "LV": 21, "LB": 28, "LY": 25, "LI": 21,
+    "LT": 20, "LU": 20, "MT": 31, "MR": 27, "MU": 30, "MD": 24, "MC": 27,
+    "ME": 22, "NL": 18, "MK": 19, "NO": 15, "PK": 24, "PS": 29, "PL": 28,
+    "PT": 25, "QA": 29, "RO": 24, "RU": 33, "SM": 27, "SA": 24, "RS": 22,
+    "SC": 31, "SK": 24, "SI": 19, "ES": 24, "SD": 18, "SE": 24, "CH": 21,
+    "TL": 23, "TN": 24, "TR": 26, "UA": 29, "AE": 23, "GB": 22, "VA": 22,
+    "VG": 24,
+}
+
+
 def _visible_ibans(text: str) -> set[str]:
     """Checksum-valid IBANs found in the visible text, normalized to electronic
     form. Requiring mod-97 validity keeps the broad regex from admitting random
@@ -421,18 +441,30 @@ def _visible_ibans(text: str) -> set[str]:
     The regex's greedy repetition can run past the IBAN's true end into
     adjoining prose that happens to be alphanumeric under re.I (e.g. a same-line
     "...013000 merci" reads as "...013000MERCI" once whitespace is stripped, and
-    that no longer checksum-validates). So each match is retried checksum-first
-    from its full captured length downward until a valid IBAN is found: this
-    only ever narrows what the regex already captured, never admits a candidate
-    the regex didn't find."""
+    that no longer checksum-validates). A brute-force retry across every trim
+    length (34 down to 15) used to "fix" this — but that is up to ~20 mod-97
+    attempts per regex match, and coincidental collisions are common enough on
+    ordinary reference numbers / VAT / SIRET strings to fabricate fake IBANs out
+    of plain prose (2026-07-12 review regression: "AB123456789012345 pour votre
+    commande" fabricated a fake "AB123456789012345POURVO"), producing false
+    ARITH_IBAN_MISMATCH flags on legitimate invoices.
+
+    Instead, each candidate is truncated to its OWN country's CANONICAL ISO
+    13616 length (_IBAN_LENGTHS) and checksum-validated EXACTLY ONCE. This
+    still recovers the true IBAN when the regex over-captured trailing prose
+    (truncating to the known-correct length, not searching for whichever
+    length happens to validate), while a country absent from the registry, or
+    a capture shorter than its canonical length, is skipped outright — never
+    treated as an IBAN (fail-safe)."""
     out: set[str] = set()
     for m in _IBAN_TEXT_RE.finditer(text or ""):
         cand = "".join(m.group(1).split()).upper()
-        for end in range(min(len(cand), 34), 14, -1):
-            trimmed = cand[:end]
-            if validate_iban_checksum(trimmed):
-                out.add(trimmed)
-                break
+        expected_len = _IBAN_LENGTHS.get(cand[:2])
+        if expected_len is None or len(cand) < expected_len:
+            continue  # unknown country, or too short to be that country's IBAN
+        cand = cand[:expected_len]
+        if validate_iban_checksum(cand):
+            out.add(cand)
     return out
 
 

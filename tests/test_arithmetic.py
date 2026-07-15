@@ -269,6 +269,32 @@ def test_analyze_clean_einvoice_matching_iban_no_flag(tmp_path):
     assert "ARITH_IBAN_MISMATCH" not in _codes(p)
 
 
+class TestVisibleIbans:
+    """_visible_ibans must never FABRICATE an IBAN out of ordinary prose. The
+    original implementation brute-forced every trim length from the regex's
+    full greedy capture down to 15 chars against mod-97, accepting the first
+    hit -- up to ~20 coincidental-collision attempts per match, which turned
+    reference numbers / VAT / SIRET strings on ordinary invoices into fake
+    IBANs (false ARITH_IBAN_MISMATCH on legitimate documents). The fix tries
+    exactly ONE length per candidate: its country's canonical ISO 13616 IBAN
+    length (see 2026-07-12 review)."""
+
+    def test_visible_ibans_reference_number_prose_is_not_an_iban(self):
+        """Regression (2026-07-12 review): the length brute-force fabricated
+        'AB123456789012345POURVO' from this text -> false ARITH_IBAN_MISMATCH."""
+        from src.modules.arithmetic import _visible_ibans
+        text = ("Facture 2025-0421. Reference AB123456789012345 pour votre "
+                "commande. Merci de votre confiance.")
+        assert _visible_ibans(text) == set()
+
+    def test_visible_ibans_trailing_prose_truncated_to_canonical_length(self):
+        """The greedy regex swallows ' merci'; canonical-length truncation
+        recovers the true IBAN (this was the original false negative)."""
+        from src.modules.arithmetic import _visible_ibans
+        assert _visible_ibans("Payez sur IBAN DE89370400440532013000 merci") == \
+            {"DE89370400440532013000"}
+
+
 # =============================================================================
 # Full module + wiring
 # =============================================================================
@@ -425,9 +451,21 @@ CBC = 'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicCompon
 
 def _ubl_xml(payable="120.00", tax_excl="100.00", tax_incl="120.00",
              tax="20.00", iban="FR7630006000011234567890189",
-             root="Invoice") -> bytes:
-    """Minimal UBL invoice with document-level totals, tax and payee IBAN."""
+             root="Invoice", extra_tax_total=None) -> bytes:
+    """Minimal UBL invoice with document-level totals, tax and payee IBAN.
+
+    `extra_tax_total`, if given, is an (amount, currencyID) pair rendered as a
+    SECOND document-level TaxTotal sibling of the first -- the BT-111
+    accounting-currency duplicate that a compliant UBL invoice may carry
+    alongside the tax-currency TaxTotal, and which must be excluded from the
+    summed `tax` rather than added to it.
+    """
     ns = UBL_NS.replace("Invoice-2", f"{root}-2")
+    extra_tt = (
+        f'<cac:TaxTotal><cbc:TaxAmount currencyID="{extra_tax_total[1]}">'
+        f'{extra_tax_total[0]}</cbc:TaxAmount></cac:TaxTotal>'
+        if extra_tax_total is not None else ""
+    )
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <{root} {ns} {CAC} {CBC}>
   <cbc:ID>UBL-TEST-1</cbc:ID>
@@ -439,6 +477,7 @@ def _ubl_xml(payable="120.00", tax_excl="100.00", tax_incl="120.00",
   <cac:TaxTotal>
     <cbc:TaxAmount currencyID="EUR">{tax}</cbc:TaxAmount>
   </cac:TaxTotal>
+  {extra_tt}
   <cac:InvoiceLine>
     <cac:TaxTotal>
       <cbc:TaxAmount currencyID="EUR">999.99</cbc:TaxAmount>
@@ -466,6 +505,17 @@ class TestUblTotals:
     def test_ubl_line_level_taxtotal_ignored(self):
         """The InvoiceLine TaxTotal (999.99) must NOT pollute the document tax."""
         totals = xml_totals(_ubl_xml())
+        assert totals["tax"] == 20.00
+
+    def test_ubl_accounting_currency_taxtotal_excluded(self):
+        """BT-111: a second document-level TaxTotal in the accounting currency
+        (here USD, alongside the EUR LegalMonetaryTotal) is a duplicate of the
+        tax-currency TaxTotal, NOT an additional amount -- it must be excluded
+        from the summed `tax`, not summed into it (20.00 + 22.50 = 42.50 would
+        be wrong)."""
+        xml = _ubl_xml(extra_tax_total=("22.50", "USD"))
+        totals = xml_totals(xml)
+        assert totals is not None
         assert totals["tax"] == 20.00
 
     def test_ubl_internal_inconsistency_flagged(self):
