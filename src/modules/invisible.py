@@ -14,7 +14,7 @@ import fitz
 from src.models import Flag, ModuleResult
 from src.modules.span_conflict import (
     span_text, amount_token, is_placeholder, pair_is_conflict, page_angle,
-    INTERACTIVE_EDITOR_PRODUCERS,
+    money_value, INTERACTIVE_EDITOR_PRODUCERS,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,8 +41,11 @@ def _split_spans(page) -> tuple[list, list]:
 
     Painted = fill/fill+stroke (types 0, 2); invisible = Tr 3 (type 3).
     Other types (stroke-only, clip variants) are ignored, matching overlay's
-    convention. Implementation note from the spec: verify how get_texttrace()
-    reports Tr 4-7; if they surface as type 3 they are covered for free.
+    convention. Verified on this PyMuPDF: render_mode=3 (Tr 3, "paint
+    nothing") surfaces as get_texttrace() type==3, so it is covered. Tr
+    modes 4-7 (clip variants) are NOT covered by this split -- a documented
+    coverage gap, not FP-relevant (missing a clip-mode invisible span can
+    only under-detect, never raise a false positive).
     """
     painted, invisible = [], []
     for s in page.get_texttrace():
@@ -98,6 +101,20 @@ def _near_horizontally(inv: fitz.Rect, pt: fitz.Rect, painted_span: dict) -> boo
     return gap < advance
 
 
+def _same_value(hidden_text: str, visible_text: str) -> bool:
+    """True when both texts parse to the SAME monetary amount.
+
+    "1 025,00" (French comma-decimal) and "1025.00" (period-decimal) are the
+    same value in two representations -- norm() does not canonicalize decimal
+    separators, so pair_is_conflict() alone would call this a conflict. Only
+    skip when BOTH sides parse to a non-None float and those floats are
+    equal; if either side doesn't parse as money (e.g. an IBAN), this falls
+    through False and the existing conflict logic is unaffected.
+    """
+    hv, vv = money_value(hidden_text), money_value(visible_text)
+    return hv is not None and hv == vv
+
+
 def _find_conflicts(painted: list, invisible: list, angle: float) -> list[dict]:
     """Invisible value tokens that disagree with painted text on their row."""
     hits = []
@@ -112,9 +129,10 @@ def _find_conflicts(painted: list, invisible: list, angle: float) -> list[dict]:
                 continue
             if not _near_horizontally(ibox, pbox, p):
                 continue
-            if pair_is_conflict(inv, p, angle):
+            visible = span_text(p)
+            if pair_is_conflict(inv, p, angle) and not _same_value(hidden, visible):
                 hits.append({"hidden": hidden.strip(),
-                             "visible": span_text(p).strip(),
+                             "visible": visible.strip(),
                              "bbox": tuple(inv["bbox"])})
                 break                      # one conflict per invisible span
     return hits

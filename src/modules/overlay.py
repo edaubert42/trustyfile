@@ -18,6 +18,7 @@ from src.modules.span_conflict import (
     span_text, char_class, norm, amount_token, is_horizontal,
     is_placeholder, page_angle as _page_angle,
     pair_is_conflict as _pair_is_conflict,
+    money_value as _money_value,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,42 +91,6 @@ def page_bg_color(page) -> tuple:
 # Same weights as every other module (CLAUDE.md scoring table): each flag
 # subtracts its severity's points from a starting score of 100.
 SEVERITY_POINTS = {"low": 5, "medium": 15, "high": 30, "critical": 50}
-
-
-# =============================================================================
-# AMOUNT PARSING  (for the human-readable delta in the cover-and-retype message)
-# =============================================================================
-# Money-like run: a digit then digits / whitespace / separators. \s already
-# covers the no-break (U+00A0) and narrow no-break (U+202F) spaces PDFs use
-# as thousands separators, which _money_value() strips before parsing.
-_MONEY_RE = re.compile(r"\d[\d\s.,]*")
-
-
-def _money_value(text: str) -> float | None:
-    """Parse the numeric amount out of a span's text, or None if not money-like.
-
-    Handles the French convention (space/U+202F thousands separator, comma
-    decimal) as well as the anglo convention (comma thousands, dot decimal).
-    Returns a float so callers can compute a delta between two amounts.
-    """
-    m = _MONEY_RE.search(text or "")
-    if not m:
-        return None
-    raw = m.group(0)
-    # Drop every kind of thousands whitespace separator.
-    s = raw.replace(" ", "").replace(" ", "").replace("\xa0", "")
-    if "," in s and "." in s:
-        # Both present: the LAST separator is the decimal point.
-        if s.rfind(",") > s.rfind("."):
-            s = s.replace(".", "").replace(",", ".")   # French: 1.200,00
-        else:
-            s = s.replace(",", "")                      # Anglo: 1,200.00
-    elif "," in s:
-        s = s.replace(",", ".")                         # French decimal comma
-    try:
-        return float(s)
-    except ValueError:
-        return None
 
 
 # =============================================================================

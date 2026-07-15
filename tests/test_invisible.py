@@ -213,6 +213,48 @@ def test_identical_invisible_text_not_a_conflict(tmp_path):
     assert analyze_invisible(_PdfData(p)).flags == []
 
 
+def test_invisible_same_value_different_decimal_format_not_a_conflict(tmp_path):
+    # Visible "1 025,00" (French comma-decimal) vs invisible "1025.00"
+    # (period-decimal) -- the SAME monetary value in two representations.
+    # norm() does not canonicalize decimal separators, so these are NOT
+    # textually identical -- but a dual-layer PDF legitimately pairs a
+    # human-formatted visible amount with a canonical machine-readable
+    # invisible one, and that must not be flagged as a shadowed value, even
+    # with an editor Producer present (which would otherwise escalate to
+    # INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED).
+    p = _pdf(tmp_path, "decimal_format.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "1025.00", 12)],
+             producer="Adobe Acrobat Pro DC 24.0")
+    assert analyze_invisible(_PdfData(p)).flags == []
+
+
+def test_invisible_different_value_different_decimal_format_still_conflict(tmp_path):
+    # Guard against over-suppression: a genuinely DIFFERENT value (2025 vs
+    # 1025), still expressed with a period decimal -- the value-equality
+    # skip must not swallow a real conflict.
+    p = _pdf(tmp_path, "decimal_format_diff.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "2025.00", 12)],
+             producer="Adobe Acrobat Pro DC 24.0")
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED"]
+    assert res.flags[0].severity == "critical"
+
+
+def test_invisible_iban_conflict_not_suppressed_by_value_equality_guard(tmp_path):
+    # Guard against over-suppression: an IBAN-shaped conflict (not a
+    # monetary amount) must still fire. The value-equality skip only applies
+    # when BOTH tokens parse to equal floats -- two different IBANs must
+    # fall through to the existing conflict logic unchanged.
+    p = _pdf(tmp_path, "iban_conflict.pdf",
+             painted=[(72, 140, "IBAN:", 12),
+                      (120, 140, "FR7630006000011234567890189", 12)],
+             invisible=[(120, 140, "FR7612345000011234567890123", 12)])
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_VALUE_CONFLICT"]
+
+
 # --- INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED (Task 4) -----------------------
 
 def test_conflict_with_editor_producer_is_confirmed(tmp_path):
