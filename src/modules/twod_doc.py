@@ -26,6 +26,8 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 import logging
 
+from src.models import Flag, ModuleResult
+
 # Try to import pylibdmtx — it may not be available if libdmtx system library is missing
 # On Python 3.13+, distutils was removed. setuptools provides it as a shim,
 # but must be imported first so that 'import distutils' works for pylibdmtx.
@@ -1908,6 +1910,109 @@ def verify_pdf_with_2d_doc(pdf_path: str) -> list[TwoDocVerificationResult]:
         results.append(result)
 
     return results
+
+
+# =============================================================================
+# SCORED MODULE WRAPPER (audit item 14)
+# =============================================================================
+# Severity policy (spec D1, 2026-07-12): a field mismatch is SOFT evidence —
+# text matching misses on layout/accents/hyphenation, so it is never a hard
+# veto. Tiered off the comparison confidence already encoded per field:
+# >= 0.95 (amounts, RFR, fiscal/invoice numbers, postal code, calculated
+# balance) -> high; below (name, address, city, income estimate) -> medium.
+# Severities are PROVISIONAL until a real 2D-Doc sample joins the corpus.
+_EXACT_CONFIDENCE = 0.95
+
+# Positive signal (spec D2): a fully-matching 2D-Doc with >= 2 compared fields
+# is soft GENUINE evidence (TWOD_DOC_CONSISTENT in evidence.GENUINE_CODES) —
+# same policy as ARITH_XML_CONSISTENT; the anti-laundering guard strips it
+# whenever meaningful tamper evidence exists.
+_MIN_COMPARISONS_FOR_CONSISTENT = 2
+
+
+def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
+    """Convert one 2D-Doc verification into scoring flags.
+
+    Pure function (no I/O): the unit-testable core of analyze_twod_doc.
+
+    Example:
+        >>> res = verify_2d_doc_against_pdf(td, pdf_text)
+        >>> [f.code for f in _flags_from_verification(res)]
+        ['TWOD_DOC_CONSISTENT']
+    """
+    flags: list[Flag] = []
+    for c in result.comparisons:
+        if c.match:
+            continue
+        severity = "high" if c.confidence >= _EXACT_CONFIDENCE else "medium"
+        flags.append(Flag(
+            severity=severity,
+            code="TWOD_DOC_FIELD_MISMATCH",
+            message=(f"The document's signed 2D-Doc barcode contains "
+                     f"{c.field_name} = \"{c.twod_doc_value}\", but that value "
+                     f"was not found in the visible text. The visible layer "
+                     f"may have been edited (the barcode data cannot be)."),
+            details={"di": c.di, "field": c.field_name,
+                     "expected": c.twod_doc_value,
+                     "comparison_confidence": c.confidence},
+        ))
+
+    if (not flags and len(result.comparisons) >= _MIN_COMPARISONS_FOR_CONSISTENT
+            and result.overall_match):
+        flags.append(Flag(
+            severity="low",   # weight comes from GENUINE_CODES direction
+            code="TWOD_DOC_CONSISTENT",
+            message=(f"All {len(result.comparisons)} fields of the document's "
+                     "signed 2D-Doc barcode match the visible text — "
+                     "machine-verified consistency evidence."),
+            details={"fields_compared": len(result.comparisons)},
+        ))
+    return flags
+
+
+def analyze_twod_doc(pdf_data) -> ModuleResult:
+    """Scored module: cross-check 2D-Doc barcodes against the visible text.
+
+    Neutral ("silence, not suspicion") whenever there is nothing to check:
+    extraction failed, pylibdmtx missing, or no 2D-Doc present — most
+    documents carry none, and absence is never evidence. A DataMatrix that
+    fails 2D-Doc parsing is also NOT flagged (shipping labels are DataMatrix
+    too; scan_pdf_for_2d_doc already drops non-2D-Doc payloads).
+
+    Never raises: any scan failure degrades to a neutral low-confidence
+    result (the analyzer's crash isolation is the backstop, not the plan).
+    """
+    if not getattr(pdf_data, "extraction_ok", True):
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+    if not PYLIBDMTX_AVAILABLE:
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+
+    try:
+        twod_docs = scan_pdf_for_2d_doc(pdf_data.file_path)
+    except Exception as exc:
+        logger.warning("twod_doc: scan failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+
+    if not twod_docs:
+        # Scanned and found nothing checkable — same convention as arithmetic.
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.3)
+
+    text = "\n".join(getattr(pdf_data, "text_by_page", []) or [])
+    flags: list[Flag] = []
+    for td in twod_docs:
+        try:
+            flags.extend(_flags_from_verification(verify_2d_doc_against_pdf(td, text)))
+        except Exception as exc:
+            logger.warning("twod_doc: verification failed: %s", exc)
+
+    score = 100
+    for f in flags:
+        if f.code == "TWOD_DOC_CONSISTENT":
+            continue  # positive signal — never reduces the module score
+        score -= {"low": 5, "medium": 15, "high": 30, "critical": 50}.get(f.severity, 0)
+    return ModuleResult(module="twod_doc", flags=flags, score=max(0, score),
+                        confidence=1.0)
 
 
 # =============================================================================

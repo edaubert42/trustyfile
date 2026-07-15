@@ -41,6 +41,7 @@ GENUINE_CODES: frozenset[str] = frozenset({
     "STRUCT_SIGNATURE_TRUSTED",          # EU-trusted, validated signature
     "STRUCT_SIGNATURE_TRUSTED_EXPIRED",  # QC signature, cert since expired
     "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
+    "TWOD_DOC_CONSISTENT",               # visible layer matches the signed 2D-Doc barcode fields
 })
 
 

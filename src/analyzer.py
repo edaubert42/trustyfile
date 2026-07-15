@@ -31,7 +31,7 @@ from src.modules.arithmetic import analyze_arithmetic
 from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
 from src.modules.identity import analyze_identity, is_likely_identity_doc
-from src.modules.twod_doc import PYLIBDMTX_AVAILABLE
+from src.modules.twod_doc import PYLIBDMTX_AVAILABLE, analyze_twod_doc
 from src.scoring import create_analysis_result, generate_summary
 from src.document_type import detect_document_type
 
@@ -182,6 +182,7 @@ class TrustyFileAnalyzer:
         _run("overlay", lambda: analyze_overlay(pdf_data))                        # cover-and-retype
         _run("arithmetic", lambda: analyze_arithmetic(pdf_data))                  # totals + e-invoice XML
         _run("forensics", lambda: analyze_forensics(file_path))                   # Module H (ELA)
+        _run("twod_doc", lambda: analyze_twod_doc(pdf_data))                      # 2D-Doc cross-check
 
         # Module Identity: MRZ analysis (passports, ID cards).
         # Triggered if:
