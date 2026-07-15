@@ -172,6 +172,7 @@ def analyze_invisible(pdf_data) -> ModuleResult:
 
     haystack = _producer_haystack(pdf_data)
     producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
+    producer_is_ocr = any(p in haystack for p in OCR_TOOL_PRODUCERS)
 
     doc = None
     try:
@@ -205,6 +206,8 @@ def analyze_invisible(pdf_data) -> ModuleResult:
         n = len(conflict_instances)
         if producer_is_editor:
             code, severity = "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED", "critical"
+        elif producer_is_ocr:
+            code, severity = "INVISIBLE_TEXT_VALUE_CONFLICT", "medium"
         else:
             code, severity = "INVISIBLE_TEXT_VALUE_CONFLICT", "high"
         flags.append(Flag(
@@ -214,10 +217,11 @@ def analyze_invisible(pdf_data) -> ModuleResult:
                      f"page (e.g. hidden '{conflict_instances[0]['hidden']}' "
                      f"vs visible '{conflict_instances[0]['visible']}')"),
             details={"count": n, "instances": conflict_instances,
-                     "producer_is_editor": producer_is_editor},
+                     "producer_is_editor": producer_is_editor,
+                     "producer_is_ocr": producer_is_ocr},
         ))
 
-    if injection_instances:
+    if injection_instances and not producer_is_ocr:
         n = len(injection_instances)
         flags.append(Flag(
             severity="medium",

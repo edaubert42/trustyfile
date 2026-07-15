@@ -253,3 +253,25 @@ def test_invisible_prose_in_whitespace_not_flagged(tmp_path):
              painted=[(72, 140, "Total: 1 025,00", 12)],
              invisible=[(72, 400, "page un sur deux", 10)])
     assert analyze_invisible(_PdfData(p)).flags == []
+
+
+# --- OCR-producer damper (Task 6) -------------------------------------------
+
+def test_ocr_producer_demotes_conflict_to_medium(tmp_path):
+    p = _pdf(tmp_path, "ocr_conflict.pdf",
+             painted=[(72, 140, "Total:", 12), (120, 140, "1 025,00", 12)],
+             invisible=[(120, 140, "2 025,00", 12)],
+             producer="ocrmypdf 16.4.0 / Tesseract OCR")
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_VALUE_CONFLICT"]
+    assert res.flags[0].severity == "medium"
+
+
+def test_ocr_producer_suppresses_injection(tmp_path):
+    p = _pdf(tmp_path, "ocr_inject.pdf",
+             painted=[(72, 100, "Facture INV-2026-001", 11),
+                      (72, 140, "Total: 1 025,00", 12),
+                      (72, 180, "TVA (20%): 205,00", 12)],
+             invisible=[(72, 400, "FR7630006000011234567890189", 10)],
+             producer="ABBYY FineReader 15")
+    assert analyze_invisible(_PdfData(p)).flags == []
