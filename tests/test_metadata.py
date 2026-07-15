@@ -510,13 +510,31 @@ class TestRepairedDocument:
 # =============================================================================
 
 class TestAuthorFingerprinting:
+    def test_human_name_author_not_ai_generated(self):
+        """Regression: 'Jean-Claude'/'Bard' are common human names; scanning the
+        author field against the AI-generator list falsely fired META_AI_GENERATED
+        (2026-07-15 review). Author is no longer scanned for AI tokens."""
+        assert check_producer(None, None, author="Jean-Claude Petit") == []
+        assert check_producer(None, None, author="John Bard") == []
+        assert check_producer("Microsoft Word", "Microsoft Word",
+                              author="Claude Martin") == []
+
     def test_converter_in_author_flagged(self):
         flags = check_producer(None, None, author="iLovePDF")
         assert any(f.code == "META_ONLINE_CONVERTER" for f in flags)
         assert any(f.details.get("author") == "iLovePDF" for f in flags)
 
-    def test_ai_generator_in_author_flagged(self):
+    def test_ai_generator_in_author_not_flagged(self):
+        """Under the narrowed design (2026-07-15 FP fix), an AI tool name that
+        appears ONLY in the author field must NOT fire META_AI_GENERATED —
+        author is no longer scanned against AI_LLM_PRODUCERS."""
         flags = check_producer("Adobe PDF Library 15.0", None, author="ChatGPT")
+        assert not any(f.code == "META_AI_GENERATED" for f in flags)
+
+    def test_ai_generator_in_producer_still_flagged(self):
+        """Guard: narrowing the author scan must not disable AI detection when
+        the AI token is genuinely in Producer/Creator."""
+        flags = check_producer("ChatGPT", None)
         assert any(f.code == "META_AI_GENERATED" for f in flags)
 
     def test_person_name_author_clean(self):
