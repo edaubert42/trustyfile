@@ -148,13 +148,20 @@ SEVERITY_POINTS = {
 # ANALYSIS FUNCTIONS
 # =============================================================================
 
-def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
+def check_producer(
+    producer: str | None,
+    creator: str | None,
+    author: str | None = None,
+) -> list[Flag]:
     """
     Check if the producer/creator software is suspicious.
 
     Args:
         producer: PDF Producer field (software that created the final PDF)
         creator: PDF Creator field (original application)
+        author: PDF Author field — scanned with the same fingerprint lists
+            (audit item 20: converters/editors/AI tools sometimes stamp it
+            instead of Producer).
 
     Returns:
         List of Flag objects for any suspicious findings
@@ -165,11 +172,12 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
     """
     flags = []
 
-    # Combine producer and creator for checking (either could contain the tool name)
-    # Convert to lowercase for case-insensitive matching
+    # Combine producer, creator and author for checking (any could contain the
+    # tool name). Convert to lowercase for case-insensitive matching.
     producer_lower = (producer or "").lower()
     creator_lower = (creator or "").lower()
-    combined = f"{producer_lower} {creator_lower}"
+    author_lower = (author or "").lower()
+    combined = f"{producer_lower} {creator_lower} {author_lower}"
 
     # Check for image editors — a PDF produced by an image editor is very suspicious
     # for official documents. It means someone opened/modified an image then exported as PDF.
@@ -187,6 +195,7 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
                 details={
                     "producer": producer,
                     "creator": creator,
+                    "author": author,
                     "detected_tool": editor,
                     "explanation": "Official documents are never created with image editors. "
                                    "This strongly suggests the document was visually modified.",
@@ -206,6 +215,7 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
                 details={
                     "producer": producer,
                     "creator": creator,
+                    "author": author,
                 }
             ))
             break
@@ -224,6 +234,7 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
                 details={
                     "producer": producer,
                     "creator": creator,
+                    "author": author,
                     "detected_tool": ai_tool,
                 }
             ))
@@ -240,6 +251,7 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
                 details={
                     "producer": producer,
                     "creator": creator,
+                    "author": author,
                     "detected_tool": suspicious,
                 }
             ))
@@ -256,6 +268,7 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
                 details={
                     "producer": producer,
                     "creator": creator,
+                    "author": author,
                     "detected_tool": suspicious,
                 }
             ))
@@ -440,7 +453,8 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
     # Run all checks
     all_flags.extend(check_producer(
         pdf_data.metadata.producer,
-        pdf_data.metadata.creator
+        pdf_data.metadata.creator,
+        pdf_data.metadata.author,
     ))
 
     # Date checks (creation vs modification gap) are now in structure module

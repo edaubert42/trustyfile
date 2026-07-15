@@ -502,3 +502,29 @@ class TestRepairedDocument:
         pdf_data = make_pdf_data(producer="Some Tool", is_repaired=False)
         result = analyze_metadata(pdf_data)
         assert not [f for f in result.flags if f.code == "META_DOCUMENT_REPAIRED"]
+
+
+# =============================================================================
+# Author field fingerprinting (audit item 20): the SAME suspicious-software
+# lists now also scan PDFMetadata.author. No new codes, no new severities.
+# =============================================================================
+
+class TestAuthorFingerprinting:
+    def test_converter_in_author_flagged(self):
+        flags = check_producer(None, None, author="iLovePDF")
+        assert any(f.code == "META_ONLINE_CONVERTER" for f in flags)
+        assert any(f.details.get("author") == "iLovePDF" for f in flags)
+
+    def test_ai_generator_in_author_flagged(self):
+        flags = check_producer("Adobe PDF Library 15.0", None, author="ChatGPT")
+        assert any(f.code == "META_AI_GENERATED" for f in flags)
+
+    def test_person_name_author_clean(self):
+        """A normal human author must never trip the fingerprints."""
+        flags = check_producer("Adobe PDF Library 15.0", "Microsoft Word",
+                               author="Marie Dupont")
+        assert flags == []
+
+    def test_none_author_backward_compatible(self):
+        """Existing two-argument call sites keep working unchanged."""
+        assert check_producer("Adobe PDF Library 15.0", "Microsoft Word") == []
