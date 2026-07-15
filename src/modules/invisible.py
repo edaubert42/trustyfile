@@ -120,6 +120,25 @@ def _find_conflicts(painted: list, invisible: list, angle: float) -> list[dict]:
     return hits
 
 
+def _find_injections(painted: list, invisible: list) -> list[dict]:
+    """Invisible value-bearing spans on rows with NO painted text at all.
+
+    Distinct from `_find_conflicts`: a conflict needs a painted counterpart
+    sharing the row; an injection is a value token hidden in a blank area
+    where nothing is painted at all (whitespace injection).
+    """
+    hits = []
+    for inv in invisible:
+        hidden = span_text(inv)
+        if not _value_token(hidden) or is_placeholder(hidden):
+            continue
+        ibox = fitz.Rect(inv["bbox"])
+        if any(_rows_overlap(ibox, fitz.Rect(p["bbox"])) for p in painted):
+            continue                      # row has visible text -> Task 3's job
+        hits.append({"hidden": hidden.strip(), "bbox": tuple(inv["bbox"])})
+    return hits
+
+
 def _producer_haystack(pdf_data) -> str:
     """Lower-cased Producer+Creator, '' on any failure (never raises)."""
     try:
@@ -149,6 +168,7 @@ def analyze_invisible(pdf_data) -> ModuleResult:
     flags: list[Flag] = []
     confidence = 1.0
     conflict_instances: list[dict] = []
+    injection_instances: list[dict] = []
 
     haystack = _producer_haystack(pdf_data)
     producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
@@ -165,6 +185,8 @@ def analyze_invisible(pdf_data) -> ModuleResult:
                 angle = page_angle(page)
                 for hit in _find_conflicts(painted, invisible, angle):
                     conflict_instances.append({"page": page_num, **hit})
+                for hit in _find_injections(painted, invisible):
+                    injection_instances.append({"page": page_num, **hit})
             except Exception as exc:  # one bad page must not sink the module
                 logger.warning("invisible: page %d failed: %s", page_num, exc)
                 confidence = min(confidence, 0.5)
@@ -193,6 +215,16 @@ def analyze_invisible(pdf_data) -> ModuleResult:
                      f"vs visible '{conflict_instances[0]['visible']}')"),
             details={"count": n, "instances": conflict_instances,
                      "producer_is_editor": producer_is_editor},
+        ))
+
+    if injection_instances:
+        n = len(injection_instances)
+        flags.append(Flag(
+            severity="medium",
+            code="INVISIBLE_TEXT_INJECTION",
+            message=(f"{n} invisible value-bearing text(s) hidden in blank "
+                     f"areas (e.g. '{injection_instances[0]['hidden']}')"),
+            details={"count": n, "instances": injection_instances},
         ))
 
     score = 100

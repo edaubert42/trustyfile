@@ -230,3 +230,26 @@ def test_confirmed_code_is_hard_negative():
     assert "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED" in HARD_NEGATIVE_CODES
     # The SOFT base code must NOT be hard.
     assert "INVISIBLE_TEXT_VALUE_CONFLICT" not in HARD_NEGATIVE_CODES
+
+
+# --- INVISIBLE_TEXT_INJECTION (Task 5) --------------------------------------
+
+def test_invisible_iban_in_whitespace_flagged(tmp_path):
+    # Three painted lines keep the invisible IBAN well under the 50%
+    # dominance gate (area ratio has margin, not a knife's edge).
+    p = _pdf(tmp_path, "inject.pdf",
+             painted=[(72, 100, "Facture INV-2026-001", 11),
+                      (72, 140, "Total: 1 025,00", 12),
+                      (72, 180, "TVA (20%): 205,00", 12)],
+             invisible=[(72, 400, "FR7630006000011234567890189", 10)])
+    res = analyze_invisible(_PdfData(p))
+    assert _codes(res) == ["INVISIBLE_TEXT_INJECTION"]
+    assert res.flags[0].severity == "medium"
+
+
+def test_invisible_prose_in_whitespace_not_flagged(tmp_path):
+    # Non-value invisible text (e.g. accessibility artifacts) stays silent.
+    p = _pdf(tmp_path, "prose.pdf",
+             painted=[(72, 140, "Total: 1 025,00", 12)],
+             invisible=[(72, 400, "page un sur deux", 10)])
+    assert analyze_invisible(_PdfData(p)).flags == []
