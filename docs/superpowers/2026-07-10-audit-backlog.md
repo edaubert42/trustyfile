@@ -71,34 +71,36 @@ Items marked ✅VERIFIED were reproduced by running the actual code.
 
 ## P3 — Cheap detection wins (mostly already built)
 
-14. **2D-Doc cross-check built but never scored** — `verify_2d_doc_against_pdf`
+14. ✅DONE (2026-07-12) **2D-Doc cross-check built but never scored** — `verify_2d_doc_against_pdf`
     (twod_doc.py:1448,1858) has no ModuleResult wrapper; only UI display. Strongest FR signal available.
 15. **Local IBAN mod-97 gated behind vestigial API key** (= queued sub-project 2) —
     external.py:745 requires `iban_api_key` though the check is now local/free.
 16. **QR decode disabled** (= queued sub-project 3) — visual.py:33 hardcodes PYZBAR_AVAILABLE=False;
     all downstream phishing checks dead. But see FP-risk: auto-derived expected_domains will
     misfire on payment-gateway QRs — allowlist processors when enabling.
-17. **UBL support in arithmetic** — totals + IBAN checks are CII-only; UBL is the other EN 16931
+17. ✅DONE (2026-07-12) **UBL support in arithmetic** — totals + IBAN checks are CII-only; UBL is the other EN 16931
     syntax (Peppol). Corpus already has a UBL invoice to test against.
 18. **`is_repaired` extracted but unused** (pdf_extractor.py:78-96) — free tamper signal.
-19. **Modification-history diff built but not scored** (structure.py:378-891, UI-only).
-20. **PDF `author` metadata never checked** by any module.
-21. **EXIF never read** despite images.py docstring promising it.
+19. ✅CLOSED-AS-COVERED (2026-07-12, D4) **Modification-history diff built but not scored** (structure.py:378-891, UI-only).
+20. ⚠️ATTEMPTED-then-REVERTED (2026-07 review): author-field brand-scan false-fired on
+    company/person names (canva→"Canvas Prints", acorn→"Acorn Accounting", nitro→"Nitro
+    Inc"); author metadata is deliberately NOT scanned (VAT-rate-check precedent).
+21. ✅DONE (2026-07-12) **EXIF never read** despite images.py docstring promising it.
 
 ## P4 — Consistency / UX bugs
 
-22. **summary.py code drift**: CONTENT_FUTURE_DOCUMENT_DATE emitted vs CONTENT_FUTURE_INVOICE_DATE
+22. ✅DONE (2026-07-12) **summary.py code drift**: CONTENT_FUTURE_DOCUMENT_DATE emitted vs CONTENT_FUTURE_INVOICE_DATE
     mapped (critical flag invisible to themes, EN fallback shown to FR users);
     CONTENT_DATE_CREATION_MISMATCH, META_IMAGE_EDITOR, FORENSICS_ELA_* unmapped; ~15 MRZ_* codes
     unmapped AND hardcoded French messages; `if theme=="signature": continue` (summary.py:983)
     hides NEGATIVE signature findings from bullets.
-23. **MODULE_WEIGHTS dead for scoring but still drives UI bars** (app.py:1254,1679) — UI explains
+23. ✅DONE (2026-07-12) **MODULE_WEIGHTS dead for scoring but still drives UI bars** (app.py:1254,1679) — UI explains
     the score with a formula that no longer produces it. Also dead: get_risk_level, orphaned
     VISUAL_WATERMARK_* templates.
-24. **document_type.py**: docstring says tie→unknown & min 2 keywords; code does max() first-key
+24. ✅DONE (2026-07-12) **document_type.py**: docstring says tie→unknown & min 2 keywords; code does max() first-key
     tie-win & min 3.
-25. **requirements.txt**: pdfplumber, pikepdf, python-magic, scikit-image never imported.
-26. README scoring section & module list stale (weighted-average era, 8 of 11 modules).
+25. ✅DONE (2026-07-12) **requirements.txt**: pdfplumber, pikepdf, python-magic, scikit-image never imported.
+26. ✅DONE (2026-07-12) README scoring section & module list stale (weighted-average era, 8 of 11 modules).
 
 ## P5 — Test infrastructure
 
@@ -129,6 +131,12 @@ Items marked ✅VERIFIED were reproduced by running the actual code.
   holding the real documents, not in a bare CI checkout.
 - Fix 7 trade-off: a French invoice omitting ALL legal-form/registry
   keywords is not held to French legal-id requirements (FP-first gate).
+- (2026-07-12, D4) Prose-only revision changes (e.g. a payee NAME swapped
+  between saved revisions, no digits involved) are unscored by design —
+  overlay Signal 4 covers digit-bearing tokens only. Revisit with
+  calibration samples.
+- (2026-07-12, D1) TWOD_DOC_* severities are provisional: the corpus holds
+  no real 2D-Doc document. Add a real avis d'impôt sample, then recalibrate.
 
 ## P1 sign-offs (2026-07-10, user decisions after adversarial review)
 

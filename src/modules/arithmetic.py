@@ -136,6 +136,29 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+# UBL (OASIS) — the OTHER EN 16931 syntax (Peppol). Recognized by ROOT element
+# local name; CII documents root at CrossIndustryInvoice instead.
+_UBL_ROOTS = ("Invoice", "CreditNote")
+_CII_ROOT = "CrossIndustryInvoice"
+
+
+def _xml_root(xml_bytes: bytes | None):
+    """Defused-parsed root element, or None on empty/malformed/blocked input.
+
+    Single parse point shared by xml_totals and _xml_ibans so the
+    CII-vs-UBL dispatch happens on the actual document structure, never on
+    the attachment's filename. Never raises.
+    """
+    if not xml_bytes:
+        return None
+    try:
+        return _xml_fromstring(xml_bytes)
+    except Exception:
+        # Malformed XML, or a blocked XXE/entity-bomb payload → skip the check
+        # (no crash, no flag) — same policy as the CII path.
+        return None
+
+
 def _extract_einvoice_xml(file_path: str) -> bytes | None:
     """Return the embedded Factur-X/ZUGFeRD/XRechnung XML bytes, or None.
 
@@ -151,6 +174,17 @@ def _extract_einvoice_xml(file_path: str) -> bytes | None:
                 continue
             if _is_einvoice_attachment(name):
                 return doc.embfile_get(i)
+            # Fallback: a generically-named .xml attachment still counts if its
+            # ROOT element is an e-invoice (CII or UBL) — recognition by
+            # structure, not filename.
+            if name.lower().endswith(".xml"):
+                try:
+                    data = doc.embfile_get(i)
+                except Exception:
+                    continue
+                root = _xml_root(data)
+                if root is not None and _local(root.tag) in (_CII_ROOT, *_UBL_ROOTS):
+                    return data
     except Exception as exc:
         logger.warning("arithmetic: e-invoice XML extraction failed for %s: %s",
                        file_path, exc)
@@ -168,19 +202,19 @@ def xml_totals(xml_bytes: bytes | None) -> dict | None:
     {basis, tax, grand, due, totals} (floats; `totals` = the membership set for
     the cross-check). None if the XML is malformed or has no summation block.
 
+    Understands both EN 16931 syntaxes: CII (Factur-X/ZUGFeRD/XRechnung) and
+    UBL (Peppol).
+
     Reads by LOCAL tag name inside the summation container, so per-line
     `BasisAmount`/`LineTotalAmount` (which repeat) are never mistaken for the
     document totals. Never raises.
     """
-    if not xml_bytes:
+    root = _xml_root(xml_bytes)
+    if root is None:
         return None
-    try:
-        root = _xml_fromstring(xml_bytes)   # defused: forbids DTD entities / external refs
-    except Exception:
-        # Malformed XML, or a blocked XXE/entity-bomb payload → skip the check
-        # (no crash, no flag). A forbidden-entity document is itself suspicious,
-        # but we do not turn a parser-hardening block into a fraud accusation.
-        return None
+
+    if _local(root.tag) in _UBL_ROOTS:
+        return _ubl_totals(root)
 
     summation = next(
         (el for el in root.iter()
@@ -203,6 +237,73 @@ def xml_totals(xml_bytes: bytes | None) -> dict | None:
     out.setdefault("due", out["grand"])
     # Membership set for the cross-check: every legitimate "total" a document
     # might display prominently (grand, amount-due, net basis).
+    out["totals"] = {round(out[k], 2) for k in ("grand", "due", "basis") if k in out}
+    return out
+
+
+def _ubl_totals(root) -> dict | None:
+    """UBL LegalMonetaryTotal → the same {basis, tax, grand, due, totals} dict
+    the CII path produces, so every downstream check works unchanged.
+
+    Mapping (EN 16931 business terms):
+      TaxExclusiveAmount → basis   (BT-109)
+      TaxInclusiveAmount → grand   (BT-112, required — None without it)
+      PayableAmount      → due     (BT-115)
+      TaxTotal/TaxAmount → tax     (BT-110; document level = DIRECT child of
+                                    the root — line-level TaxTotal lives under
+                                    InvoiceLine and must not pollute the sum)
+    """
+    lmt = next((el for el in root.iter()
+                if _local(el.tag) == "LegalMonetaryTotal"), None)
+    if lmt is None:
+        return None
+
+    out: dict = {}
+    for key, tag in (("basis", "TaxExclusiveAmount"),
+                     ("grand", "TaxInclusiveAmount"),
+                     ("due", "PayableAmount")):
+        child = next((c for c in lmt if _local(c.tag) == tag), None)
+        if child is not None and child.text:
+            try:
+                out[key] = float(child.text.strip())
+            except ValueError:
+                pass
+
+    # Document-level tax: TaxTotal elements that are DIRECT children of the
+    # root. UBL allows a second TaxTotal in the accounting currency (BT-111);
+    # summing currencies would corrupt the identity, so when several document
+    # TaxTotals exist we keep only amounts in the LegalMonetaryTotal currency.
+    lmt_currency = next((c.get("currencyID") for c in lmt if c.get("currencyID")), None)
+    tax_amounts: list[float] = []
+    for tt in root:
+        if _local(tt.tag) != "TaxTotal":
+            continue
+        ta = next((c for c in tt if _local(c.tag) == "TaxAmount"), None)
+        if ta is None or not ta.text:
+            continue
+        if lmt_currency and ta.get("currencyID") and ta.get("currencyID") != lmt_currency:
+            continue  # accounting-currency duplicate (BT-111), not the doc tax
+        try:
+            tax_amounts.append(float(ta.text.strip()))
+        except ValueError:
+            pass
+
+    # FP-safety guard: when currencyID is absent/ambiguous, the dedup above
+    # cannot tell a genuine BT-111 duplicate from a second, independent
+    # document-level TaxTotal -- more than one can survive. Summing them
+    # would fabricate an inflated tax and trip a false
+    # ARITH_XML_INTERNAL_INCONSISTENT on a legit invoice. Only commit `tax`
+    # when the surviving amounts are unambiguous: exactly one TaxTotal, or
+    # several that all agree on the same amount (harmless duplicates).
+    # Otherwise leave `tax` unset so internal_check silently skips --
+    # cross_check (grand/due/basis) is computed separately and unaffected.
+    distinct_amounts = {round(a, 2) for a in tax_amounts}
+    if len(distinct_amounts) == 1:
+        out["tax"] = tax_amounts[0]
+
+    if "grand" not in out:
+        return None  # without a grand total there is nothing to check
+    out.setdefault("due", out["grand"])
     out["totals"] = {round(out[k], 2) for k in ("grand", "due", "basis") if k in out}
     return out
 
@@ -281,13 +382,25 @@ def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
     'FRDEBIT' SEPA-mandate id) and the length guard keeps a blank/placeholder
     IBANID from reaching the validator. Never raises: malformed/blocked XML,
     missing accounts, or bad IBANID text → empty set."""
-    if not xml_bytes:
+    root = _xml_root(xml_bytes)
+    if root is None:
         return set()
-    try:
-        root = _xml_fromstring(xml_bytes)
-    except Exception:
-        return set()
+
     out: set[str] = set()
+    if _local(root.tag) in _UBL_ROOTS:
+        # UBL: cac:PaymentMeans/cac:PayeeFinancialAccount/cbc:ID — the account
+        # the invoice asks to be PAID TO (same semantics as the CII
+        # PayeePartyCreditorFinancialAccount below).
+        for acct in root.iter():
+            if _local(acct.tag) != "PayeeFinancialAccount":
+                continue
+            for el in acct:
+                if _local(el.tag) == "ID" and el.text:
+                    cand = "".join(el.text.split()).upper()
+                    if 15 <= len(cand) <= 34 and validate_iban_checksum(cand):
+                        out.add(cand)
+        return out
+
     for acct in root.iter():
         if _local(acct.tag) != "PayeePartyCreditorFinancialAccount":
             continue
@@ -309,15 +422,58 @@ def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
 _IBAN_TEXT_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){11,30})\b", re.I)
 
 
+# ISO 13616 registry: canonical IBAN length per country code. A candidate
+# whose country is absent is NOT treated as an IBAN (fail-safe). Exactly one
+# mod-97 attempt per candidate — a brute-force length search was proven to
+# fabricate "IBANs" out of ordinary reference numbers (2026-07-12 review).
+_IBAN_LENGTHS = {
+    "AL": 28, "AD": 24, "AT": 20, "AZ": 28, "BH": 22, "BY": 28, "BE": 16,
+    "BA": 20, "BR": 29, "BG": 22, "CR": 22, "HR": 21, "CY": 28, "CZ": 24,
+    "DK": 18, "DO": 28, "EG": 29, "SV": 28, "EE": 20, "FO": 18, "FI": 18,
+    "FR": 27, "GE": 22, "DE": 22, "GI": 23, "GR": 27, "GL": 18, "GT": 28,
+    "HU": 28, "IS": 26, "IQ": 23, "IE": 22, "IL": 23, "IT": 27, "JO": 30,
+    "KZ": 20, "XK": 20, "KW": 30, "LV": 21, "LB": 28, "LY": 25, "LI": 21,
+    "LT": 20, "LU": 20, "MT": 31, "MR": 27, "MU": 30, "MD": 24, "MC": 27,
+    "ME": 22, "NL": 18, "MK": 19, "NO": 15, "PK": 24, "PS": 29, "PL": 28,
+    "PT": 25, "QA": 29, "RO": 24, "RU": 33, "SM": 27, "SA": 24, "RS": 22,
+    "SC": 31, "SK": 24, "SI": 19, "ES": 24, "SD": 18, "SE": 24, "CH": 21,
+    "TL": 23, "TN": 24, "TR": 26, "UA": 29, "AE": 23, "GB": 22, "VA": 22,
+    "VG": 24,
+}
+
+
 def _visible_ibans(text: str) -> set[str]:
     """Checksum-valid IBANs found in the visible text, normalized to electronic
     form. Requiring mod-97 validity keeps the broad regex from admitting random
     alphanumeric runs; a fraudster's *invalid* replacement IBAN is caught by the
-    standalone IBAN-checksum check, not here."""
+    standalone IBAN-checksum check, not here.
+
+    The regex's greedy repetition can run past the IBAN's true end into
+    adjoining prose that happens to be alphanumeric under re.I (e.g. a same-line
+    "...013000 merci" reads as "...013000MERCI" once whitespace is stripped, and
+    that no longer checksum-validates). A brute-force retry across every trim
+    length (34 down to 15) used to "fix" this — but that is up to ~20 mod-97
+    attempts per regex match, and coincidental collisions are common enough on
+    ordinary reference numbers / VAT / SIRET strings to fabricate fake IBANs out
+    of plain prose (2026-07-12 review regression: "AB123456789012345 pour votre
+    commande" fabricated a fake "AB123456789012345POURVO"), producing false
+    ARITH_IBAN_MISMATCH flags on legitimate invoices.
+
+    Instead, each candidate is truncated to its OWN country's CANONICAL ISO
+    13616 length (_IBAN_LENGTHS) and checksum-validated EXACTLY ONCE. This
+    still recovers the true IBAN when the regex over-captured trailing prose
+    (truncating to the known-correct length, not searching for whichever
+    length happens to validate), while a country absent from the registry, or
+    a capture shorter than its canonical length, is skipped outright — never
+    treated as an IBAN (fail-safe)."""
     out: set[str] = set()
     for m in _IBAN_TEXT_RE.finditer(text or ""):
         cand = "".join(m.group(1).split()).upper()
-        if 15 <= len(cand) <= 34 and validate_iban_checksum(cand):
+        expected_len = _IBAN_LENGTHS.get(cand[:2])
+        if expected_len is None or len(cand) < expected_len:
+            continue  # unknown country, or too short to be that country's IBAN
+        cand = cand[:expected_len]
+        if validate_iban_checksum(cand):
             out.add(cand)
     return out
 

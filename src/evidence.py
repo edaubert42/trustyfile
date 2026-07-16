@@ -41,6 +41,7 @@ GENUINE_CODES: frozenset[str] = frozenset({
     "STRUCT_SIGNATURE_TRUSTED",          # EU-trusted, validated signature
     "STRUCT_SIGNATURE_TRUSTED_EXPIRED",  # QC signature, cert since expired
     "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
+    "TWOD_DOC_CONSISTENT",               # visible layer matches the signed 2D-Doc barcode fields
 })
 
 
@@ -202,3 +203,30 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
         score_low=max(0, score - half), score_high=min(100, score + half),
         ledger=list(evidence),
     )
+
+
+def module_contributions(ledger: list["Evidence"]) -> dict[str, dict]:
+    """Per-group evidence contributions, for DISPLAY (audit item 23).
+
+    Returns, for each correlation group (usually the module name), the same
+    group-capped soft sums `aggregate_evidence` adds to the prior — so a UI
+    built on this explains the score with the formula that actually produced
+    it (the old per-module weighted-average formula no longer exists).
+
+    Returns:
+        {group: {"tamper": float, "genuine": float,
+                 "hard_tamper": bool, "hard_genuine": bool}}
+    """
+    out: dict[str, dict] = {}
+
+    def _slot(group: str) -> dict:
+        return out.setdefault(group, {"tamper": 0.0, "genuine": 0.0,
+                                      "hard_tamper": False, "hard_genuine": False})
+
+    for (group, direction), items in _soft_buckets(ledger).items():
+        _slot(group)[direction] = _group_capped_soft_sum(items)
+    for e in ledger:
+        if e.kind == "hard":
+            _slot(e.group)["hard_tamper" if e.direction == "tamper"
+                           else "hard_genuine"] = True
+    return out

@@ -36,6 +36,7 @@ def make_pdf_data(
     mod_date: datetime | None = None,
     author: str | None = None,
     raw_metadata: dict | None = None,
+    is_repaired: bool = False,
 ) -> PDFData:
     """
     Build a PDFData object for testing without needing an actual PDF file.
@@ -67,6 +68,7 @@ def make_pdf_data(
         metadata=metadata,
         raw_metadata=raw_metadata,
         text_by_page=["Test content"],
+        is_repaired=is_repaired,
     )
 
 
@@ -477,3 +479,60 @@ def test_canva_classified_as_image_editor():
     flags = check_producer("Canva", None)
     assert any(f.code == "META_IMAGE_EDITOR" for f in flags)
     assert not any(f.code == "META_ONLINE_CONVERTER" for f in flags)
+
+
+# =============================================================================
+# TEST is_repaired flag (free structural signal, previously unused)
+# =============================================================================
+
+class TestRepairedDocument:
+    """PyMuPDF repairing the file to open it means the PDF structure was
+    broken — sloppy producers do exist, but hand-edited bytes are the classic
+    cause, so it's worth a medium note (2026-07 audit: signal was extracted
+    by pdf_extractor and consumed by nothing)."""
+
+    def test_repaired_pdf_flagged_medium(self):
+        pdf_data = make_pdf_data(producer="Some Tool", is_repaired=True)
+        result = analyze_metadata(pdf_data)
+        repaired = [f for f in result.flags if f.code == "META_DOCUMENT_REPAIRED"]
+        assert len(repaired) == 1
+        assert repaired[0].severity == "medium"
+
+    def test_clean_pdf_not_flagged_repaired(self):
+        pdf_data = make_pdf_data(producer="Some Tool", is_repaired=False)
+        result = analyze_metadata(pdf_data)
+        assert not [f for f in result.flags if f.code == "META_DOCUMENT_REPAIRED"]
+
+
+# =============================================================================
+# Author field is intentionally NOT scanned (audit item 20 attempted this,
+# then reverted — 2026-07 review). Author routinely holds a real person's or
+# company's name (Word/LibreOffice stamp the OS user's name there), and
+# fingerprint tokens collide with such names: canva -> "Canvas Prints Ltd",
+# acorn -> "Acorn Accounting", nitro -> "Nitro Inc". These regression guards
+# prove the author field can never drive a metadata fingerprint flag.
+# =============================================================================
+
+class TestAuthorFieldNotScanned:
+    @pytest.mark.parametrize("author", ["iLovePDF", "Canva", "Jean-Claude Petit"])
+    def test_author_alone_never_flags(self, author):
+        """A suspicious-looking author value, with a clean producer/creator,
+        must never trigger a metadata fingerprint flag. 'Canva' is the
+        confirmed regression case: it used to fire META_IMAGE_EDITOR (high)."""
+        pdf_data = make_pdf_data(
+            producer="Adobe PDF Library 15.0",
+            creator="Microsoft Word",
+            author=author,
+        )
+        result = analyze_metadata(pdf_data)
+        flagged_codes = {f.code for f in result.flags}
+        assert not flagged_codes & {
+            "META_ONLINE_CONVERTER", "META_IMAGE_EDITOR",
+            "META_AI_GENERATED", "META_SUSPICIOUS_PRODUCER",
+        }
+
+    def test_check_producer_has_no_author_parameter(self):
+        """The author scan was reverted, not just disabled: check_producer
+        must no longer accept an author argument at all."""
+        with pytest.raises(TypeError):
+            check_producer("Adobe", "Adobe", author="iLovePDF")

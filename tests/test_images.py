@@ -501,3 +501,149 @@ class TestCheckPasteArtifacts:
         path = create_image_only_pdf(pdf_dir, "imageonly.pdf")
         flags = check_paste_artifacts(path)
         assert len(flags) == 0
+
+
+# =============================================================================
+# EXIF checks (audit item 21): date-after-doc (medium) + editor software (low)
+# =============================================================================
+import io
+from datetime import datetime, timezone
+
+from PIL import Image
+
+from src.modules.images import _read_exif, check_exif_metadata
+
+
+def _jpeg_bytes(exif_datetime: str | None = None, software: str | None = None) -> bytes:
+    img = Image.new("RGB", (40, 40), "white")
+    exif = Image.Exif()
+    if exif_datetime:
+        exif[306] = exif_datetime            # DateTime
+    if software:
+        exif[305] = software                 # Software
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def _jpeg_bytes_with_original(
+    datetime_str: str | None = None,
+    original_str: str | None = None,
+    software: str | None = None,
+) -> bytes:
+    """Like _jpeg_bytes, but can set DateTime and DateTimeOriginal to
+    DIFFERENT/CONFLICTING values, so tests can prove which one wins.
+
+    - datetime_str  -> tag 306 (DateTime / last save), top-level IFD.
+    - original_str  -> tag 36867 (DateTimeOriginal / capture time), stored
+      in the EXIF sub-IFD (0x8769), same as real cameras/exporters do.
+    """
+    img = Image.new("RGB", (40, 40), "white")
+    exif = Image.Exif()
+    if datetime_str:
+        exif[306] = datetime_str              # DateTime (last save)
+    if original_str:
+        exif[0x8769] = {36867: original_str}  # DateTimeOriginal (capture)
+    if software:
+        exif[305] = software                  # Software
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    return buf.getvalue()
+
+
+def _pdf_with_jpeg(tmp_path, jpeg: bytes) -> str:
+    import fitz
+    p = tmp_path / "img.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_image(fitz.Rect(36, 36, 136, 136), stream=jpeg)
+    doc.save(str(p)); doc.close()
+    return str(p)
+
+
+DOC_DATE = datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
+
+
+class TestReadExif:
+    def test_reads_datetime_and_software(self):
+        dt, sw = _read_exif(_jpeg_bytes("2026:03:01 10:00:00", "Adobe Photoshop 25.0"))
+        assert dt == datetime(2026, 3, 1, 10, 0, 0)
+        assert sw == "Adobe Photoshop 25.0"
+
+    def test_no_exif(self):
+        assert _read_exif(_jpeg_bytes()) == (None, None)
+
+    def test_corrupt_bytes_silent(self):
+        assert _read_exif(b"\xff\xd8not-really-a-jpeg") == (None, None)
+
+    def test_prefers_datetime_original_over_datetime(self):
+        """DateTimeOriginal (capture) must win over DateTime (last save),
+        even though DateTime is the LATER of the two timestamps.
+
+        This is the FP guard: an old logo that gets re-exported/re-saved
+        later only bumps DateTime, not DateTimeOriginal. If _read_exif took
+        the max of the two (as it used to), the re-save would masquerade as
+        a "future" capture relative to the document.
+        """
+        jpeg = _jpeg_bytes_with_original(
+            datetime_str="2026:06:01 10:00:00",   # DateTime: later (re-save)
+            original_str="2024:01:01 10:00:00",   # DateTimeOriginal: earlier (capture)
+        )
+        dt, _ = _read_exif(jpeg)
+        assert dt == datetime(2024, 1, 1, 10, 0, 0)
+
+
+class TestExifChecks:
+    def test_image_created_after_doc_flagged_medium(self, tmp_path):
+        path = _pdf_with_jpeg(tmp_path, _jpeg_bytes("2026:03:01 10:00:00"))
+        flags = check_exif_metadata(path, DOC_DATE)
+        assert [f.code for f in flags] == ["IMAGES_EXIF_DATE_AFTER_DOC"]
+        assert flags[0].severity == "medium"
+
+    def test_image_created_before_doc_clears(self, tmp_path):
+        """Old logo in a new invoice: perfectly normal (spec: NOT flagged)."""
+        path = _pdf_with_jpeg(tmp_path, _jpeg_bytes("2024:06:01 10:00:00"))
+        assert check_exif_metadata(path, DOC_DATE) == []
+
+    def test_resave_after_doc_not_flagged_when_capture_before_doc(self, tmp_path):
+        """FP guard: old logo (DateTimeOriginal BEFORE the doc) that was
+        re-saved/re-exported later (DateTime AFTER the doc) must NOT fire
+        IMAGES_EXIF_DATE_AFTER_DOC. Capture time is what matters, not the
+        last-save timestamp.
+        """
+        jpeg = _jpeg_bytes_with_original(
+            datetime_str="2026:03:01 10:00:00",   # DateTime: AFTER doc date
+            original_str="2024:06:01 10:00:00",   # DateTimeOriginal: BEFORE doc date
+        )
+        path = _pdf_with_jpeg(tmp_path, jpeg)
+        assert check_exif_metadata(path, DOC_DATE) == []
+
+    def test_within_24h_slack_clears(self, tmp_path):
+        """Timezone slop: same-day EXIF stamps never fire (24h margin)."""
+        path = _pdf_with_jpeg(tmp_path, _jpeg_bytes("2026:01:16 06:00:00"))
+        assert check_exif_metadata(path, DOC_DATE) == []
+
+    def test_editor_software_flagged_low(self, tmp_path):
+        path = _pdf_with_jpeg(tmp_path, _jpeg_bytes(software="Adobe Photoshop 25.0"))
+        flags = check_exif_metadata(path, DOC_DATE)
+        assert [f.code for f in flags] == ["IMAGES_EXIF_EDITOR_SOFTWARE"]
+        assert flags[0].severity == "low"
+
+    def test_missing_doc_date_skips_date_check(self, tmp_path):
+        path = _pdf_with_jpeg(tmp_path, _jpeg_bytes("2026:03:01 10:00:00"))
+        assert check_exif_metadata(path, None) == []
+
+    def test_one_flag_per_code_max(self, tmp_path):
+        """Two offending images -> still one flag (details carry the list)."""
+        import fitz
+        p = tmp_path / "img2.pdf"
+        doc = fitz.open()
+        page = doc.new_page()
+        page.insert_image(fitz.Rect(36, 36, 136, 136),
+                          stream=_jpeg_bytes("2026:03:01 10:00:00"))
+        page.insert_image(fitz.Rect(150, 36, 250, 136),
+                          stream=_jpeg_bytes("2026:04:01 10:00:00"))
+        doc.save(str(p)); doc.close()
+        flags = check_exif_metadata(str(p), DOC_DATE)
+        assert len(flags) == 1
+        assert len(flags[0].details["images"]) == 2

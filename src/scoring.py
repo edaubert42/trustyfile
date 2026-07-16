@@ -15,7 +15,6 @@ Risk levels:
 """
 
 from dataclasses import replace
-from typing import Literal
 from src.models import ModuleResult, AnalysisResult, Flag, DocumentType
 
 
@@ -49,59 +48,6 @@ def apply_doc_type_suppression(evidence, document_type: str):
     if mult <= 0.0:
         return None
     return replace(evidence, weight=evidence.weight * mult)
-
-
-# =============================================================================
-# MODULE WEIGHTS
-# =============================================================================
-
-# Weights determine how much each module contributes to the final score
-# Higher weight = more influence on the final result
-MODULE_WEIGHTS = {
-    "metadata": 1.0,    # PDF metadata analysis
-    "content": 1.2,     # Text content & dates (most important for invoices)
-    "visual": 0.8,      # QR codes & watermarks
-    "fonts": 0.9,       # Font consistency
-    "images": 0.8,      # Embedded images
-    "forensics": 0.9,   # Image forensics (ELA)
-    "structure": 1.3,   # PDF structure (incremental updates, JS, etc.) - very reliable
-    "arithmetic": 1.2,  # totals-block identity + e-invoice XML cross-check (deterministic)
-    "external": 1.5,    # External verification (very reliable when available)
-    "identity": 1.5,   # MRZ check digit validation (cryptographically reliable)
-}
-
-# Default weight for unknown modules
-DEFAULT_WEIGHT = 1.0
-
-
-# =============================================================================
-# RISK LEVEL THRESHOLDS
-# =============================================================================
-
-def get_risk_level(score: int) -> Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
-    """
-    Convert a numeric score to a risk level category.
-
-    Args:
-        score: Trust score (0-100)
-
-    Returns:
-        Risk level string
-
-    Thresholds:
-        80-100: LOW - Document appears legitimate
-        50-79:  MEDIUM - Some concerns
-        20-49:  HIGH - Multiple red flags
-        0-19:   CRITICAL - Strong evidence of fraud
-    """
-    if score >= 80:
-        return "LOW"
-    elif score >= 50:
-        return "MEDIUM"
-    elif score >= 20:
-        return "HIGH"
-    else:
-        return "CRITICAL"
 
 
 def collect_all_flags(module_results: list[ModuleResult]) -> list[Flag]:

@@ -148,7 +148,10 @@ SEVERITY_POINTS = {
 # ANALYSIS FUNCTIONS
 # =============================================================================
 
-def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
+def check_producer(
+    producer: str | None,
+    creator: str | None,
+) -> list[Flag]:
     """
     Check if the producer/creator software is suspicious.
 
@@ -162,11 +165,26 @@ def check_producer(producer: str | None, creator: str | None) -> list[Flag]:
     Example:
         >>> check_producer("iLovePDF", None)
         [Flag(severity="high", code="META_ONLINE_CONVERTER", ...)]
+
+    Note:
+        The Author field is intentionally NEVER scanned by any fingerprint
+        list here (audit item 20 tried it, then reverted it — 2026-07
+        review). Producer/Creator are software-reported fields, so a tool
+        name showing up there is meaningful signal. Author is different:
+        Word/LibreOffice routinely stamp the OS user's real person or
+        company name into it, and several fingerprint tokens collide with
+        ordinary names — "canva"/"acorn" (image-editor list) matched
+        "Canvas Prints Ltd" / "Acorn Accounting", "nitro" (converter list)
+        matched "Nitro Inc" — a confirmed high-severity false-positive
+        source. Same precedent as AI_LLM_PRODUCERS already never scanning
+        Author (bare given-name tokens like "claude"/"bard" collide with
+        human first names).
     """
     flags = []
 
-    # Combine producer and creator for checking (either could contain the tool name)
-    # Convert to lowercase for case-insensitive matching
+    # Combine producer and creator for checking (either could contain the
+    # tool name). Convert to lowercase for case-insensitive matching. Author
+    # is deliberately EXCLUDED — see the "Note" in the docstring above.
     producer_lower = (producer or "").lower()
     creator_lower = (creator or "").lower()
     combined = f"{producer_lower} {creator_lower}"
@@ -440,13 +458,27 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
     # Run all checks
     all_flags.extend(check_producer(
         pdf_data.metadata.producer,
-        pdf_data.metadata.creator
+        pdf_data.metadata.creator,
     ))
 
     # Date checks (creation vs modification gap) are now in structure module
     # because they relate to document modifications, not metadata quality
 
     all_flags.extend(check_missing_metadata(pdf_data.raw_metadata))
+
+    # PyMuPDF had to REPAIR the file structure to open it. Sloppy producers
+    # emit malformed PDFs, but hand-edited bytes are the classic cause —
+    # a medium note (2026-07 audit: the extractor computed this signal and
+    # nothing consumed it).
+    if getattr(pdf_data, "is_repaired", False):
+        all_flags.append(Flag(
+            severity="medium",
+            code="META_DOCUMENT_REPAIRED",
+            message="PDF structure was broken and had to be repaired to open",
+            details={"explanation": "The file's internal structure did not parse "
+                                    "cleanly — either a sloppy generator or "
+                                    "hand-edited file bytes."},
+        ))
 
     # Calculate score: start at 100, subtract points for each flag
     score = 100

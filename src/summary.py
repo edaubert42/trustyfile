@@ -24,10 +24,13 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_SUSPICIOUS_PRODUCER": "origin",
     "META_NO_METADATA": "origin",
     "META_NO_PRODUCER": "origin",
+    "META_IMAGE_EDITOR": "origin",
+    "META_IMAGE_CONVERSION": "origin",
 
     # tampering: incremental edits, paste artifacts, font mixing, deleted objects
     "STRUCT_INCREMENTAL_UPDATES": "tampering",
     "STRUCT_DELETED_OBJECTS": "tampering",
+    "STRUCT_HIDDEN_MODIFICATION": "tampering",
     "FONTS_EXCESSIVE_DIVERSITY": "tampering",
     "FONTS_HIGH_DIVERSITY": "tampering",
     "FONTS_MIXED_SUBSETS": "tampering",
@@ -48,11 +51,21 @@ FLAG_THEME_MAP: dict[str, str] = {
     "ARITH_XML_INTERNAL_INCONSISTENT": "tampering",
     "ARITH_XML_VISIBLE_MISMATCH": "tampering",
     "ARITH_IBAN_MISMATCH": "tampering",
+    "ARITH_XML_CONSISTENT": "tampering",       # genuine-direction; bullets skip it
+
+    # tampering: signed 2D-Doc barcode vs visible text consistency
+    "TWOD_DOC_FIELD_MISMATCH": "tampering",
+    "TWOD_DOC_CONSISTENT": "tampering",        # genuine-direction; bullets skip it
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
+    "META_DOCUMENT_REPAIRED": "tampering",
     "META_FUTURE_CREATION_DATE": "tampering",
     "META_IMPOSSIBLE_DATES": "tampering",
+
+    # tampering: Error Level Analysis (image re-compression forensics)
+    "FORENSICS_ELA_MAJOR_EDIT": "tampering",
+    "FORENSICS_ELA_MINOR_EDIT": "tampering",
 
     # dates: content-level date inconsistencies (anachronisms, future dates in text)
     "CONTENT_FAR_FUTURE_DATE": "dates",
@@ -60,10 +73,13 @@ FLAG_THEME_MAP: dict[str, str] = {
     "CONTENT_ANACHRONISM_SERVICE": "dates",
     "CONTENT_ANACHRONISM_DUE": "dates",
     "CONTENT_ANACHRONISM_ORDER": "dates",
-    "CONTENT_FUTURE_INVOICE_DATE": "dates",
+    "CONTENT_FUTURE_DOCUMENT_DATE": "dates",
+    "CONTENT_DATE_CREATION_MISMATCH": "dates",
+    "CONTENT_EXPIRED_DOCUMENT": "dates",
 
     # identity: invalid SIRET/SIREN/VAT, company mismatch
     "CONTENT_INVALID_SIRET": "identity",
+    "CONTENT_INVALID_IBAN": "identity",
     "CONTENT_INVALID_SIREN": "identity",
     "CONTENT_INVALID_VAT": "identity",
     "CONTENT_SIREN_VAT_MISMATCH": "identity",
@@ -79,20 +95,35 @@ FLAG_THEME_MAP: dict[str, str] = {
     "EXTERNAL_SIREN_VERIFICATION_FAILED": "identity",
     "EXTERNAL_VAT_VERIFICATION_FAILED": "identity",
 
+    # identity (MRZ family — machine-readable zone of ID documents)
+    "MRZ_DOC_NUMBER_CHECK_FAIL": "identity",
+    "MRZ_DOB_CHECK_FAIL": "identity",
+    "MRZ_DOB_IMPOSSIBLE": "identity",
+    "MRZ_EXPIRY_CHECK_FAIL": "identity",
+    "MRZ_DOCUMENT_EXPIRED": "identity",
+    "MRZ_OPTIONAL_CHECK_FAIL": "identity",
+    "MRZ_FINAL_CHECK_FAIL": "identity",
+    "MRZ_INVALID_SEX": "identity",
+    "MRZ_DOC_TYPE_UNEXPECTED": "identity",
+    "MRZ_PASSPORT_TYPE_UNUSUAL": "identity",
+    "MRZ_ISSUER_FORMAT_INVALID": "identity",
+    "MRZ_NAME_FORMAT_INVALID": "identity",
+    "MRZ_NATIONALITY_FORMAT_INVALID": "identity",
+    "MRZ_DOC_NUMBER_FORMAT_INVALID": "identity",
+    "MRZ_CNI_TYPE_UNEXPECTED": "identity",
+    "MRZ_CNI_OPTIONAL2_NOT_EMPTY": "identity",
+    "MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH": "identity",
+    "MRZ_US_VALIDITY_PERIOD_UNEXPECTED": "identity",
+    "MRZ_VALIDITY_PERIOD_UNUSUAL": "identity",
+
+    # identity verification (external registries / account numbers)
+    "EXTERNAL_IBAN_INVALID": "identity",
+    "EXTERNAL_IBAN_VERIFICATION_FAILED": "identity",
+
     # visual: QR mismatches, watermarks
     "VISUAL_QR_URL_SHORTENER": "visual",
     "VISUAL_QR_SUSPICIOUS_TLD": "visual",
     "VISUAL_QR_DOMAIN_MISMATCH": "visual",
-    "VISUAL_WATERMARK_SPECIMEN": "visual",
-    "VISUAL_WATERMARK_COPY": "visual",
-    "VISUAL_WATERMARK_DRAFT": "visual",
-    "VISUAL_WATERMARK_DUPLICATE": "visual",
-    "VISUAL_WATERMARK_VOID": "visual",
-    "VISUAL_WATERMARK_CANCELLED": "visual",
-    "VISUAL_WATERMARK_NOT_VALID": "visual",
-    "VISUAL_WATERMARK_SAMPLE": "visual",
-    "VISUAL_WATERMARK_TEST": "visual",
-    "VISUAL_WATERMARK_CONFIDENTIAL": "visual",
     "VISUAL_CONVERTER_WATERMARK": "visual",
 
     # images: screenshots, image-only PDFs, compression issues
@@ -103,6 +134,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "IMAGES_NO_IMAGES": "images",
     "IMAGES_IMAGE_ONLY_PDF": "images",
     "IMAGES_MOSTLY_IMAGE_PDF": "images",
+    "IMAGES_EXIF_DATE_AFTER_DOC": "images",
+    "IMAGES_EXIF_EDITOR_SOFTWARE": "images",
 
     # security: JavaScript, embedded files, hidden annotations
     "STRUCT_JAVASCRIPT_DETECTED": "security",
@@ -125,6 +158,10 @@ FLAG_THEME_MAP: dict[str, str] = {
     "STRUCT_SIGNATURE_NOT_TRUSTED": "signature",
     "STRUCT_SIGNATURE_UNVERIFIABLE": "signature",
     "STRUCT_SIGNATURE_INVALID": "signature",
+
+    # other (pipeline-status codes — not a finding about the document itself)
+    "EXTRACTION_FAILED": "other",
+    "MODULE_ERROR": "other",
 }
 
 
@@ -163,6 +200,16 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "META_NO_PRODUCER": lambda f: (
         "No software information is present in the document metadata."
     ),
+    "META_IMAGE_EDITOR": lambda f: (
+        "The document was produced with an image editor "
+        f"({f.details.get('producer') or f.details.get('creator') or 'unknown tool'}) "
+        "rather than an office/invoicing tool."
+        if f.details else
+        "The document was produced with an image editor rather than an "
+        "office/invoicing tool."),
+    "META_IMAGE_CONVERSION": lambda f: (
+        "The document was converted from an image, which erases the original "
+        "text layer and its history."),
 
     # --- tampering ---
     "STRUCT_INCREMENTAL_UPDATES": lambda f: (
@@ -174,6 +221,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "The PDF contains deleted objects (ghost data), suggesting content "
         "was removed but traces remain."
     ),
+    "STRUCT_HIDDEN_MODIFICATION": lambda f: (
+        "The file contains a modification saved WITHOUT the standard "
+        "incremental-update markers — an attempt to edit without leaving a "
+        "trace."),
     "FONTS_EXCESSIVE_DIVERSITY": lambda f: (
         f"The document uses {f.details.get('font_count', 'many')} different fonts, "
         f"which is unusual for a professional invoice."
@@ -278,6 +329,21 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         if f.details else ("The printed total does not match the embedded "
                             "e-invoice data.")
     ),
+    "TWOD_DOC_FIELD_MISMATCH": lambda f: (
+        f"The signed 2D-Doc barcode says {f.details.get('field', 'a field')} "
+        f"= \"{f.details.get('expected', '')}\", but the visible text shows "
+        "something else — the printed value may have been edited."
+        if f.details else
+        "A field in the signed 2D-Doc barcode does not match the visible text."),
+    "TWOD_DOC_CONSISTENT": lambda f: (
+        "All fields of the signed 2D-Doc barcode match the visible text."),
+    "FORENSICS_ELA_MAJOR_EDIT": lambda f: (
+        "Error-level analysis shows a region whose compression history differs "
+        "sharply from the rest of the page — consistent with a pasted or "
+        "edited area."),
+    "FORENSICS_ELA_MINOR_EDIT": lambda f: (
+        "Error-level analysis shows a small region with a different "
+        "compression history — possibly an edited area."),
 
     # --- dates ---
     "META_FUTURE_CREATION_DATE": lambda f: (
@@ -318,9 +384,14 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "CONTENT_ANACHRONISM_ORDER": lambda f: (
         "The order date comes after the invoice date, which is inconsistent."
     ),
-    "CONTENT_FUTURE_INVOICE_DATE": lambda f: (
-        "The invoice date is in the future."
+    "CONTENT_FUTURE_DOCUMENT_DATE": lambda f: (
+        "The document date is in the future."
     ),
+    "CONTENT_DATE_CREATION_MISMATCH": lambda f: (
+        "A date mentioned in the document contradicts the file's own creation "
+        "timestamp."),
+    "CONTENT_EXPIRED_DOCUMENT": lambda f: (
+        "The document refers to a validity period that has already expired."),
 
     # --- identity ---
     "CONTENT_INVALID_SIRET": lambda f: (
@@ -376,6 +447,54 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"according to the EU VIES system."
         if f.details else "A VAT number is invalid according to EU VIES."
     ),
+    "EXTERNAL_IBAN_INVALID": lambda f: (
+        "A bank account number (IBAN) printed on the document fails its "
+        "checksum — it cannot be a real account."),
+    "EXTERNAL_IBAN_VERIFICATION_FAILED": lambda f: (
+        "The bank account number (IBAN) could not be verified."),
+
+    # --- identity (MRZ family — identity.py messages are hardcoded French;
+    # these EN templates are what English users see) ---
+    "MRZ_DOC_NUMBER_CHECK_FAIL": lambda f: (
+        "The ID document number fails its MRZ check digit — genuine documents "
+        "cannot fail this."),
+    "MRZ_DOB_CHECK_FAIL": lambda f: (
+        "The date of birth fails its MRZ check digit."),
+    "MRZ_DOB_IMPOSSIBLE": lambda f: (
+        "The date of birth encoded in the MRZ is impossible."),
+    "MRZ_EXPIRY_CHECK_FAIL": lambda f: (
+        "The expiry date fails its MRZ check digit."),
+    "MRZ_DOCUMENT_EXPIRED": lambda f: (
+        "The identity document is expired."),
+    "MRZ_OPTIONAL_CHECK_FAIL": lambda f: (
+        "The MRZ optional-data field fails its check digit."),
+    "MRZ_FINAL_CHECK_FAIL": lambda f: (
+        "The MRZ global check digit fails — the machine-readable zone has "
+        "been altered or mistyped."),
+    "MRZ_INVALID_SEX": lambda f: (
+        "The MRZ sex field holds an invalid value."),
+    "MRZ_DOC_TYPE_UNEXPECTED": lambda f: (
+        "The MRZ document-type code does not match this kind of document."),
+    "MRZ_PASSPORT_TYPE_UNUSUAL": lambda f: (
+        "The passport MRZ type code is unusual."),
+    "MRZ_ISSUER_FORMAT_INVALID": lambda f: (
+        "The MRZ issuing-country code is malformed."),
+    "MRZ_NAME_FORMAT_INVALID": lambda f: (
+        "The MRZ name field is malformed."),
+    "MRZ_NATIONALITY_FORMAT_INVALID": lambda f: (
+        "The MRZ nationality code is malformed."),
+    "MRZ_DOC_NUMBER_FORMAT_INVALID": lambda f: (
+        "The MRZ document number is malformed."),
+    "MRZ_CNI_TYPE_UNEXPECTED": lambda f: (
+        "The French ID card MRZ type code is unexpected."),
+    "MRZ_CNI_OPTIONAL2_NOT_EMPTY": lambda f: (
+        "A French ID card MRZ field that must be empty is not."),
+    "MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH": lambda f: (
+        "The US passport-card issuer field contradicts the document type."),
+    "MRZ_US_VALIDITY_PERIOD_UNEXPECTED": lambda f: (
+        "The US document's validity period is not the standard one."),
+    "MRZ_VALIDITY_PERIOD_UNUSUAL": lambda f: (
+        "The document's validity period is unusual for its type."),
 
     # --- visual ---
     "VISUAL_QR_URL_SHORTENER": lambda f: (
@@ -419,6 +538,15 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "IMAGES_MOSTLY_IMAGE_PDF": lambda f: (
         "The document is mostly images with very little text."
     ),
+    "IMAGES_NO_IMAGES": lambda f: (
+        "The document contains no images (no logo or letterhead), which is "
+        "unusual for a professional invoice."),
+    "IMAGES_EXIF_DATE_AFTER_DOC": lambda f: (
+        "An embedded image carries an EXIF timestamp LATER than the document's "
+        "creation date — it was made after the document supposedly existed."),
+    "IMAGES_EXIF_EDITOR_SOFTWARE": lambda f: (
+        "An embedded image was saved by an image editor (per its EXIF data). "
+        "Common for logos; meaningful only alongside other findings."),
 
     # security
     "STRUCT_JAVASCRIPT_DETECTED": lambda f: (
@@ -451,6 +579,14 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "STRUCT_SIGNATURE_UNVERIFIABLE": lambda f: (
         "The document has a signature in a format that could not be verified."
     ),
+
+    # --- other (pipeline-status codes) ---
+    "EXTRACTION_FAILED": lambda f: (
+        "The file could not be read as a valid PDF, so it cannot be verified."),
+    "MODULE_ERROR": lambda f: (
+        f"One analysis ({f.details.get('module', '?')}) failed on this "
+        "document and was skipped."
+        if f.details else "One analysis failed on this document and was skipped."),
 }
 
 
@@ -474,6 +610,16 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "META_NO_PRODUCER": lambda f: (
         "Aucune information logicielle n'est présente dans les métadonnées du document."
     ),
+    "META_IMAGE_EDITOR": lambda f: (
+        "Le document a été produit avec un éditeur d'images "
+        f"({f.details.get('producer') or f.details.get('creator') or 'outil inconnu'}) "
+        "plutôt qu'un outil bureautique ou de facturation."
+        if f.details else
+        "Le document a été produit avec un éditeur d'images plutôt qu'un "
+        "outil bureautique ou de facturation."),
+    "META_IMAGE_CONVERSION": lambda f: (
+        "Le document a été converti depuis une image, ce qui efface la couche "
+        "texte d'origine et son historique."),
 
     # --- tampering ---
     "STRUCT_INCREMENTAL_UPDATES": lambda f: (
@@ -485,6 +631,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Le PDF contient des objets supprimés (données fantômes), "
         "suggérant que du contenu a été retiré mais des traces subsistent."
     ),
+    "STRUCT_HIDDEN_MODIFICATION": lambda f: (
+        "Le fichier contient une modification enregistrée SANS les marqueurs "
+        "standard de mise à jour incrémentale — une tentative d'édition sans "
+        "laisser de trace."),
     "FONTS_EXCESSIVE_DIVERSITY": lambda f: (
         f"Le document utilise {f.details.get('font_count', 'beaucoup de')} polices différentes, "
         f"ce qui est inhabituel pour une facture professionnelle."
@@ -589,6 +739,21 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         if f.details else ("Le total imprimé ne correspond pas aux données de "
                            "facture électronique intégrées.")
     ),
+    "TWOD_DOC_FIELD_MISMATCH": lambda f: (
+        f"Le code 2D-Doc signé indique {f.details.get('field', 'un champ')} "
+        f"= « {f.details.get('expected', '')} », mais le texte visible montre "
+        "autre chose — la valeur imprimée a pu être modifiée."
+        if f.details else
+        "Un champ du code 2D-Doc signé ne correspond pas au texte visible."),
+    "TWOD_DOC_CONSISTENT": lambda f: (
+        "Tous les champs du code 2D-Doc signé correspondent au texte visible."),
+    "FORENSICS_ELA_MAJOR_EDIT": lambda f: (
+        "L'analyse des niveaux d'erreur révèle une zone dont l'historique de "
+        "compression diffère nettement du reste de la page — compatible avec "
+        "un collage ou une retouche."),
+    "FORENSICS_ELA_MINOR_EDIT": lambda f: (
+        "L'analyse des niveaux d'erreur révèle une petite zone à l'historique "
+        "de compression différent — possible retouche."),
 
     # --- dates ---
     "META_FUTURE_CREATION_DATE": lambda f: (
@@ -629,9 +794,14 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "CONTENT_ANACHRONISM_ORDER": lambda f: (
         "La date de commande est postérieure à la date de facture, ce qui est incohérent."
     ),
-    "CONTENT_FUTURE_INVOICE_DATE": lambda f: (
-        "La date de facture est dans le futur."
+    "CONTENT_FUTURE_DOCUMENT_DATE": lambda f: (
+        "La date du document est dans le futur."
     ),
+    "CONTENT_DATE_CREATION_MISMATCH": lambda f: (
+        "Une date mentionnée dans le document contredit la date de création "
+        "du fichier."),
+    "CONTENT_EXPIRED_DOCUMENT": lambda f: (
+        "Le document fait référence à une période de validité déjà expirée."),
 
     # --- identity ---
     "CONTENT_INVALID_SIRET": lambda f: (
@@ -687,6 +857,58 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"selon le système EU VIES."
         if f.details else "Un numéro de TVA est invalide selon EU VIES."
     ),
+    "EXTERNAL_IBAN_INVALID": lambda f: (
+        "Un IBAN imprimé sur le document échoue à sa somme de contrôle — ce "
+        "ne peut pas être un compte réel."),
+    "EXTERNAL_IBAN_VERIFICATION_FAILED": lambda f: (
+        "L'IBAN n'a pas pu être vérifié."),
+
+    # --- identity (famille MRZ — formulations dédiées pour la parité EN/FR ;
+    # le texte anglais correspondant existe car identity.py ne construit ses
+    # messages qu'en français) ---
+    "MRZ_DOC_NUMBER_CHECK_FAIL": lambda f: (
+        "Le numéro de document échoue à son chiffre de contrôle MRZ — un "
+        "document authentique ne peut pas échouer à ce test."),
+    "MRZ_DOB_CHECK_FAIL": lambda f: (
+        "La date de naissance échoue à son chiffre de contrôle MRZ."),
+    "MRZ_DOB_IMPOSSIBLE": lambda f: (
+        "La date de naissance encodée dans la MRZ est impossible."),
+    "MRZ_EXPIRY_CHECK_FAIL": lambda f: (
+        "La date d'expiration échoue à son chiffre de contrôle MRZ."),
+    "MRZ_DOCUMENT_EXPIRED": lambda f: (
+        "La pièce d'identité est expirée."),
+    "MRZ_OPTIONAL_CHECK_FAIL": lambda f: (
+        "Le champ optionnel de la MRZ échoue à son chiffre de contrôle."),
+    "MRZ_FINAL_CHECK_FAIL": lambda f: (
+        "Le chiffre de contrôle global de la MRZ échoue — la zone de lecture "
+        "automatique a été altérée ou mal saisie."),
+    "MRZ_INVALID_SEX": lambda f: (
+        "Le champ sexe de la MRZ contient une valeur invalide."),
+    "MRZ_DOC_TYPE_UNEXPECTED": lambda f: (
+        "Le code de type de document MRZ ne correspond pas à ce type de pièce."),
+    "MRZ_PASSPORT_TYPE_UNUSUAL": lambda f: (
+        "Le code de type MRZ du passeport est inhabituel."),
+    "MRZ_ISSUER_FORMAT_INVALID": lambda f: (
+        "Le code pays émetteur de la MRZ est mal formé."),
+    "MRZ_NAME_FORMAT_INVALID": lambda f: (
+        "Le champ nom de la MRZ est mal formé."),
+    "MRZ_NATIONALITY_FORMAT_INVALID": lambda f: (
+        "Le code nationalité de la MRZ est mal formé."),
+    "MRZ_DOC_NUMBER_FORMAT_INVALID": lambda f: (
+        "Le numéro de document de la MRZ est mal formé."),
+    "MRZ_CNI_TYPE_UNEXPECTED": lambda f: (
+        "Le code de type MRZ de la carte d'identité française est inattendu."),
+    "MRZ_CNI_OPTIONAL2_NOT_EMPTY": lambda f: (
+        "Un champ MRZ de la carte d'identité française qui doit rester vide "
+        "ne l'est pas."),
+    "MRZ_US_PASSPORT_CARD_ISSUER_MISMATCH": lambda f: (
+        "Le champ émetteur de la passport card américaine contredit le type "
+        "de document."),
+    "MRZ_US_VALIDITY_PERIOD_UNEXPECTED": lambda f: (
+        "La période de validité du document américain n'est pas la période "
+        "standard."),
+    "MRZ_VALIDITY_PERIOD_UNUSUAL": lambda f: (
+        "La période de validité du document est inhabituelle pour son type."),
 
     # --- visual ---
     "VISUAL_QR_URL_SHORTENER": lambda f: (
@@ -731,8 +953,16 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Le document est principalement composé d'images avec très peu de texte."
     ),
     "IMAGES_NO_IMAGES": lambda f: (
-        "Le document ne contient aucune image (inhabituel pour une facture de marque)."
+        "Le document ne contient aucune image (pas de logo ni d'en-tête) — "
+        "inhabituel pour une facture professionnelle."
     ),
+    "IMAGES_EXIF_DATE_AFTER_DOC": lambda f: (
+        "Une image intégrée porte une date EXIF POSTÉRIEURE à la date de "
+        "création du document — elle a été créée après le document lui-même."),
+    "IMAGES_EXIF_EDITOR_SOFTWARE": lambda f: (
+        "Une image intégrée a été enregistrée par un éditeur d'images (selon "
+        "ses données EXIF). Courant pour un logo ; significatif seulement "
+        "avec d'autres indices."),
 
     # --- security ---
     "STRUCT_JAVASCRIPT_DETECTED": lambda f: (
@@ -767,6 +997,15 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "STRUCT_SIGNATURE_UNVERIFIABLE": lambda f: (
         "Le document porte une signature dans un format qui n'a pas pu être vérifié."
     ),
+
+    # --- other (codes de statut du pipeline) ---
+    "EXTRACTION_FAILED": lambda f: (
+        "Le fichier n'a pas pu être lu comme un PDF valide et ne peut donc "
+        "pas être vérifié."),
+    "MODULE_ERROR": lambda f: (
+        f"Une analyse ({f.details.get('module', '?')}) a échoué sur ce "
+        "document et a été ignorée."
+        if f.details else "Une analyse a échoué sur ce document et a été ignorée."),
 }
 
 
@@ -906,6 +1145,8 @@ def _get_dominant_theme(grouped: dict[str, list[Flag]]) -> str | None:
     Returns:
         The dominant theme name, or None if no flags.
     """
+    from src.evidence import GENUINE_CODES
+
     severity_weight = {"critical": 50, "high": 30, "medium": 15, "low": 5}
 
     # Exclude themes that aren't used for verdict selection
@@ -917,7 +1158,14 @@ def _get_dominant_theme(grouped: dict[str, list[Flag]]) -> str | None:
     for theme, flags in grouped.items():
         if theme not in verdict_themes:
             continue
-        total = sum(severity_weight.get(f.severity, 0) for f in flags)
+        # GENUINE_CODES (ARITH_XML_CONSISTENT, TWOD_DOC_CONSISTENT, ...) are
+        # positive evidence, not tamper findings — _build_bullets already
+        # excludes them from the bullet list, and this function must match:
+        # otherwise a lone consistency flag can crown "tampering" as the
+        # dominant theme and produce a false "may have been edited" verdict
+        # with zero real tamper evidence behind it.
+        total = sum(severity_weight.get(f.severity, 0) for f in flags
+                    if f.code not in GENUINE_CODES)
         if total > best_score:
             best_score = total
             best_theme = theme
@@ -1074,6 +1322,16 @@ def _get_positive_signals(
                 if lang == "fr" else
                 "The embedded e-invoice data matches the visible document "
                 "(totals/IBAN verified)."
+            )
+            break
+
+    # Machine-verified 2D-Doc consistency (flag with genuine direction)
+    for flags_in_theme in grouped.values():
+        if any(f.code == "TWOD_DOC_CONSISTENT" for f in flags_in_theme):
+            positives.append(
+                "Les champs du code 2D-Doc signé correspondent au document visible."
+                if lang == "fr" else
+                "The signed 2D-Doc barcode fields match the visible document."
             )
             break
 

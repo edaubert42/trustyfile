@@ -16,13 +16,16 @@ Why images matter for fraud detection:
 - Inconsistent image quality reveals editing
 """
 
+import io
 import re
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import fitz  # PyMuPDF
 import numpy as np
 import cv2
+from PIL import Image as PILImage
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
@@ -85,50 +88,202 @@ def extract_images_from_pdf(pdf_path: str) -> list[ImageInfo]:
         logger.error(f"Could not open PDF: {e}")
         return []
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
 
-        # Get images on this page
-        # Returns list of tuples: (xref, smask, width, height, bpc, colorspace, alt, name, filter, referencer)
-        image_list = page.get_images(full=True)
+            # Get images on this page
+            # Returns list of tuples: (xref, smask, width, height, bpc, colorspace, alt, name, filter, referencer)
+            image_list = page.get_images(full=True)
 
-        for img_data in image_list:
-            xref = img_data[0]
-            width = img_data[2]
-            height = img_data[3]
-            bpc = img_data[4]
-            colorspace = img_data[5]
-            img_filter = img_data[8] if len(img_data) > 8 else "Unknown"
+            for img_data in image_list:
+                xref = img_data[0]
+                width = img_data[2]
+                height = img_data[3]
+                bpc = img_data[4]
+                colorspace = img_data[5]
+                img_filter = img_data[8] if len(img_data) > 8 else "Unknown"
 
-            # Try to get image size
-            try:
-                base_image = doc.extract_image(xref)
-                size_bytes = len(base_image.get("image", b""))
-            except Exception:
-                size_bytes = 0
+                # Try to get image size
+                try:
+                    base_image = doc.extract_image(xref)
+                    size_bytes = len(base_image.get("image", b""))
+                except Exception:
+                    size_bytes = 0
 
-            # Try to calculate DPI from image placement
-            # This is complex and depends on the transformation matrix
-            # For now, we'll estimate based on page size
-            page_rect = page.rect
-            dpi_x = width / (page_rect.width / 72) if page_rect.width > 0 else 0
-            dpi_y = height / (page_rect.height / 72) if page_rect.height > 0 else 0
+                # Try to calculate DPI from image placement
+                # This is complex and depends on the transformation matrix
+                # For now, we'll estimate based on page size
+                page_rect = page.rect
+                dpi_x = width / (page_rect.width / 72) if page_rect.width > 0 else 0
+                dpi_y = height / (page_rect.height / 72) if page_rect.height > 0 else 0
 
-            images.append(ImageInfo(
-                xref=xref,
-                page=page_num,
-                width=width,
-                height=height,
-                colorspace=colorspace,
-                bpc=bpc,
-                filter=img_filter,
-                size_bytes=size_bytes,
-                dpi_x=dpi_x,
-                dpi_y=dpi_y,
-            ))
+                images.append(ImageInfo(
+                    xref=xref,
+                    page=page_num,
+                    width=width,
+                    height=height,
+                    colorspace=colorspace,
+                    bpc=bpc,
+                    filter=img_filter,
+                    size_bytes=size_bytes,
+                    dpi_x=dpi_x,
+                    dpi_y=dpi_y,
+                ))
+    finally:
+        # Ensure doc is closed even if an exception occurs mid-loop
+        doc.close()
 
-    doc.close()
     return images
+
+
+# =============================================================================
+# EXIF METADATA (audit item 21)
+# =============================================================================
+# Only two conservative signals (spec D5 — F2 precedent: these can never force
+# REVIEW alone):
+#   IMAGES_EXIF_DATE_AFTER_DOC  (medium)  image claims to have been captured/
+#       modified AFTER the PDF says it was created (+24h timezone slack) —
+#       an asset from the future relative to its own document.
+#   IMAGES_EXIF_EDITOR_SOFTWARE (low)     EXIF Software names an image editor.
+#       Informational only: logos are legitimately edited.
+# Deliberately NOT flagged: EXIF dates BEFORE the document (old logos are
+# normal) and camera/device fields (screenshot detection already exists).
+
+_EXIF_TAG_DATETIME = 306          # "DateTime" (file modification)
+_EXIF_TAG_SOFTWARE = 305
+_EXIF_IFD_EXIF = 0x8769
+_EXIF_TAG_DATETIME_ORIGINAL = 36867
+
+_EXIF_EDITOR_SOFTWARE = (
+    "photoshop", "gimp", "paint.net", "paintshop", "pixelmator",
+    "affinity photo", "corel", "photopea", "ms paint", "krita",
+)
+
+# Timezone slack: EXIF datetimes are timezone-naive, so anything inside one
+# day of the document date is treated as "same time".
+_EXIF_DATE_SLACK = timedelta(hours=24)
+
+
+def _parse_exif_datetime(raw) -> datetime | None:
+    """Parse a raw EXIF datetime value ("%Y:%m:%d %H:%M:%S", first 19 chars).
+
+    Returns None for anything missing, too short, or malformed — a bad
+    string is treated the same as an absent tag.
+    """
+    if not raw:
+        return None
+    try:
+        return datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _read_exif(image_bytes: bytes) -> tuple[datetime | None, str | None]:
+    """Best EXIF datetime (naive) + Software string from raw image bytes.
+
+    Prefers DateTimeOriginal (capture time) over DateTime (last save): a
+    photo/logo can be re-exported or re-saved long after it was captured,
+    which only bumps DateTime — using DateTimeOriginal when present avoids
+    mistaking that re-save for a "future" asset relative to the document.
+    DateTime is used only when DateTimeOriginal is absent or unparseable.
+    Never raises: any parse problem returns (None, None) — EXIF is
+    attacker-controllable input.
+
+    Example:
+        >>> _read_exif(jpeg_with_exif)      # doctest: +SKIP
+        (datetime(2026, 3, 1, 10, 0), 'Adobe Photoshop 25.0')
+    """
+    try:
+        img = PILImage.open(io.BytesIO(image_bytes))
+        exif = img.getexif()
+        if not exif:
+            return None, None
+        software = exif.get(_EXIF_TAG_SOFTWARE)
+        software = str(software).strip() if software else None
+
+        original_raw = None
+        try:
+            original_raw = exif.get_ifd(_EXIF_IFD_EXIF).get(_EXIF_TAG_DATETIME_ORIGINAL)
+        except Exception:
+            pass
+
+        best = _parse_exif_datetime(original_raw)
+        if best is None:
+            best = _parse_exif_datetime(exif.get(_EXIF_TAG_DATETIME))
+        return best, software
+    except Exception:
+        return None, None
+
+
+def check_exif_metadata(pdf_path: str, doc_creation_date: datetime | None) -> list[Flag]:
+    """EXIF checks over every embedded raster image (one flag per code max).
+
+    Args:
+        pdf_path: The PDF to inspect.
+        doc_creation_date: PDFMetadata.creation_date (tz-aware UTC) or None —
+            when None the date check is skipped entirely.
+    """
+    late_images: list[dict] = []
+    editor_images: list[dict] = []
+
+    doc = None
+    try:
+        doc = fitz.open(pdf_path)
+        seen: set[int] = set()
+        for page in doc:
+            for img in page.get_images(full=True):
+                xref = img[0]
+                if xref in seen:
+                    continue
+                seen.add(xref)
+                try:
+                    base = doc.extract_image(xref)
+                except Exception:
+                    continue
+                if not base or base.get("ext") not in ("jpeg", "jpg", "jpx", "tiff", "png"):
+                    continue
+                exif_dt, software = _read_exif(base.get("image", b""))
+
+                if exif_dt is not None and doc_creation_date is not None:
+                    exif_utc = exif_dt.replace(tzinfo=timezone.utc)
+                    if exif_utc > doc_creation_date + _EXIF_DATE_SLACK:
+                        late_images.append({"xref": xref,
+                                            "exif_datetime": str(exif_dt)})
+                if software and any(e in software.lower()
+                                    for e in _EXIF_EDITOR_SOFTWARE):
+                    editor_images.append({"xref": xref, "software": software})
+    except Exception as e:
+        logger.warning(f"EXIF check failed: {e}")
+        return []
+    finally:
+        if doc is not None:
+            try:
+                doc.close()
+            except Exception:
+                pass
+
+    flags: list[Flag] = []
+    if late_images:
+        flags.append(Flag(
+            severity="medium",
+            code="IMAGES_EXIF_DATE_AFTER_DOC",
+            message=(f"{len(late_images)} embedded image(s) carry an EXIF "
+                     "timestamp LATER than the document's own creation date — "
+                     "an image added after the document supposedly existed."),
+            details={"images": late_images,
+                     "doc_creation_date": str(doc_creation_date)},
+        ))
+    if editor_images:
+        flags.append(Flag(
+            severity="low",
+            code="IMAGES_EXIF_EDITOR_SOFTWARE",
+            message=(f"{len(editor_images)} embedded image(s) were saved by an "
+                     "image editor according to their EXIF Software field. "
+                     "Common for logos; relevant only alongside other signals."),
+            details={"images": editor_images},
+        ))
+    return flags
 
 
 # =============================================================================
@@ -553,105 +708,109 @@ def check_paste_artifacts(pdf_path: str) -> list[Flag]:
 
     zoom = 2  # Higher resolution for better detection accuracy
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
 
-        # Step 1: Find where amounts appear on this page
-        amount_regions = find_amount_regions(page, zoom=zoom)
-        if not amount_regions:
-            continue  # No amounts on this page → nothing to check
+            # Step 1: Find where amounts appear on this page
+            amount_regions = find_amount_regions(page, zoom=zoom)
+            if not amount_regions:
+                continue  # No amounts on this page → nothing to check
 
-        # Step 2: Render the page as an image
-        matrix = fitz.Matrix(zoom, zoom)
-        pixmap = page.get_pixmap(matrix=matrix)
+            # Step 2: Render the page as an image
+            matrix = fitz.Matrix(zoom, zoom)
+            pixmap = page.get_pixmap(matrix=matrix)
 
-        # Convert fitz pixmap → numpy array → OpenCV BGR format
-        img_array = np.frombuffer(pixmap.samples, dtype=np.uint8)
-        img_array = img_array.reshape(pixmap.height, pixmap.width, pixmap.n)
+            # Convert fitz pixmap → numpy array → OpenCV BGR format
+            img_array = np.frombuffer(pixmap.samples, dtype=np.uint8)
+            img_array = img_array.reshape(pixmap.height, pixmap.width, pixmap.n)
 
-        if pixmap.n >= 3:
-            image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        else:
-            image = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
+            if pixmap.n >= 3:
+                image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            else:
+                image = cv2.cvtColor(img_array, cv2.COLOR_GRAY2BGR)
 
-        # Convert to grayscale for noise and white level analysis
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        h, w = gray.shape
+            # Convert to grayscale for noise and white level analysis
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            h, w = gray.shape
 
-        # Step 3: Extract the noise layer for the entire page
-        # Gaussian blur removes content (text, lines), leaving only noise
-        # Subtracting blurred from original isolates the noise
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        noise_layer = gray.astype(np.float32) - blurred.astype(np.float32)
+            # Step 3: Extract the noise layer for the entire page
+            # Gaussian blur removes content (text, lines), leaving only noise
+            # Subtracting blurred from original isolates the noise
+            blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+            noise_layer = gray.astype(np.float32) - blurred.astype(np.float32)
 
-        # Check if the page has natural noise (scanned/photographed)
-        # A purely digital PDF has near-zero noise variance
-        page_noise = float(np.var(noise_layer))
-        if page_noise < 1.0:
-            # Purely digital content — no noise to compare against
-            # Paste detection is not applicable for digital PDFs
-            continue
-
-        # Step 4: For each amount region, compare to its neighborhood
-        for x0, y0, x1, y1 in amount_regions:
-            # Clamp coordinates to image bounds
-            x0 = max(0, x0)
-            y0 = max(0, y0)
-            x1 = min(w, x1)
-            y1 = min(h, y1)
-
-            region_w = x1 - x0
-            region_h = y1 - y0
-
-            # Skip tiny regions (probably extraction artifacts)
-            if region_w < 10 or region_h < 10:
+            # Check if the page has natural noise (scanned/photographed)
+            # A purely digital PDF has near-zero noise variance
+            page_noise = float(np.var(noise_layer))
+            if page_noise < 1.0:
+                # Purely digital content — no noise to compare against
+                # Paste detection is not applicable for digital PDFs
                 continue
 
-            # --- Noise analysis ---
-            # Extract noise values for the amount region
-            region_noise = noise_layer[y0:y1, x0:x1]
-            region_var = float(np.var(region_noise))
+            # Step 4: For each amount region, compare to its neighborhood
+            for x0, y0, x1, y1 in amount_regions:
+                # Clamp coordinates to image bounds
+                x0 = max(0, x0)
+                y0 = max(0, y0)
+                x1 = min(w, x1)
+                y1 = min(h, y1)
 
-            # Extract a larger neighborhood around the amount
-            # Padding = 1x the region size in each direction
-            # This captures the area just around the amount for comparison
-            pad = max(region_w, region_h)
-            nb_x0 = max(0, x0 - pad)
-            nb_y0 = max(0, y0 - pad)
-            nb_x1 = min(w, x1 + pad)
-            nb_y1 = min(h, y1 + pad)
+                region_w = x1 - x0
+                region_h = y1 - y0
 
-            neighborhood_noise = noise_layer[nb_y0:nb_y1, nb_x0:nb_x1]
-            neighborhood_var = float(np.var(neighborhood_noise))
+                # Skip tiny regions (probably extraction artifacts)
+                if region_w < 10 or region_h < 10:
+                    continue
 
-            # If the amount region has MUCH LESS noise than its surroundings,
-            # it was likely pasted (digitally created region on a noisy scan)
-            # Threshold: region noise < 1/4 of neighborhood noise
-            if neighborhood_var > 2.0 and region_var < neighborhood_var / 4:
-                flags.append(Flag(
-                    severity="high",
-                    code="IMAGES_PASTE_NOISE_ANOMALY",
-                    message=(
-                        f"Page {page_num + 1}: amount region has abnormal "
-                        f"noise pattern (possible paste)"
-                    ),
-                    details={
-                        "page": page_num + 1,
-                        "region_bbox": [x0, y0, x1, y1],
-                        "region_noise": round(region_var, 2),
-                        "neighborhood_noise": round(neighborhood_var, 2),
-                        "detection_method": "focused_noise_analysis",
-                    }
-                ))
+                # --- Noise analysis ---
+                # Extract noise values for the amount region
+                region_noise = noise_layer[y0:y1, x0:x1]
+                region_var = float(np.var(region_noise))
 
-            # NOTE: White level analysis was removed here.
-            # Testing showed that white level differences between a text
-            # region and its neighborhood are caused by text density
-            # (more dark pixels → lower white average), not by paste
-            # artifacts. Legitimate and suspicious files had overlapping
-            # ranges (2-12 points), making it unreliable as a detector.
+                # Extract a larger neighborhood around the amount
+                # Padding = 1x the region size in each direction
+                # This captures the area just around the amount for comparison
+                pad = max(region_w, region_h)
+                nb_x0 = max(0, x0 - pad)
+                nb_y0 = max(0, y0 - pad)
+                nb_x1 = min(w, x1 + pad)
+                nb_y1 = min(h, y1 + pad)
 
-    doc.close()
+                neighborhood_noise = noise_layer[nb_y0:nb_y1, nb_x0:nb_x1]
+                neighborhood_var = float(np.var(neighborhood_noise))
+
+                # If the amount region has MUCH LESS noise than its surroundings,
+                # it was likely pasted (digitally created region on a noisy scan)
+                # Threshold: region noise < 1/4 of neighborhood noise
+                if neighborhood_var > 2.0 and region_var < neighborhood_var / 4:
+                    flags.append(Flag(
+                        severity="high",
+                        code="IMAGES_PASTE_NOISE_ANOMALY",
+                        message=(
+                            f"Page {page_num + 1}: amount region has abnormal "
+                            f"noise pattern (possible paste)"
+                        ),
+                        details={
+                            "page": page_num + 1,
+                            "region_bbox": [x0, y0, x1, y1],
+                            "region_noise": round(region_var, 2),
+                            "neighborhood_noise": round(neighborhood_var, 2),
+                            "detection_method": "focused_noise_analysis",
+                        }
+                    ))
+
+                # NOTE: White level analysis was removed here.
+                # Testing showed that white level differences between a text
+                # region and its neighborhood are caused by text density
+                # (more dark pixels → lower white average), not by paste
+                # artifacts. Legitimate and suspicious files had overlapping
+                # ranges (2-12 points), making it unreliable as a detector.
+
+    finally:
+        # Ensure doc is closed even if an exception occurs mid-loop
+        doc.close()
+
     return flags
 
 
@@ -702,6 +861,13 @@ def analyze_images(pdf_data: PDFData) -> ModuleResult:
         all_flags.extend(check_paste_artifacts(pdf_data.file_path))
     except Exception as e:
         logger.warning(f"Paste detection failed: {e}")
+
+    # EXIF checks (audit item 21) — never let a Pillow failure sink the module
+    try:
+        all_flags.extend(check_exif_metadata(pdf_data.file_path,
+                                             pdf_data.metadata.creation_date))
+    except Exception as e:
+        logger.warning(f"EXIF analysis failed: {e}")
 
     # Calculate score
     score = 100

@@ -105,18 +105,19 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5) -> byte
     """
     import fitz
     doc = fitz.open(pdf_path)
-    page = doc[page_num]
+    try:
+        page = doc[page_num]
 
-    # Create a matrix for zoom
-    mat = fitz.Matrix(zoom, zoom)
+        # Create a matrix for zoom
+        mat = fitz.Matrix(zoom, zoom)
 
-    # Render page to pixmap (image)
-    pix = page.get_pixmap(matrix=mat)
+        # Render page to pixmap (image)
+        pix = page.get_pixmap(matrix=mat)
 
-    # Convert to PNG bytes
-    img_bytes = pix.tobytes("png")
-
-    doc.close()
+        # Convert to PNG bytes
+        img_bytes = pix.tobytes("png")
+    finally:
+        doc.close()
     return img_bytes
 
 
@@ -124,8 +125,10 @@ def get_pdf_page_count(pdf_path: str) -> int:
     """Get the number of pages in a PDF."""
     import fitz
     doc = fitz.open(pdf_path)
-    count = len(doc)
-    doc.close()
+    try:
+        count = len(doc)
+    finally:
+        doc.close()
     return count
 
 
@@ -824,7 +827,7 @@ if uploaded_file is not None:
 if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
-    from src.scoring import collect_all_flags, count_flags_by_severity, MODULE_WEIGHTS, DEFAULT_WEIGHT
+    from src.scoring import collect_all_flags, count_flags_by_severity
     from src.summary import generate_rich_summary, get_flag_sentence
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
@@ -1219,11 +1222,25 @@ if uploaded_file is not None:
 
             # Define the 4 groups: (label, list of module names, tooltip)
             groups = [
-                (t("group_modifications"), ["structure"], t("tip_modifications")),
-                (t("group_consistency"), ["content"], t("tip_consistency")),
-                (t("group_tampering"), ["images", "fonts", "visual", "metadata"], t("tip_tampering")),
-                (t("group_authenticity"), ["external"], t("tip_authenticity")),
+                (t("group_modifications"), ["structure", "overlay"], t("tip_modifications")),
+                (t("group_consistency"), ["content", "arithmetic"], t("tip_consistency")),
+                (t("group_tampering"), ["images", "fonts", "visual", "metadata", "forensics"], t("tip_tampering")),
+                (t("group_authenticity"), ["external", "identity", "twod_doc"], t("tip_authenticity")),
             ]
+
+            # Evidence-ledger contributions (audit item 23): the bars show the
+            # ACTUAL score pressure per group — the same group-capped sums the
+            # aggregation used — not the old (deleted) weighted-average formula.
+            from src.evidence import module_contributions
+            contrib = module_contributions(result.evidence_ledger)
+
+            def _group_net(names: list[str]) -> float:
+                return sum(contrib.get(n, {}).get("tamper", 0.0)
+                           - contrib.get(n, {}).get("genuine", 0.0)
+                           for n in names)
+
+            total_pressure = sum(max(0.0, _group_net(names))
+                                 for _, names, _ in groups) or 0.0
 
             bars_html = ""
             for label, member_names, tooltip in groups:
@@ -1246,24 +1263,21 @@ if uploaded_file is not None:
                     </div>'''
                     continue
 
-                # Weighted average score across member modules
-                # Uses same weight logic as global scoring
-                weighted_sum = 0.0
-                weight_total = 0.0
-                for m in members:
-                    w = MODULE_WEIGHTS.get(m.module, DEFAULT_WEIGHT) * m.confidence
-                    weighted_sum += m.score * w
-                    weight_total += w
-                group_score = round(weighted_sum / weight_total) if weight_total > 0 else 100
+                # Net evidence pressure for this group (positive = pushed the
+                # score DOWN; negative = genuine evidence lifted it).
+                net = _group_net(member_names)
+                hard = any(contrib.get(n, {}).get("hard_tamper") for n in member_names)
 
-                if group_score >= 80:
-                    bar_color = "#28a745"
-                elif group_score >= 50:
-                    bar_color = "#ffb627"
-                elif group_score >= 20:
-                    bar_color = "#ef233c"
+                if hard:
+                    width, bar_color, value_label = 100, "#ef233c", "veto"
+                elif net > 0:
+                    width = round(100 * net / total_pressure) if total_pressure else 0
+                    bar_color = "#ef233c" if net >= 1.5 else "#ffb627"
+                    value_label = f"+{net:.1f}"
+                elif net < 0:
+                    width, bar_color, value_label = 25, "#28a745", f"{net:.1f}"
                 else:
-                    bar_color = "#ef233c"
+                    width, bar_color, value_label = 0, "#28a745", "0"
 
                 bars_html += f'''
                 <div style="display:flex; align-items:center; margin-bottom:6px;">
@@ -1272,12 +1286,12 @@ if uploaded_file is not None:
                     </span>
                     <div style="flex:1; background:#2a2a2a; border-radius:4px;
                         height:10px; overflow:hidden;">
-                        <div style="width:{group_score}%; height:100%;
+                        <div style="width:{width}%; height:100%;
                             background:{bar_color}; border-radius:4px;
                             transition:width 1s ease;"></div>
                     </div>
                     <span style="width:35px; text-align:right; font-size:0.8rem;
-                        color:#eee; margin-left:8px; font-weight:bold;">{group_score}</span>
+                        color:#eee; margin-left:8px; font-weight:bold;">{value_label}</span>
                 </div>'''
 
             # Flag counts
@@ -1676,8 +1690,6 @@ if uploaded_file is not None:
             flag_count = len(module.flags)
 
             # Module card with full raw data
-            mod_weight = MODULE_WEIGHTS.get(module.module, DEFAULT_WEIGHT)
-
             flags_html = ""
             if module.flags:
                 for f in module.flags:
@@ -1739,7 +1751,6 @@ if uploaded_file is not None:
                 f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
                 f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
                 f'<span>{t("label_confidence")}: {module.confidence:.0%}</span>'
-                f'<span>{t("label_weight")}: {mod_weight}</span>'
                 f'<span>{t("label_flags")}: {len(module.flags)}</span>'
                 f'</div>'
                 f'{flags_html}'

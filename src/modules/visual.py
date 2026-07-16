@@ -87,40 +87,43 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
         logger.error(f"Could not open PDF: {e}")
         return []
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
 
-        # Convert page to image
-        # zoom=2 means 2x resolution (144 DPI instead of 72 DPI)
-        # Higher resolution = better QR detection but slower
-        zoom = 2
-        matrix = fitz.Matrix(zoom, zoom)
+            # Convert page to image
+            # zoom=2 means 2x resolution (144 DPI instead of 72 DPI)
+            # Higher resolution = better QR detection but slower
+            zoom = 2
+            matrix = fitz.Matrix(zoom, zoom)
 
-        # Get pixmap (image) of the page
-        pixmap = page.get_pixmap(matrix=matrix)
+            # Get pixmap (image) of the page
+            pixmap = page.get_pixmap(matrix=matrix)
 
-        # Convert to PIL Image for pyzbar
-        img_data = pixmap.tobytes("png")
-        img = Image.open(io.BytesIO(img_data))
+            # Convert to PIL Image for pyzbar
+            img_data = pixmap.tobytes("png")
+            img = Image.open(io.BytesIO(img_data))
 
-        # Detect QR codes
-        decoded_objects = _pyzbar.decode(img)
+            # Detect QR codes
+            decoded_objects = _pyzbar.decode(img)
 
-        for obj in decoded_objects:
-            # obj.data is bytes, decode to string
-            data = obj.data.decode("utf-8", errors="ignore")
+            for obj in decoded_objects:
+                # obj.data is bytes, decode to string
+                data = obj.data.decode("utf-8", errors="ignore")
 
-            # Get bounding rectangle
-            rect = obj.rect  # (left, top, width, height)
+                # Get bounding rectangle
+                rect = obj.rect  # (left, top, width, height)
 
-            qr_codes.append(QRCodeInfo(
-                data=data,
-                page=page_num,
-                rect=(rect.left, rect.top, rect.width, rect.height),
-                qr_type=obj.type,  # "QRCODE", "EAN13", etc.
-            ))
+                qr_codes.append(QRCodeInfo(
+                    data=data,
+                    page=page_num,
+                    rect=(rect.left, rect.top, rect.width, rect.height),
+                    qr_type=obj.type,  # "QRCODE", "EAN13", etc.
+                ))
+    finally:
+        # Always close, even if a mid-loop exception (malformed page/image) occurs
+        doc.close()
 
-    doc.close()
     return qr_codes
 
 

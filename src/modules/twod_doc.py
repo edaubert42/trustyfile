@@ -26,6 +26,8 @@ from datetime import date, datetime, timedelta
 from typing import Literal
 import logging
 
+from src.models import Flag, ModuleResult
+
 # Try to import pylibdmtx — it may not be available if libdmtx system library is missing
 # On Python 3.13+, distutils was removed. setuptools provides it as a shim,
 # but must be imported first so that 'import distutils' works for pylibdmtx.
@@ -817,68 +819,70 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
 
     try:
         doc = fitz.open(pdf_path)
+        try:
 
-        # Only scan page 1 — 2D-DOC barcodes are always on the first page
-        page = doc[0]
+            # Only scan page 1 — 2D-DOC barcodes are always on the first page
+            page = doc[0]
 
-        # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
-        # Render at 100 DPI just for the visual check
-        pf_zoom = 100 / 72
-        pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
-        pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
-        pf_w, pf_h = pf_img.size
+            # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
+            # Render at 100 DPI just for the visual check
+            pf_zoom = 100 / 72
+            pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
+            pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
+            pf_w, pf_h = pf_img.size
 
-        # Check each quadrant for DataMatrix-like patterns
-        quadrant_defs = [
-            ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
-            ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
-        ]
+            # Check each quadrant for DataMatrix-like patterns
+            quadrant_defs = [
+                ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
+                ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
+            ]
 
-        candidate_quadrants = []
-        for quad_name, box in quadrant_defs:
-            if _has_datamatrix_candidate(pf_img.crop(box)):
-                candidate_quadrants.append(quad_name)
+            candidate_quadrants = []
+            for quad_name, box in quadrant_defs:
+                if _has_datamatrix_candidate(pf_img.crop(box)):
+                    candidate_quadrants.append(quad_name)
 
-        if not candidate_quadrants:
-            logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
+            if not candidate_quadrants:
+                logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
+                return []
+
+            logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
+
+            # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
+            zoom = dpi / 72
+            pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+            full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
+            img_w, img_h = full_img.size
+
+            quad_boxes = {
+                "top-left": (0, 0, img_w // 2, img_h // 2),
+                "top-right": (img_w // 2, 0, img_w, img_h // 2),
+            }
+
+            for quad_name in candidate_quadrants:
+                crop = full_img.crop(quad_boxes[quad_name])
+                barcodes = scan_datamatrix_from_image(crop)
+
+                for barcode in barcodes:
+                    if not barcode.data.startswith(HEADER_MARKER):
+                        continue
+
+                    parsed = parse_twod_doc(barcode.data)
+                    if parsed:
+                        results.append(parsed)
+                        logger.info(
+                            f"Found 2D-DOC in {quad_name} of page 1: "
+                            f"type={parsed.header.document_type}, "
+                            f"name={parsed.beneficiary_name}"
+                        )
+
+                # Stop if we found a 2D-DOC
+                if results:
+                    break
+
+        finally:
+            # Always release the document handle, even on exceptions/early returns
             doc.close()
-            return []
-
-        logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
-
-        # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
-        zoom = dpi / 72
-        pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-        full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
-        img_w, img_h = full_img.size
-
-        quad_boxes = {
-            "top-left": (0, 0, img_w // 2, img_h // 2),
-            "top-right": (img_w // 2, 0, img_w, img_h // 2),
-        }
-
-        for quad_name in candidate_quadrants:
-            crop = full_img.crop(quad_boxes[quad_name])
-            barcodes = scan_datamatrix_from_image(crop)
-
-            for barcode in barcodes:
-                if not barcode.data.startswith(HEADER_MARKER):
-                    continue
-
-                parsed = parse_twod_doc(barcode.data)
-                if parsed:
-                    results.append(parsed)
-                    logger.info(
-                        f"Found 2D-DOC in {quad_name} of page 1: "
-                        f"type={parsed.header.document_type}, "
-                        f"name={parsed.beneficiary_name}"
-                    )
-
-            # Stop if we found a 2D-DOC
-            if results:
-                break
-
-        doc.close()
 
     except Exception as e:
         logger.error(f"Error scanning PDF for 2D-DOC: {e}")
@@ -1889,10 +1893,12 @@ def verify_pdf_with_2d_doc(pdf_path: str) -> list[TwoDocVerificationResult]:
     # Step 2: Extract visible text from PDF
     try:
         doc = fitz.open(pdf_path)
-        full_text = ""
-        for page in doc:
-            full_text += page.get_text() + "\n"
-        doc.close()
+        try:
+            full_text = ""
+            for page in doc:
+                full_text += page.get_text() + "\n"
+        finally:
+            doc.close()
     except Exception as e:
         logger.error(f"Error extracting text from PDF: {e}")
         return []
@@ -1904,6 +1910,123 @@ def verify_pdf_with_2d_doc(pdf_path: str) -> list[TwoDocVerificationResult]:
         results.append(result)
 
     return results
+
+
+# =============================================================================
+# SCORED MODULE WRAPPER (audit item 14)
+# =============================================================================
+# Severity policy (spec D1, 2026-07-12): a field mismatch is SOFT evidence —
+# text matching misses on layout/accents/hyphenation, so it is never a hard
+# veto. Tiered off the comparison confidence already encoded per field:
+# >= 0.95 (amounts, RFR, fiscal/invoice numbers, postal code, calculated
+# balance) -> high; below (name, address, city, income estimate) -> medium.
+# Severities are PROVISIONAL until a real 2D-Doc sample joins the corpus.
+_EXACT_CONFIDENCE = 0.95
+
+# Positive signal (spec D2): a fully-matching 2D-Doc with >= 2 compared fields
+# is soft GENUINE evidence (TWOD_DOC_CONSISTENT in evidence.GENUINE_CODES) —
+# same policy as ARITH_XML_CONSISTENT; the anti-laundering guard strips it
+# whenever meaningful tamper evidence exists.
+_MIN_COMPARISONS_FOR_CONSISTENT = 2
+
+
+def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
+    """Convert one 2D-Doc verification into scoring flags.
+
+    Pure function (no I/O): the unit-testable core of analyze_twod_doc.
+
+    Example:
+        >>> res = verify_2d_doc_against_pdf(td, pdf_text)   # doctest: +SKIP
+        >>> [f.code for f in _flags_from_verification(res)]  # doctest: +SKIP
+        ['TWOD_DOC_CONSISTENT']
+    """
+    flags: list[Flag] = []
+    for c in result.comparisons:
+        if c.match:
+            continue
+        severity = "high" if c.confidence >= _EXACT_CONFIDENCE else "medium"
+        if c.pdf_value is not None:
+            # Found-but-inconsistent, not absent: every OTHER comparison sets
+            # match = (found is not None), so pdf_value is None whenever
+            # match=False -- EXCEPT the income/plausibility check
+            # (di="INCOME_CHECK"), whose pdf_value IS the income figure that
+            # WAS found in the visible text; it's flagged because it's
+            # implausible against the tax bracket implied by the signed
+            # 2D-Doc amount, not because it's missing. "was not found" would
+            # be factually wrong here.
+            message = (f"The visible {c.field_name} (\"{c.pdf_value}\") is "
+                       f"inconsistent with the value implied by the signed "
+                       f"2D-Doc barcode (\"{c.twod_doc_value}\").")
+        else:
+            message = (f"The document's signed 2D-Doc barcode contains "
+                       f"{c.field_name} = \"{c.twod_doc_value}\", but that value "
+                       f"was not found in the visible text. The visible layer "
+                       f"may have been edited (the barcode data cannot be).")
+        flags.append(Flag(
+            severity=severity,
+            code="TWOD_DOC_FIELD_MISMATCH",
+            message=message,
+            details={"di": c.di, "field": c.field_name,
+                     "expected": c.twod_doc_value,
+                     "comparison_confidence": c.confidence},
+        ))
+
+    if (not flags and len(result.comparisons) >= _MIN_COMPARISONS_FOR_CONSISTENT
+            and result.overall_match):
+        flags.append(Flag(
+            severity="medium",  # weight comes from GENUINE_CODES direction
+            code="TWOD_DOC_CONSISTENT",
+            message=(f"All {len(result.comparisons)} fields of the document's "
+                     "signed 2D-Doc barcode match the visible text — "
+                     "machine-verified consistency evidence."),
+            details={"fields_compared": len(result.comparisons)},
+        ))
+    return flags
+
+
+def analyze_twod_doc(pdf_data) -> ModuleResult:
+    """Scored module: cross-check 2D-Doc barcodes against the visible text.
+
+    Neutral ("silence, not suspicion") whenever there is nothing to check:
+    extraction failed, pylibdmtx missing, or no 2D-Doc present — most
+    documents carry none, and absence is never evidence. A DataMatrix that
+    fails 2D-Doc parsing is also NOT flagged (shipping labels are DataMatrix
+    too; scan_pdf_for_2d_doc already drops non-2D-Doc payloads).
+
+    Never raises: any scan failure degrades to a neutral low-confidence
+    result (the analyzer's crash isolation is the backstop, not the plan).
+    """
+    if not getattr(pdf_data, "extraction_ok", True):
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+    if not PYLIBDMTX_AVAILABLE:
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+
+    try:
+        twod_docs = scan_pdf_for_2d_doc(pdf_data.file_path)
+    except Exception as exc:
+        logger.warning("twod_doc: scan failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.5)
+
+    if not twod_docs:
+        # Scanned and found nothing checkable — same convention as arithmetic.
+        return ModuleResult(module="twod_doc", flags=[], score=100, confidence=0.3)
+
+    text = "\n".join(getattr(pdf_data, "text_by_page", []) or [])
+    flags: list[Flag] = []
+    for td in twod_docs:
+        try:
+            flags.extend(_flags_from_verification(verify_2d_doc_against_pdf(td, text)))
+        except Exception as exc:
+            logger.warning("twod_doc: verification failed: %s", exc)
+
+    score = 100
+    for f in flags:
+        if f.code == "TWOD_DOC_CONSISTENT":
+            continue  # positive signal — never reduces the module score
+        score -= {"low": 5, "medium": 15, "high": 30, "critical": 50}.get(f.severity, 0)
+    return ModuleResult(module="twod_doc", flags=flags, score=max(0, score),
+                        confidence=1.0)
 
 
 # =============================================================================

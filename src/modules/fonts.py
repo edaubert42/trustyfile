@@ -107,42 +107,44 @@ def extract_fonts_from_pdf(pdf_path: str) -> list[FontInfo]:
         logger.error(f"Could not open PDF: {e}")
         return []
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
 
-        # Get fonts used on this page
-        # Returns list of tuples: (xref, ext, type, basefont, name, encoding, referencer)
-        font_list = page.get_fonts(full=True)
+            # Get fonts used on this page
+            # Returns list of tuples: (xref, ext, type, basefont, name, encoding, referencer)
+            font_list = page.get_fonts(full=True)
 
-        for font_data in font_list:
-            xref, ext, font_type, basefont, name, encoding, referencer = font_data
+            for font_data in font_list:
+                xref, ext, font_type, basefont, name, encoding, referencer = font_data
 
-            # Use basefont or name as the font identifier
-            font_name = basefont or name or "Unknown"
+                # Use basefont or name as the font identifier
+                font_name = basefont or name or "Unknown"
 
-            # Extract base name and check if subset
-            base_name, is_subset = extract_base_font_name(font_name)
+                # Extract base name and check if subset
+                base_name, is_subset = extract_base_font_name(font_name)
 
-            # Check if font is embedded
-            # Embedded fonts usually have ext != "" or are subsets
-            is_embedded = bool(ext) or is_subset
+                # Check if font is embedded
+                # Embedded fonts usually have ext != "" or are subsets
+                is_embedded = bool(ext) or is_subset
 
-            # Add or update font info
-            if font_name not in fonts_dict:
-                fonts_dict[font_name] = FontInfo(
-                    name=font_name,
-                    base_name=base_name,
-                    is_subset=is_subset,
-                    is_embedded=is_embedded,
-                    pages_used=[page_num],
-                    usage_count=1,
-                )
-            else:
-                if page_num not in fonts_dict[font_name].pages_used:
-                    fonts_dict[font_name].pages_used.append(page_num)
-                fonts_dict[font_name].usage_count += 1
-
-    doc.close()
+                # Add or update font info
+                if font_name not in fonts_dict:
+                    fonts_dict[font_name] = FontInfo(
+                        name=font_name,
+                        base_name=base_name,
+                        is_subset=is_subset,
+                        is_embedded=is_embedded,
+                        pages_used=[page_num],
+                        usage_count=1,
+                    )
+                else:
+                    if page_num not in fonts_dict[font_name].pages_used:
+                        fonts_dict[font_name].pages_used.append(page_num)
+                    fonts_dict[font_name].usage_count += 1
+    finally:
+        # Ensure the doc is closed even if an exception occurs mid-loop
+        doc.close()
     return list(fonts_dict.values())
 
 
@@ -402,83 +404,85 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
 
     suspicious_lines = []
 
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        text_dict = page.get_text("dict")
+    try:
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text_dict = page.get_text("dict")
 
-        for block in text_dict.get("blocks", []):
-            if "lines" not in block:
-                continue  # Skip image blocks
+            for block in text_dict.get("blocks", []):
+                if "lines" not in block:
+                    continue  # Skip image blocks
 
-            for line in block["lines"]:
-                spans = line.get("spans", [])
-                if len(spans) < 2:
-                    continue  # Need at least 2 spans to compare
+                for line in block["lines"]:
+                    spans = line.get("spans", [])
+                    if len(spans) < 2:
+                        continue  # Need at least 2 spans to compare
 
-                # Extract font family for each span
-                # Font family = base name without style suffix (-Bold, -Italic, etc.)
-                # and without subset prefix (ABCDEF+)
-                # We also normalize common aliases (ArialMT = Arial, etc.)
-                FAMILY_ALIASES = {
-                    "arialmt": "arial",
-                    "timesnewroman": "times",
-                    "times": "times",
-                    "couriernew": "courier",
-                    "couriermt": "courier",
-                    "helveticaneue": "helvetica",
-                }
+                    # Extract font family for each span
+                    # Font family = base name without style suffix (-Bold, -Italic, etc.)
+                    # and without subset prefix (ABCDEF+)
+                    # We also normalize common aliases (ArialMT = Arial, etc.)
+                    FAMILY_ALIASES = {
+                        "arialmt": "arial",
+                        "timesnewroman": "times",
+                        "times": "times",
+                        "couriernew": "courier",
+                        "couriermt": "courier",
+                        "helveticaneue": "helvetica",
+                    }
 
-                def get_family(font_name: str) -> str:
-                    """Extract font family, ignoring style, subset prefix, and aliases."""
-                    # Remove subset prefix
-                    base, _ = extract_base_font_name(font_name)
-                    # Remove common style suffixes
-                    family = re.split(r"[-,]", base)[0].strip().lower()
-                    # Skip generic CID font names (CIDFont+F1, etc.)
-                    # These are auto-generated and don't represent real font families
-                    if family.startswith("cidfont"):
-                        return "_cidfont"
-                    # Normalize known aliases
-                    return FAMILY_ALIASES.get(family, family)
+                    def get_family(font_name: str) -> str:
+                        """Extract font family, ignoring style, subset prefix, and aliases."""
+                        # Remove subset prefix
+                        base, _ = extract_base_font_name(font_name)
+                        # Remove common style suffixes
+                        family = re.split(r"[-,]", base)[0].strip().lower()
+                        # Skip generic CID font names (CIDFont+F1, etc.)
+                        # These are auto-generated and don't represent real font families
+                        if family.startswith("cidfont"):
+                            return "_cidfont"
+                        # Normalize known aliases
+                        return FAMILY_ALIASES.get(family, family)
 
-                # Get families for all spans that have actual text
-                span_families = []
-                for span in spans:
-                    text = span.get("text", "").strip()
-                    if not text:
+                    # Get families for all spans that have actual text
+                    span_families = []
+                    for span in spans:
+                        text = span.get("text", "").strip()
+                        if not text:
+                            continue
+                        font = span.get("font", "")
+                        family = get_family(font)
+                        span_families.append({
+                            "text": text,
+                            "font": font,
+                            "family": family,
+                        })
+
+                    if len(span_families) < 2:
                         continue
-                    font = span.get("font", "")
-                    family = get_family(font)
-                    span_families.append({
-                        "text": text,
-                        "font": font,
-                        "family": family,
-                    })
 
-                if len(span_families) < 2:
-                    continue
+                    # Check if font family changes within this line
+                    # Exclude generic CID font names — they're not real families
+                    families_on_line = set(
+                        s["family"] for s in span_families
+                        if s["family"] != "_cidfont"
+                    )
 
-                # Check if font family changes within this line
-                # Exclude generic CID font names — they're not real families
-                families_on_line = set(
-                    s["family"] for s in span_families
-                    if s["family"] != "_cidfont"
-                )
+                    if len(families_on_line) > 1:
+                        # Font family changes mid-line — suspicious!
+                        # Reconstruct the line text for the message
+                        line_text = " ".join(s["text"] for s in span_families)
+                        fonts_used = list(set(s["font"] for s in span_families))
 
-                if len(families_on_line) > 1:
-                    # Font family changes mid-line — suspicious!
-                    # Reconstruct the line text for the message
-                    line_text = " ".join(s["text"] for s in span_families)
-                    fonts_used = list(set(s["font"] for s in span_families))
-
-                    suspicious_lines.append({
-                        "page": page_num + 1,
-                        "text": line_text[:100],
-                        "fonts": fonts_used,
-                        "families": list(families_on_line),
-                    })
-
-    doc.close()
+                        suspicious_lines.append({
+                            "page": page_num + 1,
+                            "text": line_text[:100],
+                            "fonts": fonts_used,
+                            "families": list(families_on_line),
+                        })
+    finally:
+        # Ensure the doc is closed even if an exception occurs mid-loop
+        doc.close()
 
     if suspicious_lines:
         # Severity depends on how many lines are affected

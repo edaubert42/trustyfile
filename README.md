@@ -10,7 +10,7 @@
 
 ## What is TrustyFile?
 
-TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **8 detection modules** and returns a **trust score** from 0 to 100.
+TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **11 detection modules**, combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
 
 **Use cases:**
 - Accounting teams verifying supplier invoices
@@ -20,21 +20,25 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 
 ## Detection Modules
 
-| Module | What it detects |
-|--------|-----------------|
-| **Metadata** | Online converters (iLovePDF, SmallPDF), AI-generated documents, image editors |
-| **Content** | Impossible dates, anachronisms, invalid SIRET/VAT numbers, inconsistent references |
-| **Visual** | Converter watermarks (iLovePDF, trial version), specimen/draft marks *(QR code scanning: next feature)* |
-| **Fonts** | Too many fonts, mid-line font changes, system fonts in "professional" docs |
-| **Images** | EXIF inconsistencies, resolution mismatches, compression artifacts |
-| **Structure** | Incremental updates (revision history), modification timeline, hidden JavaScript |
-| **External** | SIREN/SIRET verification via INSEE API, VAT validation, entity lookup |
-| **Forensics** | Error Level Analysis (ELA), image editor detection via metadata |
+| Module | What it checks |
+|---|---|
+| metadata | Producer/Creator fingerprints, date sanity, repair marks |
+| content | Dates, references, French company ids, IBAN checksums, anachronisms |
+| visual | Converter/SPECIMEN watermarks (QR decode: next feature) |
+| fonts | Font diversity, subset mixing, mid-line changes |
+| images | Screenshots, resolution/compression, paste artifacts, EXIF dates/software |
+| structure | Incremental updates, signatures (EU DSS), JavaScript, embedded files |
+| overlay | Cover-and-retype boxes, conflicting text, cross-revision value changes |
+| arithmetic | e-invoice XML vs visible totals & IBAN — CII (Factur-X) **and** UBL (Peppol) |
+| forensics | Error-level analysis (ELA) of page renders |
+| identity | MRZ check digits on ID documents (conditional) |
+| twod_doc | French 2D-Doc barcodes vs visible text (needs libdmtx) |
 
 **Bonus features:**
 - **VirusTotal lookup** — Check file hash against malware databases (requires API key)
-- **2D-DOC scanning** — Decode French government 2D barcodes on official documents
+- **2D-DOC data panel** — View the decoded barcode fields (name, amount, dates) side by side with the document; the cross-check itself is scored by the `twod_doc` module above
 - **Modification history** — View what changed between PDF revisions with content diffs
+- **External verification (opt-in)** — SIRET/SIREN via INSEE, VAT via VIES; requires internet, off by default (`enable_external=True`)
 
 ## Quick Start
 
@@ -42,17 +46,23 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 
 - Python 3.11+
 - Tesseract OCR (for scanned documents)
+- libdmtx (for 2D-Doc barcode scanning — French tax notices, payslips, etc.)
 
 ```bash
 # Ubuntu/Debian
-sudo apt install tesseract-ocr tesseract-ocr-fra
+sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx0b
 
 # macOS
-brew install tesseract
+brew install tesseract libdmtx
 
 # Windows
-# Download from: https://github.com/UB-Mannheim/tesseract/wiki
+# Tesseract: https://github.com/UB-Mannheim/tesseract/wiki
+# libdmtx: use WSL, or see https://github.com/dmtx/libdmtx
 ```
+
+Streamlit Community Cloud installs system packages from `packages.txt`, which
+already lists `tesseract-ocr`, `tesseract-ocr-fra`, and `libdmtx0b` — no extra
+setup needed there.
 
 ### Installation
 
@@ -77,22 +87,25 @@ streamlit run app.py
 
 Open http://localhost:8501 in your browser.
 
-## How Scoring Works
+## Scoring: the evidence ledger
 
-Each module analyzes the document and flags issues with severity levels:
+Every module emits flags; each flag becomes a piece of **evidence** —
+`soft` or `hard`, pushing toward **tamper** or **genuine** — combined in
+log-odds space (see `src/evidence.py`):
 
-| Severity | Points deducted | Example |
-|----------|-----------------|---------|
-| Low | -5 | Minor metadata inconsistency |
-| Medium | -15 | Document processed by online converter |
-| High | -30 | Future date found in invoice |
-| Critical | -50 | QR code points to suspicious domain |
+- **Soft evidence** (heuristics) is summed per module with diminishing
+  returns: the strongest finding counts fully, the rest at half weight, so
+  correlated symptoms of one edit don't stack linearly.
+- **Genuine evidence** (a trusted signature, e-invoice XML that matches the
+  page, a matching signed 2D-Doc) lifts the score — but is discarded
+  whenever meaningful tamper evidence exists (anti-laundering guard):
+  agreement proves nothing about a document already in question.
+- **Hard evidence** is certainty, not heuristics: a hard tamper finding
+  caps the score at 15; a hard genuine finding floors it at 85.
 
-**Trust Score interpretation:**
-- **80-100**: Looks legitimate
-- **50-79**: Some concerns, verify manually
-- **25-49**: Multiple red flags
-- **0-24**: High risk of tampering
+The score maps to bands: **GENUINE** (≥ 80), **REVIEW** (50–79),
+**SUSPICIOUS** (< 50), or **UNVERIFIABLE** (unreadable input, or 3+
+analysis modules crashed on the document).
 
 ## Example Output
 
@@ -139,25 +152,34 @@ for module_result in result.modules:
 trustyfile/
 ├── app.py                    # Streamlit interface
 ├── src/
-│   ├── analyzer.py           # Main orchestrator
-│   ├── scoring.py            # Score calculation
-│   ├── summary.py            # Rich summary generation
+│   ├── analyzer.py           # Main orchestrator (per-module crash isolation)
+│   ├── evidence.py           # Evidence ledger — the scoring engine (log-odds)
+│   ├── scoring.py            # Builds the ledger from module flags
+│   ├── summary.py            # Rich EN/FR summary generation
+│   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Data structures (Flag, ModuleResult)
-│   ├── modules/              # Detection modules
-│   │   ├── metadata.py       # Online converters, AI tools, dates
-│   │   ├── content.py        # Text analysis, dates, legal info
-│   │   ├── visual.py         # QR codes, watermarks
-│   │   ├── fonts.py          # Font consistency
-│   │   ├── images.py         # Embedded images, EXIF
-│   │   ├── structure.py      # PDF internals, revisions
-│   │   ├── external.py       # SIREN/SIRET, VAT verification
-│   │   ├── forensics.py      # ELA, editor detection
-│   │   └── twod_doc.py       # French 2D-DOC barcodes
+│   ├── i18n.py, translations/  # EN/FR summary theme strings
+│   ├── modules/              # 11 detection modules (see table above)
+│   │   ├── metadata.py
+│   │   ├── content.py
+│   │   ├── visual.py
+│   │   ├── fonts.py
+│   │   ├── images.py
+│   │   ├── structure.py
+│   │   ├── overlay.py        # cover-and-retype / cross-revision detector
+│   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
+│   │   ├── forensics.py      # ELA
+│   │   ├── identity.py       # MRZ checksums
+│   │   ├── twod_doc.py       # French 2D-Doc barcodes
+│   │   └── external.py       # optional: SIREN/SIRET/VAT (opt-in, network)
 │   └── extractors/           # PDF data extraction
 │       ├── pdf_extractor.py
 │       └── ocr.py
 ├── scripts/                  # Dev tools
 │   ├── generate_demo_pdf.py  # Generate test PDF
+│   ├── generate_tampered.py  # Generate tampered corpus samples
+│   ├── build_corpus.py       # Corpus indexing for the band-gate tests
+│   ├── eval_harness.py       # Calibration / evaluation harness
 │   └── record_demo.py        # Record demo GIF
 └── tests/                    # Unit tests
 ```
