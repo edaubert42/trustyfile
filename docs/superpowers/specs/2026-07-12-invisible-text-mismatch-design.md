@@ -86,8 +86,8 @@ truth check belongs to the future own-OCR-reconciliation module (idea #5).
 span whose text yields a value token (`amount_token`, or IBAN-shaped:
 `[A-Z]{2}\d{2}[A-Z0-9]{10,30}` after whitespace strip): find a painted span on
 the same row (vertical bbox overlap ≥ 0.5 of the smaller height, horizontal
-overlap or gap < the painted span's median glyph advance) such that
-`pair_is_conflict` holds
+overlap or gap < the painted span's average glyph advance, i.e. its width
+divided by its glyph count) such that `pair_is_conflict` holds
 (different `norm` text, same `char_class`, sizes within 10 %, both
 horizontal). Placeholder guard: if the invisible text `is_placeholder`, skip.
 
@@ -164,6 +164,29 @@ corpus assertion that no legitimate sample emits any `INVISIBLE_*` code.
   token evades Flag 1; the injection flag and (future) OCR reconciliation
   narrow that hole. Logged rather than chased to keep the zero-FP posture.
 - Tr modes 4–7 (add-to-clip variants) also paint nothing and are readable by
-  extractors. Implementation must verify how `get_texttrace()` encodes them
-  (if they surface as type 3, they are covered for free; if not, treating
-  them is a one-line scope decision to record at implementation time).
+  extractors. Verified at implementation: on the target PyMuPDF (1.28.0)
+  `render_mode=3` surfaces as `get_texttrace()` type 3 and is covered; Tr 4–7
+  were not exercised and remain a documented coverage gap (false-negative
+  only, not FP-relevant).
+- **OCR-capable editor Producers (final-review Important #2, accepted
+  2026-07-16).** Every tool in `INTERACTIVE_EDITOR_PRODUCERS`
+  (Acrobat/Foxit/Nitro/PDF-XChange) also performs OCR, so an OCR'd document
+  from one takes the editor branch (not the OCR-damper branch) and a conflict
+  there escalates to `_CONFIRMED`/CRITICAL. Mitigated in practice by the
+  digital-native gate: analyzed pages are painted-dominant, where an OCR
+  engine has no image over already-painted value rows to produce the required
+  spatial coincidence, so it is not a demonstrated corpus FP (30/30 legit
+  clean). Accepted as residual (user sign-off 2026-07-16); revisit — e.g.
+  gate `_CONFIRMED` on the invisible token not overlapping an embedded-image
+  bbox — only if a real FP surfaces.
+
+## Post-implementation findings (resolved)
+
+- **Decimal-separator FP (final-review Important #1, FIXED).** `norm()` does
+  not canonicalize `.` vs `,`, so a visible `"1 025,00"` and an invisible
+  `"1025.00"` (the same amount) matched as a conflict and, with an editor
+  Producer, escalated to CONFIRMED/CRITICAL — a zero-FP-gate violation. Closed
+  by a numeric value-equality skip in `_find_conflicts` (two tokens that parse
+  to the same monetary value are not a conflict), using `money_value` relocated
+  to `span_conflict.py`; overlay behavior unchanged. Different values and IBAN
+  conflicts still fire (guard tests).
