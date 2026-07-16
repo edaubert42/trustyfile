@@ -47,6 +47,12 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_IMAGE_OVER_VALUE": "tampering",
     "OVERLAY_IMAGE_OVER_TEXT": "tampering",
 
+    # tampering: invisible text that conflicts with or is injected beside the
+    # visible page content (an extraction-vs-display mismatch)
+    "INVISIBLE_TEXT_VALUE_CONFLICT": "tampering",
+    "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED": "tampering",
+    "INVISIBLE_TEXT_INJECTION": "tampering",
+
     # tampering: arithmetic inconsistencies (e-invoice numbers that don't add up)
     "ARITH_XML_INTERNAL_INCONSISTENT": "tampering",
     "ARITH_XML_VISIBLE_MISMATCH": "tampering",
@@ -306,6 +312,34 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"underneath it."
         if f.details and f.details.get('covered')
         else "An image is placed over text that is still recoverable underneath it."
+    ),
+    "INVISIBLE_TEXT_VALUE_CONFLICT": lambda f: (
+        f"An invisible copy of a value disagrees with what is shown on the "
+        f"page: hidden text reads \"{f.details.get('instances', [{}])[0].get('hidden', '')}\" "
+        f"while the visible text reads "
+        f"\"{f.details.get('instances', [{}])[0].get('visible', '')}\" — a reader "
+        f"extracting the text would get a different value than what a human sees."
+        if f.details and f.details.get('instances')
+        else "An invisible copy of a value disagrees with what is shown on the page."
+    ),
+    "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED": lambda f: (
+        f"An invisible copy of a value disagrees with what is shown on the "
+        f"page: hidden text reads \"{f.details.get('instances', [{}])[0].get('hidden', '')}\" "
+        f"while the visible text reads "
+        f"\"{f.details.get('instances', [{}])[0].get('visible', '')}\". This is "
+        f"corroborated by the document's Producer/Creator, which shows it was "
+        f"saved by an interactive editing tool."
+        if f.details and f.details.get('instances')
+        else ("An invisible copy of a value disagrees with what is shown on the "
+              "page, corroborated by the document's Producer/Creator showing an "
+              "interactive editing tool was used.")
+    ),
+    "INVISIBLE_TEXT_INJECTION": lambda f: (
+        f"Invisible value-bearing text "
+        f"(\"{f.details.get('instances', [{}])[0].get('hidden', '')}\") is hidden "
+        f"in a blank area of the page."
+        if f.details and f.details.get('instances')
+        else "Invisible value-bearing text is hidden in a blank area of the page."
     ),
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"The bank account shown on the page (IBAN "
@@ -716,6 +750,39 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"(« {f.details.get('covered', '')} »), qui reste récupérable en dessous."
         if f.details and f.details.get('covered')
         else "Une image est placée sur du texte encore récupérable en dessous."
+    ),
+    "INVISIBLE_TEXT_VALUE_CONFLICT": lambda f: (
+        f"Une copie invisible d'une valeur ne correspond pas à ce qui est "
+        f"affiché sur la page : le texte caché indique "
+        f"« {f.details.get('instances', [{}])[0].get('hidden', '')} » alors que le "
+        f"texte visible indique "
+        f"« {f.details.get('instances', [{}])[0].get('visible', '')} » — un lecteur "
+        f"extrayant le texte obtiendrait une valeur différente de celle vue par "
+        f"un humain."
+        if f.details and f.details.get('instances')
+        else ("Une copie invisible d'une valeur ne correspond pas à ce qui est "
+              "affiché sur la page.")
+    ),
+    "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED": lambda f: (
+        f"Une copie invisible d'une valeur ne correspond pas à ce qui est "
+        f"affiché sur la page : le texte caché indique "
+        f"« {f.details.get('instances', [{}])[0].get('hidden', '')} » alors que le "
+        f"texte visible indique "
+        f"« {f.details.get('instances', [{}])[0].get('visible', '')} ». Ceci est "
+        f"corroboré par les métadonnées Producer/Creator du document, qui "
+        f"indiquent qu'il a été enregistré par un outil d'édition interactif."
+        if f.details and f.details.get('instances')
+        else ("Une copie invisible d'une valeur ne correspond pas à ce qui est "
+              "affiché sur la page, corroboré par les métadonnées "
+              "Producer/Creator du document indiquant l'usage d'un outil "
+              "d'édition interactif.")
+    ),
+    "INVISIBLE_TEXT_INJECTION": lambda f: (
+        f"Du texte invisible porteur d'une valeur "
+        f"(« {f.details.get('instances', [{}])[0].get('hidden', '')} ») est "
+        f"caché dans une zone vide de la page."
+        if f.details and f.details.get('instances')
+        else "Du texte invisible porteur d'une valeur est caché dans une zone vide de la page."
     ),
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"Le compte bancaire indiqué sur la page (IBAN "
