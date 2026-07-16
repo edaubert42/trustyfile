@@ -7,6 +7,7 @@ rename never reached summary.py; that class of bug now fails CI.
 """
 import glob
 import re
+from pathlib import Path
 
 from src.summary import FLAG_THEME_MAP, SENTENCE_TEMPLATES, SENTENCE_TEMPLATES_FR
 
@@ -14,6 +15,10 @@ from src.summary import FLAG_THEME_MAP, SENTENCE_TEMPLATES, SENTENCE_TEMPLATES_F
 # purpose: codes are emitted as code="X", code = "X" kwargs/assignments AND
 # as bare string arguments (content.py's _flag_invalid_id). Non-code strings
 # that happen to match go in NOT_FLAG_CODES with a justification.
+#
+# BLIND SPOT: a code built via an f-string/`.format()` (e.g. f"FOO_{bar}")
+# never appears as one quoted literal, so this regex can't see it. If a
+# module ever constructs a flag code dynamically, grep for it by hand.
 _CODE_RE = re.compile(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"')
 
 NOT_FLAG_CODES = {
@@ -27,10 +32,16 @@ NOT_FLAG_CODES = {
 # exceptions.)
 TEMPLATE_REQUIRED_PREFIXES = ("MRZ_",)
 
+# Anchor to this file's location, NOT the CWD: glob.glob("src/**/*.py") is
+# CWD-relative, so running pytest from any directory other than the repo
+# root silently made _emitted_codes() return an empty set, and every
+# assertion below passed vacuously (2026-07 review).
+SRC = Path(__file__).resolve().parent.parent / "src"
+
 
 def _emitted_codes() -> set[str]:
     codes: set[str] = set()
-    for path in glob.glob("src/**/*.py", recursive=True):
+    for path in glob.glob(str(SRC / "**" / "*.py"), recursive=True):
         if path.endswith("summary.py"):
             continue  # summary.py QUOTES every code — it is the map, not an emitter
         for m in _CODE_RE.finditer(open(path, encoding="utf-8").read()):
@@ -39,7 +50,17 @@ def _emitted_codes() -> set[str]:
 
 
 def test_every_emitted_code_has_a_theme():
-    missing = sorted(_emitted_codes() - set(FLAG_THEME_MAP))
+    emitted = _emitted_codes()
+    # Canary: if the source scan is ever broken (wrong path, no files
+    # matched), `emitted` silently collapses to empty/tiny and every
+    # assertion in this file passes vacuously. The real count is in the
+    # hundreds; 20 is a conservative floor only a broken scan could miss.
+    assert len(emitted) > 20, (
+        f"only {len(emitted)} codes found — the source scan is probably "
+        "broken (wrong path / no files matched), which would make the rest "
+        "of this file's assertions pass vacuously"
+    )
+    missing = sorted(emitted - set(FLAG_THEME_MAP))
     assert not missing, f"codes with no FLAG_THEME_MAP entry: {missing}"
 
 

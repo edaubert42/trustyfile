@@ -1145,6 +1145,8 @@ def _get_dominant_theme(grouped: dict[str, list[Flag]]) -> str | None:
     Returns:
         The dominant theme name, or None if no flags.
     """
+    from src.evidence import GENUINE_CODES
+
     severity_weight = {"critical": 50, "high": 30, "medium": 15, "low": 5}
 
     # Exclude themes that aren't used for verdict selection
@@ -1156,7 +1158,14 @@ def _get_dominant_theme(grouped: dict[str, list[Flag]]) -> str | None:
     for theme, flags in grouped.items():
         if theme not in verdict_themes:
             continue
-        total = sum(severity_weight.get(f.severity, 0) for f in flags)
+        # GENUINE_CODES (ARITH_XML_CONSISTENT, TWOD_DOC_CONSISTENT, ...) are
+        # positive evidence, not tamper findings — _build_bullets already
+        # excludes them from the bullet list, and this function must match:
+        # otherwise a lone consistency flag can crown "tampering" as the
+        # dominant theme and produce a false "may have been edited" verdict
+        # with zero real tamper evidence behind it.
+        total = sum(severity_weight.get(f.severity, 0) for f in flags
+                    if f.code not in GENUINE_CODES)
         if total > best_score:
             best_score = total
             best_theme = theme

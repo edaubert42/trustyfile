@@ -451,18 +451,31 @@ CBC = 'xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicCompon
 
 def _ubl_xml(payable="120.00", tax_excl="100.00", tax_incl="120.00",
              tax="20.00", iban="FR7630006000011234567890189",
-             root="Invoice", extra_tax_total=None) -> bytes:
+             root="Invoice", extra_tax_total=None,
+             tax_currency="EUR", lmt_currency="EUR") -> bytes:
     """Minimal UBL invoice with document-level totals, tax and payee IBAN.
 
     `extra_tax_total`, if given, is an (amount, currencyID) pair rendered as a
     SECOND document-level TaxTotal sibling of the first -- the BT-111
     accounting-currency duplicate that a compliant UBL invoice may carry
     alongside the tax-currency TaxTotal, and which must be excluded from the
-    summed `tax` rather than added to it.
+    summed `tax` rather than added to it. Its currencyID may be None to omit
+    the attribute entirely (an invoice with NO currencyID anywhere is the
+    ambiguous case the dedup guard must fail safe on -- see
+    TestUblAmbiguousTax below).
+
+    `tax_currency`/`lmt_currency` default to "EUR" (byte-identical to the
+    original hardcoded template) and may be set to None to omit the
+    currencyID attribute on, respectively, the PRIMARY document-level
+    TaxTotal/TaxAmount and the LegalMonetaryTotal's three amounts.
     """
     ns = UBL_NS.replace("Invoice-2", f"{root}-2")
+
+    def _attr(currency):
+        return f' currencyID="{currency}"' if currency else ""
+
     extra_tt = (
-        f'<cac:TaxTotal><cbc:TaxAmount currencyID="{extra_tax_total[1]}">'
+        f'<cac:TaxTotal><cbc:TaxAmount{_attr(extra_tax_total[1])}>'
         f'{extra_tax_total[0]}</cbc:TaxAmount></cac:TaxTotal>'
         if extra_tax_total is not None else ""
     )
@@ -475,7 +488,7 @@ def _ubl_xml(payable="120.00", tax_excl="100.00", tax_incl="120.00",
     </cac:PayeeFinancialAccount>
   </cac:PaymentMeans>
   <cac:TaxTotal>
-    <cbc:TaxAmount currencyID="EUR">{tax}</cbc:TaxAmount>
+    <cbc:TaxAmount{_attr(tax_currency)}>{tax}</cbc:TaxAmount>
   </cac:TaxTotal>
   {extra_tt}
   <cac:InvoiceLine>
@@ -484,9 +497,9 @@ def _ubl_xml(payable="120.00", tax_excl="100.00", tax_incl="120.00",
     </cac:TaxTotal>
   </cac:InvoiceLine>
   <cac:LegalMonetaryTotal>
-    <cbc:TaxExclusiveAmount currencyID="EUR">{tax_excl}</cbc:TaxExclusiveAmount>
-    <cbc:TaxInclusiveAmount currencyID="EUR">{tax_incl}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount currencyID="EUR">{payable}</cbc:PayableAmount>
+    <cbc:TaxExclusiveAmount{_attr(lmt_currency)}>{tax_excl}</cbc:TaxExclusiveAmount>
+    <cbc:TaxInclusiveAmount{_attr(lmt_currency)}>{tax_incl}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount{_attr(lmt_currency)}>{payable}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
 </{root}>""".encode()
 
@@ -517,6 +530,22 @@ class TestUblTotals:
         totals = xml_totals(xml)
         assert totals is not None
         assert totals["tax"] == 20.00
+
+    def test_ubl_ambiguous_taxtotals_no_currency_leaves_tax_unset(self):
+        """FP-safety fix: TWO document-level TaxTotal siblings with NO
+        currencyID anywhere (not on the TaxTotal amounts, not on
+        LegalMonetaryTotal) give the BT-111 dedup nothing to compare against
+        -- both survive. Summing them (20.00 + 15.00 = 35.00) would fabricate
+        an inflated tax and fail the internal identity (100 + 35 != 120),
+        a false ARITH_XML_INTERNAL_INCONSISTENT on a legit e-invoice. Cannot
+        disambiguate -> `tax` must be left UNSET so internal_check silently
+        skips; cross_check (grand/due/basis) is unaffected."""
+        xml = _ubl_xml(tax="20.00", tax_currency=None,
+                        extra_tax_total=("15.00", None), lmt_currency=None)
+        totals = xml_totals(xml)
+        assert totals is not None                 # grand/basis/due still parsed
+        assert "tax" not in totals
+        assert internal_check(totals) is None      # no false ARITH_XML_INTERNAL_INCONSISTENT
 
     def test_ubl_internal_inconsistency_flagged(self):
         """100 + 20 != 130 -> ARITH_XML_INTERNAL_INCONSISTENT."""

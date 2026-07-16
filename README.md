@@ -22,7 +22,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 
 | Module | What it checks |
 |---|---|
-| metadata | Producer/Creator/Author fingerprints, date sanity, repair marks |
+| metadata | Producer/Creator fingerprints, date sanity, repair marks |
 | content | Dates, references, French company ids, IBAN checksums, anachronisms |
 | visual | Converter/SPECIMEN watermarks (QR decode: next feature) |
 | fonts | Font diversity, subset mixing, mid-line changes |

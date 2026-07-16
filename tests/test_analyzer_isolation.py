@@ -39,6 +39,10 @@ def test_single_module_crash_does_not_abort_analysis(clean_pdf, monkeypatch):
     assert len(errors) == 1
     assert errors[0].severity == "low"
     assert errors[0].details["module"] == "fonts"
+    # The exception CLASS NAME only, never the raw str(exc) — this is an
+    # untrusted-input tool, and str(exc) can carry internals that shouldn't
+    # reach the output channel.
+    assert errors[0].details["error"] == "RuntimeError"
 
 
 def test_crashed_module_barely_moves_score(clean_pdf, monkeypatch):

@@ -1936,8 +1936,8 @@ def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
     Pure function (no I/O): the unit-testable core of analyze_twod_doc.
 
     Example:
-        >>> res = verify_2d_doc_against_pdf(td, pdf_text)
-        >>> [f.code for f in _flags_from_verification(res)]
+        >>> res = verify_2d_doc_against_pdf(td, pdf_text)   # doctest: +SKIP
+        >>> [f.code for f in _flags_from_verification(res)]  # doctest: +SKIP
         ['TWOD_DOC_CONSISTENT']
     """
     flags: list[Flag] = []
@@ -1945,13 +1945,27 @@ def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
         if c.match:
             continue
         severity = "high" if c.confidence >= _EXACT_CONFIDENCE else "medium"
+        if c.pdf_value is not None:
+            # Found-but-inconsistent, not absent: every OTHER comparison sets
+            # match = (found is not None), so pdf_value is None whenever
+            # match=False -- EXCEPT the income/plausibility check
+            # (di="INCOME_CHECK"), whose pdf_value IS the income figure that
+            # WAS found in the visible text; it's flagged because it's
+            # implausible against the tax bracket implied by the signed
+            # 2D-Doc amount, not because it's missing. "was not found" would
+            # be factually wrong here.
+            message = (f"The visible {c.field_name} (\"{c.pdf_value}\") is "
+                       f"inconsistent with the value implied by the signed "
+                       f"2D-Doc barcode (\"{c.twod_doc_value}\").")
+        else:
+            message = (f"The document's signed 2D-Doc barcode contains "
+                       f"{c.field_name} = \"{c.twod_doc_value}\", but that value "
+                       f"was not found in the visible text. The visible layer "
+                       f"may have been edited (the barcode data cannot be).")
         flags.append(Flag(
             severity=severity,
             code="TWOD_DOC_FIELD_MISMATCH",
-            message=(f"The document's signed 2D-Doc barcode contains "
-                     f"{c.field_name} = \"{c.twod_doc_value}\", but that value "
-                     f"was not found in the visible text. The visible layer "
-                     f"may have been edited (the barcode data cannot be)."),
+            message=message,
             details={"di": c.di, "field": c.field_name,
                      "expected": c.twod_doc_value,
                      "comparison_confidence": c.confidence},

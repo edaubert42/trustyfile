@@ -9,6 +9,8 @@ from src.models import ModuleResult
 from src.modules.twod_doc import (
     GS,
     US,
+    ComparisonMatch,
+    TwoDocVerificationResult,
     _flags_from_verification,
     analyze_twod_doc,
     parse_twod_doc,
@@ -80,6 +82,38 @@ class TestFlagsFromVerification:
         highs = [f for f in _flags_from_verification(res)
                  if f.code == "TWOD_DOC_FIELD_MISMATCH" and f.severity == "high"]
         assert len(highs) == 1
+
+    def test_income_check_mismatch_conveys_inconsistency_not_absence(self):
+        """Bug: the generic "...but that value was not found in the visible
+        text" wording is factually wrong for INCOME_CHECK -- unlike every
+        other comparison (where match=False implies pdf_value is None,
+        since `match = found is not None` everywhere else), INCOME_CHECK's
+        pdf_value IS set: the income figure WAS found in the visible text,
+        it's just implausible against the tax bracket implied by the signed
+        2D-Doc amount. Hand-built per the review's documented fallback
+        (constructing the real estimate_income_from_tax path via
+        parse_twod_doc is impractical for a focused unit test)."""
+        result = TwoDocVerificationResult(
+            twod_doc=None,
+            comparisons=[ComparisonMatch(
+                di="INCOME_CHECK",
+                field_name="Cohérence revenu/impôt",
+                twod_doc_value="Impôt 7530€ → revenu estimé 34000-40000€",
+                pdf_value="10000€",
+                match=False,
+                confidence=0.85,
+            )],
+            overall_match=False,
+            fraud_indicators=[],
+        )
+        flags = _flags_from_verification(result)
+        mismatches = [f for f in flags if f.code == "TWOD_DOC_FIELD_MISMATCH"]
+        assert len(mismatches) == 1
+        message = mismatches[0].message
+        assert "not found" not in message
+        assert "inconsistent" in message.lower()
+        assert "10000" in message   # the actually-visible (implausible) value is surfaced
+        assert mismatches[0].severity == "medium"  # confidence 0.85 < 0.95 -- tiering unchanged
 
 
 class TestAnalyzeTwodDoc:

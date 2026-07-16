@@ -274,7 +274,7 @@ def _ubl_totals(root) -> dict | None:
     # summing currencies would corrupt the identity, so when several document
     # TaxTotals exist we keep only amounts in the LegalMonetaryTotal currency.
     lmt_currency = next((c.get("currencyID") for c in lmt if c.get("currencyID")), None)
-    tax_sum, seen = 0.0, False
+    tax_amounts: list[float] = []
     for tt in root:
         if _local(tt.tag) != "TaxTotal":
             continue
@@ -284,12 +284,22 @@ def _ubl_totals(root) -> dict | None:
         if lmt_currency and ta.get("currencyID") and ta.get("currencyID") != lmt_currency:
             continue  # accounting-currency duplicate (BT-111), not the doc tax
         try:
-            tax_sum += float(ta.text.strip())
-            seen = True
+            tax_amounts.append(float(ta.text.strip()))
         except ValueError:
             pass
-    if seen:
-        out["tax"] = tax_sum
+
+    # FP-safety guard: when currencyID is absent/ambiguous, the dedup above
+    # cannot tell a genuine BT-111 duplicate from a second, independent
+    # document-level TaxTotal -- more than one can survive. Summing them
+    # would fabricate an inflated tax and trip a false
+    # ARITH_XML_INTERNAL_INCONSISTENT on a legit invoice. Only commit `tax`
+    # when the surviving amounts are unambiguous: exactly one TaxTotal, or
+    # several that all agree on the same amount (harmless duplicates).
+    # Otherwise leave `tax` unset so internal_check silently skips --
+    # cross_check (grand/due/basis) is computed separately and unaffected.
+    distinct_amounts = {round(a, 2) for a in tax_amounts}
+    if len(distinct_amounts) == 1:
+        out["tax"] = tax_amounts[0]
 
     if "grand" not in out:
         return None  # without a grand total there is nothing to check

@@ -147,9 +147,12 @@ class TrustyFileAnalyzer:
         def _run(name: str, fn) -> None:
             """Run one analysis module; on crash, record a MODULE_ERROR result.
 
-            The degraded result carries one LOW flag (negligible ledger
-            weight — the crash is recorded for the user, not treated as
-            tamper evidence) and confidence 0.0.
+            The degraded result carries one LOW-severity flag — its negligible
+            ledger weight comes from that LOW severity (0.2 nats), not from
+            confidence: flag_to_evidence hardcodes confidence=1.0 for every
+            flag, so confidence is never consulted by the ledger. The
+            confidence=0.0 set on the ModuleResult below is only a signal to
+            any non-ledger consumer that this module found nothing usable.
             """
             logger.debug("Running %s analysis...", name)
             try:
@@ -165,7 +168,12 @@ class TrustyFileAnalyzer:
                         code="MODULE_ERROR",
                         message=(f"The '{name}' analysis failed on this document "
                                  "and was skipped"),
-                        details={"module": name, "error": str(exc)},
+                        # Exception CLASS NAME only — the full str(exc) can
+                        # carry internals (paths, library error text) that
+                        # must not reach this untrusted-input tool's output
+                        # channel. The full message stays server-side, in the
+                        # logger.warning call above (exc_info=True).
+                        details={"module": name, "error": type(exc).__name__},
                     )],
                     score=100,
                     confidence=0.0,

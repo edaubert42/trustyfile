@@ -151,7 +151,6 @@ SEVERITY_POINTS = {
 def check_producer(
     producer: str | None,
     creator: str | None,
-    author: str | None = None,
 ) -> list[Flag]:
     """
     Check if the producer/creator software is suspicious.
@@ -159,15 +158,6 @@ def check_producer(
     Args:
         producer: PDF Producer field (software that created the final PDF)
         creator: PDF Creator field (original application)
-        author: PDF Author field — scanned against the converter and
-            image-editor fingerprint lists (audit item 20: those tools
-            genuinely stamp Author instead of Producer). NOT scanned against
-            the AI-generator list: AI_LLM_PRODUCERS contains bare
-            given-name-shaped tokens ("claude", "bard", ...) that collide
-            with common human first names, and Author routinely holds a real
-            person's name (Word/LibreOffice write the OS user's name there).
-            2026-07-15 fix: "Jean-Claude Petit" / "John Bard" falsely fired
-            META_AI_GENERATED before this narrowing.
 
     Returns:
         List of Flag objects for any suspicious findings
@@ -175,28 +165,29 @@ def check_producer(
     Example:
         >>> check_producer("iLovePDF", None)
         [Flag(severity="high", code="META_ONLINE_CONVERTER", ...)]
+
+    Note:
+        The Author field is intentionally NEVER scanned by any fingerprint
+        list here (audit item 20 tried it, then reverted it — 2026-07
+        review). Producer/Creator are software-reported fields, so a tool
+        name showing up there is meaningful signal. Author is different:
+        Word/LibreOffice routinely stamp the OS user's real person or
+        company name into it, and several fingerprint tokens collide with
+        ordinary names — "canva"/"acorn" (image-editor list) matched
+        "Canvas Prints Ltd" / "Acorn Accounting", "nitro" (converter list)
+        matched "Nitro Inc" — a confirmed high-severity false-positive
+        source. Same precedent as AI_LLM_PRODUCERS already never scanning
+        Author (bare given-name tokens like "claude"/"bard" collide with
+        human first names).
     """
     flags = []
 
-    # Combine producer, creator and author for checking (any could contain the
-    # tool name). Convert to lowercase for case-insensitive matching.
-    #
-    # Two haystacks, not one: the AI-generator list is scanned WITHOUT author.
-    # Producer/Creator are software-reported fields — a person's name showing
-    # up there is rare. Author is different: Word/LibreOffice routinely stamp
-    # the OS user's real name into Author, and AI_LLM_PRODUCERS contains bare
-    # given-name-shaped tokens ("claude", "bard", "gemini", "tome", ...) that
-    # collide with common human first names ("Jean-Claude", "Bard" as a
-    # surname). Scanning author against that list is the sole source of a
-    # confirmed false positive (2026-07-15) and isn't a real fraud vector — an
-    # AI tool doesn't write its own name into someone else's Author field.
-    # Converters/image-editors DO genuinely stamp Author, so those lists keep
-    # scanning it.
+    # Combine producer and creator for checking (either could contain the
+    # tool name). Convert to lowercase for case-insensitive matching. Author
+    # is deliberately EXCLUDED — see the "Note" in the docstring above.
     producer_lower = (producer or "").lower()
     creator_lower = (creator or "").lower()
-    author_lower = (author or "").lower()
-    combined_no_author = f"{producer_lower} {creator_lower}"
-    combined_all = f"{combined_no_author} {author_lower}"
+    combined = f"{producer_lower} {creator_lower}"
 
     # Check for image editors — a PDF produced by an image editor is very suspicious
     # for official documents. It means someone opened/modified an image then exported as PDF.
@@ -206,7 +197,7 @@ def check_producer(
         "paint shop pro", "acorn", "pixelmator",
     ]
     for editor in IMAGE_EDITORS:
-        if editor in combined_all:
+        if editor in combined:
             flags.append(Flag(
                 severity="high",
                 code="META_IMAGE_EDITOR",
@@ -214,7 +205,6 @@ def check_producer(
                 details={
                     "producer": producer,
                     "creator": creator,
-                    "author": author,
                     "detected_tool": editor,
                     "explanation": "Official documents are never created with image editors. "
                                    "This strongly suggests the document was visually modified.",
@@ -226,7 +216,7 @@ def check_producer(
     # Less suspicious — scans are legitimate, but worth noting.
     IMAGE_CONVERSION_KEYWORDS = ["image conversion", "image to pdf", "img2pdf", "photo to pdf"]
     for keyword in IMAGE_CONVERSION_KEYWORDS:
-        if keyword in combined_all:
+        if keyword in combined:
             flags.append(Flag(
                 severity="low",
                 code="META_IMAGE_CONVERSION",
@@ -234,7 +224,6 @@ def check_producer(
                 details={
                     "producer": producer,
                     "creator": creator,
-                    "author": author,
                 }
             ))
             break
@@ -245,7 +234,7 @@ def check_producer(
     # names with legit collision paths (Microsoft 365 "Copilot" drafting,
     # "Gemini"-branded utilities, a user literally named Claude).
     for ai_tool in AI_LLM_PRODUCERS:
-        if ai_tool in combined_no_author:
+        if ai_tool in combined:
             flags.append(Flag(
                 severity="medium",
                 code="META_AI_GENERATED",
@@ -261,7 +250,7 @@ def check_producer(
 
     # Check for highly suspicious producers (online converters)
     for suspicious in HIGHLY_SUSPICIOUS_PRODUCERS:
-        if suspicious in combined_all:
+        if suspicious in combined:
             flags.append(Flag(
                 severity="high",
                 code="META_ONLINE_CONVERTER",
@@ -269,7 +258,6 @@ def check_producer(
                 details={
                     "producer": producer,
                     "creator": creator,
-                    "author": author,
                     "detected_tool": suspicious,
                 }
             ))
@@ -278,7 +266,7 @@ def check_producer(
 
     # Check for moderately suspicious producers
     for suspicious in SUSPICIOUS_PRODUCERS:
-        if suspicious in combined_all:
+        if suspicious in combined:
             flags.append(Flag(
                 severity="medium",
                 code="META_SUSPICIOUS_PRODUCER",
@@ -286,7 +274,6 @@ def check_producer(
                 details={
                     "producer": producer,
                     "creator": creator,
-                    "author": author,
                     "detected_tool": suspicious,
                 }
             ))
@@ -472,7 +459,6 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
     all_flags.extend(check_producer(
         pdf_data.metadata.producer,
         pdf_data.metadata.creator,
-        pdf_data.metadata.author,
     ))
 
     # Date checks (creation vs modification gap) are now in structure module

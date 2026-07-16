@@ -505,44 +505,34 @@ class TestRepairedDocument:
 
 
 # =============================================================================
-# Author field fingerprinting (audit item 20): the SAME suspicious-software
-# lists now also scan PDFMetadata.author. No new codes, no new severities.
+# Author field is intentionally NOT scanned (audit item 20 attempted this,
+# then reverted — 2026-07 review). Author routinely holds a real person's or
+# company's name (Word/LibreOffice stamp the OS user's name there), and
+# fingerprint tokens collide with such names: canva -> "Canvas Prints Ltd",
+# acorn -> "Acorn Accounting", nitro -> "Nitro Inc". These regression guards
+# prove the author field can never drive a metadata fingerprint flag.
 # =============================================================================
 
-class TestAuthorFingerprinting:
-    def test_human_name_author_not_ai_generated(self):
-        """Regression: 'Jean-Claude'/'Bard' are common human names; scanning the
-        author field against the AI-generator list falsely fired META_AI_GENERATED
-        (2026-07-15 review). Author is no longer scanned for AI tokens."""
-        assert check_producer(None, None, author="Jean-Claude Petit") == []
-        assert check_producer(None, None, author="John Bard") == []
-        assert check_producer("Microsoft Word", "Microsoft Word",
-                              author="Claude Martin") == []
+class TestAuthorFieldNotScanned:
+    @pytest.mark.parametrize("author", ["iLovePDF", "Canva", "Jean-Claude Petit"])
+    def test_author_alone_never_flags(self, author):
+        """A suspicious-looking author value, with a clean producer/creator,
+        must never trigger a metadata fingerprint flag. 'Canva' is the
+        confirmed regression case: it used to fire META_IMAGE_EDITOR (high)."""
+        pdf_data = make_pdf_data(
+            producer="Adobe PDF Library 15.0",
+            creator="Microsoft Word",
+            author=author,
+        )
+        result = analyze_metadata(pdf_data)
+        flagged_codes = {f.code for f in result.flags}
+        assert not flagged_codes & {
+            "META_ONLINE_CONVERTER", "META_IMAGE_EDITOR",
+            "META_AI_GENERATED", "META_SUSPICIOUS_PRODUCER",
+        }
 
-    def test_converter_in_author_flagged(self):
-        flags = check_producer(None, None, author="iLovePDF")
-        assert any(f.code == "META_ONLINE_CONVERTER" for f in flags)
-        assert any(f.details.get("author") == "iLovePDF" for f in flags)
-
-    def test_ai_generator_in_author_not_flagged(self):
-        """Under the narrowed design (2026-07-15 FP fix), an AI tool name that
-        appears ONLY in the author field must NOT fire META_AI_GENERATED —
-        author is no longer scanned against AI_LLM_PRODUCERS."""
-        flags = check_producer("Adobe PDF Library 15.0", None, author="ChatGPT")
-        assert not any(f.code == "META_AI_GENERATED" for f in flags)
-
-    def test_ai_generator_in_producer_still_flagged(self):
-        """Guard: narrowing the author scan must not disable AI detection when
-        the AI token is genuinely in Producer/Creator."""
-        flags = check_producer("ChatGPT", None)
-        assert any(f.code == "META_AI_GENERATED" for f in flags)
-
-    def test_person_name_author_clean(self):
-        """A normal human author must never trip the fingerprints."""
-        flags = check_producer("Adobe PDF Library 15.0", "Microsoft Word",
-                               author="Marie Dupont")
-        assert flags == []
-
-    def test_none_author_backward_compatible(self):
-        """Existing two-argument call sites keep working unchanged."""
-        assert check_producer("Adobe PDF Library 15.0", "Microsoft Word") == []
+    def test_check_producer_has_no_author_parameter(self):
+        """The author scan was reverted, not just disabled: check_producer
+        must no longer accept an author argument at all."""
+        with pytest.raises(TypeError):
+            check_producer("Adobe", "Adobe", author="iLovePDF")

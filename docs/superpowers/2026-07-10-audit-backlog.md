@@ -82,7 +82,9 @@ Items marked ✅VERIFIED were reproduced by running the actual code.
     syntax (Peppol). Corpus already has a UBL invoice to test against.
 18. **`is_repaired` extracted but unused** (pdf_extractor.py:78-96) — free tamper signal.
 19. ✅CLOSED-AS-COVERED (2026-07-12, D4) **Modification-history diff built but not scored** (structure.py:378-891, UI-only).
-20. ✅DONE (2026-07-12) **PDF `author` metadata never checked** by any module.
+20. ⚠️ATTEMPTED-then-REVERTED (2026-07 review): author-field brand-scan false-fired on
+    company/person names (canva→"Canvas Prints", acorn→"Acorn Accounting", nitro→"Nitro
+    Inc"); author metadata is deliberately NOT scanned (VAT-rate-check precedent).
 21. ✅DONE (2026-07-12) **EXIF never read** despite images.py docstring promising it.
 
 ## P4 — Consistency / UX bugs
