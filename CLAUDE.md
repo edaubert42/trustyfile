@@ -322,7 +322,7 @@ pytest tests/ --cov=src --cov-report=html
 **Phase 4 - Security** (future)
 - [x] Digital signature validation: Verify PDF signatures via EU DSS API
 - [ ] VirusTotal API integration: Check file hash against malware database
-- [ ] 2D-Doc verification: Decode French government 2D barcodes (requires libdmtx)
+- [x] 2D-Doc verification: Decode French government 2D barcodes (requires libdmtx)
 
 **Phase 5 - Forensics** (future)
 - [ ] PDF modification history: Extract and display what changed between versions
