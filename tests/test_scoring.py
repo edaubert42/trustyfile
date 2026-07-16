@@ -5,17 +5,21 @@ The scoring system combines results from all analysis modules into a final
 trust score (0-100) and risk level (LOW/MEDIUM/HIGH/CRITICAL).
 
 We test:
-1. Risk level thresholds (score → risk level)
-2. Evidence-ledger scoring (create_analysis_result end-to-end)
-3. Flag collection and sorting
-4. Document-type suppression (per-flag-code down-weighting)
-5. Summary generation
+1. Evidence-ledger scoring (create_analysis_result end-to-end)
+2. Flag collection and sorting
+3. Document-type suppression (per-flag-code down-weighting)
+4. Summary generation
+
+(Risk-level thresholds are exercised via the evidence ledger's own
+band/risk-level mapping in src/evidence.py — the standalone score-to-risk-
+level helper this file used to unit-test directly was deleted as dead code:
+no production caller used it once create_analysis_result switched to the
+ledger engine.)
 """
 
 import pytest
 from src.models import Flag, ModuleResult, AnalysisResult
 from src.scoring import (
-    get_risk_level,
     collect_all_flags,
     count_flags_by_severity,
     create_analysis_result,
@@ -45,42 +49,6 @@ def make_result(
         confidence=confidence,
         flags=flags or [],
     )
-
-
-# =============================================================================
-# TEST get_risk_level
-# =============================================================================
-
-class TestGetRiskLevel:
-    """
-    Tests for score → risk level conversion.
-
-    Thresholds:
-        80-100 → LOW
-        50-79  → MEDIUM
-        20-49  → HIGH
-        0-19   → CRITICAL
-    """
-
-    # pytest.mark.parametrize runs the SAME test with DIFFERENT inputs.
-    # Each tuple is (input_score, expected_risk_level).
-    # This avoids writing 10 separate test functions that do the same thing.
-    @pytest.mark.parametrize("score, expected", [
-        (100, "LOW"),       # Perfect score
-        (80, "LOW"),        # Exact boundary
-        (85, "LOW"),        # Middle of LOW range
-        (79, "MEDIUM"),     # Just below LOW threshold
-        (50, "MEDIUM"),     # Exact boundary
-        (65, "MEDIUM"),     # Middle of MEDIUM range
-        (49, "HIGH"),       # Just below MEDIUM threshold
-        (20, "HIGH"),       # Exact boundary
-        (35, "HIGH"),       # Middle of HIGH range
-        (19, "CRITICAL"),   # Just below HIGH threshold
-        (0, "CRITICAL"),    # Minimum score
-        (10, "CRITICAL"),   # Middle of CRITICAL range
-    ])
-    def test_thresholds(self, score, expected):
-        assert get_risk_level(score) == expected
 
 
 # =============================================================================

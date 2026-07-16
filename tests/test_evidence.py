@@ -206,3 +206,58 @@ def test_genuine_evidence_still_offsets_weak_noise():
     alone = aggregate_evidence([noise]).score
     with_genuine = aggregate_evidence([noise, genuine]).score
     assert with_genuine > alone, "genuine evidence must offset medium-or-below noise"
+
+
+# =============================================================================
+# module_contributions (audit item 23): the per-module numbers the UI shows
+# must be the same group-capped sums aggregate_evidence actually uses.
+# =============================================================================
+from src.evidence import Evidence, module_contributions
+
+
+# NOTE: named _mc_ev (not _ev) — this file already has a module-level _ev
+# helper (defined above, for the aggregate_evidence tests) with a different
+# signature (positional code/weight + `conf` instead of `confidence`). Since
+# Python resolves the bare name at call time against the final module
+# namespace, a second top-level `def _ev` here would silently shadow the
+# earlier one for every test in the file, including ones defined before it
+# (e.g. test_band_width_grows_with_low_confidence, which passes `conf=`) —
+# confirmed by running the suite: that test broke with a TypeError before
+# this rename.
+def _mc_ev(code="X_FLAG", weight=1.5, kind="soft", direction="tamper",
+           group="metadata", confidence=1.0):
+    return Evidence(code=code, weight=weight, kind=kind, direction=direction,
+                    group=group, message="m", confidence=confidence)
+
+
+class TestModuleContributions:
+    def test_empty_ledger(self):
+        assert module_contributions([]) == {}
+
+    def test_single_soft_tamper(self):
+        out = module_contributions([_mc_ev(weight=1.5)])
+        assert out["metadata"]["tamper"] == 1.5
+        assert out["metadata"]["genuine"] == 0.0
+        assert out["metadata"]["hard_tamper"] is False
+
+    def test_group_capping_matches_aggregation(self):
+        """Two highs in one group: full + half — identical to _group_capped_soft_sum."""
+        out = module_contributions([_mc_ev(weight=1.5), _mc_ev(weight=1.5)])
+        assert out["metadata"]["tamper"] == 1.5 + 0.75
+
+    def test_confidence_scales(self):
+        out = module_contributions([_mc_ev(weight=1.5, confidence=0.5)])
+        assert out["metadata"]["tamper"] == 0.75
+
+    def test_genuine_direction_separate(self):
+        out = module_contributions([
+            _mc_ev(weight=1.5, group="arithmetic"),
+            _mc_ev(code="ARITH_XML_CONSISTENT", weight=0.7, direction="genuine",
+                   group="arithmetic"),
+        ])
+        assert out["arithmetic"]["tamper"] == 1.5
+        assert out["arithmetic"]["genuine"] == 0.7
+
+    def test_hard_evidence_marked(self):
+        out = module_contributions([_mc_ev(kind="hard", group="overlay")])
+        assert out["overlay"]["hard_tamper"] is True
