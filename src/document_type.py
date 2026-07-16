@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Each type has a list of keywords to search for (case-insensitive).
 # A document scores +1 for each keyword found (presence, not count).
 # The type with the highest score wins. Tie → unknown.
-# Minimum score to classify: 2 keywords must match.
+# Minimum score to classify: 3 keywords must match.
 
 KEYWORDS: dict[str, list[str]] = {
     "invoice": [
@@ -126,6 +126,7 @@ def detect_document_type(pdf_data) -> DocumentType:
 
     The category with the highest keyword count is returned.
     If the winner has fewer than 3 matches, returns "unknown".
+    A tie for the best score also returns "unknown".
 
     Args:
         pdf_data: PDFData object from the extractor (has .text_by_page list)
@@ -151,17 +152,19 @@ def detect_document_type(pdf_data) -> DocumentType:
         hit_count = sum(1 for kw in keywords if kw.lower() in full_text)
         scores[doc_type] = hit_count
 
-    # Find the winner (type with max score)
-    best_type = max(scores, key=lambda k: scores[k])
-    best_score = scores[best_type]
+    # Find the winner. A TIE between two types means the document is ambiguous
+    # — classify as "unknown" rather than letting dict order pick arbitrarily
+    # (doc-type confidence suppression must only apply to CLEAR classifications).
+    best_score = max(scores.values())
+    winners = [t for t, s in scores.items() if s == best_score]
 
     logger.debug(f"Document type scores: {scores}")
-    logger.debug(f"Best match: {best_type} (score={best_score})")
+    logger.debug(f"Best match: {winners} (score={best_score})")
 
     # Require at least 3 keyword matches to classify.
     # 2 is too low — generic words like "introduction" + "results" can appear
     # in any document and falsely trigger the "scientific" category.
-    if best_score < 3:
+    if best_score < 3 or len(winners) > 1:
         return "unknown"
 
-    return best_type  # type: ignore[return-value]
+    return winners[0]  # type: ignore[return-value]
