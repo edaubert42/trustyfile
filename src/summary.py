@@ -168,6 +168,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     # other (pipeline-status codes — not a finding about the document itself)
     "EXTRACTION_FAILED": "other",
     "MODULE_ERROR": "other",
+    "COVERAGE_NO_TEXT_LAYER": "other",
 }
 
 
@@ -621,6 +622,9 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"One analysis ({f.details.get('module', '?')}) failed on this "
         "document and was skipped."
         if f.details else "One analysis failed on this document and was skipped."),
+    "COVERAGE_NO_TEXT_LAYER": lambda f: (
+        "The document has no machine-readable text layer (scan or photo), "
+        "so content checks could not run."),
 }
 
 
@@ -1073,6 +1077,9 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"Une analyse ({f.details.get('module', '?')}) a échoué sur ce "
         "document et a été ignorée."
         if f.details else "Une analyse a échoué sur ce document et a été ignorée."),
+    "COVERAGE_NO_TEXT_LAYER": lambda f: (
+        "Le document ne contient aucune couche de texte exploitable (scan ou "
+        "photo) ; les vérifications de contenu n'ont pas pu être effectuées."),
 }
 
 

@@ -76,3 +76,58 @@ def test_blind_preserves_suspicious():
 def test_extraction_failure_precedence_unchanged():
     agg = aggregate_evidence([], analyzable=False, coverage_blind=True)
     assert agg.band == "UNVERIFIABLE" and agg.score == 0
+
+
+from src.analyzer import TrustyFileAnalyzer
+
+INVOICE_TEXT = (
+    "FACTURE N° 2026-0142\n"
+    "ACME Services SARL — 12 rue de la Paix, 75002 Paris\n"
+    "Total HT : 1 000,00 EUR — TVA 20% : 200,00 EUR\n"
+    "Total TTC : 1 200,00 EUR\n"
+)
+
+
+def _write_text_pdf(path) -> None:
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), INVOICE_TEXT, fontsize=11)
+    doc.save(str(path))
+    doc.close()
+
+
+def _write_image_only_pdf(path) -> None:
+    src = fitz.open()
+    page = src.new_page()
+    page.insert_text((72, 100), INVOICE_TEXT, fontsize=11)
+    pix = page.get_pixmap(dpi=150)
+    src.close()
+    doc = fitz.open()
+    out = doc.new_page(width=595, height=842)
+    out.insert_image(out.rect, pixmap=pix)
+    doc.save(str(path))
+    doc.close()
+
+
+def _analyze(path):
+    return TrustyFileAnalyzer(
+        enable_external=False, enable_qr_scan=False).analyze(str(path))
+
+
+def test_image_only_scan_bands_unverifiable(tmp_path):
+    pdf = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf)
+    result = _analyze(pdf)
+    assert result.band == "UNVERIFIABLE"
+    assert result.risk_level == "UNVERIFIABLE"
+    assert result.trust_score == 0
+    codes = [f.code for m in result.modules for f in m.flags]
+    assert "COVERAGE_NO_TEXT_LAYER" in codes
+
+
+def test_text_document_is_unaffected(tmp_path):
+    pdf = tmp_path / "text.pdf"
+    _write_text_pdf(pdf)
+    result = _analyze(pdf)
+    assert result.band == "GENUINE"
+    codes = [f.code for m in result.modules for f in m.flags]
+    assert "COVERAGE_NO_TEXT_LAYER" not in codes
