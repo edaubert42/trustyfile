@@ -40,3 +40,39 @@ def test_identity_mrz_exemption():
     assert _coverage_blind(blind_doc, 1, without_mrz)[0] is True   # fail closed
     assert _coverage_blind(blind_doc, 1, crashed)[0] is True       # fail closed
     assert _coverage_blind(blind_doc, 1, other_module)[0] is True  # only identity counts
+
+
+from src.evidence import Evidence, aggregate_evidence
+
+
+def _ev(code: str, weight: float, group: str) -> Evidence:
+    return Evidence(code=code, weight=weight, kind="soft",
+                    direction="tamper", group=group, message="")
+
+
+def test_blind_empty_ledger_becomes_unverifiable():
+    # Empty ledger scores 98/GENUINE today; blind must override it.
+    agg = aggregate_evidence([], coverage_blind=True)
+    assert agg.band == "UNVERIFIABLE"
+    assert agg.risk_level == "UNVERIFIABLE"
+    assert agg.score == 0 and agg.score_low == 0 and agg.score_high == 0
+
+
+def test_blind_review_band_becomes_unverifiable():
+    # One critical (3.0 nats): logit -4+3=-1 -> score 73 -> REVIEW -> override.
+    agg = aggregate_evidence([_ev("X_CRIT", 3.0, "images")], coverage_blind=True)
+    assert agg.band == "UNVERIFIABLE"
+
+
+def test_blind_preserves_suspicious():
+    # Two criticals in different groups: logit -4+3+3=2 -> score 12 -> SUSPICIOUS.
+    ledger = [_ev("X_CRIT", 3.0, "images"), _ev("Y_CRIT", 3.0, "forensics")]
+    agg = aggregate_evidence(ledger, coverage_blind=True)
+    assert agg.band == "SUSPICIOUS"
+    assert agg.score == aggregate_evidence(ledger, coverage_blind=False).score
+    assert agg.ledger  # ledger is preserved for display
+
+
+def test_extraction_failure_precedence_unchanged():
+    agg = aggregate_evidence([], analyzable=False, coverage_blind=True)
+    assert agg.band == "UNVERIFIABLE" and agg.score == 0

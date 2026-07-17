@@ -121,6 +121,7 @@ def create_analysis_result(
     module_results: list[ModuleResult],
     analysis_time_ms: int = 0,
     document_type: DocumentType = "unknown",
+    coverage_blind: bool = False,
 ) -> AnalysisResult:
     """
     Create the final analysis result from all module results.
@@ -137,6 +138,7 @@ def create_analysis_result(
         module_results: List of results from all analysis modules
         analysis_time_ms: Time taken for analysis in milliseconds
         document_type: Detected document type (used for evidence suppression)
+        coverage_blind: True when the document has no usable text layer (see analyzer._coverage_blind); GENUINE/REVIEW results collapse to UNVERIFIABLE.
 
     Returns:
         AnalysisResult with final score, risk level, band, score range,
@@ -174,7 +176,8 @@ def create_analysis_result(
             if ev is not None:
                 evidence.append(ev)
 
-    agg = aggregate_evidence(evidence, analyzable=analyzable)
+    agg = aggregate_evidence(evidence, analyzable=analyzable,
+                             coverage_blind=coverage_blind)
 
     return AnalysisResult(
         file_hash=file_hash,
