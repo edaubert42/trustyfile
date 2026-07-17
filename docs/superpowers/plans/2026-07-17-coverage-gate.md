@@ -617,22 +617,207 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 ---
 
-### Task 6: Corpus — realistic OCR sandwich + unverifiable trap category
+### Task 6: Make sparse synthetic fixtures realistic (corpus + 3 test files)
 
-Two corpus consequences of the gate, found during planning:
-(a) `_legit_ocr_sandwich` (scripts/build_corpus.py:236) carries ONE invisible span (~9 chars) — unrealistically sparse; under the gate it would band UNVERIFIABLE inside the LEGITIMATE list and silently distort `test_corpus_baseline`'s mean. Real OCR sandwiches carry full-page text; make the trap realistic.
-(b) The trap set gains a new category `unverifiable/` so the new verdict class is corpus-enforced.
+Making the gate live (Task 3) correctly bands 46 pre-existing tests' fixtures
+UNVERIFIABLE. Root cause (empirically confirmed 2026-07-17): those fixtures are
+unrealistically sparse (5-40 non-whitespace chars/page) synthetic PDFs built to
+isolate one overlay/embed scenario each. A real watermarked / zebra / Factur-X /
+form invoice carries full body text — so the gate is correct and the fix is to
+give each fixture a realistic body. This also strengthens the suite (fixtures now
+resemble real documents).
+
+**De-risked in scratch (2026-07-17):** a shared `stamp_invoice_body(page)` that
+writes ~8 lines of proven-GENUINE invoice text into the empty left-middle region
+(y 165-290) lifts every fixture above the threshold WITHOUT adding any overlay
+flag or perturbing the tested geometry — verified on zebra (z-order), knockout
+header (top band), form field (annot), redaction (text removed), template
+overlay / rightaligned template (placeholder guard, using each builder's EXACT
+original tokens), watermark, and the review-floor conflict fixture. The rule:
+**keep every builder's original tokens exactly; only ADD the body call.**
+
+The 46 failures (full-suite run) are ALL in these five locations:
+- `scripts/build_corpus.py` — 9 sparse legit builders (+ `_legit_multisession_template_fill` which inherits body via `_legit_template_overlay`) → break the parametrized legit-corpus gates in test_overlay_acceptance / _embedded_image / _embedded_span / _review_floor (40 failures) and test_corpus_baseline (1, self-heals once legit scores recover).
+- `tests/test_analyzer_isolation.py` — the 28-char `clean_pdf` fixture (1).
+- `tests/test_calibration.py` — the near-empty `_embeds` carrier page (2).
+- `tests/test_overlay_review_floor.py` — 2 inline builders asserting `band == "REVIEW"` (2).
+
+Tamper tests that assert flag-presence or `band != GENUINE` / `== SUSPICIOUS` are
+NOT affected (the overlay flag still fires; SUSPICIOUS passes the gate) — do not
+touch them.
 
 **Files:**
-- Modify: `scripts/build_corpus.py:236-243` (`_legit_ocr_sandwich`), `:345-393` (`build_corpus`)
-- Modify: `docs/superpowers/specs/2026-07-17-coverage-gate-design.md` (Tests section: correct the "all 30 legit corpus docs carry text layers" claim — the synthetic OCR sandwich was the counterexample; note the fix)
-- Test: `tests/test_coverage_gate.py` (append)
+- Modify: `scripts/build_corpus.py` (add `stamp_invoice_body`; call it in 9 builders; rewrite `_legit_ocr_sandwich`; add `_unverifiable_image_only_scan` + `unverifiable` category in `build_corpus`)
+- Modify: `tests/test_analyzer_isolation.py` (realistic `clean_pdf`)
+- Modify: `tests/test_calibration.py` (realistic `_embeds` carrier)
+- Modify: `tests/test_overlay_review_floor.py` (realistic body in the 2 inline builders)
+- Modify: `docs/superpowers/specs/2026-07-17-coverage-gate-design.md` (correct the corpus-impact claim)
+- Test: `tests/test_coverage_gate.py` (append corpus tests)
 
 **Interfaces:**
-- Consumes: analyzer behavior from Tasks 1–3.
-- Produces: `build_corpus(out_dir)` returns `{"legitimate": [...], "suspicious": [...], "unverifiable": [...]}`. Existing consumers (`tests/test_corpus_baseline.py` reads only the first two keys; `scripts/eval_harness.py` reads directories, ignores unknown ones) are unaffected — verify with `grep -rn "build_corpus(" tests/ scripts/`.
+- Consumes: analyzer behavior from Tasks 1-3.
+- Produces: `stamp_invoice_body(page) -> None` (public, in `scripts/build_corpus.py`); `build_corpus(out_dir)` returns `{"legitimate": [...], "suspicious": [...], "unverifiable": [...]}`. Existing consumers read only the first two keys or iterate directories — verify with `grep -rn "build_corpus(" tests/ scripts/`.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Add the shared body helper**
+
+In `scripts/build_corpus.py`, after the imports (before `_clean_invoice`), add:
+
+```python
+def stamp_invoice_body(page) -> None:
+    """Stamp realistic invoice body text into the left-middle region (y 165-290,
+    x 40+) that the sparse overlay/embed fixtures leave empty. Gives them a real
+    document's text density so the coverage gate (avg >= 50 non-whitespace
+    chars/page, src/analyzer.py) does not band them UNVERIFIABLE — a real
+    watermarked / zebra / form / e-invoice carries full body text.
+
+    Placed clear of every fixture's tested geometry: header band (y<60), the
+    total row (~y400), the watermark centre (y500), the footer (y>800). Tokens
+    are a subset of _clean_invoice's proven-GENUINE content (valid SIRET/IBAN,
+    one coherent date) and contain NO "1 200,00"-style total token, so (a) they
+    introduce no content/arith/metadata flag and (b) a fixture's
+    page.search_for("1 200,00") stays unambiguous. Callers must keep their own
+    original tokens and only ADD this call right after new_page()."""
+    lines = [
+        "ACME SOLUTIONS SAS",
+        "SIRET: 552 081 317 00018   TVA: FR03552081317",
+        "12 rue de l'Innovation, 75002 Paris",
+        "Client: Societe Exemple SARL",
+        "Facture N FA-2025-00847   Date: 15/01/2025",
+        "Prestation de conseil - janvier 2025",
+        "Reglement a 30 jours par virement",
+        "IBAN: FR7630006000011234567890189",
+    ]
+    y = 165
+    for line in lines:
+        page.insert_text(fitz.Point(40, y), line, fontname="helv", fontsize=9)
+        y += 16
+```
+
+- [ ] **Step 2: Call the helper in the 9 sparse legit builders**
+
+In `scripts/build_corpus.py`, add `stamp_invoice_body(page)` as the FIRST statement after `page = doc.new_page(...)` (before any other insert_text / draw_rect / annot) in each of these 9 builders, preserving every existing line:
+
+`_legit_template_overlay`, `_legit_rightaligned_template`, `_legit_faux_bold`, `_legit_watermark`, `_legit_zebra`, `_legit_knockout_header`, `_legit_form_field`, `_legit_flattened_form`, `_legit_real_redaction`.
+
+Do NOT add it to `_legit_multisession_template_fill` — it builds session 1 by calling `_legit_template_overlay(...)`, so it inherits the body automatically (double-stamping would be wrong). Do NOT touch `_legit_footer_band` (53 chars) or `_legit_french_accents` (52 chars) — both already clear the threshold. Do NOT touch any `_forge_*` builder.
+
+Example (zebra — the z-order case): body first, then the fixture's own tint-before-text sequence is unchanged:
+
+```python
+def _legit_zebra(dst: str) -> None:
+    doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
+    # tint painted BEFORE text (legit background z-order)
+    page.draw_rect(fitz.Rect(40, 390, 545, 408), color=None, fill=(0.9, 0.9, 0.95))
+    page.insert_text(fitz.Point(460, 403), "1 200,00 €", fontname="helv", fontsize=12)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+```
+
+For `_legit_real_redaction`, place `stamp_invoice_body(page)` before its existing `page.insert_text(... "TOTAL TTC:")` line — the redaction only removes the value at (455,392)-(545,406), which does not overlap the body region, so the body survives `apply_redactions()`.
+
+- [ ] **Step 3: Rewrite `_legit_ocr_sandwich` to a realistic OCR layer**
+
+Replace `_legit_ocr_sandwich` entirely:
+
+```python
+def _legit_ocr_sandwich(dst: str) -> None:
+    """Scan with a REALISTIC full-page invisible OCR layer (render_mode=3).
+    Real OCR tools emit the whole page's text, not one span — the full layer
+    both keeps this doc above the coverage gate's 50-chars/page threshold
+    (it IS machine-readable, so it is verifiable) and stays >=50% invisible
+    text so invisible.py's dominance gate correctly skips it. The SIRET (valid
+    Luhn) keeps the French-invoice-shaped text from tripping
+    CONTENT_MISSING_COMPANY_ID."""
+    doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 595, 842))
+    pix.clear_with(255)
+    page.insert_image(fitz.Rect(0, 0, 595, 842), pixmap=pix)
+    ocr_text = (
+        "FACTURE N° SCAN-2026-018\n"
+        "Fournisseur : ACME Services SARL\n"
+        "SIRET : 552 081 317 66522\n"
+        "12 rue de la Paix, 75002 Paris\n"
+        "Client : Société Exemple SAS\n"
+        "Prestation de conseil — juin 2026\n"
+        "Total HT : 1 000,00 €\n"
+        "TVA 20% : 200,00 €\n"
+        "Total TTC : 1 200,00 €\n"
+    )
+    page.insert_textbox(fitz.Rect(50, 60, 545, 500), ocr_text,
+                        fontname="helv", fontsize=12, render_mode=3)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+```
+
+- [ ] **Step 4: Add the unverifiable builder and category**
+
+Add this builder directly below `_legit_ocr_sandwich`:
+
+```python
+def _unverifiable_image_only_scan(dst: str) -> None:
+    """Blind document: a 'scanned' invoice that is pure raster, no text layer.
+    Expected band: UNVERIFIABLE (coverage gate). Before the gate this scored
+    96/GENUINE — the fail-open hole the gate closes."""
+    src = fitz.open(); page = src.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(60, 100),
+                     "FACTURE N° 2026-0142 — Total TTC : 1 200,00 EUR",
+                     fontname="helv", fontsize=12)
+    pix = page.get_pixmap(dpi=150); src.close()
+    doc = fitz.open(); out_page = doc.new_page(width=595, height=842)
+    out_page.insert_image(out_page.rect, pixmap=pix)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+```
+
+In `build_corpus`, before the final `return`, add the builder call and extend the return dict:
+
+```python
+    uv = out / "unverifiable" / "image_only_scan.pdf"
+    _unverifiable_image_only_scan(str(uv))
+
+    return {"legitimate": legitimate, "suspicious": forged,
+            "unverifiable": [str(uv)]}
+```
+
+(delete the old `return {"legitimate": legitimate, "suspicious": forged}` line.)
+
+- [ ] **Step 5: Fix the 3 test-file fixtures**
+
+In `tests/test_analyzer_isolation.py`, import the helper and use it in `clean_pdf` (keep the existing header line, add the body so the doc is not blind):
+
+```python
+from scripts.build_corpus import stamp_invoice_body
+```
+```python
+@pytest.fixture()
+def clean_pdf(tmp_path):
+    p = str(tmp_path / "doc.pdf")
+    doc = fitz.open()
+    page = doc.new_page()
+    stamp_invoice_body(page)
+    page.insert_text((72, 320), "Facture 2025-01  Total TTC 100,00")
+    doc.save(p)
+    doc.close()
+    return p
+```
+(y=320 keeps the original line clear of the body block at y 165-290.)
+
+In `tests/test_calibration.py`, add `stamp_invoice_body` to the existing `from scripts.build_corpus import ...` line, and in `_embeds` call it right after `page = doc.new_page(...)`, keeping the existing header insert_text:
+
+```python
+def _embeds(path, embeds):
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
+    page.insert_text(fitz.Point(40, 50), "ACME SOLUTIONS SAS  -  FACTURE", fontname="helv", fontsize=12)
+    for name, data in embeds:
+        doc.embfile_add(name, data)
+    doc.save(path)
+    ...
+```
+(The header at y=50 and body at y=165+ do not overlap. Verify the actual `_embeds` body against the file — match the real lines, do not assume.)
+
+In `tests/test_overlay_review_floor.py`, add `stamp_invoice_body` to the `from scripts.build_corpus import ...` line, and call it right after `page = doc.new_page(...)` in BOTH `_conflicting_text_pdf` and `_opaque_fill_over_text_pdf`, keeping every existing line. Critical for `_opaque_fill_over_text_pdf`: it calls `page.search_for("1 200,00")[0]` — `stamp_invoice_body` contains no "1 200,00" token, so the search stays unambiguous; do not add any total-like token to the body.
+
+- [ ] **Step 6: Add the coverage-gate corpus tests**
 
 Append to `tests/test_coverage_gate.py`:
 
@@ -675,81 +860,12 @@ def test_on_disk_unverifiable_corpus(pdf):
     assert result.band == "UNVERIFIABLE", pdf
 ```
 
-- [ ] **Step 2: Run tests to verify current state**
+- [ ] **Step 7: Run the full suite to confirm all 46 failures are resolved**
 
-Run: `.venv/bin/python -m pytest tests/test_coverage_gate.py -v -k "corpus or blind"`
-Expected: `test_no_legit_corpus_doc_is_blind` FAILS (legit_ocr_sandwich.pdf bands UNVERIFIABLE — the sparse-trap problem); `test_corpus_unverifiable_category` FAILS with `KeyError: 'unverifiable'`; the on-disk test SKIPS (no samples/unverifiable/ yet).
+Run: `.venv/bin/python -m pytest tests/ -q`
+Expected: 0 failures, 1 xfailed (forged_image_patch_over_text — pre-existing). If any overlay legit-corpus test still fails, a builder was missed or a body call perturbed geometry — read the specific failure, do not weaken the gate or the fixture's tested tokens.
 
-- [ ] **Step 3: Make the OCR sandwich realistic and add the unverifiable builder**
-
-In `scripts/build_corpus.py`, replace `_legit_ocr_sandwich` (lines 236-243):
-
-```python
-def _legit_ocr_sandwich(dst: str) -> None:
-    """Scan with a REALISTIC full-page invisible OCR layer (render_mode=3).
-    Real OCR tools emit the whole page's text, not one span — the full layer
-    both keeps this doc above the coverage gate's 50-chars/page threshold
-    (it is machine-readable, so it IS verifiable) and stays >=50% invisible
-    text so invisible.py's dominance gate correctly skips it."""
-    doc = fitz.open(); page = doc.new_page(width=595, height=842)
-    pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 595, 842))
-    pix.clear_with(255)
-    page.insert_image(fitz.Rect(0, 0, 595, 842), pixmap=pix)
-    # The SIRET (valid Luhn, same one the project docs use in examples) keeps
-    # the French-invoice-shaped text from newly tripping
-    # CONTENT_MISSING_COMPANY_ID — this trap doc tests the invisible-text
-    # path, not the missing-ID path.
-    ocr_text = (
-        "FACTURE N° SCAN-2026-018\n"
-        "Fournisseur : ACME Services SARL\n"
-        "SIRET : 552 081 317 66522\n"
-        "12 rue de la Paix, 75002 Paris\n"
-        "Client : Société Exemple SAS\n"
-        "Prestation de conseil — juin 2026\n"
-        "Total HT : 1 000,00 €\n"
-        "TVA 20% : 200,00 €\n"
-        "Total TTC : 1 200,00 €\n"
-    )
-    page.insert_textbox(fitz.Rect(50, 60, 545, 500), ocr_text,
-                        fontname="helv", fontsize=12, render_mode=3)
-    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
-```
-
-Add a new builder directly below it:
-
-```python
-def _unverifiable_image_only_scan(dst: str) -> None:
-    """Blind document: a 'scanned' invoice that is pure raster, no text layer.
-    Expected band: UNVERIFIABLE (coverage gate). Before the gate this scored
-    96/GENUINE — the fail-open hole the gate closes."""
-    src = fitz.open(); page = src.new_page(width=595, height=842)
-    page.insert_text(fitz.Point(60, 100),
-                     "FACTURE N° 2026-0142 — Total TTC : 1 200,00 EUR",
-                     fontname="helv", fontsize=12)
-    pix = page.get_pixmap(dpi=150); src.close()
-    doc = fitz.open(); out_page = doc.new_page(width=595, height=842)
-    out_page.insert_image(out_page.rect, pixmap=pix)
-    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
-```
-
-In `build_corpus` (before the `return` at line 393), add:
-
-```python
-    uv = out / "unverifiable" / "image_only_scan.pdf"
-    _unverifiable_image_only_scan(str(uv))
-
-    return {"legitimate": legitimate, "suspicious": forged,
-            "unverifiable": [str(uv)]}
-```
-
-(delete the old `return {"legitimate": legitimate, "suspicious": forged}` line.)
-
-- [ ] **Step 4: Run the new tests and the corpus baselines**
-
-Run: `.venv/bin/python -m pytest tests/test_coverage_gate.py tests/test_corpus_baseline.py -v`
-Expected: all pass; on-disk test still SKIPS.
-
-- [ ] **Step 5: Regenerate the local on-disk corpus and run the corpus gates**
+- [ ] **Step 8: Regenerate the local on-disk corpus and run the corpus gates**
 
 ```bash
 .venv/bin/python -c "from scripts.build_corpus import build_corpus; build_corpus('samples')"
@@ -758,7 +874,7 @@ Expected: all pass; on-disk test still SKIPS.
 Run: `.venv/bin/python -m pytest tests/test_corpus_bands.py tests/test_coverage_gate.py -v`
 Expected: all pass — every `samples/legitimate/real/*.pdf` still GENUINE, every suspicious doc still non-GENUINE (one documented xfail), `samples/unverifiable/image_only_scan.pdf` bands UNVERIFIABLE.
 
-- [ ] **Step 6: Amend the spec's corpus-impact claim**
+- [ ] **Step 9: Amend the spec's corpus-impact claim and commit**
 
 In `docs/superpowers/specs/2026-07-17-coverage-gate-design.md`, in the Tests section, replace the sentence
 
@@ -766,16 +882,14 @@ In `docs/superpowers/specs/2026-07-17-coverage-gate-design.md`, in the Tests sec
 
 with
 
-`Corpus gates: all real legit corpus docs carry text layers; the synthetic
-legit_ocr_sandwich trap carried only ~9 invisible chars (found during
-planning) and was made realistic (full-page invisible OCR layer) so it stays
-above the threshold — no legit band may move;`
-
-- [ ] **Step 7: Commit**
+`Corpus gates: the real legit corpus docs carry text layers; the synthetic
+overlay/embed fixtures were minimal (5-40 chars, found during implementation)
+and were given a realistic body via scripts.build_corpus.stamp_invoice_body so
+they stay above the threshold — no legit band may move;`
 
 ```bash
-git add scripts/build_corpus.py tests/test_coverage_gate.py docs/superpowers/specs/2026-07-17-coverage-gate-design.md
-git commit -m "test(coverage): realistic OCR-sandwich trap + unverifiable corpus category
+git add scripts/build_corpus.py tests/test_analyzer_isolation.py tests/test_calibration.py tests/test_overlay_review_floor.py tests/test_coverage_gate.py docs/superpowers/specs/2026-07-17-coverage-gate-design.md
+git commit -m "test(coverage): realistic bodies for sparse fixtures + unverifiable corpus category
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 ```
