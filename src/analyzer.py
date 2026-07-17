@@ -38,6 +38,39 @@ from src.document_type import detect_document_type
 
 logger = logging.getLogger(__name__)
 
+# Coverage gate (spec docs/superpowers/specs/2026-07-17-coverage-gate-design.md):
+# a document whose text layer averages fewer than this many non-whitespace
+# characters per page is "blind" — text-based modules had nothing to analyze.
+# Value deliberately matches images.py's image-only heuristic (aligned by
+# intent, not shared: the two checks compute different things).
+MIN_TEXT_CHARS_PER_PAGE = 50
+
+
+def _coverage_blind(
+    text_by_page: list[str],
+    page_count: int,
+    module_results: list[ModuleResult],
+) -> tuple[bool, float]:
+    """Decide whether the document is blind (no usable text layer).
+
+    A blind document can be proven suspicious, never proven fine: the caller
+    uses this to band otherwise-GENUINE results as UNVERIFIABLE. Identity
+    documents where the identity module actually FOUND an MRZ are exempt —
+    scanned IDs are expected to be image-only and get real OCR analysis
+    (spec D4). An identity crash or an MRZ-less run stays blind: fail closed.
+
+    Returns:
+        (blind, avg_non_whitespace_chars_per_page)
+    """
+    non_ws = sum(len("".join(page.split())) for page in text_by_page)
+    avg = non_ws / max(1, page_count)
+    if avg >= MIN_TEXT_CHARS_PER_PAGE:
+        return False, avg
+    for r in module_results:
+        if r.module == "identity" and (r.details or {}).get("mrz_found"):
+            return False, avg
+    return True, avg
+
 
 class TrustyFileAnalyzer:
     """
