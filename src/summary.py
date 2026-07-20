@@ -1492,8 +1492,11 @@ def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisS
 
     # Build verdict. Blind documents (coverage gate) get a scan-specific
     # UNVERIFIABLE verdict via explicit code check — see COVERAGE_VERDICT.
-    if result.risk_level == "UNVERIFIABLE" and any(
-            f.code == "COVERAGE_NO_TEXT_LAYER" for f in all_flags):
+    # A doc that ALSO failed extraction (pipeline crash) is a read failure,
+    # not a scan, so EXTRACTION_FAILED takes precedence over the scan wording.
+    if (result.risk_level == "UNVERIFIABLE"
+            and any(f.code == "COVERAGE_NO_TEXT_LAYER" for f in all_flags)
+            and not any(f.code == "EXTRACTION_FAILED" for f in all_flags)):
         verdict = COVERAGE_VERDICT_FR if lang == "fr" else COVERAGE_VERDICT
     else:
         verdict = _build_verdict(result.risk_level, dominant_theme, lang)

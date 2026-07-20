@@ -171,6 +171,12 @@ def create_analysis_result(
         if not r.flags and r.score >= 100:
             continue
         for f in r.flags:
+            # The coverage flag's entire scoring role is the band override
+            # (coverage_blind param); it is a display/summary marker, not
+            # tamper evidence. Keeping it out of the ledger stops its 0.2-nat
+            # weight from nudging the band or the genuine-laundering threshold.
+            if f.code == "COVERAGE_NO_TEXT_LAYER":
+                continue
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:

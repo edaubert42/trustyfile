@@ -226,3 +226,37 @@ def test_garbage_file_message_stays_generic(tmp_path):
                 if f.code == "EXTRACTION_FAILED")
     assert not flag.details.get("encrypted")
     assert "valid PDF" in get_flag_sentence(flag, "en")
+
+
+# --- Final-review fixes: ledger cleanliness + crash-vs-scan verdict ---
+def test_coverage_flag_not_in_evidence_ledger(tmp_path):
+    """The coverage flag's scoring role is the band override (coverage_blind),
+    NOT ledger weight — it must not enter the ledger, else its 0.2 nats could
+    nudge the band or trip the genuine-laundering threshold. It stays visible
+    as a module flag for display + verdict selection."""
+    pdf = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf)
+    result = _analyze(pdf)
+    ledger_codes = [e.code for e in result.evidence_ledger]
+    assert "COVERAGE_NO_TEXT_LAYER" not in ledger_codes
+    flag_codes = [f.code for m in result.modules for f in m.flags]
+    assert "COVERAGE_NO_TEXT_LAYER" in flag_codes
+
+
+def test_crash_and_blind_doc_gets_generic_not_scan_verdict():
+    """A doc that is UNVERIFIABLE by pipeline failure (EXTRACTION_FAILED) AND
+    incidentally blind must read as a pipeline failure, not a scan."""
+    from src.models import AnalysisResult, ModuleResult, Flag
+    result = AnalysisResult(
+        file_hash="x", trust_score=0, risk_level="UNVERIFIABLE",
+        modules=[
+            ModuleResult(module="analysis",
+                         flags=[Flag("high", "EXTRACTION_FAILED", "x")], score=0),
+            ModuleResult(module="coverage",
+                         flags=[Flag("low", "COVERAGE_NO_TEXT_LAYER", "x")], score=0),
+        ],
+        band="UNVERIFIABLE",
+    )
+    verdict = generate_rich_summary(result, "en").verdict
+    assert "could not be read or verified" in verdict
+    assert "scanned or photographed" not in verdict
