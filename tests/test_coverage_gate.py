@@ -192,3 +192,37 @@ def test_unreadable_doc_keeps_generic_unverifiable_verdict(tmp_path):
     verdict = generate_rich_summary(result, "en").verdict
     assert "could not be read or verified" in verdict
     assert "scanned or photographed" not in verdict
+
+
+# --- Task 5: encrypted-file message rider ---
+from src.summary import get_flag_sentence
+
+
+def _write_encrypted_pdf(path) -> None:
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), INVOICE_TEXT, fontsize=11)
+    doc.save(str(path), encryption=fitz.PDF_ENCRYPT_AES_256,
+             user_pw="secret-user-pw", owner_pw="secret-owner-pw")
+    doc.close()
+
+
+def test_encrypted_file_message_mentions_password(tmp_path):
+    pdf = tmp_path / "locked.pdf"
+    _write_encrypted_pdf(pdf)
+    result = _analyze(pdf)
+    assert result.band == "UNVERIFIABLE"  # already true today
+    flag = next(f for m in result.modules for f in m.flags
+                if f.code == "EXTRACTION_FAILED")
+    assert flag.details.get("encrypted") is True
+    assert "password" in get_flag_sentence(flag, "en").lower()
+    assert "mot de passe" in get_flag_sentence(flag, "fr").lower()
+
+
+def test_garbage_file_message_stays_generic(tmp_path):
+    bad = tmp_path / "garbage.pdf"
+    bad.write_bytes(b"this is not a pdf at all")
+    result = _analyze(bad)
+    flag = next(f for m in result.modules for f in m.flags
+                if f.code == "EXTRACTION_FAILED")
+    assert not flag.details.get("encrypted")
+    assert "valid PDF" in get_flag_sentence(flag, "en")

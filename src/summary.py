@@ -617,7 +617,11 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
 
     # --- other (pipeline-status codes) ---
     "EXTRACTION_FAILED": lambda f: (
-        "The file could not be read as a valid PDF, so it cannot be verified."),
+        "The file is password-protected and could not be read, so it "
+        "cannot be verified."
+        if (f.details or {}).get("encrypted")
+        else "The file could not be read as a valid PDF, so it cannot "
+             "be verified."),
     "MODULE_ERROR": lambda f: (
         f"One analysis ({f.details.get('module', '?')}) failed on this "
         "document and was skipped."
@@ -1071,8 +1075,11 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
 
     # --- other (codes de statut du pipeline) ---
     "EXTRACTION_FAILED": lambda f: (
-        "Le fichier n'a pas pu être lu comme un PDF valide et ne peut donc "
-        "pas être vérifié."),
+        "Le fichier est protégé par mot de passe et n'a pas pu être lu ; "
+        "il ne peut donc pas être vérifié."
+        if (f.details or {}).get("encrypted")
+        else "Le fichier n'a pas pu être lu comme un PDF valide et ne peut "
+             "donc pas être vérifié."),
     "MODULE_ERROR": lambda f: (
         f"Une analyse ({f.details.get('module', '?')}) a échoué sur ce "
         "document et a été ignorée."
