@@ -170,3 +170,25 @@ def test_on_disk_unverifiable_corpus(pdf):
     result = TrustyFileAnalyzer(
         enable_external=False, enable_qr_scan=False).analyze(pdf)
     assert result.band == "UNVERIFIABLE", pdf
+
+
+# --- Task 4: scan-specific UNVERIFIABLE verdict ---
+from src.summary import generate_rich_summary
+
+
+def test_blind_doc_gets_scan_specific_verdict(tmp_path):
+    pdf = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf)
+    result = _analyze(pdf)
+    assert "scanned or photographed" in generate_rich_summary(result, "en").verdict
+    assert "scan ou une photo" in generate_rich_summary(result, "fr").verdict
+
+
+def test_unreadable_doc_keeps_generic_unverifiable_verdict(tmp_path):
+    bad = tmp_path / "garbage.pdf"
+    bad.write_bytes(b"this is not a pdf at all")
+    result = _analyze(bad)
+    assert result.band == "UNVERIFIABLE"
+    verdict = generate_rich_summary(result, "en").verdict
+    assert "could not be read or verified" in verdict
+    assert "scanned or photographed" not in verdict

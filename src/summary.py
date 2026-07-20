@@ -1148,6 +1148,20 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
 }
 
 
+# Coverage-specific UNVERIFIABLE verdicts (spec 2026-07-17). Selected by
+# explicit code check in generate_rich_summary: the low-severity coverage
+# flag can never win severity-weighted theme dominance, so the VERDICTS
+# theme mechanism cannot route to it.
+COVERAGE_VERDICT = (
+    "This appears to be a scanned or photographed document — its content "
+    "could not be machine-verified. Request the digital original."
+)
+COVERAGE_VERDICT_FR = (
+    "Ce document semble être un scan ou une photo — son contenu n'a pas pu "
+    "être vérifié automatiquement. Demandez l'original numérique."
+)
+
+
 # =============================================================================
 # POSITIVE SIGNAL TEMPLATES
 # =============================================================================
@@ -1469,8 +1483,13 @@ def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisS
     # Find the dominant theme for verdict selection
     dominant_theme = _get_dominant_theme(grouped)
 
-    # Build verdict
-    verdict = _build_verdict(result.risk_level, dominant_theme, lang)
+    # Build verdict. Blind documents (coverage gate) get a scan-specific
+    # UNVERIFIABLE verdict via explicit code check — see COVERAGE_VERDICT.
+    if result.risk_level == "UNVERIFIABLE" and any(
+            f.code == "COVERAGE_NO_TEXT_LAYER" for f in all_flags):
+        verdict = COVERAGE_VERDICT_FR if lang == "fr" else COVERAGE_VERDICT
+    else:
+        verdict = _build_verdict(result.risk_level, dominant_theme, lang)
 
     # Build bullet list of findings
     bullets = _build_bullets(grouped, result.modules, lang)
