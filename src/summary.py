@@ -168,6 +168,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     # other (pipeline-status codes — not a finding about the document itself)
     "EXTRACTION_FAILED": "other",
     "MODULE_ERROR": "other",
+    "COVERAGE_NO_TEXT_LAYER": "other",
 }
 
 
@@ -616,11 +617,18 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
 
     # --- other (pipeline-status codes) ---
     "EXTRACTION_FAILED": lambda f: (
-        "The file could not be read as a valid PDF, so it cannot be verified."),
+        "The file is password-protected and could not be read, so it "
+        "cannot be verified."
+        if (f.details or {}).get("encrypted")
+        else "The file could not be read as a valid PDF, so it cannot "
+             "be verified."),
     "MODULE_ERROR": lambda f: (
         f"One analysis ({f.details.get('module', '?')}) failed on this "
         "document and was skipped."
         if f.details else "One analysis failed on this document and was skipped."),
+    "COVERAGE_NO_TEXT_LAYER": lambda f: (
+        "The document has no machine-readable text layer (scan or photo), "
+        "so content checks could not run."),
 }
 
 
@@ -1067,12 +1075,18 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
 
     # --- other (codes de statut du pipeline) ---
     "EXTRACTION_FAILED": lambda f: (
-        "Le fichier n'a pas pu être lu comme un PDF valide et ne peut donc "
-        "pas être vérifié."),
+        "Le fichier est protégé par mot de passe et n'a pas pu être lu ; "
+        "il ne peut donc pas être vérifié."
+        if (f.details or {}).get("encrypted")
+        else "Le fichier n'a pas pu être lu comme un PDF valide et ne peut "
+             "donc pas être vérifié."),
     "MODULE_ERROR": lambda f: (
         f"Une analyse ({f.details.get('module', '?')}) a échoué sur ce "
         "document et a été ignorée."
         if f.details else "Une analyse a échoué sur ce document et a été ignorée."),
+    "COVERAGE_NO_TEXT_LAYER": lambda f: (
+        "Le document ne contient aucune couche de texte exploitable (scan ou "
+        "photo) ; les vérifications de contenu n'ont pas pu être effectuées."),
 }
 
 
@@ -1139,6 +1153,20 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
         "default": "Ce document n'a pas pu être lu ou vérifié. Traitez-le avec prudence et demandez un original valide.",
     },
 }
+
+
+# Coverage-specific UNVERIFIABLE verdicts (spec 2026-07-17). Selected by
+# explicit code check in generate_rich_summary: the low-severity coverage
+# flag can never win severity-weighted theme dominance, so the VERDICTS
+# theme mechanism cannot route to it.
+COVERAGE_VERDICT = (
+    "This appears to be a scanned or photographed document — its content "
+    "could not be machine-verified. Request the digital original."
+)
+COVERAGE_VERDICT_FR = (
+    "Ce document semble être un scan ou une photo — son contenu n'a pas pu "
+    "être vérifié automatiquement. Demandez l'original numérique."
+)
 
 
 # =============================================================================
@@ -1462,8 +1490,16 @@ def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisS
     # Find the dominant theme for verdict selection
     dominant_theme = _get_dominant_theme(grouped)
 
-    # Build verdict
-    verdict = _build_verdict(result.risk_level, dominant_theme, lang)
+    # Build verdict. Blind documents (coverage gate) get a scan-specific
+    # UNVERIFIABLE verdict via explicit code check — see COVERAGE_VERDICT.
+    # A doc that ALSO failed extraction (pipeline crash) is a read failure,
+    # not a scan, so EXTRACTION_FAILED takes precedence over the scan wording.
+    if (result.risk_level == "UNVERIFIABLE"
+            and any(f.code == "COVERAGE_NO_TEXT_LAYER" for f in all_flags)
+            and not any(f.code == "EXTRACTION_FAILED" for f in all_flags)):
+        verdict = COVERAGE_VERDICT_FR if lang == "fr" else COVERAGE_VERDICT
+    else:
+        verdict = _build_verdict(result.risk_level, dominant_theme, lang)
 
     # Build bullet list of findings
     bullets = _build_bullets(grouped, result.modules, lang)

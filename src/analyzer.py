@@ -38,6 +38,39 @@ from src.document_type import detect_document_type
 
 logger = logging.getLogger(__name__)
 
+# Coverage gate (spec docs/superpowers/specs/2026-07-17-coverage-gate-design.md):
+# a document whose text layer averages fewer than this many non-whitespace
+# characters per page is "blind" — text-based modules had nothing to analyze.
+# Value deliberately matches images.py's image-only heuristic (aligned by
+# intent, not shared: the two checks compute different things).
+MIN_TEXT_CHARS_PER_PAGE = 50
+
+
+def _coverage_blind(
+    text_by_page: list[str],
+    page_count: int,
+    module_results: list[ModuleResult],
+) -> tuple[bool, float]:
+    """Decide whether the document is blind (no usable text layer).
+
+    A blind document can be proven suspicious, never proven fine: the caller
+    uses this to band otherwise-GENUINE results as UNVERIFIABLE. Identity
+    documents where the identity module actually FOUND an MRZ are exempt —
+    scanned IDs are expected to be image-only and get real OCR analysis
+    (spec D4). An identity crash or an MRZ-less run stays blind: fail closed.
+
+    Returns:
+        (blind, avg_non_whitespace_chars_per_page)
+    """
+    non_ws = sum(len("".join(page.split())) for page in text_by_page)
+    avg = non_ws / max(1, page_count)
+    if avg >= MIN_TEXT_CHARS_PER_PAGE:
+        return False, avg
+    for r in module_results:
+        if r.module == "identity" and (r.details or {}).get("mrz_found"):
+            return False, avg
+    return True, avg
+
 
 class TrustyFileAnalyzer:
     """
@@ -120,7 +153,8 @@ class TrustyFileAnalyzer:
                     severity="high",
                     code="EXTRACTION_FAILED",
                     message="Document could not be parsed as a valid PDF",
-                    details={"error": pdf_data.extraction_error},
+                    details={"error": pdf_data.extraction_error,
+                             "encrypted": pdf_data.is_encrypted},
                 )],
                 score=0,
                 confidence=1.0,
@@ -243,6 +277,26 @@ class TrustyFileAnalyzer:
                 confidence=1.0,
             ))
 
+        # Coverage gate (spec 2026-07-17): blind documents fail closed.
+        # Runs after all modules so the identity MRZ exemption can consult
+        # the identity module's actual outcome.
+        coverage_blind, avg_chars = _coverage_blind(
+            pdf_data.text_by_page, pdf_data.page_count, module_results)
+        if coverage_blind:
+            module_results.append(ModuleResult(
+                module="coverage",
+                flags=[Flag(
+                    severity="low",  # display plumbing, not tamper evidence
+                    code="COVERAGE_NO_TEXT_LAYER",
+                    message=("Document has no machine-readable text layer "
+                             "(scan or photo); content checks could not run"),
+                    details={"avg_chars_per_page": round(avg_chars, 1),
+                             "threshold": MIN_TEXT_CHARS_PER_PAGE},
+                )],
+                score=0,
+                confidence=1.0,
+            ))
+
         # Calculate analysis time
         elapsed_ms = int((time.time() - start_time) * 1000)
 
@@ -252,6 +306,7 @@ class TrustyFileAnalyzer:
             module_results=module_results,
             analysis_time_ms=elapsed_ms,
             document_type=doc_type,
+            coverage_blind=coverage_blind,
         )
 
         logger.info(f"Analysis complete: score={result.trust_score}, risk={result.risk_level}")

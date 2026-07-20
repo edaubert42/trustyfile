@@ -154,7 +154,8 @@ def _band_width(evidence: list["Evidence"]) -> int:
 
 
 def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
-                       prior: float = PRIOR_LOG_ODDS) -> AggregateResult:
+                       prior: float = PRIOR_LOG_ODDS,
+                       coverage_blind: bool = False) -> AggregateResult:
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
@@ -198,6 +199,17 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
         score = max(score, HARD_POSITIVE_FLOOR)
 
     band, risk = _band_and_risk(score)
+    # Coverage gate (spec 2026-07-17, D1/D3): a blind document — no usable
+    # text layer, so most modules never saw anything — must not read as a
+    # clean bill of health. GENUINE/REVIEW collapse to UNVERIFIABLE; a
+    # SUSPICIOUS band passes through untouched, because image-side tamper
+    # evidence stands on its own ("a blind document can be proven
+    # suspicious, never proven fine").
+    if coverage_blind and band in ("GENUINE", "REVIEW"):
+        return AggregateResult(score=0, band="UNVERIFIABLE",
+                               risk_level="UNVERIFIABLE",
+                               score_low=0, score_high=0,
+                               ledger=list(evidence))
     half = _band_width(evidence)
     return AggregateResult(
         score=score, band=band, risk_level=risk,

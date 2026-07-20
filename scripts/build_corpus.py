@@ -12,6 +12,36 @@ from pathlib import Path
 import fitz
 
 
+def stamp_invoice_body(page) -> None:
+    """Stamp realistic invoice body text into the left-middle region (y 165-290,
+    x 40+) that the sparse overlay/embed fixtures leave empty. Gives them a real
+    document's text density so the coverage gate (avg >= 50 non-whitespace
+    chars/page, src/analyzer.py) does not band them UNVERIFIABLE — a real
+    watermarked / zebra / form / e-invoice carries full body text.
+
+    Placed clear of every fixture's tested geometry: header band (y<60), the
+    total row (~y400), the watermark centre (y500), the footer (y>800). Tokens
+    are a subset of _clean_invoice's proven-GENUINE content (valid SIRET/IBAN,
+    one coherent date) and contain NO "1 200,00"-style total token, so (a) they
+    introduce no content/arith/metadata flag and (b) a fixture's
+    page.search_for("1 200,00") stays unambiguous. Callers must keep their own
+    original tokens and only ADD this call right after new_page()."""
+    lines = [
+        "ACME SOLUTIONS SAS",
+        "SIRET: 552 081 317 00018   TVA: FR03552081317",
+        "12 rue de l'Innovation, 75002 Paris",
+        "Client: Societe Exemple SARL",
+        "Facture N FA-2025-00847   Date: 15/01/2025",
+        "Prestation de conseil - janvier 2025",
+        "Reglement a 30 jours par virement",
+        "IBAN: FR7630006000011234567890189",
+    ]
+    y = 165
+    for line in lines:
+        page.insert_text(fitz.Point(40, y), line, fontname="helv", fontsize=9)
+        y += 16
+
+
 def _clean_invoice(path: str) -> None:
     """A coherent, legitimate-looking invoice: valid dates, normal producer."""
     doc = fitz.open()
@@ -100,6 +130,7 @@ def _legit_template_overlay(src: str, dst: str) -> None:
     Reproduces the fraud's seqno signature (placeholder < fill < value) but is honest."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(40, 50), "TEMPLATE INVOICE", fontname="helv", fontsize=16)
     # placeholder painted first (low seqno)
     page.insert_text(fitz.Point(460, 400), "0,00 €", fontname="helv", fontsize=12)
@@ -116,6 +147,7 @@ def _legit_rightaligned_template(dst: str) -> None:
     guard should keep this from a false OVERLAY_CONFLICTING_TEXT flag — it must not
     depend on a thin width margin."""
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(40, 50), "TEMPLATE INVOICE", fontname="helv", fontsize=16)
     # same-width placeholder painted first (low seqno), then the real value at nearly
     # the same position (high overlap). "0 000,00" ~ same width as "1 200,00".
@@ -127,6 +159,7 @@ def _legit_rightaligned_template(dst: str) -> None:
 
 def _legit_faux_bold(dst: str) -> None:
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     for dx in (0.0, 0.4):  # same string, tiny offset = synthetic bold
         page.insert_text(fitz.Point(40 + dx, 100), "TOTAL: 1 200,00 €", fontname="helv", fontsize=12)
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
@@ -138,6 +171,7 @@ def _legit_watermark(dst: str) -> None:
     # closest valid rotation and still exercises the same structural pattern
     # (large, greyed-out, rotated watermark text over the real content).
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(40, 100), "Facture 1 200,00 €", fontname="helv", fontsize=12)
     page.insert_text(fitz.Point(150, 500), "SPECIMEN", fontname="helv", fontsize=60,
                      color=(0.7, 0.7, 0.7), rotate=90)
@@ -146,6 +180,7 @@ def _legit_watermark(dst: str) -> None:
 
 def _legit_zebra(dst: str) -> None:
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     # tint painted BEFORE text (legit background z-order)
     page.draw_rect(fitz.Rect(40, 390, 545, 408), color=None, fill=(0.9, 0.9, 0.95))
     page.insert_text(fitz.Point(460, 403), "1 200,00 €", fontname="helv", fontsize=12)
@@ -154,6 +189,7 @@ def _legit_zebra(dst: str) -> None:
 
 def _legit_knockout_header(dst: str) -> None:
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.draw_rect(fitz.Rect(0, 0, 595, 60), color=None, fill=(0.1, 0.1, 0.3))  # dark band first
     page.insert_text(fitz.Point(40, 40), "TOTAL", fontname="helv", fontsize=20, color=(1, 1, 1))
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
@@ -181,6 +217,7 @@ def _legit_form_field(dst: str) -> None:
     Annot rather than the page content stream must not be mistaken for a
     cover-and-retype overlay)."""
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(370, 400), "TOTAL TTC:", fontname="helv", fontsize=12)
     annot = page.add_freetext_annot(fitz.Rect(455, 392, 545, 406), "1 200,00 €", fontsize=12)
     annot.update()
@@ -195,6 +232,7 @@ def _legit_flattened_form(dst: str) -> None:
     the hand-drawn background+value sequence already reproduces the structural
     pattern (background z-order + single authoring session)."""
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(370, 400), "TOTAL TTC:", fontname="helv", fontsize=12)
     # field background box first (low seqno) — how flattened form fields render
     page.draw_rect(fitz.Rect(455, 392, 545, 406), color=(0.8, 0.8, 0.8), fill=(1, 1, 1))
@@ -226,6 +264,7 @@ def _legit_real_redaction(dst: str) -> None:
     # so any textless PDF crashes the whole analyzer. Adding this label keeps the page
     # non-empty (out of scope to patch identity.py here) while still exercising the exact
     # same structural guard: the VALUE text is genuinely gone after apply_redactions().
+    stamp_invoice_body(page)
     page.insert_text(fitz.Point(370, 400), "TOTAL TTC:", fontname="helv", fontsize=12)
     page.insert_text(fitz.Point(460, 400), "1 200,00 €", fontname="helv", fontsize=12)
     page.add_redact_annot(fitz.Rect(455, 392, 545, 406), fill=(0, 0, 0))
@@ -234,12 +273,44 @@ def _legit_real_redaction(dst: str) -> None:
 
 
 def _legit_ocr_sandwich(dst: str) -> None:
+    """Scan with a REALISTIC full-page invisible OCR layer (render_mode=3).
+    Real OCR tools emit the whole page's text, not one span — the full layer
+    both keeps this doc above the coverage gate's 50-chars/page threshold
+    (it IS machine-readable, so it is verifiable) and stays >=50% invisible
+    text so invisible.py's dominance gate correctly skips it. The SIRET (valid
+    Luhn) keeps the French-invoice-shaped text from tripping
+    CONTENT_MISSING_COMPANY_ID."""
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
     pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 595, 842))
     pix.clear_with(255)
     page.insert_image(fitz.Rect(0, 0, 595, 842), pixmap=pix)
-    page.insert_text(fitz.Point(460, 400), "1 200,00 €", fontname="helv",
-                     fontsize=12, render_mode=3)  # invisible OCR text
+    ocr_text = (
+        "FACTURE N° SCAN-2026-018\n"
+        "Fournisseur : ACME Services SARL\n"
+        "SIRET : 552 081 317 66522\n"
+        "12 rue de la Paix, 75002 Paris\n"
+        "Client : Société Exemple SAS\n"
+        "Prestation de conseil — juin 2026\n"
+        "Total HT : 1 000,00 €\n"
+        "TVA 20% : 200,00 €\n"
+        "Total TTC : 1 200,00 €\n"
+    )
+    page.insert_textbox(fitz.Rect(50, 60, 545, 500), ocr_text,
+                        fontname="helv", fontsize=12, render_mode=3)
+    Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
+
+
+def _unverifiable_image_only_scan(dst: str) -> None:
+    """Blind document: a 'scanned' invoice that is pure raster, no text layer.
+    Expected band: UNVERIFIABLE (coverage gate). Before the gate this scored
+    96/GENUINE — the fail-open hole the gate closes."""
+    src = fitz.open(); page = src.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(60, 100),
+                     "FACTURE N° 2026-0142 — Total TTC : 1 200,00 EUR",
+                     fontname="helv", fontsize=12)
+    pix = page.get_pixmap(dpi=150); src.close()
+    doc = fitz.open(); out_page = doc.new_page(width=595, height=842)
+    out_page.insert_image(out_page.rect, pixmap=pix)
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
 
 
@@ -390,7 +461,11 @@ def build_corpus(out_dir: str) -> dict:
     lra = out / "legitimate" / "legit_rightaligned_template.pdf"
     _legit_rightaligned_template(str(lra)); legitimate.append(str(lra))
 
-    return {"legitimate": legitimate, "suspicious": forged}
+    uv = out / "unverifiable" / "image_only_scan.pdf"
+    _unverifiable_image_only_scan(str(uv))
+
+    return {"legitimate": legitimate, "suspicious": forged,
+            "unverifiable": [str(uv)]}
 
 
 if __name__ == "__main__":

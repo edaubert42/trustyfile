@@ -18,7 +18,7 @@ corpus, so raising their weight cannot demote a legitimate document.
 import fitz
 import pytest
 
-from scripts.build_corpus import build_corpus, corpus_expectations
+from scripts.build_corpus import build_corpus, corpus_expectations, stamp_invoice_body
 from src.analyzer import TrustyFileAnalyzer
 
 NON_EDITOR = "ReportLab PDF Library"
@@ -37,6 +37,7 @@ def _conflicting_text_pdf(path):
     box — the original peeking through a retype (Signal 2). Non-editor Producer."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)  # realistic body so the doc is not coverage-blind
     page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
     page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
     page.insert_text(fitz.Point(400, 610), "9 200,00", fontname="helv", fontsize=12)
@@ -50,6 +51,7 @@ def _opaque_fill_over_text_pdf(path):
     it (Signal 1 — hidden recoverable content). Non-editor Producer."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)  # realistic body so the doc is not coverage-blind
     page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
     page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
     r = page.search_for("1 200,00")[0]

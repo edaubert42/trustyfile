@@ -121,6 +121,7 @@ def create_analysis_result(
     module_results: list[ModuleResult],
     analysis_time_ms: int = 0,
     document_type: DocumentType = "unknown",
+    coverage_blind: bool = False,
 ) -> AnalysisResult:
     """
     Create the final analysis result from all module results.
@@ -137,6 +138,7 @@ def create_analysis_result(
         module_results: List of results from all analysis modules
         analysis_time_ms: Time taken for analysis in milliseconds
         document_type: Detected document type (used for evidence suppression)
+        coverage_blind: True when the document has no usable text layer (see analyzer._coverage_blind); GENUINE/REVIEW results collapse to UNVERIFIABLE.
 
     Returns:
         AnalysisResult with final score, risk level, band, score range,
@@ -169,12 +171,19 @@ def create_analysis_result(
         if not r.flags and r.score >= 100:
             continue
         for f in r.flags:
+            # The coverage flag's entire scoring role is the band override
+            # (coverage_blind param); it is a display/summary marker, not
+            # tamper evidence. Keeping it out of the ledger stops its 0.2-nat
+            # weight from nudging the band or the genuine-laundering threshold.
+            if f.code == "COVERAGE_NO_TEXT_LAYER":
+                continue
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:
                 evidence.append(ev)
 
-    agg = aggregate_evidence(evidence, analyzable=analyzable)
+    agg = aggregate_evidence(evidence, analyzable=analyzable,
+                             coverage_blind=coverage_blind)
 
     return AnalysisResult(
         file_hash=file_hash,
