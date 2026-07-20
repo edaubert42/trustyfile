@@ -407,10 +407,44 @@ def parse_mrz_date(yymmdd: str, is_expiry: bool = False) -> date | None:
 
 
 # =============================================================================
+# DÉTECTION DES PAGES DIGITALES VS SCANNÉES
+# =============================================================================
+
+FULL_PAGE_IMAGE_AREA_RATIO = 0.6  # image bbox / page area at/above which a page reads as a scan
+
+
+def _is_digital_native_page(file_path: str, page_index: int) -> bool:
+    """True if the page has NO full-page raster image — i.e. it was digitally
+    typeset, not scanned or photographed.
+
+    Used to decide whether an embedded MRZ text layer is trustworthy for
+    deterministic ICAO checksums: a scan's OCR text layer is not (OCR confuses
+    0/O, 5/S…), but a digitally-typed MRZ is exact. Fails closed (returns False
+    → caller uses the OCR path) on any error or out-of-range page.
+    """
+    import fitz
+    try:
+        with fitz.open(file_path) as doc:
+            if page_index < 0 or page_index >= doc.page_count:
+                return False
+            page = doc[page_index]
+            page_area = abs(page.rect.width * page.rect.height)
+            if page_area <= 0:
+                return False
+            for info in page.get_image_info():
+                bbox = fitz.Rect(info["bbox"])
+                if abs(bbox.width * bbox.height) >= FULL_PAGE_IMAGE_AREA_RATIO * page_area:
+                    return False
+        return True
+    except Exception:
+        return False
+
+
+# =============================================================================
 # DÉTECTION DES LIGNES MRZ DANS LE TEXTE PDF
 # =============================================================================
 
-def extract_mrz_lines(pdf_data: PDFData) -> list[str] | None:
+def extract_mrz_lines(pdf_data: PDFData) -> tuple[list[str], int] | None:
     """
     Cherche des lignes MRZ dans le texte extrait du PDF.
 
@@ -429,11 +463,12 @@ def extract_mrz_lines(pdf_data: PDFData) -> list[str] | None:
         pdf_data: Données extraites du PDF (text_by_page est utilisé)
 
     Returns:
-        Liste de 2 lignes (TD3) ou 3 lignes (TD1), ou None si rien trouvé
+        Tuple (lines, page_index) — 2 lignes (TD3) ou 3 lignes (TD1) plus the
+        0-based page they were found on — or None if nothing matched.
 
     Example:
         # Si un passeport a du texte extractible :
-        >>> lines = extract_mrz_lines(pdf_data)
+        >>> lines, page = extract_mrz_lines(pdf_data)
         >>> lines
         ['P<FRAUNTEL<<JEAN<PIERRE<<<<<<<<<<<<<<<<<<<<',
          'AB1234567<8FRA8501013M2601016<<<<<<<<<<<<4']
@@ -453,7 +488,7 @@ def extract_mrz_lines(pdf_data: PDFData) -> list[str] | None:
                     MRZ_LINE_PATTERN.match(line_a) and
                     MRZ_LINE_PATTERN.match(line_b)):
                 logger.debug(f"MRZ TD3 détectée page {page_num + 1}, ligne {i + 1}")
-                return [line_a, line_b]
+                return [line_a, line_b], page_num
 
         # --- Chercher un format TD1 (3 lignes × 30 chars) ---
         for i in range(len(lines) - 2):
@@ -468,7 +503,7 @@ def extract_mrz_lines(pdf_data: PDFData) -> list[str] | None:
                     MRZ_LINE_PATTERN.match(line_b) and
                     MRZ_LINE_PATTERN.match(line_c)):
                 logger.debug(f"MRZ TD1 détectée page {page_num + 1}, ligne {i + 1}")
-                return [line_a, line_b, line_c]
+                return [line_a, line_b, line_c], page_num
 
     logger.debug("Aucune MRZ détectée dans le texte extrait")
     return None
