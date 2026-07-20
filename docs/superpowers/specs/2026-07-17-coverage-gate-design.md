@@ -155,7 +155,10 @@ corpus dependency, pattern of `test_corpus_baseline.py`):
    discover the new code and find both templates; note it may require the
    COVERAGE_ prefix to be registered in its required-prefix list).
 
-Corpus gates: all 30 legit corpus docs carry text layers → no band may move;
+Corpus gates: the real legit corpus docs carry text layers; the synthetic
+overlay/embed fixtures were minimal (5-40 chars, found during implementation)
+and were given a realistic body via scripts.build_corpus.stamp_invoice_body so
+they stay above the threshold — no legit band may move;
 run `.venv/bin/python -m pytest tests/ -q` plus the corpus band gate before
 review. `build_corpus.py` gains a legit image-only scan with expected band
 UNVERIFIABLE so the trap set covers the new verdict class.

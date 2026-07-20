@@ -12,6 +12,7 @@ import pytest
 
 from src.analyzer import TrustyFileAnalyzer
 from src.evidence import HARD_NEGATIVE_CODES
+from scripts.build_corpus import stamp_invoice_body
 
 
 def _invoice(path, *, siret="552 081 317 00018", vat="FR03552081317",
@@ -142,6 +143,7 @@ def _embeds(path, embeds):
     """Minimal PDF carrying the given (name, bytes) embedded files."""
     doc = fitz.open()
     page = doc.new_page(width=595, height=842)
+    stamp_invoice_body(page)  # realistic body so the carrier is not coverage-blind
     page.insert_text(fitz.Point(40, 50), "ACME SOLUTIONS SAS  -  FACTURE", fontname="helv", fontsize=12)
     for name, data in embeds:
         doc.embfile_add(name, data)

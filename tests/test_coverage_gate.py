@@ -131,3 +131,42 @@ def test_text_document_is_unaffected(tmp_path):
     assert result.band == "GENUINE"
     codes = [f.code for m in result.modules for f in m.flags]
     assert "COVERAGE_NO_TEXT_LAYER" not in codes
+
+
+# --- Task 6: corpus-level coverage gate (build_corpus) ---
+from pathlib import Path
+
+from scripts.build_corpus import build_corpus
+
+CORPUS_UNVERIFIABLE = sorted(
+    str(p) for p in
+    (Path(__file__).resolve().parent.parent / "samples" / "unverifiable").glob("*.pdf")
+)
+
+
+def test_no_legit_corpus_doc_is_blind(tmp_path):
+    """Permanent invariant: every synthetic LEGITIMATE trap doc must carry a
+    realistic text layer. If this fails after adding a new trap doc, make the
+    DOC realistic (real documents have text) — never weaken the gate."""
+    paths = build_corpus(str(tmp_path))
+    analyzer = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False)
+    blind = [p for p in paths["legitimate"]
+             if analyzer.analyze(p).band == "UNVERIFIABLE"]
+    assert not blind, f"legit trap docs banded UNVERIFIABLE: {blind}"
+
+
+def test_corpus_unverifiable_category(tmp_path):
+    paths = build_corpus(str(tmp_path))
+    assert paths["unverifiable"], "build_corpus must produce the unverifiable category"
+    analyzer = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False)
+    for p in paths["unverifiable"]:
+        assert analyzer.analyze(p).band == "UNVERIFIABLE", p
+
+
+@pytest.mark.skipif(not CORPUS_UNVERIFIABLE,
+                    reason="local corpus not present (samples/ is gitignored)")
+@pytest.mark.parametrize("pdf", CORPUS_UNVERIFIABLE)
+def test_on_disk_unverifiable_corpus(pdf):
+    result = TrustyFileAnalyzer(
+        enable_external=False, enable_qr_scan=False).analyze(pdf)
+    assert result.band == "UNVERIFIABLE", pdf

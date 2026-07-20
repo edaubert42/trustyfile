@@ -13,6 +13,7 @@ import pytest
 
 import src.analyzer as analyzer_mod
 from src.analyzer import TrustyFileAnalyzer
+from scripts.build_corpus import stamp_invoice_body
 
 
 @pytest.fixture()
@@ -20,7 +21,8 @@ def clean_pdf(tmp_path):
     p = str(tmp_path / "doc.pdf")
     doc = fitz.open()
     page = doc.new_page()
-    page.insert_text((72, 72), "Facture 2025-01  Total TTC 100,00")
+    stamp_invoice_body(page)  # realistic body so the doc is not coverage-blind
+    page.insert_text((72, 320), "Facture 2025-01  Total TTC 100,00")
     doc.save(p)
     doc.close()
     return p
