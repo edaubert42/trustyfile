@@ -64,3 +64,69 @@ def test_digital_native_false_on_out_of_range_page(tmp_path):
 
 def test_full_page_ratio_constant():
     assert FULL_PAGE_IMAGE_AREA_RATIO == 0.6
+
+
+# --- Task 2: analyze_identity text-layer-first + checksums ---
+from src.modules.identity import analyze_identity
+from src.analyzer import TrustyFileAnalyzer
+
+TD1 = ["I<UTOD231458907<<<<<<<<<<<<<<<",
+       "7408122F1204159UTO<<<<<<<<<<<6",
+       "ERIKSSON<<ANNA<MARIA<<<<<<<<<<"]
+
+
+def _codes(module_result):
+    return [f.code for f in module_result.flags]
+
+
+def test_valid_td3_textlayer_runs_checksums_no_fail(tmp_path):
+    pdf = tmp_path / "passport.pdf"
+    _write_mrz_pdf(pdf, TD3)
+    r = analyze_identity(extract_pdf_data(str(pdf)))
+    assert r.details["mrz_found"] is True
+    assert r.details["mrz_source"] == "text_layer"
+    assert not [c for c in _codes(r) if c.endswith("CHECK_FAIL")]
+    assert r.details.get("date_of_birth") == "1974-08-12"
+
+
+def test_tampered_td3_textlayer_fails_checksums(tmp_path):
+    tampered = TD3[1][:13] + "5" + TD3[1][14:]
+    pdf = tmp_path / "tampered.pdf"
+    _write_mrz_pdf(pdf, [TD3[0], tampered])
+    r = analyze_identity(extract_pdf_data(str(pdf)))
+    codes = _codes(r)
+    assert "MRZ_DOB_CHECK_FAIL" in codes
+    assert "MRZ_FINAL_CHECK_FAIL" in codes
+
+
+def test_valid_td1_textlayer_runs_checksums_no_fail(tmp_path):
+    pdf = tmp_path / "idcard.pdf"
+    _write_mrz_pdf(pdf, TD1)
+    r = analyze_identity(extract_pdf_data(str(pdf)))
+    assert r.details["mrz_source"] == "text_layer"
+    assert not [c for c in _codes(r) if c.endswith("CHECK_FAIL")]
+
+
+def test_mrz_over_full_page_image_does_not_run_textlayer_checksums(tmp_path):
+    tampered = TD3[1][:13] + "5" + TD3[1][14:]
+    pdf = tmp_path / "scan.pdf"
+    _write_mrz_pdf(pdf, [TD3[0], tampered], full_page_image=True)
+    r = analyze_identity(extract_pdf_data(str(pdf)))
+    assert r.details.get("mrz_source") != "text_layer"
+    assert not [c for c in _codes(r) if c.endswith("CHECK_FAIL")]
+
+
+def test_tampered_td3_end_to_end_is_suspicious(tmp_path):
+    tampered = TD3[1][:13] + "5" + TD3[1][14:]
+    pdf = tmp_path / "tampered_e2e.pdf"
+    _write_mrz_pdf(pdf, [TD3[0], tampered])
+    result = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False).analyze(str(pdf))
+    assert result.document_type == "identity"
+    assert result.band == "SUSPICIOUS", f"{result.band}/{result.trust_score}"
+
+
+def test_valid_td3_not_coverage_blind(tmp_path):
+    pdf = tmp_path / "valid_e2e.pdf"
+    _write_mrz_pdf(pdf, TD3)
+    result = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False).analyze(str(pdf))
+    assert result.band != "UNVERIFIABLE"

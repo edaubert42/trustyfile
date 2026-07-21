@@ -1429,20 +1429,40 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
     """
     details: dict = {"mrz_found": False}
 
-    # Toujours OCR — les IDs sont toujours des scans
-    logger.info("Module identity : lancement OCR pour détection MRZ...")
     mrz_lines = None
     mrz_page = 0
-    try:
-        from src.extractors.ocr import ocr_extract_mrz
-        mrz_result = ocr_extract_mrz(pdf_data.file_path, pdf_data.page_count)
-        if mrz_result is not None:
-            mrz_lines, mrz_page = mrz_result
-    except Exception as e:
-        logger.warning(f"Module identity : OCR échoué ({e})")
+    mrz_source = None
+    use_checksums = False
+
+    # --- Path 1: clean embedded MRZ on a digital-native page -----------------
+    # A digitally-typeset page (no full-page scan image behind the text) yields
+    # a deterministic MRZ: ICAO checksums are trustworthy and a failure is real
+    # tamper evidence. This is also the shape of a fabricated ID PDF — the case
+    # the checksum path exists to catch.
+    text_layer = extract_mrz_lines(pdf_data)
+    if text_layer is not None:
+        candidate_lines, candidate_page = text_layer
+        if _is_digital_native_page(pdf_data.file_path, candidate_page):
+            mrz_lines, mrz_page = candidate_lines, candidate_page
+            mrz_source = "text_layer"
+            use_checksums = True
+            logger.info("Module identity : MRZ couche-texte, page digital-native "
+                        "→ validation checksums ICAO")
+
+    # --- Path 2: OCR fallback (real scan/photo, or MRZ over a scan image) -----
+    if mrz_lines is None:
+        logger.info("Module identity : lancement OCR pour détection MRZ...")
+        try:
+            from src.extractors.ocr import ocr_extract_mrz
+            mrz_result = ocr_extract_mrz(pdf_data.file_path, pdf_data.page_count)
+            if mrz_result is not None:
+                mrz_lines, mrz_page = mrz_result
+                mrz_source = "ocr"
+        except Exception as e:
+            logger.warning(f"Module identity : OCR échoué ({e})")
 
     if mrz_lines is None:
-        logger.info("Module identity : aucune MRZ détectée par OCR")
+        logger.info("Module identity : aucune MRZ détectée")
         return ModuleResult(
             module="identity",
             flags=[],
@@ -1454,17 +1474,31 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
             },
         )
 
-    # MRZ trouvée — validation structurelle uniquement (OCR → checksums non fiables)
+    # MRZ trouvée
     details["mrz_found"] = True
+    details["mrz_source"] = mrz_source
     details["mrz_format"] = "TD3" if len(mrz_lines) == 2 else "TD1"
     details["mrz_lines"] = mrz_lines
     details["mrz_page"] = mrz_page
-    details["note"] = "MRZ détectée par OCR — validation structurelle (dates, sexe). Checksums non vérifiables sur scan."
 
-    logger.info(f"Module identity : MRZ {details['mrz_format']} détectée (page {mrz_page + 1})")
-
-    flags, mrz_fields = _validate_mrz_structure_only(mrz_lines)
+    if use_checksums:
+        # Digital-native MRZ → full ICAO checksum validation (deterministic).
+        details["note"] = ("MRZ en couche texte (document digital-native) — "
+                           "validation complète des checksums ICAO 9303.")
+        if len(mrz_lines) == 2:
+            flags, mrz_fields = validate_td3(mrz_lines[0], mrz_lines[1])
+        else:
+            flags, mrz_fields = validate_td1(mrz_lines[0], mrz_lines[1], mrz_lines[2])
+        confidence = 0.9
+    else:
+        # OCR path → structure-only (OCR errors make raw checksums unreliable).
+        details["note"] = "MRZ détectée par OCR — validation structurelle (dates, sexe). Checksums non vérifiables sur scan."
+        flags, mrz_fields = _validate_mrz_structure_only(mrz_lines)
+        confidence = 0.65
     details.update(mrz_fields)
+
+    logger.info(f"Module identity : MRZ {details['mrz_format']} détectée "
+                f"(page {mrz_page + 1}, source {mrz_source})")
 
     # La date de délivrance (hors MRZ) nécessiterait un OCR pleine page (~5s/page).
     # Supprimée du flux principal pour rester dans le budget de 3-4s.
@@ -1484,7 +1518,9 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
 
     score = 100
     for flag in flags:
-        if flag.severity == "high":
+        if flag.severity == "critical":
+            score -= 50
+        elif flag.severity == "high":
             score -= 25
         elif flag.severity == "medium":
             score -= 10
@@ -1499,7 +1535,7 @@ def analyze_identity(pdf_data: PDFData) -> ModuleResult:
         module="identity",
         flags=flags,
         score=score,
-        # Confiance modérée : MRZ trouvée mais pas de checksum possible
-        confidence=0.65,
+        # 0.9 when checksums validated the MRZ (deterministic), else 0.65 (OCR).
+        confidence=confidence,
         details=details,
     )
