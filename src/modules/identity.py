@@ -431,6 +431,12 @@ def _is_digital_native_page(file_path: str, page_index: int) -> bool:
             page_area = abs(page.rect.width * page.rect.height)
             if page_area <= 0:
                 return False
+            # Keys on the largest SINGLE image bbox, not the union of all
+            # images. A tiled scan or a sub-threshold photo carrying an OCR
+            # text-layer MRZ could slip through as "digital-native" and get
+            # deterministic checksums run on OCR text — bounded to SOFT
+            # (SUSPICIOUS, never a hard veto) by design; revisit with union
+            # coverage if a real FP surfaces.
             for info in page.get_image_info():
                 bbox = fitz.Rect(info["bbox"])
                 if abs(bbox.width * bbox.height) >= FULL_PAGE_IMAGE_AREA_RATIO * page_area:

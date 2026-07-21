@@ -1,7 +1,6 @@
 """MRZ checksum wiring (spec 2026-07-20): deterministic ICAO checksums on a
 digital-native MRZ; OCR structure-only path for scans."""
 import fitz
-import pytest
 
 from src.extractors.pdf_extractor import extract_pdf_data
 from src.modules.identity import (

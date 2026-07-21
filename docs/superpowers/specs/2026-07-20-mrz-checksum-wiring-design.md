@@ -82,11 +82,14 @@ src/modules/identity.py
   extract_mrz_lines(pdf_data) -> tuple[list[str], int] | None
       CHANGE: also return the page index the MRZ was found on (no callers today;
       needed for the per-page digital-native check). Lines-only callers: none.
-  _page_has_full_page_image(page) -> bool                    (new helper)
-      True if the page carries a raster image covering most of its area
-      (reuse images.py's full-page heuristic: image bbox area / page area
-      >= FULL_PAGE_IMAGE_RATIO). A scanned/photographed page has one; a
-      digitally-typed page does not.
+  _is_digital_native_page(file_path, page_index) -> bool     (new helper)
+      True if the page carries NO raster image whose bbox area is >=
+      FULL_PAGE_IMAGE_AREA_RATIO (0.6) of the page area. This is a
+      self-contained, page-size-relative check — NOT shared with images.py
+      (whose full-page heuristic keys on absolute pixel dimensions,
+      width>500 & height>700, and shares no constant). A scanned/photographed
+      page trips it; a digitally-typed page does not. Keys on the largest
+      single image bbox, not the union (see residual risks).
   analyze_identity(pdf_data)                                 (rewire the head)
       1. tl = extract_mrz_lines(pdf_data)
       2. if tl is not None:
@@ -172,8 +175,21 @@ present) the corpus band gate — no legit corpus band may move.
 
 ## Residual risks
 
-- A genuinely digital-native ID document in an MRZ format whose field boundaries
-  differ from TD3/TD1 (e.g. TD2) could produce a false checksum failure. Bounded
-  to SOFT/SUSPICIOUS by D2; revisit with a real ID corpus.
-- `_page_has_full_page_image` heuristic threshold is shared in intent with
-  images.py's full-page detection; if either is retuned, retune consciously.
+- **TD2 does not reach the checksum path.** `extract_mrz_lines` gates on exact
+  line lengths 44 (TD3) / 30 (TD1), so a TD2 MRZ (2×36) is never extracted as a
+  text-layer candidate and never reaches `validate_td3`/`validate_td1`. The
+  original "TD2 false checksum failure" worry is therefore moot for the
+  text-layer path (TD2 support would be a separate feature). A genuinely
+  digital-native document whose field boundaries differ within a TD3/TD1-shaped
+  line remains a theoretical false-failure source, bounded to SOFT/SUSPICIOUS by
+  D2; revisit with a real ID corpus.
+- **Single-image gate (not union coverage).** `_is_digital_native_page` returns
+  "scan" only when one image's bbox is ≥ 0.6·page. A tiled scan, or a photo
+  under 60% of the page, that also carries an OCR text-layer MRZ with a
+  confusable-char error could be misclassified digital-native → a false
+  checksum failure. Accepted: bounded to SOFT/SUSPICIOUS (never a hard veto),
+  the standard single-image OCR sandwich is handled, and the limitation is
+  noted in code. Revisit with union-of-bboxes coverage only if a real FP
+  surfaces.
+- `FULL_PAGE_IMAGE_AREA_RATIO` (0.6) is this gate's own constant; it is not
+  coupled to images.py's absolute-dimension heuristic.
