@@ -42,8 +42,14 @@ region turns "score 22, SUSPICIOUS" into "look — *here*."
 src/preview.py                    (new; testable, no Streamlit imports)
     render_pdf_page(pdf_path, page_num=0, zoom=1.5, boxes=None) -> bytes
         Moved out of app.py's monolith; `boxes` (list of (x0,y0,x1,y1) in PDF
-        points) drawn with page.draw_rect(BEFORE get_pixmap, so the zoom matrix
-        scales the strokes) in the app danger-red, no fill, ~1.5pt stroke.
+        points) drawn BEFORE get_pixmap so the zoom matrix scales them
+        automatically. Style: highlighter-marker texture — two overlapping
+        translucent wavy-edged fills in the app danger-red (deterministic
+        sine jitter, not `random`; see `_draw_marker_highlight`). UPDATED
+        2026-07-25: the plan's original plain-stroke design was superseded
+        after live browser review (see the plan's Task 5 live-verification
+        step) — a plain rectangle read as dated; the user asked for a
+        highlighter/"paint roll" look.
     collect_evidence_boxes(result, page_index) -> list[tuple[float,float,float,float]]
         Pure. Walks result.modules[].flags[].details; normalizes BOTH shapes —
         overlay's flat {"page","bbox"} and invisible's {"instances":[{page,bbox}]}

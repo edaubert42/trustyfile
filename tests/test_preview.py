@@ -203,3 +203,14 @@ def test_app_imports_render_pdf_page_from_preview():
     assert app.render_pdf_page is preview.render_pdf_page
     assert app.collect_evidence_boxes is preview.collect_evidence_boxes
     assert app.first_flagged_page is preview.first_flagged_page
+
+
+def test_marker_highlight_is_deterministic(tmp_path):
+    # The wavy marker style uses sine-based jitter, not `random` — the same
+    # bbox on the same page must render byte-identical PNGs every call.
+    p = tmp_path / "doc.pdf"
+    _simple_pdf(p)
+    box = [(400.0, 605.0, 500.0, 625.0)]
+    first = render_pdf_page(str(p), 0, zoom=2.0, boxes=box)
+    second = render_pdf_page(str(p), 0, zoom=2.0, boxes=box)
+    assert first == second
