@@ -131,33 +131,15 @@ def test_first_flagged_page_zero_when_no_geometry():
     assert first_flagged_page(r) == 0
 
 
-# --- Real-detector integration: prove the actual output shapes work ---
+# --- Real-detector integration: prove the actual output shape works.
+# NOTE: only invisible.py is exercised here — its flags already carry bbox
+# today. overlay.py's flags do NOT carry bbox until Task 3 adds it (verified
+# 2026-07-21: analyze_overlay's OVERLAY_OPAQUE_FILL_OVER_TEXT details are
+# currently {'page': 0, 'hidden': '...'}, no bbox key) — a same-shaped
+# real-overlay integration test belongs in Task 3, where it will actually be
+# true, not here where it would be a permanently-red test.
 import fitz
-from src.modules.overlay import analyze_overlay
 from src.modules.invisible import analyze_invisible
-
-NON_EDITOR = "ReportLab PDF Library"
-
-
-def _opaque_fill_over_text_pdf(path):
-    doc = fitz.open()
-    page = doc.new_page(width=595, height=842)
-    page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
-    page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
-    r = page.search_for("1 200,00")[0]
-    page.draw_rect(r, color=(1, 1, 1), fill=(1, 1, 1), width=0)
-    doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
-    doc.save(str(path)); doc.close()
-
-
-def test_real_overlay_flag_boxes_are_collectible(tmp_path):
-    p = tmp_path / "opaque.pdf"
-    _opaque_fill_over_text_pdf(p)
-    result = _result([analyze_overlay(type("D", (), {"file_path": str(p)})())])
-    boxes = collect_evidence_boxes(result, 0)
-    assert len(boxes) == 1
-    x0, y0, x1, y1 = boxes[0]
-    assert 0 <= x0 < x1 <= 595 and 0 <= y0 < y1 <= 842
 
 
 class _PdfData:
@@ -250,7 +232,7 @@ def first_flagged_page(result: AnalysisResult) -> int:
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_preview.py -v`
-Expected: 9 passed.
+Expected: 8 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -396,7 +378,7 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `.venv/bin/python -m pytest tests/test_preview.py -v`
-Expected: 13 passed.
+Expected: 12 passed.
 
 - [ ] **Step 5: Commit**
 
@@ -414,10 +396,13 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 **Files:**
 - Modify: `src/modules/overlay.py` (5 flag-construction sites)
 - Test: `tests/test_overlay_bbox.py` (create)
+- Test: `tests/test_preview.py` (append one cross-task integration test)
 
 **Interfaces:**
-- Consumes: nothing from Tasks 1-2.
+- Consumes: `collect_evidence_boxes` from `src.preview` (Task 1) — for the one cross-task test in Step 6 below. Nothing else from Tasks 1-2.
 - Produces: `OVERLAY_COVER_AND_RETYPE(_CONFIRMED)`, `OVERLAY_OPAQUE_FILL_OVER_TEXT`, `OVERLAY_CONFLICTING_TEXT`, `OVERLAY_IMAGE_OVER_VALUE`/`_TEXT`, `OVERLAY_REVISION_VALUE_CHANGED(_CONFIRMED)` flags all gain `details["bbox"]` (4-tuple). No severity/code/scoring change on any of them.
+
+**Note on test sequencing:** Task 1's real-detector integration tests deliberately covered only `invisible.py` (its flags already carried `bbox`); a same-shaped real-`overlay.py` test was deferred to land HERE (Step 6), once `analyze_overlay`'s output actually contains `bbox` — writing it in Task 1 would have been a permanently-red test against pre-Task-3 code.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -704,15 +689,44 @@ to:
         flags.append(_revision_value_flag(old_text, new_text, page_num, confirmed, nw))
 ```
 
-- [ ] **Step 6: Run the new tests plus the full existing overlay suite**
+- [ ] **Step 6: Add the deferred real-overlay integration test to `tests/test_preview.py`**
 
-Run: `.venv/bin/python -m pytest tests/test_overlay_bbox.py tests/test_overlay.py tests/test_overlay_acceptance.py tests/test_overlay_corpus.py tests/test_overlay_embedded_image.py tests/test_overlay_embedded_span.py tests/test_overlay_primitives.py tests/test_overlay_review_floor.py -v`
-Expected: all pass. The existing overlay suite proves no code/severity/scoring changed — only a new `details["bbox"]` key was added.
+Append to `tests/test_preview.py` (this is the test Task 1 deliberately deferred — it needed `analyze_overlay` to emit `bbox`, which Steps 3-5 above just added):
 
-- [ ] **Step 7: Commit**
+```python
+# --- Deferred from Task 1: analyze_overlay now emits bbox (Task 3 above) ---
+from src.modules.overlay import analyze_overlay
+
+NON_EDITOR = "ReportLab PDF Library"
+
+
+def test_real_overlay_flag_boxes_are_collectible(tmp_path):
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
+    page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
+    r = page.search_for("1 200,00")[0]
+    page.draw_rect(r, color=(1, 1, 1), fill=(1, 1, 1), width=0)
+    doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
+    p = tmp_path / "opaque.pdf"
+    doc.save(str(p)); doc.close()
+
+    result = _result([analyze_overlay(type("D", (), {"file_path": str(p)})())])
+    boxes = collect_evidence_boxes(result, 0)
+    assert len(boxes) == 1
+    x0, y0, x1, y1 = boxes[0]
+    assert 0 <= x0 < x1 <= 595 and 0 <= y0 < y1 <= 842
+```
+
+- [ ] **Step 7: Run the new tests plus the full existing overlay suite**
+
+Run: `.venv/bin/python -m pytest tests/test_overlay_bbox.py tests/test_preview.py tests/test_overlay.py tests/test_overlay_acceptance.py tests/test_overlay_corpus.py tests/test_overlay_embedded_image.py tests/test_overlay_embedded_span.py tests/test_overlay_primitives.py tests/test_overlay_review_floor.py -v`
+Expected: all pass — `tests/test_preview.py` now shows 13 passed (the 12 from Tasks 1-2 plus this one). The existing overlay suite proves no code/severity/scoring changed — only a new `details["bbox"]` key was added.
+
+- [ ] **Step 8: Commit**
 
 ```bash
-git add src/modules/overlay.py tests/test_overlay_bbox.py
+git add src/modules/overlay.py tests/test_overlay_bbox.py tests/test_preview.py
 git commit -m "feat(overlay): expose bbox on all 5 geometry-bearing flags
 
 Display-only: the tamper rect was already computed at every flag site, just
