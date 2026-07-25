@@ -28,6 +28,7 @@ from src.modules.images import analyze_images
 from src.modules.structure import analyze_structure
 from src.modules.overlay import analyze_overlay
 from src.modules.invisible import analyze_invisible
+from src.modules.provenance import analyze_provenance
 from src.modules.arithmetic import analyze_arithmetic
 from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
@@ -190,6 +191,7 @@ class TrustyFileAnalyzer:
         _run("structure", lambda: analyze_structure(pdf_data))                    # Module E
         _run("overlay", lambda: analyze_overlay(pdf_data))                        # cover-and-retype
         _run("invisible", lambda: analyze_invisible(pdf_data))                    # Tr-3 shadow values
+        _run("provenance", lambda: analyze_provenance(pdf_data))                  # producer fingerprint
         _run("arithmetic", lambda: analyze_arithmetic(pdf_data))                  # totals + e-invoice XML
         _run("forensics", lambda: analyze_forensics(file_path))                   # Module H (ELA)
         _run("twod_doc", lambda: analyze_twod_doc(pdf_data))                      # 2D-Doc cross-check

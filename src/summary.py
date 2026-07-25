@@ -26,6 +26,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_NO_PRODUCER": "origin",
     "META_IMAGE_EDITOR": "origin",
     "META_IMAGE_CONVERSION": "origin",
+    "PROVENANCE_PRODUCER_MISMATCH": "origin",
+    "PROVENANCE_LAUNDERED": "origin",
 
     # tampering: incremental edits, paste artifacts, font mixing, deleted objects
     "STRUCT_INCREMENTAL_UPDATES": "tampering",
@@ -340,6 +342,16 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"in a blank area of the page."
         if f.details and f.details.get('instances')
         else "Invisible value-bearing text is hidden in a blank area of the page."
+    ),
+    "PROVENANCE_PRODUCER_MISMATCH": lambda f: (
+        f"The PDF's internal structure matches "
+        f"{(f.details or {}).get('structural_tool', 'a conversion tool').replace('_', ' ')}, "
+        f"which contradicts the software named in its metadata."
+    ),
+    "PROVENANCE_LAUNDERED": lambda f: (
+        f"The PDF's internal structure shows it was rewritten by "
+        f"{(f.details or {}).get('structural_tool', 'a conversion tool').replace('_', ' ')}, "
+        f"but the Producer metadata was stripped."
     ),
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"The bank account shown on the page (IBAN "
@@ -783,6 +795,16 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"caché dans une zone vide de la page."
         if f.details and f.details.get('instances')
         else "Du texte invisible porteur d'une valeur est caché dans une zone vide de la page."
+    ),
+    "PROVENANCE_PRODUCER_MISMATCH": lambda f: (
+        f"La structure interne du PDF correspond à "
+        f"{(f.details or {}).get('structural_tool', 'un outil de conversion').replace('_', ' ')}, "
+        f"ce qui contredit le logiciel indiqué dans ses métadonnées."
+    ),
+    "PROVENANCE_LAUNDERED": lambda f: (
+        f"La structure interne du PDF montre qu'il a été réécrit par "
+        f"{(f.details or {}).get('structural_tool', 'un outil de conversion').replace('_', ' ')}, "
+        f"mais les métadonnées Producer ont été supprimées."
     ),
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"Le compte bancaire indiqué sur la page (IBAN "
