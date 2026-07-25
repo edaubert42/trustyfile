@@ -251,3 +251,76 @@ def classify(sig: ObservedSignature, db: dict[str, dict]) -> Classification:
     except Exception as exc:  # defensive: classification must never raise
         logger.warning("provenance: classification failed: %s", exc)
         return Classification(None, None, 0.0, ())
+
+
+def _converter_names(db: dict[str, dict]) -> set[str]:
+    """Display names of every converter/editor-class tool in the DB."""
+    return {tool.replace("_", " ") for tool, e in db.items()
+            if e.get("category") in CONVERTER_CLASSES}
+
+
+def build_flags(cls: Classification, producer: str | None,
+                creator: str | None, db: dict[str, dict]) -> list[Flag]:
+    """Apply the flag decision table. Returns [] unless a converter lied."""
+    if cls.tool is None or cls.confidence < 1.0 or cls.category not in CONVERTER_CLASSES:
+        return []
+    claimed = f"{producer or ''} {creator or ''}".casefold()
+    claimed_squished = claimed.replace(" ", "")
+    tool_display = cls.tool.replace("_", " ")
+
+    if not claimed.strip():
+        return [Flag(
+            severity="high",
+            code="PROVENANCE_LAUNDERED",
+            message=(f"Structural fingerprint indicates this PDF was rewritten by "
+                     f"{tool_display}, but the Producer metadata was removed"),
+            details={"structural_tool": cls.tool, "category": cls.category,
+                     "matched_features": list(cls.matched_features)},
+        )]
+
+    honest = (cls.tool.replace("_", "") in claimed_squished
+              or any(name in claimed for name in _converter_names(db)))
+    if honest:
+        return []
+
+    return [Flag(
+        severity="medium",
+        code="PROVENANCE_PRODUCER_MISMATCH",
+        message=(f"Structural fingerprint indicates this PDF was produced by "
+                 f"{tool_display}, which contradicts the stated Producer "
+                 f"'{(producer or creator or '').strip()}'"),
+        details={"structural_tool": cls.tool, "category": cls.category,
+                 "claimed_producer": producer, "claimed_creator": creator,
+                 "matched_features": list(cls.matched_features)},
+    )]
+
+
+def analyze_provenance(pdf_data) -> ModuleResult:
+    """Flag converter/editor laundering from the PDF's structural fingerprint.
+
+    Never raises: unreadable input yields a partial result (CLAUDE.md).
+    """
+    if not getattr(pdf_data, "extraction_ok", True):
+        return ModuleResult(module="provenance", flags=[], score=100, confidence=0.5)
+
+    flags: list[Flag] = []
+    confidence = 1.0
+    try:
+        with open(pdf_data.file_path, "rb") as fh:
+            raw = fh.read()
+        sig = extract_signature(raw)
+        cls = classify(sig, load_signatures())
+        meta = getattr(pdf_data, "metadata", None)
+        producer = getattr(meta, "producer", None)
+        creator = getattr(meta, "creator", None)
+        flags = build_flags(cls, producer, creator, load_signatures())
+    except Exception as exc:
+        logger.warning("provenance: analysis failed for %s: %s",
+                       getattr(pdf_data, "file_path", "?"), exc)
+        confidence = 0.5
+
+    score = 100
+    for f in flags:
+        score -= SEVERITY_POINTS.get(f.severity, 0)
+    return ModuleResult(module="provenance", flags=flags,
+                        score=max(0, score), confidence=confidence)

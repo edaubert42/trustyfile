@@ -116,3 +116,94 @@ def test_real_signature_table_loads_and_is_valid():
             "online_converter", "consumer_editor",
         }, tool
         assert set(entry["required_features"]) <= {"header_magic", "trailer_keys"}
+
+
+import fitz
+from src.modules.provenance import analyze_provenance, build_flags
+
+
+class _PdfData:
+    """Minimal duck-typed stand-in for the extractor's pdf_data."""
+    def __init__(self, path, producer=None, creator=None, extraction_ok=True):
+        self.file_path = str(path)
+        self.extraction_ok = extraction_ok
+        self.metadata = type("M", (), {"producer": producer, "creator": creator})()
+
+
+def _conv_cls(category="online_converter"):
+    return Classification(tool="acme_convert", category=category,
+                          confidence=1.0, matched_features=("header_magic",))
+
+
+def test_laundered_when_producer_absent():
+    flags = build_flags(_conv_cls(), producer=None, creator=None, db=_DB)
+    assert [f.code for f in flags] == ["PROVENANCE_LAUNDERED"]
+    assert flags[0].severity == "high"
+
+
+def test_mismatch_when_producer_names_other_tool():
+    flags = build_flags(_conv_cls(), producer="Adobe PDF Library 15.0",
+                        creator="SAP", db=_DB)
+    assert [f.code for f in flags] == ["PROVENANCE_PRODUCER_MISMATCH"]
+    assert flags[0].severity == "medium"
+
+
+def test_no_flag_when_producer_names_the_converter():
+    flags = build_flags(_conv_cls(), producer="Acme Convert online",
+                        creator=None, db=_DB)
+    assert flags == []
+
+
+def test_no_flag_for_benign_optimizer():
+    flags = build_flags(_conv_cls(category="optimizer"),
+                        producer="Adobe", creator=None, db=_DB)
+    assert flags == []
+
+
+def test_no_flag_when_inconclusive():
+    flags = build_flags(Classification(None, None, 0.0, ()),
+                        producer="Adobe", creator=None, db=_DB)
+    assert flags == []
+
+
+def test_analyze_provenance_skips_when_extraction_failed(tmp_path):
+    p = tmp_path / "x.pdf"
+    p.write_bytes(b"%PDF-1.7\n")
+    res = analyze_provenance(_PdfData(p, extraction_ok=False))
+    assert res.module == "provenance" and res.flags == []
+    assert res.confidence == 0.5
+
+
+def test_analyze_provenance_clean_fitz_pdf_no_flags(tmp_path):
+    doc = fitz.open()
+    doc.new_page()
+    path = str(tmp_path / "clean.pdf")
+    doc.save(path)
+    doc.close()
+    res = analyze_provenance(_PdfData(path, producer="Acme Billing"))
+    assert res.flags == [] and res.module == "provenance"
+
+
+def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
+    """End-to-end: a crafted PDF whose structural fingerprint matches a known
+    online-converter entry, with no Producer, must raise PROVENANCE_LAUNDERED."""
+    raw = (b"%PDF-1.7\n%\xde\xad\xbe\xef\n"
+           b"trailer\n<< /Size 3 /Root 1 0 R /Info 2 0 R >>\nstartxref\n9\n%%EOF\n")
+    p = tmp_path / "crafted.pdf"
+    p.write_bytes(raw)
+
+    fake_db = {
+        "acme_convert": {
+            "header_magic": "deadbeef",
+            "trailer_keys": ["Size", "Root", "Info"],
+            "ordered": True,
+            "required_features": ["header_magic"],
+            "category": "online_converter",
+        }
+    }
+    monkeypatch.setattr("src.modules.provenance.load_signatures", lambda: fake_db)
+
+    res = analyze_provenance(_PdfData(p, producer=None))
+    assert res.module == "provenance"
+    assert [f.code for f in res.flags] == ["PROVENANCE_LAUNDERED"]
+    assert res.flags[0].severity == "high"
