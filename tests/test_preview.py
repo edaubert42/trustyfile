@@ -170,3 +170,27 @@ def test_one_bad_box_does_not_prevent_a_good_one_from_drawing(tmp_path):
     mixed = render_pdf_page(str(p), 0, zoom=2.0,
                             boxes=[(1, 2, 3), (400.0, 605.0, 500.0, 625.0)])
     assert mixed != plain  # the good box after the bad one still gets drawn
+
+
+# --- Deferred from Task 1: analyze_overlay now emits bbox (Task 3 above) ---
+from src.modules.overlay import analyze_overlay
+
+NON_EDITOR = "ReportLab PDF Library"
+
+
+def test_real_overlay_flag_boxes_are_collectible(tmp_path):
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
+    page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
+    r = page.search_for("1 200,00")[0]
+    page.draw_rect(r, color=(1, 1, 1), fill=(1, 1, 1), width=0)
+    doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
+    p = tmp_path / "opaque.pdf"
+    doc.save(str(p)); doc.close()
+
+    result = _result([analyze_overlay(type("D", (), {"file_path": str(p)})())])
+    boxes = collect_evidence_boxes(result, 0)
+    assert len(boxes) == 1
+    x0, y0, x1, y1 = boxes[0]
+    assert 0 <= x0 < x1 <= 595 and 0 <= y0 < y1 <= 842
