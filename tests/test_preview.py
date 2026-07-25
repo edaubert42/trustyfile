@@ -116,3 +116,57 @@ def test_real_invisible_flag_boxes_are_collectible(tmp_path):
     result = _result([analyze_invisible(_PdfData(p))])
     boxes = collect_evidence_boxes(result, 0)
     assert len(boxes) == 1
+
+
+# --- Task 2: render_pdf_page (moved from app.py, gains `boxes`) ---
+from src.preview import render_pdf_page
+
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+def _simple_pdf(path):
+    doc = fitz.open()
+    doc.new_page(width=595, height=842).insert_text(
+        fitz.Point(40, 60), "Hello evidence highlighting", fontname="helv", fontsize=12)
+    doc.save(str(path)); doc.close()
+
+
+def test_boxes_none_matches_pre_change_output_exactly(tmp_path):
+    # This is the OLD app.py render_pdf_page's exact body, run standalone, to
+    # prove the moved function is byte-identical on the default path.
+    p = tmp_path / "doc.pdf"
+    _simple_pdf(p)
+    old_doc = fitz.open(str(p))
+    try:
+        old_page = old_doc[0]
+        old_bytes = old_page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0)).tobytes("png")
+    finally:
+        old_doc.close()
+    assert render_pdf_page(str(p), 0, zoom=2.0) == old_bytes
+    assert render_pdf_page(str(p), 0, zoom=2.0, boxes=None) == old_bytes
+    assert render_pdf_page(str(p), 0, zoom=2.0, boxes=[]) == old_bytes
+
+
+def test_boxes_draws_and_differs_from_plain(tmp_path):
+    p = tmp_path / "doc.pdf"
+    _simple_pdf(p)
+    plain = render_pdf_page(str(p), 0, zoom=2.0)
+    boxed = render_pdf_page(str(p), 0, zoom=2.0, boxes=[(400.0, 605.0, 500.0, 625.0)])
+    assert plain[:8] == PNG_MAGIC and boxed[:8] == PNG_MAGIC
+    assert plain != boxed
+
+
+def test_malformed_box_does_not_raise(tmp_path):
+    p = tmp_path / "doc.pdf"
+    _simple_pdf(p)
+    result = render_pdf_page(str(p), 0, zoom=2.0, boxes=[(1, 2, 3)])
+    assert result[:8] == PNG_MAGIC
+
+
+def test_one_bad_box_does_not_prevent_a_good_one_from_drawing(tmp_path):
+    p = tmp_path / "doc.pdf"
+    _simple_pdf(p)
+    plain = render_pdf_page(str(p), 0, zoom=2.0)
+    mixed = render_pdf_page(str(p), 0, zoom=2.0,
+                            boxes=[(1, 2, 3), (400.0, 605.0, 500.0, 625.0)])
+    assert mixed != plain  # the good box after the bad one still gets drawn

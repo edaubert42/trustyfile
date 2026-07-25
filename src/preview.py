@@ -53,3 +53,52 @@ def first_flagged_page(result: AnalysisResult) -> int:
     """Lowest 0-based page index any flag has usable geometry for; 0 if none."""
     pages = {page for page, _bbox in _iter_geometry(result)}
     return min(pages) if pages else 0
+
+
+HIGHLIGHT_COLOR = (0.937, 0.137, 0.235)  # #ef233c, this app's established critical/danger red
+HIGHLIGHT_WIDTH = 1.5
+HIGHLIGHT_PAD = 2.0  # pt, outward — frames the region rather than clipping it
+
+
+def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
+                    boxes: list[tuple[float, float, float, float]] | None = None) -> bytes:
+    """Render a PDF page as a PNG image, optionally with tamper-region boxes.
+
+    Args:
+        pdf_path: Path to the PDF file
+        page_num: Page number to render (0-indexed)
+        zoom: Zoom factor for resolution (1.5 = 150% size)
+        boxes: Optional (x0,y0,x1,y1) PDF-point regions to outline in red.
+            Drawn on the page BEFORE rasterizing, so the zoom matrix scales
+            them automatically — no manual coordinate math needed. A
+            malformed box is skipped, never raises (display-only decoration
+            over an untrusted-input tool's output).
+
+    Returns:
+        PNG image bytes
+    """
+    import fitz
+    doc = fitz.open(pdf_path)
+    try:
+        page = doc[page_num]
+
+        for box in (boxes or []):
+            try:
+                x0, y0, x1, y1 = (float(v) for v in box)
+                rect = fitz.Rect(x0 - HIGHLIGHT_PAD, y0 - HIGHLIGHT_PAD,
+                                 x1 + HIGHLIGHT_PAD, y1 + HIGHLIGHT_PAD) & page.rect
+                page.draw_rect(rect, color=HIGHLIGHT_COLOR, width=HIGHLIGHT_WIDTH, fill=None)
+            except Exception:
+                continue  # one bad box must not blank the whole preview
+
+        # Create a matrix for zoom
+        mat = fitz.Matrix(zoom, zoom)
+
+        # Render page to pixmap (image)
+        pix = page.get_pixmap(matrix=mat)
+
+        # Convert to PNG bytes
+        img_bytes = pix.tobytes("png")
+    finally:
+        doc.close()
+    return img_bytes
