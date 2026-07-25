@@ -39,6 +39,15 @@ SUSPICIOUS_PRODUCERS = [
     "pdf2go",
     "freepdfconvert",
 
+    # 2026 online editors / converters (sweep 2026-07-17)
+    "pdfescape",
+    "dochub",
+    "lightpdf",
+    "raptorpdf",
+    "qwikpdf",
+    "fixmypdf",
+    "cleanpdf",
+
     # PDF editors (legitimate but suspicious for auto-generated invoices)
     "nitro",
     "foxit phantompdf",
