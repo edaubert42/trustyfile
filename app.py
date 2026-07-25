@@ -15,6 +15,7 @@ import os
 import re
 from pathlib import Path
 from src.i18n import t, get_lang, SUPPORTED_LANGS
+from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
 
 
 def esc(s) -> str:
@@ -90,36 +91,6 @@ def check_virustotal(sha256: str) -> dict | None:
 # =============================================================================
 # PDF PREVIEW FUNCTIONS
 # =============================================================================
-
-def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5) -> bytes:
-    """
-    Render a PDF page as a PNG image.
-
-    Args:
-        pdf_path: Path to the PDF file
-        page_num: Page number to render (0-indexed)
-        zoom: Zoom factor for resolution (1.5 = 150% size)
-
-    Returns:
-        PNG image bytes
-    """
-    import fitz
-    doc = fitz.open(pdf_path)
-    try:
-        page = doc[page_num]
-
-        # Create a matrix for zoom
-        mat = fitz.Matrix(zoom, zoom)
-
-        # Render page to pixmap (image)
-        pix = page.get_pixmap(matrix=mat)
-
-        # Convert to PNG bytes
-        img_bytes = pix.tobytes("png")
-    finally:
-        doc.close()
-    return img_bytes
-
 
 def get_pdf_page_count(pdf_path: str) -> int:
     """Get the number of pages in a PDF."""
@@ -933,6 +904,11 @@ if uploaded_file is not None:
             st.session_state["cached_result"] = result
             st.session_state["cached_summary"] = summary
             st.session_state["cached_twod_doc"] = twod_doc_results
+            # A stale manual page selection from a PREVIOUS file must not
+            # suppress this file's auto-nav-to-first-flagged-page default —
+            # st.selectbox only honors `index=` when its session_state key is
+            # absent, so a genuinely new file must clear it (2026-07-21 finding).
+            st.session_state.pop("page_selector", None)
 
         except Exception as _cache_err:
             # If analysis fails, clear cache and re-raise so the outer handler catches it
@@ -963,11 +939,18 @@ if uploaded_file is not None:
             st.markdown(f"""<div class="preview-title"><span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
                 letter-spacing:0.5px;">{t("preview")}</span>
                 <hr style="border:none; border-top:1px solid #2a2a2a; margin:2px 0 0 0;"></div>""", unsafe_allow_html=True)
+            # Auto-nav default: the first page carrying a highlighted finding
+            # (spec 2026-07-21, D2). Clamped defensively — first_flagged_page
+            # derives purely from flag data, page_count from the PDF itself;
+            # they agree by construction, but the clamp costs nothing.
+            default_page_1indexed = min(first_flagged_page(result) + 1, page_count)
+
             # Page navigation if multiple pages
             if page_count > 1:
                 st.selectbox(
                     t("label_page"),
                     range(1, page_count + 1),
+                    index=default_page_1indexed - 1,
                     format_func=lambda x: t("page_x_of_y").format(x=x, y=page_count),
                     key="page_selector",
                     label_visibility="collapsed"
@@ -976,9 +959,10 @@ if uploaded_file is not None:
             else:
                 page_index = 0
 
-            # Render and display the page
+            # Render and display the page, with tamper-region highlights
             try:
-                img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0)
+                boxes = collect_evidence_boxes(result, page_index)
+                img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0, boxes=boxes)
                 st.image(img_bytes, width="stretch")
             except Exception as e:
                 st.error(t("could_not_render").format(error=e))
