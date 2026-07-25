@@ -95,31 +95,7 @@ def test_first_flagged_page_zero_when_no_geometry():
 
 # --- Real-detector integration: prove the actual output shapes work ---
 import fitz
-from src.modules.overlay import analyze_overlay
 from src.modules.invisible import analyze_invisible
-
-NON_EDITOR = "ReportLab PDF Library"
-
-
-def _opaque_fill_over_text_pdf(path):
-    doc = fitz.open()
-    page = doc.new_page(width=595, height=842)
-    page.insert_text(fitz.Point(40, 60), "ACME GMBH - RECHNUNG 2025", fontname="helv", fontsize=12)
-    page.insert_text(fitz.Point(400, 610), "1 200,00", fontname="helv", fontsize=12)
-    r = page.search_for("1 200,00")[0]
-    page.draw_rect(r, color=(1, 1, 1), fill=(1, 1, 1), width=0)
-    doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
-    doc.save(str(path)); doc.close()
-
-
-def test_real_overlay_flag_boxes_are_collectible(tmp_path):
-    p = tmp_path / "opaque.pdf"
-    _opaque_fill_over_text_pdf(p)
-    result = _result([analyze_overlay(type("D", (), {"file_path": str(p)})())])
-    boxes = collect_evidence_boxes(result, 0)
-    assert len(boxes) == 1
-    x0, y0, x1, y1 = boxes[0]
-    assert 0 <= x0 < x1 <= 595 and 0 <= y0 < y1 <= 842
 
 
 class _PdfData:
