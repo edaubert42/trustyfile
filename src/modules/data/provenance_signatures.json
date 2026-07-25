@@ -1,0 +1,44 @@
+{
+  "microsoft_word": {
+    "header_magic": "b5b5b5b5",
+    "trailer_keys": ["Size", "Root", "Info", "ID", "Prev", "XRefStm"],
+    "ordered": true,
+    "required_features": ["header_magic", "trailer_keys"],
+    "category": "office"
+  },
+  "acrobat_distiller": {
+    "header_magic": "e2e3cfd3",
+    "trailer_keys": ["Size", "Root", "Info", "ID"],
+    "ordered": true,
+    "required_features": ["header_magic"],
+    "category": "office"
+  },
+  "libreoffice": {
+    "header_magic": "c3a4c3bcc3b6c39f",
+    "trailer_keys": ["Size", "Root", "Info", "ID", "DocChecksum"],
+    "ordered": true,
+    "required_features": ["header_magic"],
+    "category": "office"
+  },
+  "chrome_skia": {
+    "header_magic": "d3ebe9e1",
+    "trailer_keys": ["Size", "Root", "Info"],
+    "ordered": true,
+    "required_features": ["header_magic"],
+    "category": "native_generator"
+  },
+  "ghostscript": {
+    "header_magic": "e4f0edf8",
+    "trailer_keys": ["Size", "Root", "Info", "ID"],
+    "ordered": true,
+    "required_features": ["header_magic"],
+    "category": "optimizer"
+  },
+  "cairo": {
+    "header_magic": "b5edaefb",
+    "trailer_keys": ["Size", "Root", "Info"],
+    "ordered": true,
+    "required_features": ["header_magic"],
+    "category": "native_generator"
+  }
+}

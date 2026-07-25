@@ -45,3 +45,74 @@ def test_no_second_comment_line_header_magic_none():
 def test_garbage_never_raises():
     assert isinstance(extract_signature(b"not a pdf at all"), ObservedSignature)
     assert isinstance(extract_signature(b""), ObservedSignature)
+
+
+from src.modules.provenance import (
+    Classification, classify, load_signatures, CONVERTER_CLASSES,
+)
+
+_DB = {
+    "microsoft_word": {
+        "header_magic": "b5b5b5b5",
+        "trailer_keys": ["Size", "Root", "Info", "ID", "Prev", "XRefStm"],
+        "ordered": True,
+        "required_features": ["header_magic", "trailer_keys"],
+        "category": "office",
+    },
+    "ghostscript": {
+        "header_magic": None,
+        "trailer_keys": ["Size", "Root", "Info", "ID"],
+        "ordered": True,
+        "required_features": ["trailer_keys"],
+        "category": "optimizer",
+    },
+    "acme_convert": {   # synthetic online converter with a distinctive magic
+        "header_magic": "deadbeef",
+        "trailer_keys": ["Size", "Root", "Info"],
+        "ordered": True,
+        "required_features": ["header_magic", "trailer_keys"],
+        "category": "online_converter",
+    },
+}
+
+
+def _sig(magic, keys):
+    from src.modules.provenance import ObservedSignature
+    return ObservedSignature(header_magic=magic, trailer_keys=tuple(keys),
+                             has_prev="Prev" in keys)
+
+
+def test_confident_match_both_features():
+    c = classify(_sig("b5b5b5b5", ["Size", "Root", "Info", "ID", "Prev", "XRefStm"]), _DB)
+    assert c.tool == "microsoft_word" and c.confidence == 1.0
+    assert c.category == "office"
+
+
+def test_unknown_fingerprint_is_inconclusive():
+    c = classify(_sig("0000", ["Foo", "Bar"]), _DB)
+    assert c.tool is None and c.confidence == 0.0
+
+
+def test_wrong_order_does_not_match_ordered_entry():
+    c = classify(_sig("b5b5b5b5", ["Root", "Size", "Info", "ID", "Prev", "XRefStm"]), _DB)
+    assert c.tool is None
+
+
+def test_ambiguous_multi_match_fails_open():
+    # An entry requiring only trailer_keys can collide; a second identical one
+    # makes the match ambiguous → inconclusive (zero-FP).
+    db = dict(_DB)
+    db["other_optimizer"] = dict(_DB["ghostscript"])
+    c = classify(_sig(None, ["Size", "Root", "Info", "ID"]), db)
+    assert c.tool is None and c.confidence == 0.0
+
+
+def test_real_signature_table_loads_and_is_valid():
+    db = load_signatures()
+    assert "microsoft_word" in db
+    for tool, entry in db.items():
+        assert entry["category"] in {
+            "office", "native_generator", "optimizer",
+            "online_converter", "consumer_editor",
+        }, tool
+        assert set(entry["required_features"]) <= {"header_magic", "trailer_keys"}

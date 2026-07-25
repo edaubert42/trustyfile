@@ -24,6 +24,13 @@ SEVERITY_POINTS = {"low": 5, "medium": 15, "high": 30, "critical": 50}
 
 _KEY_RE = re.compile(rb"/([A-Za-z][A-Za-z0-9]*)")
 
+CONVERTER_CLASSES = frozenset({"online_converter", "consumer_editor"})
+_VALID_CATEGORIES = frozenset({
+    "office", "native_generator", "optimizer",
+    "online_converter", "consumer_editor",
+})
+_SIGNATURES_PATH = Path(__file__).resolve().parent / "data" / "provenance_signatures.json"
+
 
 @dataclass
 class ObservedSignature:
@@ -192,3 +199,55 @@ def extract_signature(raw: bytes) -> ObservedSignature:
     except Exception as exc:  # defensive: extraction must never raise
         logger.warning("provenance: signature extraction failed: %s", exc)
         return ObservedSignature(header_magic=None, trailer_keys=(), has_prev=False)
+
+
+@dataclass
+class Classification:
+    """Result of matching an ObservedSignature against the signature table."""
+    tool: str | None
+    category: str | None
+    confidence: float
+    matched_features: tuple[str, ...]
+
+
+def load_signatures() -> dict[str, dict]:
+    """Load the curated signature table. Returns {} on any error (fail-open)."""
+    try:
+        with open(_SIGNATURES_PATH, encoding="utf-8") as fh:
+            return json.load(fh)
+    except Exception as exc:
+        logger.warning("provenance: could not load signature table: %s", exc)
+        return {}
+
+
+def _entry_matches(sig: ObservedSignature, entry: dict) -> bool:
+    """True iff every required feature of `entry` matches `sig` exactly."""
+    for feat in entry.get("required_features", ["header_magic", "trailer_keys"]):
+        if feat == "header_magic":
+            em = entry.get("header_magic")
+            if not em or not sig.header_magic or sig.header_magic != em.lower():
+                return False
+        elif feat == "trailer_keys":
+            ek = tuple(entry.get("trailer_keys", ()))
+            if not ek:
+                return False
+            if entry.get("ordered"):
+                if sig.trailer_keys != ek:
+                    return False
+            elif set(ek) != set(sig.trailer_keys):
+                return False
+    return True
+
+
+def classify(sig: ObservedSignature, db: dict[str, dict]) -> Classification:
+    """Identify the producing tool. Inconclusive on 0 or >1 confident matches."""
+    try:
+        hits = [(tool, entry) for tool, entry in db.items() if _entry_matches(sig, entry)]
+        if len(hits) != 1:                     # 0 = unknown, >1 = ambiguous → fail-open
+            return Classification(None, None, 0.0, ())
+        tool, entry = hits[0]
+        return Classification(tool, entry.get("category"), 1.0,
+                              tuple(entry.get("required_features", ())))
+    except Exception as exc:  # defensive: classification must never raise
+        logger.warning("provenance: classification failed: %s", exc)
+        return Classification(None, None, 0.0, ())
