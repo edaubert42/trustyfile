@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 SEVERITY_POINTS = {"low": 5, "medium": 15, "high": 30, "critical": 50}
 
 _KEY_RE = re.compile(rb"/([A-Za-z][A-Za-z0-9]*)")
+_NUM_RE = re.compile(rb"[+\-0-9.]+")
+_DIGITS_RE = re.compile(rb"[0-9]+")
+_ALPHA_RE = re.compile(rb"[A-Za-z]+")
 
 CONVERTER_CLASSES = frozenset({"online_converter", "consumer_editor"})
 _VALID_CATEGORIES = frozenset({
@@ -114,19 +117,23 @@ def _skip_value(b: bytes, i: int) -> int:
                     return i + 1
             i += 1
         return i
-    m = re.match(rb"[+\-0-9.]+", b[i:])              # number or indirect ref
+    m = _NUM_RE.match(b, i)                          # number or indirect ref
     if m:
-        i += m.end()
+        # match(string, pos) on a compiled pattern searches in place from pos
+        # -- unlike re.match(pattern, b[i:]), it never copies the remaining
+        # buffer, so repeated numeric values can't turn parsing quadratic on
+        # a crafted large trailer (adversarial-input hardening).
+        i = m.end()
         save = i
         i = _skip_ws(b, i)
-        m2 = re.match(rb"[0-9]+", b[i:])
+        m2 = _DIGITS_RE.match(b, i)
         if m2:
-            k = _skip_ws(b, i + m2.end())
+            k = _skip_ws(b, m2.end())
             if b[k:k + 1] == b"R":
                 return k + 1
         return save
-    m = re.match(rb"[A-Za-z]+", b[i:])              # true / false / null
-    return i + m.end() if m else i + 1
+    m = _ALPHA_RE.match(b, i)                        # true / false / null
+    return m.end() if m else i + 1
 
 
 def _dict_body(raw: bytes, start: int) -> bytes | None:
@@ -279,6 +286,13 @@ def build_flags(cls: Classification, producer: str | None,
     """Apply the flag decision table. Returns [] unless a converter lied."""
     if cls.tool is None or cls.confidence < 1.0 or cls.category not in CONVERTER_CLASSES:
         return []
+    # Spec requires a confident match on BOTH header_magic and trailer_keys
+    # before either converter flag may fire — enforced here in code, not
+    # left to depend on every future signature-table entry happening to
+    # require both features itself. A single-feature match (weaker
+    # evidence) must never emit a flag, no matter what the table says.
+    if not ({"header_magic", "trailer_keys"} <= set(cls.matched_features)):
+        return []
     claimed = f"{producer or ''} {creator or ''}".casefold()
     claimed_squished = claimed.replace(" ", "")
     tool_display = cls.tool.replace("_", " ")
@@ -325,11 +339,12 @@ def analyze_provenance(pdf_data) -> ModuleResult:
         with open(pdf_data.file_path, "rb") as fh:
             raw = fh.read()
         sig = extract_signature(raw)
-        cls = classify(sig, load_signatures())
+        db = load_signatures()
+        cls = classify(sig, db)
         meta = getattr(pdf_data, "metadata", None)
         producer = getattr(meta, "producer", None)
         creator = getattr(meta, "creator", None)
-        flags = build_flags(cls, producer, creator, load_signatures())
+        flags = build_flags(cls, producer, creator, db)
     except Exception as exc:
         logger.warning("provenance: analysis failed for %s: %s",
                        getattr(pdf_data, "file_path", "?"), exc)

@@ -132,9 +132,20 @@ confident match against a known bad-class tool. Unknown generators are innocent.
 
 ### Confidence
 
-`ModuleResult.confidence` = 1.0 when header magic + trailer both match; ~0.6
-on single-feature match. MISMATCH requires confidence 1.0; LAUNDERED requires
-both-feature match by construction. A single-feature match never fires MISMATCH.
+**As implemented** (revised from this section's original draft, which described
+an unbuilt ~0.6 single-feature-match tier): `classify()` is binary —
+`Classification.confidence` is 1.0 on exactly one confident match (ALL of an
+entry's `required_features` matched) or 0.0 (inconclusive: zero or multiple
+matches, fail-open). There is no intermediate confidence value.
+
+The both-feature requirement for either converter flag is enforced directly in
+`build_flags()`, not left implicit in `classify()`'s confidence number or
+dependent on every future signature-table entry happening to declare both
+`required_features` itself: `build_flags` checks
+`{"header_magic", "trailer_keys"} <= set(cls.matched_features)` and returns `[]`
+otherwise. This closed a real gap found in whole-branch review — before the
+guard existed in code, a hypothetical single-feature entry could have silently
+fired a flag.
 
 ## 5. Signature sourcing
 

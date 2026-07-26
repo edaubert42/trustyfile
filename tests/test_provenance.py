@@ -1,6 +1,7 @@
 """Tests for the producer structural-fingerprint detector (spec 2026-07-17)."""
 import glob
 import os
+import time
 
 import pytest
 
@@ -50,6 +51,33 @@ def test_no_second_comment_line_header_magic_none():
 def test_garbage_never_raises():
     assert isinstance(extract_signature(b"not a pdf at all"), ObservedSignature)
     assert isinstance(extract_signature(b""), ObservedSignature)
+
+
+def test_skip_value_number_parsing_is_linear_not_quadratic():
+    """Regression guard for a demonstrated adversarial-input DoS (final
+    whole-branch review measured 11.8s on a 3.6MB crafted trailer): a dict
+    body packed with many short numeric key/value pairs, each requiring
+    _skip_value's number branch. Pre-fix, that branch re-sliced the ENTIRE
+    remaining buffer per value (`re.match(pattern, b[i:])`), making total
+    parse cost O(n^2) in the pair count. The fix anchors matches at a
+    position on a compiled pattern instead of slicing.
+
+    This tool's threat model is adversarial PDFs (CLAUDE.md) -- a crafted
+    upload must never hang the analysis pipeline.
+    """
+    n_pairs = 150_000
+    body = b"".join(b"/K%d %d " % (i, i) for i in range(n_pairs))
+    raw = b"%PDF-1.7\ntrailer\n<< " + body + b"/Size 1 /Root 1 0 R >>\nstartxref\n0\n%%EOF\n"
+
+    start = time.perf_counter()
+    sig = extract_signature(raw)
+    elapsed = time.perf_counter() - start
+
+    assert elapsed < 2.0, (
+        f"parsing {len(raw)} bytes took {elapsed:.2f}s -- likely a quadratic "
+        f"regression in _skip_value's number-matching (should be near-instant)"
+    )
+    assert "Size" in sig.trailer_keys and "Root" in sig.trailer_keys
 
 
 from src.modules.provenance import (
@@ -136,8 +164,12 @@ class _PdfData:
 
 
 def _conv_cls(category="online_converter"):
+    """A realistic confident classification: both features matched, exactly
+    as classify() populates matched_features for a real (both-required)
+    converter-class table entry."""
     return Classification(tool="acme_convert", category=category,
-                          confidence=1.0, matched_features=("header_magic",))
+                          confidence=1.0,
+                          matched_features=("header_magic", "trailer_keys"))
 
 
 def test_laundered_when_producer_absent():
@@ -168,6 +200,20 @@ def test_no_flag_for_benign_optimizer():
 def test_no_flag_when_inconclusive():
     flags = build_flags(Classification(None, None, 0.0, ()),
                         producer="Adobe", creator=None, db=_DB)
+    assert flags == []
+
+
+def test_no_flag_on_single_feature_match_even_if_confident():
+    """Spec requires BOTH header_magic and trailer_keys to have matched
+    before either converter flag may fire -- a single-feature match is
+    weaker evidence and must never flag, no matter how the table entry is
+    configured. Enforced in code (build_flags), not left to depend on every
+    future table entry happening to require both features itself."""
+    single_feature_cls = Classification(tool="acme_convert", category="online_converter",
+                                        confidence=1.0, matched_features=("header_magic",))
+    flags = build_flags(single_feature_cls, producer=None, creator=None, db=_DB)
+    assert flags == []
+    flags = build_flags(single_feature_cls, producer="Adobe", creator=None, db=_DB)
     assert flags == []
 
 
@@ -202,7 +248,7 @@ def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
             "header_magic": "deadbeef",
             "trailer_keys": ["Size", "Root", "Info"],
             "ordered": True,
-            "required_features": ["header_magic"],
+            "required_features": ["header_magic", "trailer_keys"],
             "category": "online_converter",
         }
     }
@@ -242,9 +288,9 @@ def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
 #
 # Not collected: Sejda, PDF24, PDFCandy, PDF2Go. The Playwright browser
 # profile was repeatedly and rapidly killed and auto-relaunched by what
-# appears to be corporate endpoint management (Chrome processes tagged
-# `enrollment-domain=cybelangel.com`), consistent with active MDM enforcement
-# rather than incidental flakiness. Collection stopped after four consecutive
+# appears to be corporate endpoint management (Chrome processes carried an
+# enterprise enrollment-domain annotation), consistent with active MDM
+# enforcement rather than incidental flakiness. Collection stopped after four consecutive
 # kills within one browser session. This is a disclosed gap, not a silent
 # one: the signature table currently recognizes exactly one online-converter
 # signature class (the shared-signature one), covering two of the six
@@ -304,6 +350,24 @@ def test_online_tool_fixture_with_own_real_metadata_no_flag(pdf_path):
         f"unexpected flags on {os.path.basename(pdf_path)} with its own real "
         f"producer {meta.get('producer')!r}: {[f.code for f in res.flags]}"
     )
+
+
+@pytest.mark.parametrize("honest_producer", ["MuPDF 1.29.0", "mutool"])
+def test_honest_mupdf_backend_producer_no_flag(honest_producer):
+    """Regression test for a real zero-FP violation found in the final
+    whole-branch review: mupdf_online_converter's structural signature
+    identifies the underlying MuPDF LIBRARY, which is used far beyond the
+    two SaaS front-ends (iLovePDF, Smallpdf) this task collected. A document
+    honestly self-reporting "MuPDF" or "mutool" as its Producer -- agreeing
+    with the structural fingerprint, not contradicting it -- must not flag.
+    (ilovepdf.pdf's own raw bytes literally contain "/Producer (MuPDF
+    1.29.0)" as an intermediate object, which is what surfaced this gap.)"""
+    db = load_signatures()
+    ilovepdf_raw = open(os.path.join(_FIX, "ilovepdf.pdf"), "rb").read()
+    sig = extract_signature(ilovepdf_raw)
+    cls = classify(sig, db)
+    flags = build_flags(cls, producer=honest_producer, creator=None, db=db)
+    assert flags == [], f"unexpected flags for honest producer {honest_producer!r}: {flags}"
 
 
 def test_ilovepdf_and_smallpdf_fixtures_share_one_signature():

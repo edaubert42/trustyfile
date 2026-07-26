@@ -47,6 +47,6 @@
     "ordered": true,
     "required_features": ["header_magic", "trailer_keys"],
     "category": "online_converter",
-    "producer_aliases": ["iLovePDF", "Pdftools SDK"]
+    "producer_aliases": ["iLovePDF", "Pdftools SDK", "MuPDF", "mutool"]
   }
 }
