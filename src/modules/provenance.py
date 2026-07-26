@@ -259,6 +259,21 @@ def _converter_names(db: dict[str, dict]) -> set[str]:
             if e.get("category") in CONVERTER_CLASSES}
 
 
+def _known_aliases(cls: Classification, db: dict[str, dict]) -> set[str]:
+    """Casefolded producer_aliases declared on the matched entry, if any.
+
+    Some table entries represent a shared structural signature covering
+    several real-world tools (e.g. a common backend library) rather than one
+    tool with one self-reported name — the entry's key alone (e.g.
+    "mupdf_online_converter") never appears in ANY of those tools' own
+    Producer strings, so without this a genuinely honest document from one
+    of them would be misjudged as a lie. Declared per-entry, not globally,
+    so an alias never vouches for a DIFFERENT entry's match.
+    """
+    entry = db.get(cls.tool, {})
+    return {a.casefold() for a in entry.get("producer_aliases", [])}
+
+
 def build_flags(cls: Classification, producer: str | None,
                 creator: str | None, db: dict[str, dict]) -> list[Flag]:
     """Apply the flag decision table. Returns [] unless a converter lied."""
@@ -279,7 +294,8 @@ def build_flags(cls: Classification, producer: str | None,
         )]
 
     honest = (cls.tool.replace("_", "") in claimed_squished
-              or any(name in claimed for name in _converter_names(db)))
+              or any(name in claimed for name in _converter_names(db))
+              or any(alias in claimed for alias in _known_aliases(cls, db)))
     if honest:
         return []
 

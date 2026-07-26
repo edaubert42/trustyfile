@@ -219,11 +219,16 @@ def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
 # live iLovePDF and Smallpdf free tiers, from a synthetic invoice — see
 # scripts/collect_provenance_samples.py). Both tools' "compress" output
 # carries an IDENTICAL structural signature (header magic e2e3cfd3, the same
-# 9-key ordered xref-stream trailer) — empirical evidence both share a
-# MuPDF-based backend for this operation. Because the two are
-# indistinguishable at this signature, they are represented by ONE table
-# entry, "mupdf_online_converter" (src/modules/data/provenance_signatures.json)
-# rather than two entries that would only collide and fail open forever.
+# 9-key ordered xref-stream trailer). Confirmed for iLovePDF only: its raw
+# bytes contain a literal "/Producer (MuPDF 1.29.0)" intermediate object.
+# Smallpdf's own reported Producer is "Pdftools SDK", with no MuPDF string
+# anywhere in its bytes — the identical STRUCTURE is real and verified, but
+# "both share a MuPDF backend" is confirmed for iLovePDF and inferred (not
+# proven) for Smallpdf. Because the two are indistinguishable at this
+# signature regardless of the underlying reason, they are represented by ONE
+# table entry, "mupdf_online_converter"
+# (src/modules/data/provenance_signatures.json) rather than two entries that
+# would only collide and fail open forever.
 #
 # This finding also exposed a real collision: the seeded "acrobat_distiller"
 # entry (Task 2, transcribed from arXiv:2103.02702's header-magic table) used
@@ -242,8 +247,18 @@ def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
 # rather than incidental flakiness. Collection stopped after four consecutive
 # kills within one browser session. This is a disclosed gap, not a silent
 # one: the signature table currently recognizes exactly one online-converter
-# signature class (the MuPDF-backed one), covering two of the six original
-# target tools.
+# signature class (the shared-signature one), covering two of the six
+# original target tools.
+#
+# Task-6 review (2026-07) caught a real zero-FP violation in the consolidated
+# entry: neither tool's own self-reported Producer string ("iLovePDF",
+# "Pdftools SDK") contains "mupdf online converter", so a completely honest,
+# unmodified download from either tool was misjudged as PROVENANCE_
+# PRODUCER_MISMATCH by the pre-fix honesty check (which only recognized a
+# table KEY's display name, never an out-of-band alias). Fixed with a
+# `producer_aliases` field on the entry (provenance_signatures.json) plus
+# `_known_aliases()` in provenance.py; the true-negative tests below verify
+# it against both real fixtures' own real metadata.
 # ============================================================================
 
 _FIX = os.path.join(os.path.dirname(__file__), "fixtures", "provenance")
@@ -268,6 +283,27 @@ def test_online_tool_fixture_is_detected(pdf_path):
     res = analyze_provenance(_PdfData(pdf_path, producer=None, creator=None))
     codes = [f.code for f in res.flags]
     assert "PROVENANCE_LAUNDERED" in codes or "PROVENANCE_PRODUCER_MISMATCH" in codes
+
+
+@pytest.mark.skipif(not _FIX_PDFS, reason="provenance fixtures not present")
+@pytest.mark.parametrize("pdf_path", _FIX_PDFS, ids=[os.path.basename(p) for p in _FIX_PDFS])
+def test_online_tool_fixture_with_own_real_metadata_no_flag(pdf_path):
+    """True-negative counterpart to test_online_tool_fixture_is_detected: a
+    real online-tool output, read with its OWN real (honest, unmodified)
+    Producer metadata, must NOT flag. Regression test for the zero-FP
+    violation found in review — the pre-fix honesty check only recognized a
+    table key's display name, never a real tool's actual self-reported
+    Producer string, so an honest download from either fixture's tool was
+    misjudged as a lie."""
+    doc = fitz.open(pdf_path)
+    meta = doc.metadata or {}
+    doc.close()
+    res = analyze_provenance(_PdfData(pdf_path, producer=meta.get("producer"),
+                                      creator=meta.get("creator")))
+    assert res.flags == [], (
+        f"unexpected flags on {os.path.basename(pdf_path)} with its own real "
+        f"producer {meta.get('producer')!r}: {[f.code for f in res.flags]}"
+    )
 
 
 def test_ilovepdf_and_smallpdf_fixtures_share_one_signature():

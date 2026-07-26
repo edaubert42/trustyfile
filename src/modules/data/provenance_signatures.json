@@ -46,6 +46,7 @@
     "trailer_keys": ["Size", "Root", "Info", "ID", "Type", "W", "Filter", "Index", "Length"],
     "ordered": true,
     "required_features": ["header_magic", "trailer_keys"],
-    "category": "online_converter"
+    "category": "online_converter",
+    "producer_aliases": ["iLovePDF", "Pdftools SDK"]
   }
 }
