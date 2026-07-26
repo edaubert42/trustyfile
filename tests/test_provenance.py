@@ -1,4 +1,9 @@
 """Tests for the producer structural-fingerprint detector (spec 2026-07-17)."""
+import glob
+import os
+
+import pytest
+
 from src.modules.provenance import ObservedSignature, extract_signature
 
 
@@ -207,3 +212,109 @@ def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
     assert res.module == "provenance"
     assert [f.code for f in res.flags] == ["PROVENANCE_LAUNDERED"]
     assert res.flags[0].severity == "high"
+
+
+# ============================================================================
+# Real online-tool fixtures (collected 2026-07-25 via Playwright against the
+# live iLovePDF and Smallpdf free tiers, from a synthetic invoice — see
+# scripts/collect_provenance_samples.py). Both tools' "compress" output
+# carries an IDENTICAL structural signature (header magic e2e3cfd3, the same
+# 9-key ordered xref-stream trailer) — empirical evidence both share a
+# MuPDF-based backend for this operation. Because the two are
+# indistinguishable at this signature, they are represented by ONE table
+# entry, "mupdf_online_converter" (src/modules/data/provenance_signatures.json)
+# rather than two entries that would only collide and fail open forever.
+#
+# This finding also exposed a real collision: the seeded "acrobat_distiller"
+# entry (Task 2, transcribed from arXiv:2103.02702's header-magic table) used
+# the SAME e2e3cfd3 magic with only header_magic required. Left as-is, every
+# genuine iLovePDF/Smallpdf output would have matched BOTH acrobat_distiller
+# and mupdf_online_converter — an ambiguous 2-hit result that fails open
+# (safe, but a total loss of detection for this signature). Fixed by
+# tightening acrobat_distiller to also require its (already-recorded, paper-
+# sourced) classic 4-key trailer, which the 9-key xref-stream trailer never
+# matches. Verified below.
+#
+# Not collected: Sejda, PDF24, PDFCandy, PDF2Go. The Playwright browser
+# profile was repeatedly and rapidly killed and auto-relaunched by what
+# appears to be corporate endpoint management (Chrome processes tagged
+# `enrollment-domain=cybelangel.com`), consistent with active MDM enforcement
+# rather than incidental flakiness. Collection stopped after four consecutive
+# kills within one browser session. This is a disclosed gap, not a silent
+# one: the signature table currently recognizes exactly one online-converter
+# signature class (the MuPDF-backed one), covering two of the six original
+# target tools.
+# ============================================================================
+
+_FIX = os.path.join(os.path.dirname(__file__), "fixtures", "provenance")
+_FIX_PDFS = sorted(glob.glob(os.path.join(_FIX, "*.pdf")))
+
+
+@pytest.mark.skipif(not _FIX_PDFS, reason="provenance fixtures not present")
+@pytest.mark.parametrize("pdf_path", _FIX_PDFS, ids=[os.path.basename(p) for p in _FIX_PDFS])
+def test_online_tool_fixture_is_detected(pdf_path):
+    """A real online-tool output, with the caller reporting no Producer/
+    Creator (simulating scrubbed or unextracted metadata), must flag.
+
+    Does NOT re-save the fixture through fitz to "scrub" it: PyMuPDF's own
+    writer would re-serialize the file with ITS OWN structural signature
+    (verified empirically -- see the module docstring above), destroying the
+    very iLovePDF/Smallpdf fingerprint under test. analyze_provenance reads
+    the structural signature from the file's raw bytes and the claimed
+    producer/creator from the passed-in metadata object independently, so
+    passing producer=None against the UNMODIFIED fixture exercises the same
+    LAUNDERED decision path without that side effect.
+    """
+    res = analyze_provenance(_PdfData(pdf_path, producer=None, creator=None))
+    codes = [f.code for f in res.flags]
+    assert "PROVENANCE_LAUNDERED" in codes or "PROVENANCE_PRODUCER_MISMATCH" in codes
+
+
+def test_ilovepdf_and_smallpdf_fixtures_share_one_signature():
+    """Documents the empirical finding driving the consolidated table entry:
+    both real fixtures produce the identical structural signature."""
+    ilovepdf_raw = open(os.path.join(_FIX, "ilovepdf.pdf"), "rb").read()
+    smallpdf_raw = open(os.path.join(_FIX, "smallpdf.pdf"), "rb").read()
+    sig_a = extract_signature(ilovepdf_raw)
+    sig_b = extract_signature(smallpdf_raw)
+    assert sig_a == sig_b
+    assert sig_a.header_magic == "e2e3cfd3"
+
+
+def test_distiller_and_mupdf_converter_no_longer_collide():
+    """Regression guard for the collision fix: a genuine online-converter
+    signature (9-key xref-stream trailer) must NOT ambiguously match
+    acrobat_distiller (4-key classic trailer) even though both share the
+    same header magic."""
+    db = load_signatures()
+    ilovepdf_raw = open(os.path.join(_FIX, "ilovepdf.pdf"), "rb").read()
+    sig = extract_signature(ilovepdf_raw)
+    cls = classify(sig, db)
+    assert cls.tool == "mupdf_online_converter"
+    assert cls.category == "online_converter"
+    assert cls.confidence == 1.0
+
+
+# ============================================================================
+# Zero-FP corpus gate: no legitimate real invoice may raise a provenance
+# flag. Corpus is gitignored (real documents never leave the machine), so
+# this skips when absent instead of failing CI.
+# ============================================================================
+
+_CORPUS = sorted(glob.glob(os.path.join("samples", "legitimate", "real", "*.pdf")))
+
+
+@pytest.mark.skipif(not _CORPUS, reason="legit corpus not present (gitignored)")
+@pytest.mark.parametrize("pdf_path", _CORPUS, ids=[os.path.basename(p) for p in _CORPUS])
+def test_provenance_no_false_positive_on_corpus(pdf_path):
+    """Zero-FP gate: no legit corpus doc may raise a provenance flag."""
+    doc = fitz.open(pdf_path)
+    meta = doc.metadata or {}
+    doc.close()
+    res = analyze_provenance(_PdfData(pdf_path,
+                                      producer=meta.get("producer"),
+                                      creator=meta.get("creator")))
+    assert res.flags == [], (
+        f"unexpected provenance flags on {os.path.basename(pdf_path)}: "
+        f"{[f.code for f in res.flags]}"
+    )

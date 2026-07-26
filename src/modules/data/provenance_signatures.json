@@ -10,7 +10,7 @@
     "header_magic": "e2e3cfd3",
     "trailer_keys": ["Size", "Root", "Info", "ID"],
     "ordered": true,
-    "required_features": ["header_magic"],
+    "required_features": ["header_magic", "trailer_keys"],
     "category": "office"
   },
   "libreoffice": {
@@ -40,5 +40,12 @@
     "ordered": true,
     "required_features": ["header_magic"],
     "category": "native_generator"
+  },
+  "mupdf_online_converter": {
+    "header_magic": "e2e3cfd3",
+    "trailer_keys": ["Size", "Root", "Info", "ID", "Type", "W", "Filter", "Index", "Length"],
+    "ordered": true,
+    "required_features": ["header_magic", "trailer_keys"],
+    "category": "online_converter"
   }
 }
