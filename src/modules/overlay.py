@@ -527,16 +527,22 @@ def _neighbours_stable(ow: tuple, pairs_by_old_id: dict, old_words_by_line: dict
     return True
 
 
-def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed: bool) -> Flag:
+def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed: bool,
+                         nw: tuple) -> Flag:
     """Build the Signal-4 flag, with a money delta when both sides parse as amounts.
 
     `confirmed` picks the code exactly like `_cover_and_retype_flag`: the HARD
     `OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED` iff the revision that changed
     the value was saved by an interactive editor (C2), else the SOFT
     `OVERLAY_REVISION_VALUE_CHANGED`.
+
+    `nw` is the NEW revision's word tuple from `page.get_text("words")`
+    (x0,y0,x1,y1,text,block_no,line_no,word_no) — its first 4 elements are
+    the bbox of where the changed value now sits, for preview highlighting.
     """
     old_v, new_v = _money_value(old_text), _money_value(new_text)
-    details = {"page": page_num, "old_value": old_text.strip(), "new_value": new_text.strip()}
+    details = {"page": page_num, "old_value": old_text.strip(), "new_value": new_text.strip(),
+              "bbox": tuple(nw[:4])}
     if old_v is not None and new_v is not None:
         delta = new_v - old_v
         details["delta"] = delta
@@ -582,7 +588,7 @@ def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> l
             continue                                          # prose, not a value
         if not _neighbours_stable(ow, pairs_by_old_id, old_words_by_line):
             continue                                          # unsafe pairing (reflow)
-        flags.append(_revision_value_flag(old_text, new_text, page_num, confirmed))
+        flags.append(_revision_value_flag(old_text, new_text, page_num, confirmed, nw))
     return flags
 
 
@@ -829,7 +835,7 @@ def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
     helper Signal 4 uses); otherwise the lower-severity `OVERLAY_IMAGE_OVER_TEXT`.
     """
     text = span_text(hit["covered"]).strip()
-    details = {"page": page_num, "covered": text}
+    details = {"page": page_num, "covered": text, "bbox": tuple(hit["image"]["bbox"])}
     if _is_value_bearing(text):
         return Flag(
             severity="critical",
@@ -869,7 +875,8 @@ def _cover_and_retype_flag(hit: dict, page_num: int, confirmed: bool) -> Flag:
     """
     under_txt = span_text(hit["under"]).strip()
     over_txt = span_text(hit["over"]).strip()
-    details = {"page": page_num, "covered": under_txt, "replacement": over_txt}
+    details = {"page": page_num, "covered": under_txt, "replacement": over_txt,
+              "bbox": tuple(hit["fill"]["rect"])}
     old_v, new_v = _money_value(under_txt), _money_value(over_txt)
     if old_v is not None and new_v is not None:
         delta = new_v - old_v
@@ -924,11 +931,12 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
             severity="critical", code="OVERLAY_OPAQUE_FILL_OVER_TEXT",
             message=(f"An opaque box on page {page_num + 1} covers still-present "
                      f"text (\"{t}\"), which remains recoverable underneath."),
-            details={"page": page_num, "hidden": t},
+            details={"page": page_num, "hidden": t, "bbox": tuple(hit["fill"]["rect"])},
         ))
 
     for hit in _signal_conflicting_text(spans, page_angle, consumed_spans):
         ta, tb = span_text(hit["a"]).strip(), span_text(hit["b"]).strip()
+        union = fitz.Rect(hit["a"]["bbox"]) | fitz.Rect(hit["b"]["bbox"])
         flags.append(Flag(
             # critical (not high): same REVIEW-floor rationale as
             # OVERLAY_OPAQUE_FILL_OVER_TEXT above — two conflicting values at one
@@ -937,7 +945,7 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
             severity="critical", code="OVERLAY_CONFLICTING_TEXT",
             message=(f"Two conflicting values overlap at the same position on "
                      f"page {page_num + 1}: \"{ta}\" and \"{tb}\"."),
-            details={"page": page_num, "values": [ta, tb]},
+            details={"page": page_num, "values": [ta, tb], "bbox": tuple(union)},
         ))
 
     # Signal 5 (Task 6): raster version of the cover-and-retype attack. Its own
