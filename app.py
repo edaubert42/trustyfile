@@ -478,6 +478,27 @@ st.markdown(f"""
             display: none !important;
         }}
     }}
+
+    /* Short viewports (phone landscape, small/unmaximized windows): shrink the
+       dropzone so "Drop your PDF here / or" isn't clipped below the fold. */
+    @media (max-height: 500px) {{
+        [data-testid="stFileUploaderDropzone"] {{
+            min-height: 0 !important;
+            padding: 0.6rem 1rem !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"]::before {{
+            width: 70px !important;
+            height: 70px !important;
+            margin-bottom: 0.3rem !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"]::after {{
+            font-size: 0.85rem !important;
+            line-height: 1.5 !important;
+        }}
+        [data-testid="stFileUploaderDropzone"] button {{
+            margin-bottom: 0.8rem !important;
+        }}
+    }}
     .score-box {{
         padding: 1.5rem;
         border-radius: 10px;
@@ -574,9 +595,13 @@ st.markdown(f"""
     [data-testid="stFileUploaderDropzoneInstructions"] svg {{
         display: none !important;
     }}
+    /* The button lives inside a wrapper <span> that is the actual flex item
+       of the dropzone — order must go on that span, not the nested button. */
+    [data-testid="stFileUploaderDropzone"] > span {{
+        order: 3 !important;
+    }}
     /* Restyle the native browse button as "Browse file" */
     [data-testid="stFileUploaderDropzone"] button {{
-        order: 3 !important;
         border: 1.5px solid #666 !important;
         border-radius: 8px !important;
         padding: 0.4rem 1.5rem !important;
@@ -592,9 +617,9 @@ st.markdown(f"""
         border-color: #999 !important;
         color: #eee !important;
     }}
-    /* Hide the default button text and replace with "Browse file" */
-    [data-testid="stFileUploaderDropzone"] button {{
-        font-size: 0 !important;
+    /* Hide the default button's whole icon+label wrapper ("Upload") and replace with "Browse file" */
+    [data-testid="stFileUploaderDropzone"] button > div {{
+        display: none !important;
     }}
     [data-testid="stFileUploaderDropzone"] button::after {{
         content: "{t("browse_file")}";
