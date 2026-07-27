@@ -538,3 +538,53 @@ def test_magic_only_entries_have_unique_magic():
             f"magic-only entry '{tool}' shares header_magic {magic} with "
             f"{others}: every match would be ambiguous and fail open"
         )
+
+
+# ---------------------------------------------------------------------------
+# pdf-lib is collected as a COMMITTED fixture rather than regenerated live:
+# it is a node library, and this is a Python project that should not grow a
+# Node dependency just to run its test suite. The fixture lives in a
+# subdirectory so the non-recursive _FIX glob above — whose tests assert an
+# online-tool FLAG — never picks it up. Fixture is the synthetic invoice
+# round-tripped through pdf-lib, so it contains no real document data.
+# ---------------------------------------------------------------------------
+
+_ENGINE_FIX = os.path.join(_FIX, "engines")
+
+
+@pytest.mark.skipif(not os.path.exists(os.path.join(_ENGINE_FIX, "pdflib.pdf")),
+                    reason="pdf-lib fixture not present")
+def test_pdflib_fixture_is_classified():
+    cls = _classify_file(os.path.join(_ENGINE_FIX, "pdflib.pdf"))
+    assert cls.tool == "pdf_lib"
+    assert cls.category == "native_generator"
+
+
+def test_no_engine_entry_reproduces_the_online_converter_signature():
+    """The evidence that mupdf_online_converter earns its converter category.
+
+    Route A (fingerprinting engines locally) can only ever yield ATTRIBUTION
+    entries: every general-purpose engine has honest legitimate users, so
+    giving one a converter category would false-positive on them. A converter
+    flag is only defensible when the SERVICE's signature differs from that of
+    the raw library it is built on — i.e. the service does something to the
+    file that the library alone does not.
+
+    That is exactly the case here, and this test pins it: not one locally
+    collected engine (qpdf, pdfium, pymupdf, pdf-lib) reproduces the
+    iLovePDF/Smallpdf magic. Were a future engine found to emit it, this test
+    fails and the converter entry must be re-examined before it keeps
+    flagging — because the signature would then be library-generic, and
+    honest users of that library would be getting flagged.
+    """
+    db = load_signatures()
+    converter_magic = db["mupdf_online_converter"]["header_magic"].lower()
+    engines = {t: e for t, e in db.items()
+               if e.get("category") in {"native_generator", "optimizer"}}
+    assert engines, "no engine-class entries to contrast against"
+    for tool, entry in engines.items():
+        assert (entry.get("header_magic") or "").lower() != converter_magic, (
+            f"engine '{tool}' shares the online-converter magic "
+            f"{converter_magic}: that signature is library-generic, not "
+            f"service-specific, and the converter entry would false-positive"
+        )

@@ -59,6 +59,12 @@
     "category": "native_generator",
     "notes": "Collected locally 2026-07-27 (PyMuPDF 1.28.0). Magic identical across 18 round-tripped inputs. NOT the same magic as mupdf_online_converter (e2e3cfd3) — see that entry's caveat."
   },
+  "pdf_lib": {
+    "header_magic": "81818181",
+    "required_features": ["header_magic"],
+    "category": "native_generator",
+    "notes": "Collected locally 2026-07-27 (pdf-lib 1.17 via node). Magic identical across 18 round-tripped inputs. Unlike qpdf/pdfium it REBUILDS the trailer in its own order (xref stream, Size Root Info [ID] Filter Type Length W Index) instead of inheriting the source's, but that set still varies with the input (/ID present in 15/18) so it stays out of required_features. Engine behind newer in-browser 'never leaves your device' tools AND many honest server-side invoice generators — hence native_generator, not converter."
+  },
   "mupdf_online_converter": {
     "header_magic": "e2e3cfd3",
     "trailer_keys": ["Size", "Root", "Info", "ID", "Type", "W", "Filter", "Index", "Length"],

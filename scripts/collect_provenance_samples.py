@@ -95,10 +95,15 @@ def _rt_pymupdf(src: str, dst: str) -> None:
     doc.close()
 
 
-# Add an engine here as it becomes installable. Still uncollected, each
-# needing a runtime this machine lacks: Sambox/PDFBox (Java) — the engine
-# behind Sejda; pdfcpu (Go) and pdf-lib (node) — behind the newer
-# "never leaves your device" in-browser tools.
+# Add an engine here as it becomes installable. Python-callable engines only:
+# pdf-lib was collected out-of-band with a 6-line node script (load + save via
+# `PDFDocument`) and committed as tests/fixtures/provenance/engines/pdflib.pdf,
+# rather than making this Python project depend on node.
+#
+# Still uncollected, each needing a runtime this machine lacks:
+#   Sambox/PDFBox (Java, = the engine behind Sejda) — /usr/bin/java here is the
+#     macOS stub, not a real JVM; needs `brew install openjdk`.
+#   pdfcpu (Go) — needs `brew install pdfcpu`.
 LOCAL_ENGINES = {
     "qpdf (pikepdf)": _rt_qpdf,
     "pdfium (pypdfium2)": _rt_pdfium,
