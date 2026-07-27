@@ -536,3 +536,12 @@ class TestAuthorFieldNotScanned:
         must no longer accept an author argument at all."""
         with pytest.raises(TypeError):
             check_producer("Adobe", "Adobe", author="iLovePDF")
+
+
+# =============================================================================
+# 2026 online editors refresh
+# =============================================================================
+
+@pytest.mark.parametrize("tool", ["pdfescape", "dochub", "lightpdf", "raptorpdf"])
+def test_2026_online_editors_are_known(tool):
+    assert tool in SUSPICIOUS_PRODUCERS
