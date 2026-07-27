@@ -48,6 +48,7 @@ empirical finding that iLovePDF and Smallpdf share one structural signature
 (both apparently MuPDF-backed) and the acrobat_distiller collision it exposed
 and fixed. Re-run this script for the remaining tools when convenient.
 """
+import subprocess
 import sys
 from pathlib import Path
 
@@ -95,19 +96,31 @@ def _rt_pymupdf(src: str, dst: str) -> None:
     doc.close()
 
 
-# Add an engine here as it becomes installable. Python-callable engines only:
-# pdf-lib was collected out-of-band with a 6-line node script (load + save via
-# `PDFDocument`) and committed as tests/fixtures/provenance/engines/pdflib.pdf,
-# rather than making this Python project depend on node.
+def _rt_pdfcpu(src: str, dst: str) -> None:
+    """pdfcpu is a Go CLI (brew install pdfcpu), driven via subprocess."""
+    Path(dst).unlink(missing_ok=True)
+    proc = subprocess.run(["pdfcpu", "optimize", src, dst],
+                          capture_output=True, text=True)
+    if proc.returncode != 0 or not Path(dst).exists():
+        raise RuntimeError((proc.stderr or proc.stdout).strip() or "pdfcpu failed")
+
+
+# Add an engine here as it becomes installable — anything Python can call,
+# CLIs included. pdf-lib is the exception: collected out-of-band with a 6-line
+# node script (load + save via `PDFDocument`) and committed as
+# tests/fixtures/provenance/engines/pdflib.pdf, rather than making this Python
+# project depend on node.
 #
-# Still uncollected, each needing a runtime this machine lacks:
-#   Sambox/PDFBox (Java, = the engine behind Sejda) — /usr/bin/java here is the
-#     macOS stub, not a real JVM; needs `brew install openjdk`.
-#   pdfcpu (Go) — needs `brew install pdfcpu`.
+# Still uncollected: Sambox/PDFBox (Java, = the engine behind Sejda).
+# /usr/bin/java on macOS is a stub that only prints an install hint, not a real
+# JVM — needs `brew install openjdk` (~470MB) plus a Maven/Gradle fetch of the
+# Sambox jar, which is why it was not pursued for an entry that (per the
+# module's method ceiling) could only ever be attribution, never a flag.
 LOCAL_ENGINES = {
     "qpdf (pikepdf)": _rt_qpdf,
     "pdfium (pypdfium2)": _rt_pdfium,
     "pymupdf (fitz)": _rt_pymupdf,
+    "pdfcpu (CLI)": _rt_pdfcpu,
 }
 
 
@@ -124,7 +137,7 @@ def collect_local(src: str) -> None:
         dst = out_dir / f"{label.split()[0]}.pdf"
         try:
             fn(src, str(dst))
-        except ImportError:
+        except (ImportError, FileNotFoundError):     # missing module or CLI binary
             print(f"{label}: not installed — skipped")
             continue
         except Exception as exc:

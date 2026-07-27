@@ -59,6 +59,14 @@
     "category": "native_generator",
     "notes": "Collected locally 2026-07-27 (PyMuPDF 1.28.0). Magic identical across 18 round-tripped inputs. NOT the same magic as mupdf_online_converter (e2e3cfd3) — see that entry's caveat."
   },
+  "pdfcpu": {
+    "header_magic": "e2e3cfd3",
+    "trailer_keys": ["Filter", "ID", "Index", "Info", "Length", "Root", "Size", "Type", "W"],
+    "ordered": true,
+    "required_features": ["header_magic", "trailer_keys"],
+    "category": "optimizer",
+    "notes": "Collected locally 2026-07-27 (pdfcpu 0.13.0). BOTH features required and both are genuinely pinnable: unlike qpdf/pdfium this entry's trailer key sequence was byte-identical across all 18 sweep inputs because pdfcpu writes its xref-stream keys in ALPHABETICAL order. That ordering is the ONLY thing separating this entry from mupdf_online_converter, which has the very same 9-key set in a different order — so `ordered` is load-bearing on both entries; dropping it from either collides them into a permanent fail-open. Third known user of the e2e3cfd3 magic (with acrobat_distiller and mupdf_online_converter), which is why magic alone can never identify a tool."
+  },
   "pdf_lib": {
     "header_magic": "81818181",
     "required_features": ["header_magic"],
@@ -72,6 +80,6 @@
     "required_features": ["header_magic", "trailer_keys"],
     "category": "online_converter",
     "producer_aliases": ["iLovePDF", "Pdftools SDK", "MuPDF", "mutool"],
-    "notes": "The SIGNATURE is empirically collected and verified (iLovePDF + Smallpdf, 2026-07-25). The NAME is an inference that local collection on 2026-07-27 did NOT confirm: PyMuPDF 1.28 emits magic c2b5c2b6, not this entry's e2e3cfd3 (the classic Adobe binary comment, which many tools copy). Treat 'mupdf' here as a label for a shared online-converter signature class, not a proven backend."
+    "notes": "The SIGNATURE is empirically collected and verified (iLovePDF + Smallpdf, 2026-07-25). The NAME is an inference that local collection on 2026-07-27 did NOT confirm: PyMuPDF 1.28 emits magic c2b5c2b6, not this entry's e2e3cfd3. e2e3cfd3 is the classic Adobe binary comment and is demonstrably widely copied — acrobat_distiller and pdfcpu both emit it too — so it identifies nothing on its own; this entry is separated from pdfcpu ONLY by the ORDER of an identical 9-key trailer set, making `ordered` load-bearing here. Treat 'mupdf' as a label for a shared online-converter signature class, not a proven backend."
   }
 }

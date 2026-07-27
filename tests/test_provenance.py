@@ -560,7 +560,47 @@ def test_pdflib_fixture_is_classified():
     assert cls.category == "native_generator"
 
 
-def test_no_engine_entry_reproduces_the_online_converter_signature():
+@pytest.mark.skipif(not os.path.exists(os.path.join(_ENGINE_FIX, "pdfcpu.pdf")),
+                    reason="pdfcpu fixture not present")
+def test_pdfcpu_fixture_is_classified():
+    cls = _classify_file(os.path.join(_ENGINE_FIX, "pdfcpu.pdf"))
+    assert cls.tool == "pdfcpu"
+    assert cls.category == "optimizer"
+
+
+def _engine_outputs(tmp_path):
+    """(label, path) for every locally obtainable engine output.
+
+    Python-callable engines are regenerated live so a library upgrade that
+    changes a magic fails loudly; node/Go engines come from committed
+    fixtures so the suite needs neither runtime.
+    """
+    src = _synthetic_source(tmp_path)
+    outs = []
+
+    pikepdf = pytest.importorskip("pikepdf")
+    p = tmp_path / "e_qpdf.pdf"
+    with pikepdf.open(src) as pdf:
+        pdf.save(p)
+    outs.append(("qpdf", p))
+
+    pdfium = pytest.importorskip("pypdfium2")
+    p = tmp_path / "e_pdfium.pdf"
+    d = pdfium.PdfDocument(str(src)); d.save(str(p)); d.close()
+    outs.append(("pdfium", p))
+
+    p = tmp_path / "e_pymupdf.pdf"
+    d = fitz.open(str(src)); d.save(str(p), garbage=3); d.close()
+    outs.append(("pymupdf", p))
+
+    for name in ("pdflib", "pdfcpu"):
+        fx = os.path.join(_ENGINE_FIX, f"{name}.pdf")
+        if os.path.exists(fx):
+            outs.append((name, fx))
+    return outs
+
+
+def test_no_engine_output_classifies_as_a_converter(tmp_path):
     """The evidence that mupdf_online_converter earns its converter category.
 
     Route A (fingerprinting engines locally) can only ever yield ATTRIBUTION
@@ -570,21 +610,46 @@ def test_no_engine_entry_reproduces_the_online_converter_signature():
     the raw library it is built on — i.e. the service does something to the
     file that the library alone does not.
 
-    That is exactly the case here, and this test pins it: not one locally
-    collected engine (qpdf, pdfium, pymupdf, pdf-lib) reproduces the
-    iLovePDF/Smallpdf magic. Were a future engine found to emit it, this test
-    fails and the converter entry must be re-examined before it keeps
-    flagging — because the signature would then be library-generic, and
-    honest users of that library would be getting flagged.
+    This asserts that at the level that actually matters — full
+    classification of real engine OUTPUT — rather than at the level of the
+    header magic. An earlier version of this test compared magics, and
+    collecting pdfcpu proved that premise wrong: pdfcpu emits e2e3cfd3, the
+    very magic mupdf_online_converter carries, yet does not match it, because
+    the two are separated by the ORDER of an otherwise identical 9-key
+    trailer set. Magic alone identifies nothing (three known tools emit
+    e2e3cfd3); only the whole signature does.
+
+    If a future engine's output ever classifies as a converter, that entry is
+    matching a library-generic signature and must be re-examined before it
+    keeps flagging — honest users of that library would be getting flagged.
+    """
+    for label, path in _engine_outputs(tmp_path):
+        cls = _classify_file(path)
+        assert cls.category not in CONVERTER_CLASSES, (
+            f"engine '{label}' output classified as {cls.tool} "
+            f"({cls.category}): that converter signature is library-generic, "
+            f"not service-specific, and would false-positive on honest users"
+        )
+
+
+def test_ordered_flag_is_load_bearing_for_pdfcpu_vs_converter():
+    """pdfcpu and mupdf_online_converter share BOTH the e2e3cfd3 magic and an
+    identical 9-key trailer SET, differing only in ORDER (pdfcpu writes its
+    xref-stream keys alphabetically). `ordered: true` on both entries is
+    therefore the only thing keeping them apart — drop it from either and
+    _entry_matches falls back to set equality, both entries match every
+    document of both tools, and classify() fails open forever: the online
+    converter detection would be silently and permanently lost.
     """
     db = load_signatures()
-    converter_magic = db["mupdf_online_converter"]["header_magic"].lower()
-    engines = {t: e for t, e in db.items()
-               if e.get("category") in {"native_generator", "optimizer"}}
-    assert engines, "no engine-class entries to contrast against"
-    for tool, entry in engines.items():
-        assert (entry.get("header_magic") or "").lower() != converter_magic, (
-            f"engine '{tool}' shares the online-converter magic "
-            f"{converter_magic}: that signature is library-generic, not "
-            f"service-specific, and the converter entry would false-positive"
-        )
+    conv, cpu = db["mupdf_online_converter"], db["pdfcpu"]
+    assert conv["header_magic"] == cpu["header_magic"]
+    assert set(conv["trailer_keys"]) == set(cpu["trailer_keys"])
+    assert conv["trailer_keys"] != cpu["trailer_keys"], "order is the discriminator"
+    assert conv.get("ordered") is True and cpu.get("ordered") is True
+
+    # Prove the loss concretely: unordered, real pdfcpu output matches both.
+    sig = _sig(cpu["header_magic"], cpu["trailer_keys"])
+    unordered = {k: {**v, "ordered": False} for k, v in db.items()}
+    assert classify(sig, unordered).tool is None
+    assert classify(sig, db).tool == "pdfcpu"
