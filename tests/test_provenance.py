@@ -418,3 +418,123 @@ def test_provenance_no_false_positive_on_corpus(pdf_path):
         f"unexpected provenance flags on {os.path.basename(pdf_path)}: "
         f"{[f.code for f in res.flags]}"
     )
+
+
+# ============================================================================
+# Local-engine signatures (collected 2026-07-27, "Route A").
+#
+# Online PDF tools are thin wrappers over a small set of rewrite engines, so
+# the cheaper and more general way to grow the table is to fingerprint the
+# ENGINE locally instead of driving each website — no browser, no upload, and
+# it sidesteps the MDM problem that stopped the Sejda/PDF24/PDFCandy/PDF2Go
+# collection above.
+#
+# Method and empirical result (18 inputs each: the 16 real corpus documents
+# plus two deliberately dissimilar synthetics — one PyMuPDF-written, one
+# hand-rolled with a classic xref, a /Info dict and a different header magic):
+#
+#   engine    header_magic              trailer_keys
+#   qpdf      bff7a2fe  18/18 stable    4 distinct sets — INHERITED from source
+#   pdfium    a1b3c5d7  18/18 stable    3 distinct sets — INHERITED from source
+#   pymupdf   c2b5c2b6  18/18 stable    2 distinct sets
+#
+# The decisive finding is the second column: a full-rewrite engine COPIES the
+# source document's trailer keys (a LibreOffice original round-tripped through
+# qpdf still carries /DocChecksum), so trailer_keys identifies the INPUT, not
+# the tool. Only header_magic is genuine tool handwriting. These three entries
+# therefore declare required_features = ["header_magic"] only, and record no
+# trailer_keys at all rather than freeze one input's accidental set.
+#
+# Consequence, recorded deliberately: because build_flags() requires a
+# confident match on BOTH features before any converter flag may fire, an
+# engine identified by magic alone can never raise a flag. That is correct
+# here — all three are general-purpose engines with honest legitimate users
+# (TrustyFile's own fixtures are PyMuPDF-written), and flagging them would be
+# a straight zero-FP violation. Their value is attribution and collision
+# safety, not detection. It does, however, mean the both-features invariant
+# and the input-inheritance of trailer_keys are in tension for any FUTURE
+# online-converter entry: see the design note in the collector script.
+#
+# The tests below re-derive each signature from a freshly generated PDF
+# rather than reading a committed fixture, so a library upgrade that changes
+# an engine's magic fails loudly instead of silently staling the table.
+# ============================================================================
+
+
+def _synthetic_source(tmp_path):
+    """A small PyMuPDF-written PDF to feed the engines under test."""
+    p = tmp_path / "src.pdf"
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), "SYNTHETIC TEST INVOICE", fontsize=12)
+    doc.save(str(p))
+    doc.close()
+    return p
+
+
+def _classify_file(path):
+    return classify(extract_signature(open(path, "rb").read()), load_signatures())
+
+
+def test_qpdf_roundtrip_is_classified(tmp_path):
+    pikepdf = pytest.importorskip("pikepdf")
+    out = tmp_path / "qpdf.pdf"
+    with pikepdf.open(_synthetic_source(tmp_path)) as pdf:
+        pdf.save(out)
+    cls = _classify_file(out)
+    assert cls.tool == "qpdf"
+    assert cls.category == "optimizer"
+
+
+def test_pdfium_roundtrip_is_classified(tmp_path):
+    pdfium = pytest.importorskip("pypdfium2")
+    out = tmp_path / "pdfium.pdf"
+    doc = pdfium.PdfDocument(str(_synthetic_source(tmp_path)))
+    doc.save(str(out))
+    doc.close()
+    cls = _classify_file(out)
+    assert cls.tool == "pdfium"
+    assert cls.category == "native_generator"
+
+
+def test_pymupdf_roundtrip_is_classified(tmp_path):
+    out = tmp_path / "pymupdf.pdf"
+    doc = fitz.open(str(_synthetic_source(tmp_path)))
+    doc.save(str(out), garbage=3)
+    doc.close()
+    cls = _classify_file(out)
+    assert cls.tool == "pymupdf"
+    assert cls.category == "native_generator"
+
+
+def test_local_engines_never_flag(tmp_path):
+    """Engine-class entries must stay silent even against a contradicting
+    Producer: they are attribution only, and every one of them has honest
+    legitimate users. Guards against a future edit re-categorizing one of
+    them into a converter class."""
+    out = tmp_path / "qpdf.pdf"
+    pikepdf = pytest.importorskip("pikepdf")
+    with pikepdf.open(_synthetic_source(tmp_path)) as pdf:
+        pdf.save(out)
+    res = analyze_provenance(_PdfData(out, producer="Acme Invoicing Suite 3.0"))
+    assert res.flags == []
+    assert res.score == 100
+
+
+def test_magic_only_entries_have_unique_magic():
+    """Table invariant. An entry matched on header_magic ALONE will match
+    every document that any other entry sharing that magic matches, giving
+    two hits — and classify() fails open on >1, silently destroying BOTH
+    detections. (This is exactly the acrobat_distiller collision documented
+    above, which was only survivable because that entry requires trailer_keys
+    too.) So a magic-only entry's magic must be unique across the whole table.
+    """
+    db = load_signatures()
+    magic_only = {t: e["header_magic"] for t, e in db.items()
+                  if e["required_features"] == ["header_magic"]}
+    for tool, magic in magic_only.items():
+        others = [t for t, e in db.items()
+                  if t != tool and (e.get("header_magic") or "").lower() == magic.lower()]
+        assert not others, (
+            f"magic-only entry '{tool}' shares header_magic {magic} with "
+            f"{others}: every match would be ambiguous and fail open"
+        )

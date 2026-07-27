@@ -41,12 +41,31 @@
     "required_features": ["header_magic"],
     "category": "native_generator"
   },
+  "qpdf": {
+    "header_magic": "bff7a2fe",
+    "required_features": ["header_magic"],
+    "category": "optimizer",
+    "notes": "Collected locally 2026-07-27 (pikepdf 10.9.1 = qpdf). Magic was identical across 18 round-tripped inputs; trailer keys are deliberately NOT recorded because qpdf INHERITS them from the source document (a LibreOffice original keeps its /DocChecksum), so they identify the input, not qpdf."
+  },
+  "pdfium": {
+    "header_magic": "a1b3c5d7",
+    "required_features": ["header_magic"],
+    "category": "native_generator",
+    "notes": "Collected locally 2026-07-27 (pypdfium2 5.11.0). Magic identical across 18 round-tripped inputs; trailer keys source-inherited, see qpdf. Distinct from chrome_skia (d3ebe9e1): Chrome's print-to-PDF writer is Skia, not PDFium."
+  },
+  "pymupdf": {
+    "header_magic": "c2b5c2b6",
+    "required_features": ["header_magic"],
+    "category": "native_generator",
+    "notes": "Collected locally 2026-07-27 (PyMuPDF 1.28.0). Magic identical across 18 round-tripped inputs. NOT the same magic as mupdf_online_converter (e2e3cfd3) — see that entry's caveat."
+  },
   "mupdf_online_converter": {
     "header_magic": "e2e3cfd3",
     "trailer_keys": ["Size", "Root", "Info", "ID", "Type", "W", "Filter", "Index", "Length"],
     "ordered": true,
     "required_features": ["header_magic", "trailer_keys"],
     "category": "online_converter",
-    "producer_aliases": ["iLovePDF", "Pdftools SDK", "MuPDF", "mutool"]
+    "producer_aliases": ["iLovePDF", "Pdftools SDK", "MuPDF", "mutool"],
+    "notes": "The SIGNATURE is empirically collected and verified (iLovePDF + Smallpdf, 2026-07-25). The NAME is an inference that local collection on 2026-07-27 did NOT confirm: PyMuPDF 1.28 emits magic c2b5c2b6, not this entry's e2e3cfd3 (the classic Adobe binary comment, which many tools copy). Treat 'mupdf' here as a label for a shared online-converter signature class, not a proven backend."
   }
 }
