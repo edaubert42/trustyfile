@@ -6,7 +6,11 @@ pytesseract>=0.3.10      # Tesseract OCR wrapper
 Pillow>=10.0.0           # Image handling
 
 # Image Analysis
-opencv-python-headless>=4.9.0.0   # Computer vision (headless for server)
+# Upper bound is load-bearing: OpenCV 5 dropped cv2.CascadeClassifier, which
+# silently disabled face detection in prod. That is the only path classifying a
+# scanned, text-free ID as an identity document, so scanned passports skipped
+# MRZ analysis entirely. Do not relax without porting _has_face_photo first.
+opencv-python-headless>=4.10,<5   # Computer vision (headless for server)
 numpy>=1.26.0            # Direct dep (images/forensics/identity/twod_doc), not just via cv2
 # pyzbar>=0.1.9          # QR code reading — next feature (requires libzbar0 system dep)
 pylibdmtx>=0.1.10        # DataMatrix reading (2D-DOC barcodes)
@@ -20,7 +24,12 @@ python-dateutil>=2.8.2   # Date parsing utilities
 defusedxml>=0.7.1        # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
 
 # Web Interface
-streamlit>=1.37.0        # MVP frontend
+# Upper bound: app.py injects SEO meta tags via st.components.v1.html, which
+# Streamlit says is removed "after 2026-06-01" — already past. It still exists
+# in 1.58, so stay on that minor until the injection is ported (st.iframe is
+# NOT the replacement: it takes a src URL, not HTML; st.html is, but it is not
+# iframed and drops JavaScript unless explicitly allowed).
+streamlit>=1.58,<1.59    # MVP frontend
 
 # Testing
 pytest>=8.0.0            # Test framework

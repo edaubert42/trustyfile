@@ -156,11 +156,20 @@ _upload_b64 = _logo_b64  # same file, no need to read twice
 # Current language for JS injection
 _current_lang = get_lang()
 
-# Inject meta tags + hide content until loaded via components.html
-components.html(f"""
+# Inject meta tags + hide content until loaded.
+#
+# st.html rather than st.components.v1.html, which Streamlit removes "after
+# 2026-06-01". Note st.iframe is NOT the replacement the deprecation warning
+# implies — it takes a src URL, not HTML. Two behaviour differences matter:
+#   - st.html is not iframed, so `doc` is this document directly instead of
+#     window.parent.document (which would be the same window here anyway, but
+#     is misleading and breaks if Streamlit ever frames the app).
+#   - JavaScript is dropped unless unsafe_allow_javascript=True. The payload is
+#     a static literal built from our own translation strings, not user input.
+st.html(f"""
 <script>
-    // Access parent document (Streamlit main frame)
-    const doc = window.parent.document;
+    // st.html renders inline, so this IS the Streamlit main document
+    const doc = document;
     if (!doc.querySelector('meta[http-equiv="Content-Security-Policy"]')) {{
         const meta = doc.createElement('meta');
         meta.httpEquiv = 'Content-Security-Policy';
@@ -267,14 +276,14 @@ components.html(f"""
 
     // Auto-detect browser language and set ?lang= if not already set
     (function() {{
-        const url = new URL(window.parent.location.href);
+        const url = new URL(window.location.href);
         if (!url.searchParams.has('lang')) {{
             const browserLang = (navigator.language || '').substring(0, 2).toLowerCase();
             const supported = {list(SUPPORTED_LANGS)};
             const lang = supported.includes(browserLang) ? browserLang : 'fr';
             if (lang !== 'fr') {{
                 url.searchParams.set('lang', lang);
-                window.parent.history.replaceState(null, '', url.toString());
+                window.history.replaceState(null, '', url.toString());
             }}
         }}
     }})();
@@ -292,13 +301,13 @@ components.html(f"""
         const s = doc.getElementById('tf-hide-flash');
         if (s) s.textContent = 'section.stMain {{ opacity: 1 !important; transition: opacity 0.15s ease-in; }}';
     }};
-    if (window.parent.requestIdleCallback) {{
-        window.parent.requestIdleCallback(reveal, {{ timeout: 800 }});
+    if (window.requestIdleCallback) {{
+        window.requestIdleCallback(reveal, {{ timeout: 800 }});
     }} else {{
         setTimeout(reveal, 400);
     }}
 </script>
-""", height=0)
+""", unsafe_allow_javascript=True)
 
 # All CSS in ONE st.markdown to avoid empty flex gap elements
 st.markdown(f"""
