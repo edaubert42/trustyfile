@@ -323,6 +323,10 @@ st.html(f"""
     }}
     #tf-splash.tf-splash-hiding {{ opacity: 0; pointer-events: none; }}
     #tf-splash img {{ width: 84px; height: 84px; }}
+    #tf-splash .tf-label {{
+        color: #cfd6e4; font: 500 0.95rem/1.4 system-ui, sans-serif;
+        text-align: center; max-width: 80vw; margin-top: -0.5rem;
+    }}
     #tf-splash .tf-spin {{
         width: 28px; height: 28px; border-radius: 50%;
         border: 3px solid rgba(255,255,255,0.15);
@@ -349,6 +353,7 @@ st.html(f"""
     const BOOT_MAX_MS = 8000;      // never hold the page longer than this
     const ANALYSIS_MAX_MS = 90000; // analysis is slower; still bounded
     const LOGO = "data:image/png;base64,{_logo_b64}";
+    const ANALYSIS_LABEL = {json.dumps(t("analyzing"))};
 
     let splash = null;
     let timer = null;
@@ -362,7 +367,10 @@ st.html(f"""
         setTimeout(() => node.remove(), 300);
     }};
 
-    const raise = (maxMs) => {{
+    // label is optional: boot is short enough that a caption would just flash,
+    // but an analysis can run for many seconds and a bare spinner leaves the
+    // visitor wondering whether anything is happening.
+    const raise = (maxMs, label) => {{
         if (splash) return;
         // Drop the previous run's readiness marker, otherwise the observer
         // below would see the stale one and uncover before the new page is
@@ -378,6 +386,12 @@ st.html(f"""
         spin.className = 'tf-spin';
         splash.appendChild(logo);
         splash.appendChild(spin);
+        if (label) {{
+            const cap = document.createElement('div');
+            cap.className = 'tf-label';
+            cap.textContent = label;
+            splash.appendChild(cap);
+        }}
         document.body.appendChild(splash);
         // The safety net: whatever happens, this lifts.
         timer = setTimeout(lower, maxMs);
@@ -402,7 +416,7 @@ st.html(f"""
         const el = e.target;
         if (!el || el.type !== 'file') return;
         if (!el.files || el.files.length === 0) return;
-        raise(ANALYSIS_MAX_MS);
+        raise(ANALYSIS_MAX_MS, ANALYSIS_LABEL);
     }}, true);
 
     const observer = new MutationObserver(() => {{
