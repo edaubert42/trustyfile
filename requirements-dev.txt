@@ -1,0 +1,13 @@
+# Development / CI dependencies.
+#
+# Kept out of requirements.txt so the Railway image stays lean: nothing in
+# src/ imports these, so they are not needed to serve the app. They are
+# importorskip'd by the test suite, which means a missing entry here doesn't
+# fail — the tests just silently vanish. Hence declaring them explicitly.
+
+-r requirements.txt
+
+# Alternative PDF engines used to generate and cross-check provenance
+# signatures (tests/test_provenance.py, scripts/collect_provenance_samples.py).
+pikepdf>=10.0.0          # qpdf bindings — structural rewrite engine
+pypdfium2>=5.0.0         # PDFium bindings — Chrome's PDF engine

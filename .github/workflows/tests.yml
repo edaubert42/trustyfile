@@ -43,7 +43,13 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
+      # NOTE: this is ~760 tests, not the ~888 that run locally. The corpus-
+      # driven gates (test_corpus_bands, test_coverage_gate, test_overlay_*)
+      # parametrize over samples/, which is gitignored because it holds real
+      # documents. With no corpus the parametrize list is empty, so those cases
+      # generate silently rather than reporting as skips. The zero-FP corpus
+      # gates therefore still only run locally — green here is not full cover.
       - name: Run test suite
         run: pytest tests/ -q
