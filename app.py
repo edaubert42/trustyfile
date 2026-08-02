@@ -15,6 +15,7 @@ import tempfile
 import os
 import re
 from pathlib import Path
+from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
 
@@ -1068,7 +1069,11 @@ if uploaded_file is not None:
             margin-bottom: 0 !important;
             overflow: visible !important;
         }
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+        /* Streamlit 1.58 renders the accepted file as a "chip"; the older
+           stFileUploaderFile testid this rule used to name no longer exists,
+           so it had stopped applying to anything. */
+        [data-testid="stFileUploader"] [data-testid="stFileChip"],
+        [data-testid="stFileUploader"] [data-testid="stFileChipName"] {
             overflow: visible !important;
         }
         [data-testid="stElementContainer"]:has([data-testid="stFileUploader"]) {
@@ -1160,16 +1165,17 @@ if uploaded_file is not None:
             tmp_path = tmp_file.name
 
         try:
-            # Run analysis
-            with st.spinner(t("analyzing")):
-                analyzer = TrustyFileAnalyzer(
-                    enable_external=enable_external,
-                    enable_qr_scan=enable_qr,
-                    enable_iban_check=enable_iban_check,
-                    iban_api_key=iban_api_key,
-                )
-                result = analyzer.analyze(tmp_path)
-                summary = generate_rich_summary(result, lang=get_lang())
+            # No st.spinner here: the loading splash covers this whole stretch
+            # and shows t("analyzing") itself, so a second spinner underneath
+            # it would only ever be hidden.
+            analyzer = TrustyFileAnalyzer(
+                enable_external=enable_external,
+                enable_qr_scan=enable_qr,
+                enable_iban_check=enable_iban_check,
+                iban_api_key=iban_api_key,
+            )
+            result = analyzer.analyze(tmp_path)
+            summary = generate_rich_summary(result, lang=get_lang())
 
             # Scan for 2D-DOC barcodes (French government signed barcodes).
             # Le 2D-Doc n'existe que sur les CNI (TD1) — pas sur les passeports (TD3).
@@ -1183,8 +1189,7 @@ if uploaded_file is not None:
 
             twod_doc_results = []
             if PYLIBDMTX_AVAILABLE and not _is_passport:
-                with st.spinner(t("scanning_2d_doc")):
-                    twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
+                twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
             # Cache everything in session_state so page navigation doesn't re-trigger analysis
             st.session_state["last_file_hash"] = file_hash
@@ -1310,7 +1315,7 @@ if uploaded_file is not None:
 
             # Pill on modification date if gap > 1 day from creation
             if meta.creation_date and meta.mod_date:
-                mod_gap = abs((meta.mod_date - meta.creation_date).total_seconds())
+                mod_gap = seconds_between(meta.mod_date, meta.creation_date)
                 if mod_gap > 86400:
                     days = int(mod_gap // 86400)
                     mod_pill = red_pill(
@@ -1321,19 +1326,10 @@ if uploaded_file is not None:
 
             # Pill on stated date vs creation date if gap > 7 days
             if stated_date and meta.creation_date:
-                # The two dates come from different worlds and are NOT directly
-                # comparable: creation_date comes from parse_pdf_date and is
-                # timezone-aware (PDF metadata carries an offset, e.g.
-                # "D:20250115103000+02'00'"), while stated_date is parsed out of
-                # the page text, which has no zone information, so it is naive.
-                # Subtracting one from the other raises TypeError and crashes the
-                # whole render. Coerce to naive UTC so the comparison is
-                # like-with-like — same fix as src/modules/content.py:861.
-                from datetime import timezone
-                creation_naive = meta.creation_date
-                if creation_naive.tzinfo is not None:
-                    creation_naive = creation_naive.astimezone(timezone.utc).replace(tzinfo=None)
-                stated_gap = abs((stated_date - creation_naive).days)
+                # stated_date comes from the page text (naive) and creation_date
+                # from PDF metadata (UTC-aware); days_between normalises both.
+                # See src/dates.py for why this keeps going wrong.
+                stated_gap = days_between(stated_date, meta.creation_date)
                 if stated_gap > 7:
                     stated_pill = red_pill(
                         f'<span class="pill-short">{t("pill_days_short").format(days=stated_gap)}</span>'

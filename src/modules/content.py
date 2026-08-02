@@ -20,6 +20,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
 import datefinder
+from src.dates import to_naive_utc
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
 
@@ -854,12 +855,10 @@ def check_date_vs_creation(
     if not creation_date:
         return []
 
-    # parse_pdf_date now returns timezone-aware (UTC) datetimes, but the
-    # dates extracted from document text are naive (no zone info available).
-    # Coerce the metadata date to naive-UTC here so the comparison below is
-    # naive-vs-naive, like-with-like, instead of raising a TypeError.
-    if creation_date.tzinfo is not None:
-        creation_date = creation_date.astimezone(timezone.utc).replace(tzinfo=None)
+    # parse_pdf_date returns timezone-aware (UTC) datetimes, but the dates
+    # extracted from document text are naive (no zone info available), and
+    # mixing the two raises TypeError. See src/dates.py.
+    creation_date = to_naive_utc(creation_date)
 
     flags = []
 
