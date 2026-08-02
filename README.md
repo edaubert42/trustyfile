@@ -4,13 +4,13 @@
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://trustyfile.streamlit.app)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 ![TrustyFile Demo](docs/demo.gif)
 
 ## What is TrustyFile?
 
-TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **11 detection modules**, combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
+TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **13 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
 
 **Use cases:**
 - Accounting teams verifying supplier invoices
@@ -29,6 +29,8 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 | images | Screenshots, resolution/compression, paste artifacts, EXIF dates/software |
 | structure | Incremental updates, signatures (EU DSS), JavaScript, embedded files |
 | overlay | Cover-and-retype boxes, conflicting text, cross-revision value changes |
+| invisible | Text rendered invisibly or hidden behind covering elements |
+| provenance | Producer structural fingerprints — catches a forged/stripped Producer string |
 | arithmetic | e-invoice XML vs visible totals & IBAN — CII (Factur-X) **and** UBL (Peppol) |
 | forensics | Error-level analysis (ELA) of page renders |
 | identity | MRZ check digits on ID documents (conditional) |
@@ -159,7 +161,7 @@ trustyfile/
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Data structures (Flag, ModuleResult)
 │   ├── i18n.py, translations/  # EN/FR summary theme strings
-│   ├── modules/              # 11 detection modules (see table above)
+│   ├── modules/              # 13 detection modules (see table above)
 │   │   ├── metadata.py
 │   │   ├── content.py
 │   │   ├── visual.py
@@ -167,6 +169,9 @@ trustyfile/
 │   │   ├── images.py
 │   │   ├── structure.py
 │   │   ├── overlay.py        # cover-and-retype / cross-revision detector
+│   │   ├── invisible.py      # invisible / hidden text mismatch
+│   │   ├── provenance.py     # producer structural fingerprints
+│   │   ├── span_conflict.py  # shared span helper (overlay + invisible)
 │   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
 │   │   ├── forensics.py      # ELA
 │   │   ├── identity.py       # MRZ checksums
@@ -217,11 +222,7 @@ TrustyFile provides a **risk assessment**, not a definitive fraud verdict. A low
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
+Proprietary — all rights reserved. See [LICENSE](LICENSE).
 
 ---
 

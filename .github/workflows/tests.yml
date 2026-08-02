@@ -16,10 +16,6 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13", "3.14"]
 
-    # 3.14 is early warning, not a gate: opencv/PyMuPDF/numpy ship 3.14 wheels
-    # but the Streamlit side is unproven there. Flip this off once it's green.
-    continue-on-error: ${{ matrix.python-version == '3.14' }}
-
     steps:
       - uses: actions/checkout@v4
 
