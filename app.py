@@ -307,6 +307,125 @@ st.html(f"""
 </script>
 """, unsafe_allow_javascript=True)
 
+# =============================================================================
+# DEBUG OVERLAY (?debug=1)
+# =============================================================================
+#
+# Diagnostic panel for the mobile "first upload silently does nothing" bug,
+# which cannot be reproduced on desktop or in mobile-viewport emulation and
+# needs evidence from a real handset that no debugger can attach to.
+#
+# It answers three questions a screenshot can settle:
+#   1. Does opening the file picker background the page? (visibilitychange)
+#   2. Does the file selection reach the DOM at all?     (input change + count)
+#   3. Is the websocket really alive when it does?       (readyState on resume)
+#
+# A socket reporting OPEN that never produces a filename is the half-open
+# signature: the phone believes it is connected, the bytes go nowhere.
+#
+# Off unless ?debug=1 is in the URL, so normal visitors never load any of this.
+if st.query_params.get("debug") == "1":
+    # Deliberately NOT an f-string: this is pure JavaScript with braces on
+    # nearly every line, and doubling them all would make it unreadable.
+    st.html("""
+<script>
+(function() {
+    // st.html re-executes on every Streamlit rerun; install the hooks once.
+    if (window.__tfDebugInstalled) { window.__tfDebugRender(); return; }
+    window.__tfDebugInstalled = true;
+
+    const T0 = performance.now();
+    const lines = window.__tfDebugLines = [];
+
+    const panel = document.createElement('div');
+    panel.id = 'tf-debug-panel';
+    panel.style.cssText = [
+        'position:fixed', 'left:0', 'right:0', 'bottom:0', 'z-index:2147483647',
+        'max-height:45vh', 'overflow:auto', 'background:rgba(0,0,0,0.88)',
+        'color:#0f0', 'font:10px/1.35 ui-monospace,Menlo,Consolas,monospace',
+        'padding:6px 8px', 'white-space:pre-wrap', 'word-break:break-word',
+        'border-top:1px solid #0f0',
+    ].join(';');
+
+    const render = window.__tfDebugRender = () => {
+        // Streamlit rerenders can detach the panel — re-attach it if so.
+        if (!document.body.contains(panel)) { document.body.appendChild(panel); }
+        panel.textContent = lines.join('\\n');
+        panel.scrollTop = panel.scrollHeight;
+    };
+
+    const log = (msg) => {
+        const t = ((performance.now() - T0) / 1000).toFixed(2);
+        lines.push('[' + t + 's] ' + msg);
+        if (lines.length > 120) lines.shift();   // keep the panel screenshot-sized
+        render();
+    };
+
+    // --- websocket -----------------------------------------------------
+    // Streamlit's bundle already opened its socket before this script runs, so
+    // the constructor cannot be intercepted. Patching send() on the prototype
+    // captures the live instance from `this` on its next outgoing message.
+    let sock = null;
+    const STATES = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
+    const rs = () => (sock ? STATES[sock.readyState] : 'no-socket-yet');
+
+    const origSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function(...args) {
+        if (sock !== this) {
+            sock = this;
+            log('WS captured, state=' + STATES[this.readyState]);
+            this.addEventListener('close', (e) =>
+                log('WS CLOSE code=' + e.code + ' clean=' + e.wasClean));
+            this.addEventListener('error', () => log('WS ERROR'));
+            this.addEventListener('open', () => log('WS OPEN'));
+        }
+        try {
+            return origSend.apply(this, args);
+        } catch (err) {
+            // A send that throws is the smoking gun for a dead socket.
+            log('WS SEND THREW: ' + err.message);
+            throw err;
+        }
+    };
+
+    // --- page lifecycle ------------------------------------------------
+    document.addEventListener('visibilitychange', () =>
+        log('visibility=' + document.visibilityState + ' ws=' + rs()));
+    window.addEventListener('pagehide', (e) =>
+        log('pagehide persisted=' + e.persisted));
+    window.addEventListener('pageshow', (e) =>
+        log('pageshow persisted=' + e.persisted + ' ws=' + rs()));
+    window.addEventListener('online', () => log('network online'));
+    window.addEventListener('offline', () => log('network OFFLINE'));
+
+    // --- the file selection itself -------------------------------------
+    // Streamlit only renders a filename once it has asked the server for an
+    // upload URL over the websocket and received a reply. Selection seen but
+    // no filename => the request went out and nothing came back.
+    // Streamlit 1.58 renders the accepted file as a "chip" — stFileChipName.
+    // (The older stFileUploaderFile testid no longer exists in this version.)
+    const filenameShown = () =>
+        !!document.querySelector('[data-testid="stFileChipName"], [data-testid="stFileChip"]');
+
+    document.addEventListener('change', (e) => {
+        const el = e.target;
+        if (!el || el.type !== 'file') return;
+        const n = el.files ? el.files.length : '?';
+        log('>>> file input change: ' + n + ' file(s) ws=' + rs());
+        [2, 5, 10, 20].forEach((secs) => {
+            setTimeout(() => log('  +' + secs + 's filename=' + filenameShown() +
+                                 ' ws=' + rs() + ' vis=' + document.visibilityState),
+                       secs * 1000);
+        });
+    }, true);   // capture phase: fires even if React stops propagation
+
+    log('debug ready | ' + navigator.userAgent.slice(0, 70));
+    log('online=' + navigator.onLine + ' vis=' + document.visibilityState);
+    render();
+})();
+</script>
+""", unsafe_allow_javascript=True)
+
 # All CSS in ONE st.markdown to avoid empty flex gap elements
 st.markdown(f"""
 <style>
