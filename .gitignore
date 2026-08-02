@@ -5,6 +5,10 @@ venv/
 .venv/
 .env
 
+# Node (MCP tooling only — this project has no JS runtime code)
+node_modules/
+.playwright-mcp/
+
 # IDE
 .vscode/
 .idea/
