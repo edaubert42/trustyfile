@@ -1073,7 +1073,19 @@ if uploaded_file is not None:
 
             # Pill on stated date vs creation date if gap > 7 days
             if stated_date and meta.creation_date:
-                stated_gap = abs((stated_date - meta.creation_date).days)
+                # The two dates come from different worlds and are NOT directly
+                # comparable: creation_date comes from parse_pdf_date and is
+                # timezone-aware (PDF metadata carries an offset, e.g.
+                # "D:20250115103000+02'00'"), while stated_date is parsed out of
+                # the page text, which has no zone information, so it is naive.
+                # Subtracting one from the other raises TypeError and crashes the
+                # whole render. Coerce to naive UTC so the comparison is
+                # like-with-like — same fix as src/modules/content.py:861.
+                from datetime import timezone
+                creation_naive = meta.creation_date
+                if creation_naive.tzinfo is not None:
+                    creation_naive = creation_naive.astimezone(timezone.utc).replace(tzinfo=None)
+                stated_gap = abs((stated_date - creation_naive).days)
                 if stated_gap > 7:
                     stated_pill = red_pill(
                         f'<span class="pill-short">{t("pill_days_short").format(days=stated_gap)}</span>'
