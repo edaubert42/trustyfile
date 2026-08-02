@@ -14,7 +14,7 @@ import tempfile
 import os
 import re
 from pathlib import Path
-from src.i18n import t, get_lang, SUPPORTED_LANGS
+from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
 
 
@@ -279,19 +279,11 @@ st.html(f"""
         doc.head.appendChild(umami);
     }}
 
-    // Auto-detect browser language and set ?lang= if not already set
-    (function() {{
-        const url = new URL(window.location.href);
-        if (!url.searchParams.has('lang')) {{
-            const browserLang = (navigator.language || '').substring(0, 2).toLowerCase();
-            const supported = {list(SUPPORTED_LANGS)};
-            const lang = supported.includes(browserLang) ? browserLang : 'fr';
-            if (lang !== 'fr') {{
-                url.searchParams.set('lang', lang);
-                window.history.replaceState(null, '', url.toString());
-            }}
-        }}
-    }})();
+    // Language auto-detection lives server-side now, in src/i18n.py
+    // (_detect_browser_lang, off the Accept-Language header). Doing it here in
+    // JS was wrong: history.replaceState changed the URL without telling
+    // Streamlit, so the page rendered in French with ?lang=en in the address
+    // bar and only flipped language on the next rerun.
 
     // IMMEDIATELY hide content in parent document to prevent flash
     if (!doc.getElementById('tf-hide-flash')) {{
