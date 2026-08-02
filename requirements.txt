@@ -1,9 +1,22 @@
+# Every entry has an upper bound. Two silent production regressions came from
+# unbounded ranges: OpenCV 5 removed cv2.CascadeClassifier (face detection went
+# dead, so scanned IDs skipped MRZ analysis) and Streamlit deprecated
+# st.components.v1.html out from under app.py. Neither failed a test — they
+# degraded quietly. Bounds are at the next MAJOR so patch and minor security
+# fixes still flow, except where a project has broken things at minor level.
+#
+# Bounds recorded against the versions the suite and production are green on:
+# see the comment on each line. Raise them deliberately, then re-run the suite.
+
 # PDF Processing
-PyMuPDF>=1.24.0          # fitz - Fast PDF parsing
+# Capped at the next MINOR, not major: PyMuPDF is the core parser, stays on
+# 1.x indefinitely (so <2 would be no bound at all), and has changed APIs
+# between minors. Green on 1.28.0.
+PyMuPDF>=1.24.0,<1.29    # fitz - Fast PDF parsing
 
 # OCR
-pytesseract>=0.3.10      # Tesseract OCR wrapper
-Pillow>=10.0.0           # Image handling
+pytesseract>=0.3.10,<0.4     # Tesseract OCR wrapper (green on 0.3.13)
+Pillow>=10.0.0,<13           # Image handling (green on 12.3.0)
 
 # Image Analysis
 # Upper bound is load-bearing: OpenCV 5 dropped cv2.CascadeClassifier, which
@@ -11,32 +24,32 @@ Pillow>=10.0.0           # Image handling
 # scanned, text-free ID as an identity document, so scanned passports skipped
 # MRZ analysis entirely. Do not relax without porting _has_face_photo first.
 opencv-python-headless>=4.10,<5   # Computer vision (headless for server)
-numpy>=1.26.0            # Direct dep (images/forensics/identity/twod_doc), not just via cv2
+numpy>=1.26.0,<3         # Direct dep (images/forensics/identity/twod_doc), not just via cv2
 # pyzbar>=0.1.9          # QR code reading — next feature (requires libzbar0 system dep)
-pylibdmtx>=0.1.10        # DataMatrix reading (2D-DOC barcodes)
-setuptools>=70.0.0        # Provides distutils for pylibdmtx on Python 3.13+
+pylibdmtx>=0.1.10,<0.2   # DataMatrix reading (2D-DOC barcodes)
+setuptools>=70.0.0,<84   # Provides distutils for pylibdmtx on Python 3.13+
 
 # Text Analysis
-datefinder>=0.7.3        # Date extraction from text
-python-dateutil>=2.8.2   # Date parsing utilities
+datefinder>=0.7.3,<2         # Date extraction from text (green on 1.0.0)
+python-dateutil>=2.8.2,<3    # Date parsing utilities
 
 # XML (e-invoice / Factur-X) — SAFE parsing of untrusted embedded XML
-defusedxml>=0.7.1        # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
+defusedxml>=0.7.1,<0.8   # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
 
 # Web Interface
-# Upper bound: app.py injects SEO meta tags via st.components.v1.html, which
-# Streamlit says is removed "after 2026-06-01" — already past. It still exists
-# in 1.58, so stay on that minor until the injection is ported (st.iframe is
-# NOT the replacement: it takes a src URL, not HTML; st.html is, but it is not
-# iframed and drops JavaScript unless explicitly allowed).
+# Capped at the next MINOR. app.py injects SEO meta tags through st.html with
+# unsafe_allow_javascript=True, having been ported off the removed
+# st.components.v1.html. That injection is verified in a browser on 1.58 only,
+# and it broke once already when the scoping model changed underneath it, so
+# prove a later minor in a browser (fresh load AND a rerun) before raising.
 streamlit>=1.58,<1.59    # MVP frontend
 
 # Testing
-pytest>=8.0.0            # Test framework
-pytest-cov>=4.1.0        # Coverage reports
+pytest>=8.0.0,<10        # Test framework (green on 9.1.1)
+pytest-cov>=4.1.0,<8     # Coverage reports (green on 7.1.0)
 
 # Future (Post-MVP)
 # fastapi>=0.111.0       # API endpoint
 # uvicorn>=0.30.0        # ASGI server
-requests>=2.32.0        # External API calls (VirusTotal, Module G)
+requests>=2.32.0,<3     # External API calls (VirusTotal, Module G)
 # dnspython>=2.6.0       # DNS lookups (Module G)

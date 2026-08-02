@@ -9,5 +9,9 @@
 
 # Alternative PDF engines used to generate and cross-check provenance
 # signatures (tests/test_provenance.py, scripts/collect_provenance_samples.py).
-pikepdf>=10.0.0          # qpdf bindings — structural rewrite engine
-pypdfium2>=5.0.0         # PDFium bindings — Chrome's PDF engine
+#
+# Bounded like requirements.txt. These two matter more than a normal test dep:
+# they are importorskip'd, so a version that fails to import does not fail the
+# suite — those tests just disappear, exactly the way the OpenCV 5 break hid.
+pikepdf>=10.0.0,<11      # qpdf bindings — structural rewrite engine (green on 10.11.0)
+pypdfium2>=5.0.0,<6      # PDFium bindings — Chrome's PDF engine (green on 5.12.1)
