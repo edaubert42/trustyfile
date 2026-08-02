@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Don't let one version's failure cancel the others — we want the full
+      # picture, especially to tell "3.14 only" breakage from a real regression.
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
+    # 3.14 is early warning, not a gate: opencv/PyMuPDF/numpy ship 3.14 wheels
+    # but the Streamlit side is unproven there. Flip this off once it's green.
+    continue-on-error: ${{ matrix.python-version == '3.14' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # System libraries the Python wrappers bind to:
+      #   tesseract-ocr(-fra) -> pytesseract (OCR fallback, French docs)
+      #   libdmtx-dev         -> pylibdmtx (2D-Doc DataMatrix decoding)
+      # libdmtx-dev rather than the runtime package because the runtime name
+      # churns across Ubuntu releases (libdmtx0b -> libdmtx0t64 in 24.04);
+      # the -dev name is stable and pulls the runtime lib in.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            tesseract-ocr tesseract-ocr-fra libdmtx-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run test suite
+        run: pytest tests/ -q

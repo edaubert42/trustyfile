@@ -1,5 +1,14 @@
 [phases.setup]
-nixPkgs = ["tesseract", "zbar", "libdmtx", "curl"]
+# python313 pins the interpreter — without it nixpacks picks its own default,
+# which can drift away from what CI actually tested.
+nixPkgs = ["python313", "tesseract", "zbar", "libdmtx", "curl"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
+
+# Deploy gate: a red suite fails the build, so the previous version keeps
+# serving instead of shipping broken detection logic. This is a backstop, not
+# a replacement for CI — it only fires on deploy, never on a branch or PR.
+# Costs ~20s per build.
+[phases.build]
+cmds = ["pytest tests/ -q"]

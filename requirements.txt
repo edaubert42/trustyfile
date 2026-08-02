@@ -7,6 +7,7 @@ Pillow>=10.0.0           # Image handling
 
 # Image Analysis
 opencv-python-headless>=4.9.0.0   # Computer vision (headless for server)
+numpy>=1.26.0            # Direct dep (images/forensics/identity/twod_doc), not just via cv2
 # pyzbar>=0.1.9          # QR code reading — next feature (requires libzbar0 system dep)
 pylibdmtx>=0.1.10        # DataMatrix reading (2D-DOC barcodes)
 setuptools>=70.0.0        # Provides distutils for pylibdmtx on Python 3.13+
