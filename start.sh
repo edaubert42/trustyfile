@@ -15,6 +15,11 @@ if ! command -v caddy &> /dev/null; then
     chmod +x /usr/local/bin/caddy
 fi
 
+# Paint the shell dark before Streamlit's JS bundle loads, so a cold load does
+# not flash white. Patches the installed package's index.html in place; it is
+# idempotent and never fails the boot. See the script's docstring.
+python scripts/patch_streamlit_index.py
+
 streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true &
 
 # Give Streamlit a moment to start before Caddy begins proxying

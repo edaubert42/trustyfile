@@ -286,27 +286,150 @@ st.html(f"""
     // Streamlit, so the page rendered in French with ?lang=en in the address
     // bar and only flipped language on the next rerun.
 
-    // IMMEDIATELY hide content in parent document to prevent flash
-    if (!doc.getElementById('tf-hide-flash')) {{
-        const style = doc.createElement('style');
-        style.id = 'tf-hide-flash';
-        style.textContent = 'section.stMain {{ opacity: 0 !important; }}';
-        doc.head.appendChild(style);
-    }}
-
-    // Reveal content after Streamlit finishes rendering
-    const reveal = () => {{
-        const s = doc.getElementById('tf-hide-flash');
-        if (s) s.textContent = 'section.stMain {{ opacity: 1 !important; transition: opacity 0.15s ease-in; }}';
-    }};
-    if (window.requestIdleCallback) {{
-        window.requestIdleCallback(reveal, {{ timeout: 800 }});
-    }} else {{
-        setTimeout(reveal, 400);
-    }}
+    // The boot/analysis splash that used to live here (an opacity toggle on
+    // section.stMain) is now its own block below — see "LOADING SPLASH".
 }})();
 </script>
 """, unsafe_allow_javascript=True)
+
+# =============================================================================
+# LOADING SPLASH
+# =============================================================================
+#
+# A visitor should see the brand and a single spinner, never the machinery.
+#
+# Two moments used to leak that machinery:
+#   1. Boot — Streamlit paints its widgets as each one arrives, so the header,
+#      uploader, headline and step icons popped in one at a time. (The white
+#      flash *before* this is handled earlier, in the served index.html — see
+#      scripts/patch_streamlit_index.py.)
+#   2. Analysis — the landing page tears down and the results build up in
+#      pieces, so the page visibly churns and jumps while it reflows.
+#
+# Both are covered by one opaque overlay: raised at boot and again when a file
+# is selected, lowered when the page underneath is genuinely ready.
+#
+# SAFETY: an overlay that fails to come down is a dead site, so every path is
+# bounded by a hard timeout. If a readiness signal never arrives, the splash
+# lifts anyway and the visitor sees a working page.
+st.html(f"""
+<style>
+    #tf-splash {{
+        position: fixed; inset: 0; z-index: 2147483600;
+        background: #0e1117;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 1.5rem;
+        opacity: 1; transition: opacity 0.25s ease-out;
+    }}
+    #tf-splash.tf-splash-hiding {{ opacity: 0; pointer-events: none; }}
+    #tf-splash img {{ width: 84px; height: 84px; }}
+    #tf-splash .tf-spin {{
+        width: 28px; height: 28px; border-radius: 50%;
+        border: 3px solid rgba(255,255,255,0.15);
+        border-top-color: #4a90e2;
+        animation: tf-spin 0.8s linear infinite;
+    }}
+    @keyframes tf-spin {{ to {{ transform: rotate(360deg); }} }}
+    /* Streamlit's own spinners and their step-by-step status text are
+       internal detail; the splash speaks for them. */
+    [data-testid="stSpinner"] {{ display: none !important; }}
+    /* The readiness marker is a signal, not content — keep it out of the
+       layout so it cannot leave a gap at the bottom of the page. */
+    [data-testid="stElementContainer"]:has(#tf-results-ready) {{ display: none !important; }}
+    /* The rendered page preview arrives after everything else; fade it in
+       instead of letting it pop. */
+    [data-testid="stImage"] img {{ animation: tf-fade 0.3s ease-in; }}
+    @keyframes tf-fade {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+</style>
+<script>
+(function() {{
+    if (window.__tfSplash) return;      // st.html re-runs on every rerun
+    window.__tfSplash = true;
+
+    const BOOT_MAX_MS = 8000;      // never hold the page longer than this
+    const ANALYSIS_MAX_MS = 90000; // analysis is slower; still bounded
+    const LOGO = "data:image/png;base64,{_logo_b64}";
+
+    let splash = null;
+    let timer = null;
+
+    const lower = () => {{
+        if (timer) {{ clearTimeout(timer); timer = null; }}
+        if (!splash) return;
+        const node = splash;
+        splash = null;
+        node.classList.add('tf-splash-hiding');
+        setTimeout(() => node.remove(), 300);
+    }};
+
+    const raise = (maxMs) => {{
+        if (splash) return;
+        // Drop the previous run's readiness marker, otherwise the observer
+        // below would see the stale one and uncover before the new page is
+        // built — exactly the churn this is meant to hide.
+        const stale = document.getElementById('tf-results-ready');
+        if (stale) stale.remove();
+        splash = document.createElement('div');
+        splash.id = 'tf-splash';
+        const logo = document.createElement('img');
+        logo.src = LOGO;
+        logo.alt = '';
+        const spin = document.createElement('div');
+        spin.className = 'tf-spin';
+        splash.appendChild(logo);
+        splash.appendChild(spin);
+        document.body.appendChild(splash);
+        // The safety net: whatever happens, this lifts.
+        timer = setTimeout(lower, maxMs);
+    }};
+
+    // --- boot ----------------------------------------------------------
+    // Ready = the uploader exists (the app has rendered), then two animation
+    // frames so the browser has actually painted it before we uncover.
+    raise(BOOT_MAX_MS);
+    const bootPoll = setInterval(() => {{
+        if (!document.querySelector('[data-testid="stFileUploader"]')) return;
+        clearInterval(bootPoll);
+        requestAnimationFrame(() => requestAnimationFrame(lower));
+    }}, 100);
+    setTimeout(() => clearInterval(bootPoll), BOOT_MAX_MS);
+
+    // --- analysis ------------------------------------------------------
+    // Cover the teardown of the landing page and the build-up of the results.
+    // app.py emits #tf-results-ready once the results are fully rendered.
+    document.addEventListener('change', (e) => {{
+        if (!e.isTrusted) return;                       // ignore upload-guard replays
+        const el = e.target;
+        if (!el || el.type !== 'file') return;
+        if (!el.files || el.files.length === 0) return;
+        raise(ANALYSIS_MAX_MS);
+    }}, true);
+
+    const observer = new MutationObserver(() => {{
+        if (document.getElementById('tf-results-ready')) {{
+            requestAnimationFrame(() => requestAnimationFrame(lower));
+        }}
+    }});
+    observer.observe(document.body, {{childList: true, subtree: true}});
+
+    // Let the upload guard drop the splash the moment it gives up. Without
+    // this the guard stops retrying (and removes its banner) while the splash
+    // sits for another 30s, leaving an opaque screen explaining nothing.
+    window.__tfSplashLower = lower;
+}})();
+</script>
+""", unsafe_allow_javascript=True)
+
+
+def mark_page_ready() -> None:
+    """Tell the loading splash that the page beneath it is fully rendered.
+
+    Emits the marker the splash's MutationObserver waits for. Call it on every
+    path that finishes a render — including the early exits that st.stop() out
+    of the analysis — or the splash sits there until its safety timeout.
+    """
+    st.html('<div id="tf-results-ready" style="display:none"></div>')
+
 
 # =============================================================================
 # UPLOAD RESILIENCE
@@ -354,7 +477,10 @@ st.html(f"""
         banner.textContent = MESSAGE;
         banner.style.cssText = [
             'position:fixed', 'left:50%', 'transform:translateX(-50%)',
-            'bottom:16px', 'z-index:2147483000', 'max-width:90vw',
+            // Above the loading splash (2147483600): when a selection lands on
+            // a dead connection the splash is up, and a bare splash with no
+            // explanation is worse than no splash at all.
+            'bottom:16px', 'z-index:2147483647', 'max-width:90vw',
             'background:rgba(74,144,226,0.95)', 'color:#fff',
             'padding:10px 16px', 'border-radius:8px',
             'font:600 0.85rem/1.3 system-ui,sans-serif', 'text-align:center',
@@ -390,7 +516,13 @@ st.html(f"""
             const waited = Date.now() - startedAt;
 
             if (accepted()) {{ clearInterval(timer); activeRetry = null; hideBanner(); return; }}
-            if (waited > GIVE_UP_AFTER_MS) {{ clearInterval(timer); activeRetry = null; hideBanner(); return; }}
+            if (waited > GIVE_UP_AFTER_MS) {{
+                clearInterval(timer); activeRetry = null; hideBanner();
+                // Uncover the page: retrying is over, so leaving the loading
+                // splash up would just be an opaque screen with no explanation.
+                if (window.__tfSplashLower) window.__tfSplashLower();
+                return;
+            }}
             if (waited > BANNER_AFTER_MS) showBanner();
 
             // The uploader can be re-mounted by a rerun, so re-resolve it
@@ -412,125 +544,6 @@ st.html(f"""
         }}, RETRY_EVERY_MS);
     }}, true);
 }})();
-</script>
-""", unsafe_allow_javascript=True)
-
-# =============================================================================
-# DEBUG OVERLAY (?debug=1)
-# =============================================================================
-#
-# Diagnostic panel for the mobile "first upload silently does nothing" bug,
-# which cannot be reproduced on desktop or in mobile-viewport emulation and
-# needs evidence from a real handset that no debugger can attach to.
-#
-# It answers three questions a screenshot can settle:
-#   1. Does opening the file picker background the page? (visibilitychange)
-#   2. Does the file selection reach the DOM at all?     (input change + count)
-#   3. Is the websocket really alive when it does?       (readyState on resume)
-#
-# A socket reporting OPEN that never produces a filename is the half-open
-# signature: the phone believes it is connected, the bytes go nowhere.
-#
-# Off unless ?debug=1 is in the URL, so normal visitors never load any of this.
-if st.query_params.get("debug") == "1":
-    # Deliberately NOT an f-string: this is pure JavaScript with braces on
-    # nearly every line, and doubling them all would make it unreadable.
-    st.html("""
-<script>
-(function() {
-    // st.html re-executes on every Streamlit rerun; install the hooks once.
-    if (window.__tfDebugInstalled) { window.__tfDebugRender(); return; }
-    window.__tfDebugInstalled = true;
-
-    const T0 = performance.now();
-    const lines = window.__tfDebugLines = [];
-
-    const panel = document.createElement('div');
-    panel.id = 'tf-debug-panel';
-    panel.style.cssText = [
-        'position:fixed', 'left:0', 'right:0', 'bottom:0', 'z-index:2147483647',
-        'max-height:45vh', 'overflow:auto', 'background:rgba(0,0,0,0.88)',
-        'color:#0f0', 'font:10px/1.35 ui-monospace,Menlo,Consolas,monospace',
-        'padding:6px 8px', 'white-space:pre-wrap', 'word-break:break-word',
-        'border-top:1px solid #0f0',
-    ].join(';');
-
-    const render = window.__tfDebugRender = () => {
-        // Streamlit rerenders can detach the panel — re-attach it if so.
-        if (!document.body.contains(panel)) { document.body.appendChild(panel); }
-        panel.textContent = lines.join('\\n');
-        panel.scrollTop = panel.scrollHeight;
-    };
-
-    const log = (msg) => {
-        const t = ((performance.now() - T0) / 1000).toFixed(2);
-        lines.push('[' + t + 's] ' + msg);
-        if (lines.length > 120) lines.shift();   // keep the panel screenshot-sized
-        render();
-    };
-
-    // --- websocket -----------------------------------------------------
-    // Streamlit's bundle already opened its socket before this script runs, so
-    // the constructor cannot be intercepted. Patching send() on the prototype
-    // captures the live instance from `this` on its next outgoing message.
-    let sock = null;
-    const STATES = ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'];
-    const rs = () => (sock ? STATES[sock.readyState] : 'no-socket-yet');
-
-    const origSend = WebSocket.prototype.send;
-    WebSocket.prototype.send = function(...args) {
-        if (sock !== this) {
-            sock = this;
-            log('WS captured, state=' + STATES[this.readyState]);
-            this.addEventListener('close', (e) =>
-                log('WS CLOSE code=' + e.code + ' clean=' + e.wasClean));
-            this.addEventListener('error', () => log('WS ERROR'));
-            this.addEventListener('open', () => log('WS OPEN'));
-        }
-        try {
-            return origSend.apply(this, args);
-        } catch (err) {
-            // A send that throws is the smoking gun for a dead socket.
-            log('WS SEND THREW: ' + err.message);
-            throw err;
-        }
-    };
-
-    // --- page lifecycle ------------------------------------------------
-    document.addEventListener('visibilitychange', () =>
-        log('visibility=' + document.visibilityState + ' ws=' + rs()));
-    window.addEventListener('pagehide', (e) =>
-        log('pagehide persisted=' + e.persisted));
-    window.addEventListener('pageshow', (e) =>
-        log('pageshow persisted=' + e.persisted + ' ws=' + rs()));
-    window.addEventListener('online', () => log('network online'));
-    window.addEventListener('offline', () => log('network OFFLINE'));
-
-    // --- the file selection itself -------------------------------------
-    // Streamlit only renders a filename once it has asked the server for an
-    // upload URL over the websocket and received a reply. Selection seen but
-    // no filename => the request went out and nothing came back.
-    // Streamlit 1.58 renders the accepted file as a "chip" — stFileChipName.
-    // (The older stFileUploaderFile testid no longer exists in this version.)
-    const filenameShown = () =>
-        !!document.querySelector('[data-testid="stFileChipName"], [data-testid="stFileChip"]');
-
-    document.addEventListener('change', (e) => {
-        const el = e.target;
-        if (!el || el.type !== 'file') return;
-        const n = el.files ? el.files.length : '?';
-        log('>>> file input change: ' + n + ' file(s) ws=' + rs());
-        [2, 5, 10, 20].forEach((secs) => {
-            setTimeout(() => log('  +' + secs + 's filename=' + filenameShown() +
-                                 ' ws=' + rs() + ' vis=' + document.visibilityState),
-                       secs * 1000);
-        });
-    }, true);   // capture phase: fires even if React stops propagation
-
-    log('debug ready | ' + navigator.userAgent.slice(0, 70));
-    log('online=' + navigator.onLine + ' vis=' + document.visibilityState);
-    render();
-})();
 </script>
 """, unsafe_allow_javascript=True)
 
@@ -1090,6 +1103,7 @@ if uploaded_file is not None:
             </a>
         </div>
         """, unsafe_allow_html=True)
+        mark_page_ready()
         st.stop()
 
     # Check page count before analysis — reject documents over 20 pages
@@ -1116,6 +1130,7 @@ if uploaded_file is not None:
             </a>
         </div>
         """, unsafe_allow_html=True)
+        mark_page_ready()
         st.stop()
 
     # Only re-run the analysis if the file changed (different hash than last time)
@@ -2769,3 +2784,5 @@ st.markdown(f"""
         color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{'EN' if _current_lang == 'fr' else 'FR'}</a>
 </div>
 """, unsafe_allow_html=True)
+
+mark_page_ready()
