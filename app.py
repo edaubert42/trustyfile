@@ -168,6 +168,11 @@ _current_lang = get_lang()
 #     a static literal built from our own translation strings, not user input.
 st.html(f"""
 <script>
+// Everything is wrapped in an IIFE. st.components.v1.html gave each render its
+// own iframe scope; st.html runs inline in the page's global scope, so a
+// top-level `const` re-declares itself on every Streamlit rerun and throws
+// "Identifier 'doc' has already been declared", aborting the rest of the script.
+(function() {{
     // st.html renders inline, so this IS the Streamlit main document
     const doc = document;
     if (!doc.querySelector('meta[http-equiv="Content-Security-Policy"]')) {{
@@ -306,6 +311,7 @@ st.html(f"""
     }} else {{
         setTimeout(reveal, 400);
     }}
+}})();
 </script>
 """, unsafe_allow_javascript=True)
 
