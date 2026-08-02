@@ -752,26 +752,6 @@ st.markdown(f"""
         }}
     }}
 
-    /* Short viewports (phone landscape, small/unmaximized windows): shrink the
-       dropzone so "Drop your PDF here / or" isn't clipped below the fold. */
-    @media (max-height: 500px) {{
-        [data-testid="stFileUploaderDropzone"] {{
-            min-height: 0 !important;
-            padding: 0.6rem 1rem !important;
-        }}
-        [data-testid="stFileUploaderDropzoneInstructions"]::before {{
-            width: 70px !important;
-            height: 70px !important;
-            margin-bottom: 0.3rem !important;
-        }}
-        [data-testid="stFileUploaderDropzoneInstructions"]::after {{
-            font-size: 0.85rem !important;
-            line-height: 1.5 !important;
-        }}
-        [data-testid="stFileUploaderDropzone"] button {{
-            margin-bottom: 0.8rem !important;
-        }}
-    }}
     .score-box {{
         padding: 1.5rem;
         border-radius: 10px;
@@ -842,7 +822,10 @@ st.markdown(f"""
         border: 2px dashed #444 !important;
         border-radius: 16px !important;
         background: transparent !important;
-        padding: 2rem 2rem 1rem 2rem !important;
+        /* Symmetric padding: with the asymmetric 2rem/1rem it used to have,
+           justify-content:center still centred the content in the padding box,
+           so the whole group sat visually high inside the dashed border. */
+        padding: 2rem !important;
         text-align: center !important;
         display: flex !important;
         flex-direction: column !important;
@@ -873,6 +856,22 @@ st.markdown(f"""
     [data-testid="stFileUploaderDropzone"] > span {{
         order: 3 !important;
     }}
+    /* "ou" / "or" as its own flex item between the instructions (order 0) and
+       the button (order 3). It used to be a second line inside the
+       instructions ::after, which glued it to "Déposez votre PDF ici" and left
+       it far from the button it actually separates. Its own item lets the
+       margins sit evenly on both sides. */
+    [data-testid="stFileUploaderDropzone"]::after {{
+        content: "{t("drop_or")}";
+        order: 2 !important;
+        display: block !important;
+        /* Top margin is the smaller of the two: the title's line box already
+           contributes descender space above, so equal margins read top-heavy. */
+        margin: 0.6rem 0 0.9rem !important;
+        color: #888 !important;
+        font-size: 0.95rem !important;
+        line-height: 1 !important;
+    }}
     /* Restyle the native browse button as "Browse file" */
     [data-testid="stFileUploaderDropzone"] button {{
         border: 1.5px solid #666 !important;
@@ -883,8 +882,11 @@ st.markdown(f"""
         font-size: 0.9rem !important;
         font-weight: 600 !important;
         cursor: pointer !important;
+        /* No bottom margin: it sat inside the flex item, so centring counted it
+           as content and pushed everything up, leaving dead space under the
+           button. Spacing now comes from the dropzone's own padding. */
         margin-top: 0 !important;
-        margin-bottom: 2rem !important;
+        margin-bottom: 0 !important;
     }}
     [data-testid="stFileUploaderDropzone"] button:hover {{
         border-color: #999 !important;
@@ -904,6 +906,11 @@ st.markdown(f"""
         flex-direction: column !important;
         align-items: center !important;
         width: 100% !important;
+        /* Streamlit ships `flex: 1 1 0%` here, so this block grew to swallow all
+           the dropzone's free space — the icon and title stayed pinned to the
+           top while the gap piled up underneath them. Hug the content instead
+           and let justify-content:center place the group as a whole. */
+        flex: 0 0 auto !important;
     }}
     /* Custom upload icon */
     [data-testid="stFileUploaderDropzoneInstructions"]::before {{
@@ -916,18 +923,45 @@ st.markdown(f"""
         opacity: 0.85;
         order: 1;
     }}
-    /* "Drop your PDF here" + "or" text */
+    /* "Drop your PDF here" — a single line now; the "or" is a separate flex
+       item on the dropzone itself (see above). */
     [data-testid="stFileUploaderDropzoneInstructions"]::after {{
         content: "{t("drop_pdf_here")}";
         display: block;
-        white-space: pre;
         text-align: center;
         order: 2;
         color: #bbb;
         font-size: 1.05rem;
         font-weight: 600;
         letter-spacing: 0.3px;
-        line-height: 2;
+        line-height: 1.3;
+    }}
+    /* Short viewports (phone landscape, small/unmaximized windows): shrink the
+       dropzone so the Browse button isn't clipped below the fold.
+
+       Must come AFTER the landing-page dropzone rules above: both sets use
+       !important with the same specificity, so source order decides. While
+       this block sat earlier in the stylesheet its min-height and padding were
+       silently overridden and the button stayed off-screen in landscape. */
+    @media (max-height: 500px) {{
+        [data-testid="stFileUploaderDropzone"] {{
+            min-height: 0 !important;
+            padding: 0.6rem 1rem !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"]::before {{
+            width: 70px !important;
+            height: 70px !important;
+            margin-bottom: 0.3rem !important;
+        }}
+        [data-testid="stFileUploaderDropzoneInstructions"]::after {{
+            font-size: 0.85rem !important;
+            line-height: 1.3 !important;
+        }}
+        /* Tighten the "or" gap too, or the group overflows a short viewport */
+        [data-testid="stFileUploaderDropzone"]::after {{
+            margin: 0.4rem 0 !important;
+            font-size: 0.8rem !important;
+        }}
     }}
 </style>
 <div class="custom-header">

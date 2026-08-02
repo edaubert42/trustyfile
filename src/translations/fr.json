@@ -12,7 +12,8 @@
     "disclaimer_upload": "Le traitement de votre document est temporaire. Nous garantissons qu'aucune donnée n'est stockée, enregistrée ou transmise à des tiers.",
     "disclaimer_api": "Seuls le hash du fichier et les identifiants d'entreprise peuvent être envoyés à des API externes (VirusTotal, INSEE, EU DSS) à des fins de vérification de fiabilité du document.",
     "browse_file": "Parcourir",
-    "drop_pdf_here": "Déposez votre PDF ici\\A ou",
+    "drop_pdf_here": "Déposez votre PDF ici",
+    "drop_or": "ou",
 
     "analyzing": "Analyse de votre document en cours...",
 
