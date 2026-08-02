@@ -207,5 +207,6 @@
     "doctype_banner_technical": "This document appears to be a technical specification or API documentation. TrustyFile is optimised for invoices and administrative documents. JavaScript and multiple revisions are normal for this document type.",
     "doctype_banner_scientific": "This document appears to be a scientific or academic paper. TrustyFile is optimised for invoices, certificates and attestations. Results may not be meaningful for this document type.",
     "doctype_banner_legal_notice": "This document appears to be a legal notice or terms and conditions. TrustyFile is optimised for invoices and administrative documents. Results may not be meaningful for this document type.",
-    "doctype_banner_unknown": "The document type could not be determined. TrustyFile is optimised for invoices, certificates and attestations. Interpret these results with caution."
+    "doctype_banner_unknown": "The document type could not be determined. TrustyFile is optimised for invoices, certificates and attestations. Interpret these results with caution.",
+    "upload_reconnecting": "Connection interrupted — retrying your upload…"
 }

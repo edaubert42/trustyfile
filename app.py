@@ -10,6 +10,7 @@ Run with: streamlit run app.py
 import streamlit as st
 import streamlit.components.v1 as components
 import html
+import json
 import tempfile
 import os
 import re
@@ -303,6 +304,113 @@ st.html(f"""
     }} else {{
         setTimeout(reveal, 400);
     }}
+}})();
+</script>
+""", unsafe_allow_javascript=True)
+
+# =============================================================================
+# UPLOAD RESILIENCE
+# =============================================================================
+#
+# Fixes the mobile "first upload silently does nothing" bug.
+#
+# What happens on a phone: tapping "browse" opens the system file picker,
+# which backgrounds the page. A backgrounded tab has its JavaScript throttled,
+# so a websocket still being established stalls and dies. Streamlit's frontend
+# is then disconnected, and the file selection that arrives when the picker
+# closes goes nowhere — the frontend never asks the server for an upload URL.
+# Measured on a real Pixel: the connection stayed dead for ~3 minutes while
+# the page looked perfectly normal, because app CSS hides the Streamlit header
+# that would otherwise show "Connecting…".
+#
+# The file itself is fine — it sits in the <input>, already selected. All that
+# is missing is a frontend able to act on it. So: re-dispatch the change event
+# until Streamlit picks it up, and tell the user what is happening meanwhile.
+#
+# Re-dispatching is safe. If the upload already succeeded a chip is present and
+# we stop; while disconnected the event is a no-op; the retry only "wins" on
+# the run where the connection has come back.
+st.html(f"""
+<script>
+(function() {{
+    if (window.__tfUploadGuard) return;      // st.html re-runs on every rerun
+    window.__tfUploadGuard = true;
+
+    const RETRY_EVERY_MS = 2500;
+    const GIVE_UP_AFTER_MS = 60000;
+    const BANNER_AFTER_MS = 5000;   // don't nag during a normal fast upload
+    const MESSAGE = {json.dumps(t("upload_reconnecting"))};
+
+    // Streamlit 1.58 renders an accepted file as a chip; its presence is our
+    // "the frontend has taken the file" signal.
+    const accepted = () => !!document.querySelector(
+        '[data-testid="stFileChipName"], [data-testid="stFileChip"]');
+
+    let banner = null;
+    const showBanner = () => {{
+        if (banner || accepted()) return;
+        banner = document.createElement('div');
+        banner.id = 'tf-upload-banner';
+        banner.textContent = MESSAGE;
+        banner.style.cssText = [
+            'position:fixed', 'left:50%', 'transform:translateX(-50%)',
+            'bottom:16px', 'z-index:2147483000', 'max-width:90vw',
+            'background:rgba(74,144,226,0.95)', 'color:#fff',
+            'padding:10px 16px', 'border-radius:8px',
+            'font:600 0.85rem/1.3 system-ui,sans-serif', 'text-align:center',
+            'box-shadow:0 4px 14px rgba(0,0,0,0.35)',
+        ].join(';');
+        document.body.appendChild(banner);
+    }};
+    const hideBanner = () => {{
+        if (banner) {{ banner.remove(); banner = null; }}
+    }};
+
+    let activeRetry = null;
+
+    document.addEventListener('change', (e) => {{
+        // Ignore our own replayed events: they would re-enter this handler and
+        // start a second retry loop, which starts a third, and so on.
+        // Browser-generated events are trusted; dispatchEvent ones never are.
+        if (!e.isTrusted) return;
+
+        const input = e.target;
+        if (!input || input.type !== 'file') return;
+        if (!input.files || input.files.length === 0) return;
+
+        // One loop at a time — a new selection supersedes the previous one.
+        if (activeRetry) clearInterval(activeRetry);
+
+        // Keep our own reference: Streamlit clears input.files once it has
+        // taken the file, and a cleared input has nothing left to re-dispatch.
+        const pending = Array.from(input.files);
+        const startedAt = Date.now();
+
+        const timer = activeRetry = setInterval(() => {{
+            const waited = Date.now() - startedAt;
+
+            if (accepted()) {{ clearInterval(timer); activeRetry = null; hideBanner(); return; }}
+            if (waited > GIVE_UP_AFTER_MS) {{ clearInterval(timer); activeRetry = null; hideBanner(); return; }}
+            if (waited > BANNER_AFTER_MS) showBanner();
+
+            // The uploader can be re-mounted by a rerun, so re-resolve it
+            // rather than holding the original element.
+            const target = document.querySelector(
+                '[data-testid="stFileUploader"] input[type=file]') || input;
+
+            // Restore the selection if Streamlit reset the input, then let
+            // React see a fresh change event.
+            if ((!target.files || target.files.length === 0) &&
+                typeof DataTransfer !== 'undefined') {{
+                try {{
+                    const dt = new DataTransfer();
+                    pending.forEach((f) => dt.items.add(f));
+                    target.files = dt.files;
+                }} catch (err) {{ /* older WebKit: fall through and just retry */ }}
+            }}
+            target.dispatchEvent(new Event('change', {{bubbles: true}}));
+        }}, RETRY_EVERY_MS);
+    }}, true);
 }})();
 </script>
 """, unsafe_allow_javascript=True)
