@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>How to tell if a PDF was modified</title>
+    <meta name="description" content="A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/en/guides/how-to-tell-if-a-pdf-was-modified">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-tell-if-a-pdf-was-modified">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/savoir-si-un-pdf-a-ete-modifie">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/savoir-si-un-pdf-a-ete-modifie">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="How to tell if a PDF was modified">
+    <meta property="og:description" content="A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.">
+    <meta property="og:url" content="https://www.trustyfile.com/en/guides/how-to-tell-if-a-pdf-was-modified">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="How to tell if a PDF was modified">
+    <meta name="twitter:description" content="A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "How to tell if a PDF was modified",
+        "description": "A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.",
+        "inLanguage": "en",
+        "datePublished": "2026-08-02",
+        "dateModified": "2026-08-02",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/en/guides/how-to-tell-if-a-pdf-was-modified"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/en"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/en/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "How to tell if a PDF was modified"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/en">Home</a>
+        <span class="sep">/</span>
+        <a href="/en/guides/">Guides</a>
+        <a class="lang" href="/guides/savoir-si-un-pdf-a-ete-modifie">Français</a>
+    </nav>
+
+    <h1>How to tell whether a PDF has been modified</h1>
+    <p class="updated">Updated 2 August 2026</p>
+    <p class="intro">A PDF is not a flat image: it is a documented format that retains far more about its own history than the visible page suggests. Here is what it keeps, and what can be inferred from it.</p>
+    <h2>Contents</h2>
+    <ol class="toc">
+        <li><a href="#incremental-revisions">Incremental revisions</a></li>
+        <li><a href="#ghost-objects">Ghost objects</a></li>
+        <li><a href="#the-two-sets-of-metadata">The two sets of metadata</a></li>
+        <li><a href="#what-metadata-does-not-prove">What metadata does not prove</a></li>
+        <li><a href="#modified-is-not-the-same-as-fraudulent">Modified is not the same as fraudulent</a></li>
+    </ol>
+    <h2 id="incremental-revisions">Incremental revisions</h2>
+    <p>When software saves a change it can rewrite the whole file, or append the changed objects to the end and leave everything before untouched. The second mode — the incremental update — is the default in several editors, and it is a gift for analysis: every revision is a preserved snapshot.</p>
+    <p>A file with three revisions was saved three times. Truncate it at the end of the first to recover the original state, then compare.</p>
+    <ul>
+        <li>A single revision: the file was written once.</li>
+        <li>Several revisions <strong>with</strong> an electronic signature: normal, signing adds one.</li>
+        <li>Several revisions <strong>without</strong> a signature on a document supposedly produced by an automated pipeline: not normal.</li>
+    </ul>
+    <h2 id="ghost-objects">Ghost objects</h2>
+    <p>Deleting an element in a PDF editor removes it from the display, not necessarily from the file. The object becomes orphaned: no longer referenced, still present. Finding an old amount, an old address or a logo that no longer appears is strong evidence.</p>
+    <h2 id="the-two-sets-of-metadata">The two sets of metadata</h2>
+    <p>A PDF can carry metadata in two places: the legacy <em>Info</em> dictionary, and an <em>XMP</em> stream in XML. Many tools update one and forget the other.</p>
+    <p>A divergence between them — different dates, different producers — reveals processing by a tool that did not clean up after itself. XMP sometimes keeps a <em>DocumentID</em> and a version history more talkative than the Producer field.</p>
+    <h2 id="what-metadata-does-not-prove">What metadata does not prove</h2>
+    <p>Metadata fields are free text: anyone can write whatever producer they like. A well-informed forger restores the expected value after editing.</p>
+    <p>This is why <em>structural</em> evidence matters more: object ordering, compression style, how the cross-reference table is written. Those details are emitted by the library that wrote the file, and a forger does not reproduce them by editing a string. A file announcing one producer while its structure matches another is an interesting case.</p>
+    <h2 id="modified-is-not-the-same-as-fraudulent">Modified is not the same as fraudulent</h2>
+    <p>This deserves saying plainly: most modified PDFs were modified for entirely mundane reasons — compression before sending, adding a signature, merging documents, flattening a form, passing through an archiving tool.</p>
+    <p>Detecting a modification therefore only moves the question along: <em>what</em> was modified, and does it touch data that matters? Several signals converging on the same region of the document make a case; one signal on its own does not.</p>
+    <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/en">TrustyFile</a>
+        &middot; <a href="/en/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

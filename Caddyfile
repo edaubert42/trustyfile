@@ -4,8 +4,49 @@
 
 :{$PORT}
 
-# Match crawler user-agents (case-insensitive)
-@crawler header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
+# Compress everything we serve, static pages and the Streamlit proxy alike.
+# Smaller payloads mean a faster LCP, which Google scores as a ranking signal.
+encode zstd gzip
+
+# Crawler user-agents (case-insensitive). The three matchers below MUST stay
+# byte-identical: Caddy cannot share a regexp between named matchers, so this
+# list is duplicated on purpose. Edit one, edit all three.
+#
+# Three groups, none of which run Streamlit's JS bundle, so all need the static
+# HTML: search engines, social/link unfurlers (Open Graph previews), and AI
+# answer engines (a growing referral source).
+@crawler header_regexp User-Agent (?i)(googlebot|google-inspectiontool|googleother|storebot-google|bingbot|bingpreview|slurp|duckduckbot|baiduspider|yandexbot|applebot|petalbot|seznambot|mojeekbot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|slackbot|redditbot|pinterest|embedly|skypeuripreview|mastodon|gptbot|oai-searchbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|perplexity-user|youbot|ccbot|amazonbot|bytespider|meta-externalagent|duckassistbot)
+
+# Guides: real content pages, served to EVERYONE — crawlers and humans alike.
+#
+# This is deliberate and load-bearing. The seo-*.html pages below are served
+# only to crawlers, which is cloaking: Google can penalise a whole site for it.
+# The guides give crawlers somewhere legitimate to land, with identical bytes
+# for every visitor, and they are linked from the app footer so a human can
+# reach them too.
+#
+# handle_path strips the matched prefix, so /guides/foo arrives here as /foo
+# and try_files resolves it to foo.html inside the language directory.
+handle_path /guides/* {
+	root * /app/guides/fr
+	# No catch-all fallback: an unknown /guides/* path must 404, not
+	# silently serve the index (that is a soft 404 and mints duplicates).
+	try_files {path} {path}.html {path}index.html
+	file_server
+	header Cache-Control "public, max-age=3600"
+}
+handle_path /en/guides/* {
+	root * /app/guides/en
+	# No catch-all fallback: an unknown /guides/* path must 404, not
+	# silently serve the index (that is a soft 404 and mints duplicates).
+	try_files {path} {path}.html {path}index.html
+	file_server
+	header Cache-Control "public, max-age=3600"
+}
+# Bare /guides and /en/guides (no trailing slash) — redirect to the canonical
+# trailing-slash form rather than serving the same page at two URLs.
+redir /guides /guides/ 301
+redir /en/guides /en/guides/ 301
 
 # Static files served to everyone (robots.txt, sitemap.xml, static assets)
 handle /robots.txt {
@@ -18,39 +59,50 @@ handle /sitemap.xml {
 }
 handle /favicon.ico {
 	root * /app/static
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 handle /favicon.png {
 	root * /app/static
 	rewrite * /favicon-48x48.png
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 handle /favicon-48x48.png {
 	root * /app/static
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 handle /favicon-192x192.png {
 	root * /app/static
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 handle /apple-touch-icon.png {
 	root * /app/static
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 handle /site.webmanifest {
 	root * /app/static
 	file_server
 }
+
+# Social preview image. 1200x630 is the ratio Twitter/Facebook/LinkedIn crop
+# to; the previous square icon was letterboxed down to a small thumbnail.
 handle /og-image.png {
 	root * /app/static
-	rewrite * /upload_icon_medium.png
+	rewrite * /og-image-1200x630.png
+	header Cache-Control "public, max-age=604800"
 	file_server
 }
 
-# Crawler requesting /en -> English SEO page
+# Crawler requesting /en -> English SEO page.
+# Both spellings: /en/ used to fall through to the French page below while its
+# canonical still claimed to be /en.
 @crawler_en {
-	header_regexp User-Agent (?i)(googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot)
-	path /en
+	header_regexp User-Agent (?i)(googlebot|google-inspectiontool|googleother|storebot-google|bingbot|bingpreview|slurp|duckduckbot|baiduspider|yandexbot|applebot|petalbot|seznambot|mojeekbot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|slackbot|redditbot|pinterest|embedly|skypeuripreview|mastodon|gptbot|oai-searchbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|perplexity-user|youbot|ccbot|amazonbot|bytespider|meta-externalagent|duckassistbot)
+	path /en /en/
 }
 handle @crawler_en {
 	root * /app
@@ -58,11 +110,22 @@ handle @crawler_en {
 	file_server
 }
 
-# All other crawler requests -> French SEO page (default)
-handle @crawler {
+# Crawler on the home page -> French SEO page (default language)
+@crawler_home {
+	header_regexp User-Agent (?i)(googlebot|google-inspectiontool|googleother|storebot-google|bingbot|bingpreview|slurp|duckduckbot|baiduspider|yandexbot|applebot|petalbot|seznambot|mojeekbot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|slackbot|redditbot|pinterest|embedly|skypeuripreview|mastodon|gptbot|oai-searchbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|perplexity-user|youbot|ccbot|amazonbot|bytespider|meta-externalagent|duckassistbot)
+	path / /fr /fr/ /index.html
+}
+handle @crawler_home {
 	root * /app
 	rewrite * /seo-fr.html
 	file_server
+}
+
+# Any other crawler URL is not a real page. This used to answer 200 with the
+# French page for every path, so one stray link could mint unlimited indexable
+# duplicates (soft 404s) and burn crawl budget. Answer an honest 404 instead.
+handle @crawler {
+	respond "Not Found" 404
 }
 
 # Everyone else -> Streamlit

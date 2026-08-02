@@ -202,7 +202,13 @@ st.html(f"""
         'og:description': '{t("og_description")}',
         'og:type': 'website',
         'og:url': 'https://www.trustyfile.com',
-        'og:image': 'https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png',
+        // Served by Caddy from static/og-image-1200x630.png. Was hosted on
+        // i.ibb.co: a third-party image host we do not control is a silent
+        // single point of failure for every social preview.
+        'og:image': 'https://www.trustyfile.com/og-image.png',
+        'og:image:width': '1200',
+        'og:image:height': '630',
+        'og:image:alt': 'TrustyFile',
         'og:site_name': 'TrustyFile'
     }};
     for (const [prop, content] of Object.entries(ogTags)) {{
@@ -215,9 +221,14 @@ st.html(f"""
     }}
     // SEO: Twitter card tags
     const twTags = {{
-        'twitter:card': 'summary',
+        // summary_large_image: the 1200x630 card, not the small square thumb
+        'twitter:card': 'summary_large_image',
         'twitter:title': '{t("page_title")}',
-        'twitter:description': '{t("twitter_description")}'
+        'twitter:description': '{t("twitter_description")}',
+        'twitter:image': 'https://www.trustyfile.com/og-image.png',
+        // Not a Twitter tag, but injected the same way (meta[name=...]).
+        // max-image-preview:large unlocks full-size thumbnails in Google Discover.
+        'robots': 'index, follow, max-image-preview:large, max-snippet:-1'
     }};
     for (const [name, content] of Object.entries(twTags)) {{
         if (!doc.querySelector(`meta[name="${{name}}"]`)) {{
@@ -269,7 +280,7 @@ st.html(f"""
             "operatingSystem": "Any",
             "inLanguage": "{_current_lang}",
             "offers": {{ "@type": "Offer", "price": "0", "priceCurrency": "EUR" }},
-            "image": "https://i.ibb.co/ZRRR5wN0/upload-icon-medium.png"
+            "image": "https://www.trustyfile.com/og-image.png"
         }});
         doc.head.appendChild(ld);
     }}
@@ -2787,9 +2798,20 @@ if uploaded_file is not None:
 
 # Footer
 st.markdown(f"""
+<style>
+/* The centred contact link is absolutely flanked by the Guides link and the
+   language toggle, so on a narrow phone the three collide. Below 420px drop
+   the "Questions or feedback?" prefix and keep just the address, which is the
+   part that is actually actionable. */
+@media (max-width: 420px) {{
+    .tf-footer-label {{ display: none; }}
+}}
+</style>
 <div style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
     padding:0.3rem 1rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
-    <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;">{t("footer_contact")} <span style="text-decoration:underline;">contact@trustyfile.com</span></a>
+    <a href="{'/guides/' if _current_lang == 'fr' else '/en/guides/'}" style="position:absolute; left:1rem;
+        color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{t("footer_guides")}</a>
+    <a href="mailto:contact@trustyfile.com" style="color:#888; font-size:0.78rem; text-decoration:none;"><span class="tf-footer-label">{t("footer_contact")} </span><span style="text-decoration:underline;">contact@trustyfile.com</span></a>
     <a href="?lang={'en' if _current_lang == 'fr' else 'fr'}" style="position:absolute; right:1rem;
         color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{'EN' if _current_lang == 'fr' else 'FR'}</a>
 </div>

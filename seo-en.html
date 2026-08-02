@@ -12,6 +12,9 @@
 
     <!-- SEO meta -->
     <meta name="description" content="Free online document fraud detector. Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.">
+    <!-- max-image-preview:large unlocks full-size thumbnails in Google Discover -->
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="theme-color" content="#1a1a2e">
 
     <!-- hreflang: tell Google about the other language version -->
     <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/">
@@ -24,14 +27,18 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://www.trustyfile.com/en">
     <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="TrustyFile — document fraud detection">
     <meta property="og:site_name" content="TrustyFile">
     <meta property="og:locale" content="en_US">
     <meta property="og:locale:alternate" content="fr_FR">
 
     <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="TrustyFile - Document Fraud Detector">
     <meta name="twitter:description" content="Free online document fraud detector. Upload a PDF and get an instant trust score.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
 
     <!-- Canonical URL -->
     <link rel="canonical" href="https://www.trustyfile.com/en">
@@ -40,15 +47,46 @@
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "TrustyFile",
-        "url": "https://www.trustyfile.com",
-        "description": "Free online PDF fraud detector. Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.",
-        "applicationCategory": "SecurityApplication",
-        "operatingSystem": "Any",
-        "inLanguage": "en",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
-        "image": "https://www.trustyfile.com/og-image.png"
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": "https://www.trustyfile.com/favicon-192x192.png",
+                "email": "contact@trustyfile.com"
+            },
+            {
+                "@type": "WebSite",
+                "@id": "https://www.trustyfile.com/#website-en",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com/en",
+                "inLanguage": "en",
+                "publisher": { "@id": "https://www.trustyfile.com/#organization" }
+            },
+            {
+                "@type": "WebApplication",
+                "@id": "https://www.trustyfile.com/#webapp-en",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com/en",
+                "description": "Free online PDF fraud detector. Upload a PDF and get an instant trust score. Detects metadata tampering, font inconsistencies, date anomalies, fake logos and more.",
+                "applicationCategory": "SecurityApplication",
+                "browserRequirements": "Requires JavaScript",
+                "operatingSystem": "Any",
+                "inLanguage": "en",
+                "featureList": [
+                    "PDF metadata analysis",
+                    "Date and amount consistency checks",
+                    "Font and embedded image analysis",
+                    "PDF internal structure analysis",
+                    "Company identifier verification (SIRET / VAT)",
+                    "French 2D-Doc barcode decoding"
+                ],
+                "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+                "image": "https://www.trustyfile.com/og-image.png",
+                "publisher": { "@id": "https://www.trustyfile.com/#organization" }
+            }
+        ]
     }
     </script>
 
@@ -71,7 +109,7 @@
                 "name": "Does TrustyFile store my documents?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "No. Your document is analyzed locally and never stored on our servers. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs for verification."
+                    "text": "No. Your document is analyzed in memory for the duration of the analysis, then discarded: it is never retained on our servers. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs for verification."
                 }
             },
             {
@@ -87,7 +125,7 @@
                 "name": "Is TrustyFile free?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes, TrustyFile is completely free and open source. No registration required."
+                    "text": "Yes, TrustyFile is completely free with no registration. No usage limits, no subscription."
                 }
             },
             {
@@ -121,7 +159,7 @@
 <body>
     <h1>TrustyFile - Document Fraud Detector</h1>
     <p>
-        <strong>TrustyFile</strong> is a free, open-source PDF document analysis tool.
+        <strong>TrustyFile</strong> is a free PDF document analysis tool.
         It detects signs of manipulation, forgery and inconsistencies in invoices,
         proof of address, pay slips and other administrative documents.
     </p>
@@ -164,11 +202,54 @@
     <h2>Why TrustyFile</h2>
     <ul>
         <li><strong>Free</strong>: no registration, no subscription, no usage limits</li>
-        <li><strong>Privacy-friendly</strong>: your document is analyzed locally and never stored</li>
-        <li><strong>Open source</strong>: code available on GitHub for audit and contribution</li>
+        <li><strong>Privacy-friendly</strong>: your document is analyzed in memory, then discarded — never retained</li>
+        <li><strong>Transparent</strong>: every detection signal is explained, with its evidence and method</li>
         <li><strong>Fast</strong>: results in seconds</li>
         <li><strong>Detailed</strong>: each anomaly is explained with its severity level</li>
     </ul>
+
+    <h2>Use cases</h2>
+    <h3>Checking a tampered invoice</h3>
+    <p>
+        A retouched amount, an altered invoice date or a swapped IBAN almost always leave
+        technical traces in the PDF: an extra incremental revision, a different font on a single
+        line, an image pasted over the original text. TrustyFile surfaces those signals and
+        locates them on the document preview.
+    </p>
+    <h3>Verifying a proof of address</h3>
+    <p>
+        Energy, telecom and internet bills are routinely used as proof of address. TrustyFile
+        compares the PDF metadata against the expected issuing software and flags files that have
+        been round-tripped through an online converter or a PDF editor.
+    </p>
+    <h3>Verifying a pay slip or a tax notice</h3>
+    <p>
+        Recent French administrative documents carry a 2D-Doc barcode. TrustyFile decodes it,
+        compares the encoded data with the visible text and reports any divergence. Digital
+        identity documents are checked through the MRZ checksums.
+    </p>
+    <h3>Telling whether a PDF has been modified</h3>
+    <p>
+        A PDF keeps a history of its successive saves. TrustyFile counts the revisions and detects
+        deleted objects still present in the file, hidden or covered text, and embedded JavaScript.
+    </p>
+
+    <h2>What TrustyFile does not do</h2>
+    <p>
+        TrustyFile is a decision-support tool, not a certification authority. It computes a risk
+        score from technical indicators. A high score does not prove a document is authentic, and a
+        scanned, flattened document yields little signal: in that case TrustyFile reports it as
+        <strong>unverifiable</strong> rather than scoring it well by default.
+    </p>
+
+    <h2>Verification guides</h2>
+    <ul>
+        <li><a href="/en/guides/how-to-spot-a-tampered-invoice">How to spot a tampered invoice</a></li>
+        <li><a href="/en/guides/how-to-verify-a-proof-of-address">How to verify a proof of address</a></li>
+        <li><a href="/en/guides/how-to-tell-if-a-pdf-was-modified">How to tell if a PDF was modified</a></li>
+        <li><a href="/en/guides/2d-doc-verifying-official-documents">2D-Doc: verifying official documents</a></li>
+    </ul>
+    <p><a href="/en/guides/">All document verification guides</a></p>
 
     <h2>Frequently Asked Questions</h2>
     <dl class="faq">
@@ -176,13 +257,13 @@
         <dd>Upload a PDF and TrustyFile automatically analyzes it through multiple modules: metadata, content consistency, fonts, embedded images, internal PDF structure and external verification (company ID, VAT). A trust score from 0 to 100 is calculated.</dd>
 
         <dt>Does TrustyFile store my documents?</dt>
-        <dd>No. Your document is analyzed locally and never stored on our servers. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs for verification.</dd>
+        <dd>No. Your document is analyzed in memory for the duration of the analysis, then discarded: it is never retained on our servers. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs for verification.</dd>
 
         <dt>What types of fraud can TrustyFile detect?</dt>
         <dd>TrustyFile detects PDF metadata tampering, font inconsistencies, impossible or anachronistic dates, image manipulation, PDF structure modifications and verifies company identifiers.</dd>
 
         <dt>Is TrustyFile free?</dt>
-        <dd>Yes, completely free and open source. No registration required.</dd>
+        <dd>Yes, completely free with no registration. No usage limits, no subscription.</dd>
 
         <dt>Can TrustyFile certify that a document is authentic?</dt>
         <dd>No. TrustyFile provides a risk score based on technical indicators. A high score means few signs of manipulation, but does not guarantee authenticity. A low score flags anomalies that deserve verification.</dd>

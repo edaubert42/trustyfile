@@ -76,7 +76,8 @@ trustyfile/
 ├── requirements-dev.txt      # + pikepdf/pypdfium2 (tests only, not shipped)
 ├── app.py                    # Streamlit entry point
 ├── start.sh                  # Streamlit + Caddy boot (Railway)
-├── Caddyfile                 # Crawler -> static SEO page, users -> Streamlit
+├── Caddyfile                 # Crawler -> static SEO page, users -> Streamlit;
+│                             # /guides served to everyone (anti-cloaking)
 ├── nixpacks.toml             # Railway build: system deps, python pin, test gate
 ├── .github/workflows/        # CI: pytest on 3.12/3.13/3.14
 ├── src/
@@ -107,7 +108,10 @@ trustyfile/
 │   └── extractors/
 │       ├── pdf_extractor.py  # PDF text/image extraction
 │       └── ocr.py            # OCR fallback for flattened PDFs
-├── scripts/                  # build_corpus, generate_tampered, eval_harness
+├── guides/                   # GENERATED SEO content pages (fr/, en/) — do not
+│                             # hand-edit; see scripts/build_guides.py
+├── scripts/                  # build_corpus, generate_tampered, eval_harness,
+│                             # build_guides (renders guides/ + sitemap.xml)
 ├── docs/superpowers/         # Specs, plans, research (design history)
 ├── tests/                    # 43 files, ~888 tests
 └── samples/                  # Corpus — gitignored, holds real documents

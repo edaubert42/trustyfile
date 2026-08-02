@@ -1,3 +1,14 @@
 User-agent: *
 Allow: /
+
+# Streamlit internals: websocket endpoint, asset bundles, health checks and
+# per-session media URLs. Nothing here is a page, and the media URLs are
+# unique per upload, so crawling them only burns crawl budget.
+Disallow: /_stcore/
+Disallow: /media/
+Disallow: /component/
+Disallow: /vendor/
+Disallow: /healthz
+Disallow: /script-health-check
+
 Sitemap: https://www.trustyfile.com/sitemap.xml

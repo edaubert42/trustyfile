@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifier si une facture a été falsifiée</title>
+    <meta name="description" content="Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/verifier-une-facture-falsifiee">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-une-facture-falsifiee">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-spot-a-tampered-invoice">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-une-facture-falsifiee">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Vérifier si une facture a été falsifiée">
+    <meta property="og:description" content="Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/verifier-une-facture-falsifiee">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vérifier si une facture a été falsifiée">
+    <meta name="twitter:description" content="Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Vérifier si une facture a été falsifiée",
+        "description": "Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.",
+        "inLanguage": "fr",
+        "datePublished": "2026-08-02",
+        "dateModified": "2026-08-02",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/verifier-une-facture-falsifiee"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Vérifier si une facture a été falsifiée"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/how-to-spot-a-tampered-invoice">English</a>
+    </nav>
+
+    <h1>Comment vérifier qu&#x27;une facture n&#x27;a pas été falsifiée</h1>
+    <p class="updated">Mis à jour le 2 août 2026</p>
+    <p class="intro">La fraude à la facture ne demande plus de compétences particulières : un éditeur PDF gratuit suffit pour changer un montant ou un IBAN. En revanche, ces modifications laissent presque toujours des traces dans le fichier — à condition de savoir où regarder.</p>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#1-regarder-qui-a-produit-le-fichier">1. Regarder qui a produit le fichier</a></li>
+        <li><a href="#2-compter-les-revisions-du-pdf">2. Compter les révisions du PDF</a></li>
+        <li><a href="#3-examiner-les-polices-ligne-par-ligne">3. Examiner les polices ligne par ligne</a></li>
+        <li><a href="#4-chercher-le-texte-recouvert">4. Chercher le texte recouvert</a></li>
+        <li><a href="#5-verifier-ce-qui-est-verifiable-de-l-exterieur">5. Vérifier ce qui est vérifiable de l&#x27;extérieur</a></li>
+        <li><a href="#le-reflexe-qui-prime-sur-tous-les-autres">Le réflexe qui prime sur tous les autres</a></li>
+    </ol>
+    <h2 id="1-regarder-qui-a-produit-le-fichier">1. Regarder qui a produit le fichier</h2>
+    <p>Un PDF conserve le nom du logiciel qui l'a écrit, dans un champ appelé <em>Producer</em>, et celui de l'application d'origine dans <em>Creator</em>. Une facture émise par un logiciel de comptabilité porte la signature de ce logiciel. Si elle porte celle d'un éditeur PDF grand public ou d'un convertisseur en ligne, le fichier a été rouvert et réenregistré après émission.</p>
+    <p>Ce n'est pas une preuve de fraude en soi : beaucoup de gens compressent une pièce jointe trop lourde avant de l'envoyer. C'est un signal à croiser avec les autres.</p>
+    <ul>
+        <li><strong>Convertisseurs en ligne</strong> : iLovePDF, Smallpdf, Sejda, PDF24, Canva, Nitro. Ils réécrivent entièrement le fichier et effacent au passage l'historique d'origine.</li>
+        <li><strong>ModDate très postérieure à CreationDate</strong> : le document a été modifié longtemps après sa création.</li>
+        <li><strong>Métadonnées vides</strong> sur un document prétendument émis par une grande entreprise : les chaînes de facturation industrielles remplissent ces champs.</li>
+    </ul>
+    <h2 id="2-compter-les-revisions-du-pdf">2. Compter les révisions du PDF</h2>
+    <p>Le format PDF permet d'enregistrer une modification <em>en ajoutant</em> des données à la fin du fichier plutôt qu'en le réécrivant : c'est la mise à jour incrémentale. L'état précédent reste physiquement présent dans le fichier.</p>
+    <p>Conséquence directe : sur un document à plusieurs révisions, on peut souvent afficher la version antérieure et comparer. Un montant qui change entre deux révisions est l'un des rares indices proches de la preuve.</p>
+    <p>Attention aux faux positifs : une signature électronique ajoute légitimement une révision, et certains formulaires administratifs en ajoutent une à chaque remplissage.</p>
+    <h2 id="3-examiner-les-polices-ligne-par-ligne">3. Examiner les polices ligne par ligne</h2>
+    <p>Un document généré par un logiciel utilise un jeu de polices cohérent et embarque ces polices dans le fichier. Quand quelqu'un retouche un montant avec un éditeur, l'éditeur ne dispose pas toujours de la police d'origine et substitue une police système : Arial, Calibri, Helvetica.</p>
+    <ul>
+        <li>Un changement de police <strong>au milieu d'une ligne</strong> ou d'un mot est très difficile à produire accidentellement.</li>
+        <li>Une police non embarquée au milieu de polices embarquées signale un ajout tardif.</li>
+        <li>Une diversité anormale de polices sur une seule page (au-delà de cinq ou six sur une facture) mérite un examen.</li>
+    </ul>
+    <h2 id="4-chercher-le-texte-recouvert">4. Chercher le texte recouvert</h2>
+    <p>La retouche la plus courante ne supprime rien : elle recouvre. Un rectangle blanc posé sur l'ancien montant, le nouveau montant écrit par-dessus. Visuellement, c'est parfait. Dans le fichier, l'ancien texte est toujours là, sous le rectangle.</p>
+    <p>Copier-coller le texte du PDF dans un éditeur de texte suffit parfois à faire réapparaître la valeur d'origine. Variante : du texte rendu invisible (mode de rendu "invisible", ou couleur de texte identique au fond) qui contredit ce qui est affiché.</p>
+    <h2 id="5-verifier-ce-qui-est-verifiable-de-l-exterieur">5. Vérifier ce qui est vérifiable de l&#x27;extérieur</h2>
+    <p>Certaines données d'une facture se contrôlent hors du fichier, et c'est ce qui rend cette étape utile : elle ne dépend pas de la bonne foi de l'émetteur.</p>
+    <ul>
+        <li><strong>SIREN / SIRET</strong> : l'INSEE expose un annuaire public. Un numéro inexistant, ou rattaché à une entreprise sans rapport, est décisif.</li>
+        <li><strong>Numéro de TVA intracommunautaire</strong> : il possède une clé de contrôle calculable, et se vérifie auprès de VIES.</li>
+        <li><strong>IBAN</strong> : sa clé de contrôle (modulo 97) se vérifie sans réseau. Un IBAN retouché à la main échoue presque toujours ce test.</li>
+        <li><strong>Cohérence arithmétique</strong> : total HT + TVA = total TTC. Une retouche partielle casse l'addition.</li>
+    </ul>
+    <h2 id="le-reflexe-qui-prime-sur-tous-les-autres">Le réflexe qui prime sur tous les autres</h2>
+    <p>En cas de doute sur un RIB, aucune analyse de fichier ne remplace un appel au fournisseur, sur un numéro que vous connaissez déjà — jamais celui inscrit sur la facture suspecte. La fraude au faux RIB fonctionne parce que la victime vérifie l'information avec l'information elle-même.</p>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>
