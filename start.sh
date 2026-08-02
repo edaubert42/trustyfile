@@ -2,13 +2,17 @@
 # Start Streamlit in the background on port 8501 (internal only)
 # Then start Caddy in the foreground on $PORT (exposed to internet)
 
-# Caddy comes from nixpacks.toml (nixPkgs), version-pinned and hash-verified at
-# build time — see the comment there for why downloading it at boot was wrong.
-# Fail loudly if the build did not provide it, rather than starting Streamlit
-# and then dying with nothing listening on $PORT.
+# Install Caddy if not already present.
+#
+# This download is not ideal — unpinned and unverified — but adding caddy to
+# nixPkgs did NOT work: the build succeeded while the binary was absent from
+# the runtime image PATH, which took the site down. Do not "fix" this by
+# moving it back to nixPkgs without first confirming `caddy` resolves at
+# RUNTIME, not just at build time.
 if ! command -v caddy &> /dev/null; then
-    echo "FATAL: caddy not found — check nixPkgs in nixpacks.toml" >&2
-    exit 1
+    echo "Installing Caddy..."
+    curl -sL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o /usr/local/bin/caddy
+    chmod +x /usr/local/bin/caddy
 fi
 
 streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true &

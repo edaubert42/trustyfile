@@ -2,12 +2,11 @@
 # python313 pins the interpreter — without it nixpacks picks its own default,
 # which can drift away from what CI actually tested.
 #
-# caddy is baked in here rather than curl'd at boot by start.sh: that fetched
-# an unpinned, unchecksummed binary from caddyserver.com on every container
-# start, so the version could drift under us, a bad response would be executed
-# unverified, and the app could not boot at all if the download failed. nix
-# pins the version and verifies the hash at build time.
-nixPkgs = ["python313", "caddy", "tesseract", "zbar", "libdmtx"]
+# NOTE: caddy is deliberately NOT here. Adding it built fine but the binary was
+# not on PATH in Railway's runtime image, so start.sh aborted and the site went
+# down. Caddy is fetched at boot instead — see start.sh. curl is required for
+# that fetch.
+nixPkgs = ["python313", "tesseract", "zbar", "libdmtx", "curl"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
