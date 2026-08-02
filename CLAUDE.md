@@ -2,7 +2,7 @@
 
 ## ⚠️ Learning Mode — IMPORTANT
 
-This is a **learning project**. The developer (music music music music music) wants to deeply understand every part of the code, not just have working code.
+This is a **learning project**. The developer wants to deeply understand every part of the code, not just have working code.
 
 **Rules for Claude Code:**
 
@@ -53,14 +53,17 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 
 ## Tech Stack
 
-- **Language**: Python 3.11+
+- **Language**: Python 3.11+ (CI gates 3.12/3.13/3.14; Railway pins 3.13)
 - **PDF Parsing**: PyMuPDF (fitz) - preferred over PyPDF2 for speed and robustness
-- **Text Extraction**: pdfplumber (for structured text), pytesseract (OCR fallback)
-- **Date Parsing**: datefinder
+- **Text Extraction**: pytesseract (OCR fallback only — the text layer is read
+  via PyMuPDF; pdfplumber was dropped and is neither installed nor imported)
+- **Date Parsing**: datefinder, python-dateutil
 - **QR Code Reading**: pyzbar *(disabled — next feature, requires libzbar0 system dep)*
-- **Image Processing**: opencv-python (cv2), Pillow
-- **Web Interface**: Streamlit
-- **Testing**: pytest
+- **2D-Doc / DataMatrix**: pylibdmtx (needs the libdmtx system lib)
+- **Image Processing**: opencv-python-headless (cv2), numpy, Pillow
+- **XML (e-invoice)**: defusedxml — untrusted embedded XML, blocks XXE
+- **Web Interface**: Streamlit, fronted by Caddy for SEO/crawler routing
+- **Testing**: pytest (+ pikepdf/pypdfium2 in requirements-dev.txt)
 
 ## Project Structure
 
@@ -68,47 +71,53 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 trustyfile/
 ├── CLAUDE.md
 ├── README.md
-├── requirements.txt
+├── LICENSE                   # Proprietary — all rights reserved
+├── requirements.txt          # Runtime deps
+├── requirements-dev.txt      # + pikepdf/pypdfium2 (tests only, not shipped)
 ├── app.py                    # Streamlit entry point
+├── start.sh                  # Streamlit + Caddy boot (Railway)
+├── Caddyfile                 # Crawler -> static SEO page, users -> Streamlit
+├── nixpacks.toml             # Railway build: system deps, python pin, test gate
+├── .github/workflows/        # CI: pytest on 3.12/3.13/3.14
 ├── src/
-│   ├── __init__.py
-│   ├── analyzer.py           # Main orchestrator
-│   ├── modules/
-│   │   ├── __init__.py
-│   │   ├── metadata.py       # Module A: PDF metadata analysis
-│   │   ├── content.py        # Module B: Text content & anachronisms
-│   │   ├── visual.py         # Module C: QR codes, watermarks
-│   │   ├── fonts.py          # Module D: Font consistency analysis
-│   │   ├── structure.py      # Module E: PDF internal structure
-│   │   ├── images.py         # Module F: Embedded images analysis
-│   │   ├── external.py       # Module G: External verification (optional)
-│   │   ├── forensics.py      # Module H: Advanced image forensics
-│   │   └── templates.py      # Module I: Template matching
-│   ├── extractors/
-│   │   ├── __init__.py
-│   │   ├── pdf_extractor.py  # PDF text/image extraction
-│   │   └── ocr.py            # OCR fallback for flattened PDFs
-│   └── scoring.py            # Risk score calculation
-├── templates/                # Known legitimate templates (MVP+)
-│   ├── index.json
-│   ├── edf/
-│   ├── amazon/
-│   ├── free/
-│   ├── orange/
-│   └── paypal/
-├── tests/
-│   ├── __init__.py
-│   ├── test_metadata.py
-│   ├── test_content.py
-│   ├── test_visual.py
-│   ├── test_fonts.py
-│   ├── test_structure.py
-│   ├── test_images.py
-│   └── test_templates.py
-└── samples/                  # Test documents (not in git)
+│   ├── analyzer.py           # Main orchestrator — wires all 13 modules
+│   ├── scoring.py            # Evidence ledger -> trust score
+│   ├── evidence.py           # Ledger primitives
+│   ├── summary.py            # EN/FR verdict + narrative generation
+│   ├── preview.py            # Page render + evidence-box overlay
+│   ├── document_type.py      # Document-genre classifier (FP suppression)
+│   ├── models.py             # Flag, ModuleResult, AnalysisResult
+│   ├── i18n.py, translations/  # EN/FR strings
+│   ├── modules/              # 13 detection modules (see Analysis Modules)
+│   │   ├── metadata.py       # Module A
+│   │   ├── content.py        # Module B
+│   │   ├── visual.py         # Module C
+│   │   ├── fonts.py          # Module D
+│   │   ├── structure.py      # Module E
+│   │   ├── images.py         # Module F
+│   │   ├── external.py       # Module G (opt-in, network)
+│   │   ├── forensics.py      # Module H (ELA)
+│   │   ├── overlay.py        # Cover-and-retype / cross-revision
+│   │   ├── invisible.py      # Invisible / hidden text mismatch
+│   │   ├── provenance.py     # Producer structural fingerprints
+│   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
+│   │   ├── identity.py       # MRZ checksums (conditional)
+│   │   ├── twod_doc.py       # French 2D-Doc barcodes
+│   │   └── span_conflict.py  # Shared helper (overlay + invisible)
+│   └── extractors/
+│       ├── pdf_extractor.py  # PDF text/image extraction
+│       └── ocr.py            # OCR fallback for flattened PDFs
+├── scripts/                  # build_corpus, generate_tampered, eval_harness
+├── docs/superpowers/         # Specs, plans, research (design history)
+├── tests/                    # 43 files, ~888 tests
+└── samples/                  # Corpus — gitignored, holds real documents
     ├── legitimate/
-    └── suspicious/
+    ├── suspicious/
+    └── unverifiable/
 ```
+
+**Note**: `src/modules/templates.py` and the `templates/` database (Module I)
+were specified below but never built — see Analysis Modules.
 
 ## Analysis Modules
 
@@ -173,7 +182,12 @@ trustyfile/
 - **Splicing detection**: Identify images composited from multiple sources
 - **JPEG ghost detection**: Find traces of previous JPEG compressions
 
-### Module I: Template Matching (`src/modules/templates.py`) — MVP+
+### Module I: Template Matching — NOT BUILT (design only)
+
+> Neither `src/modules/templates.py` nor the `templates/` directory exists.
+> Everything below is the original design sketch, kept for whenever this gets
+> picked up. Do not treat it as a description of the codebase.
+
 Compare uploaded documents against known legitimate templates.
 
 **Template database structure** (`templates/`):
@@ -241,20 +255,16 @@ class Flag:
     details: dict | None = None
 ```
 
-Final score = weighted average of module scores, adjusted by confidence.
+**Superseded.** The weighted-average-of-module-scores engine described here
+was replaced by the **evidence ledger** in `src/scoring.py`: every flag becomes
+a piece of evidence, and `aggregate_evidence` combines the ledger into the
+final score. `create_analysis_result` is the entry point. The per-module
+weights and flat severity points below no longer drive scoring — read
+`src/scoring.py` for the live model.
 
-Severity weights:
-- low: 5 points
-- medium: 15 points  
-- high: 30 points
-- critical: 50 points
-
-Module weights (MVP):
-- metadata: 1.0
-- content: 1.2
-- visual: 0.8
-- fonts: 1.0
-- images: 0.9
+Severity levels are still `low` / `medium` / `high` / `critical`, and a
+document with no usable signal fails closed to UNVERIFIABLE rather than
+scoring well by default (the coverage gate).
 
 ## Code Style & Conventions
 
@@ -269,12 +279,13 @@ Module weights (MVP):
 ## Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (use the -dev file to run the full test suite:
+# it adds pikepdf/pypdfium2, which several provenance tests importorskip on)
+pip install -r requirements-dev.txt
 
-# Install system dependencies (for OCR)
-# Ubuntu/Debian: sudo apt install tesseract-ocr tesseract-ocr-fra
-# macOS: brew install tesseract
+# Install system dependencies (OCR + 2D-Doc DataMatrix)
+# Ubuntu/Debian: sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx-dev
+# macOS: brew install tesseract libdmtx
 
 # Run the app
 streamlit run app.py
@@ -291,48 +302,58 @@ pytest tests/ --cov=src --cov-report=html
 
 ## Current Phase
 
-**Phase 1 - MVP** (target: 2 weeks)
-- [ ] Project structure + requirements.txt
-- [ ] PDF extraction (text + metadata + images)
-- [ ] Module A: Metadata analysis
-- [ ] Module B: Content analysis  
-- [ ] Module C: Visual analysis
-- [ ] Module D: Font analysis
-- [ ] Module F: Images analysis (with paste detection)
-- [ ] Scoring system
-- [ ] Streamlit interface
-- [ ] Sample test documents generator
-- [ ] README with demo GIF
-- [ ] Deploy on Streamlit Cloud
+Phases 1-5 are largely shipped. The MVP is deployed (Railway, behind Caddy),
+13 modules are wired into `analyzer.py`, and ~888 tests run in CI on every
+push. Phase 8 (detection depth) is where active work sits.
 
-**Phase 2 - MVP+** (after MVP)
-- [ ] Module I: Template matching (start with 5 templates: EDF, Amazon, Free, Orange, PayPal)
-- [ ] Template contribution system (users can submit templates)
-- [ ] Improved UI with detailed breakdown per module
+**Phase 1 - MVP** — done
+- [x] Project structure, PDF extraction, Modules A/B/C/D/F
+- [x] Scoring system (since replaced by the evidence ledger, see Scoring)
+- [x] Streamlit interface + tampered-sample generator (`scripts/`)
+- [x] Deployed — Railway rather than Streamlit Cloud (system deps for
+      tesseract/libdmtx), with Caddy fronting it for crawler/SEO routing
 
-**Phase 3 - Enhanced** (post-MVP+)
+**Phase 2 - MVP+**
+- [ ] Module I: Template matching — **not built**. Neither
+      `src/modules/templates.py` nor `templates/` exists; the spec below is
+      a design, not a description of the code.
+- [ ] Template contribution system
+- [x] Per-module breakdown in the UI
+
+**Phase 3 - Enhanced**
 - [x] Module E: PDF structure analysis (incremental updates, JS, signatures)
-- [x] Module G: External verification (SIREN/SIRET via API)
-- [ ] Module H: Advanced image forensics
-- [ ] Batch upload support
-- [ ] Export report as PDF
-- [ ] API endpoint (FastAPI)
-- [ ] Dark mode UI
+- [x] Module G: External verification (SIREN/SIRET via API, opt-in)
+- [x] Module H: image forensics — ELA only; clone/splicing/JPEG-ghost not done
+- [ ] Batch upload, PDF export, FastAPI endpoint
+- [x] Dark mode UI
 
-**Phase 4 - Security** (future)
+**Phase 4 - Security**
 - [x] Digital signature validation: Verify PDF signatures via EU DSS API
-- [ ] VirusTotal API integration: Check file hash against malware database
-- [x] 2D-Doc verification: Decode French government 2D barcodes (requires libdmtx)
+- [x] VirusTotal API integration (in `app.py`, requires API key)
+- [x] 2D-Doc verification: Decode French government 2D barcodes (libdmtx)
 
-**Phase 5 - Forensics** (future)
-- [ ] PDF modification history: Extract and display what changed between versions
-  - Compare content streams between incremental updates
-  - Show diff of text content (before/after)
-  - Identify modified objects (images, text blocks, metadata)
-  - Timeline visualization of all modifications
-- [ ] Content stream decompression: Analyze FlateDecode streams for hidden changes
-- [ ] Object-level diff: Compare PDF objects between versions
-- [ ] Source URL detection: Try to identify the origin of web-generated PDFs
+**Phase 5 - Forensics**
+- [x] PDF modification history: revision diffs surfaced in the UI
+- [ ] Content stream decompression: analyze FlateDecode for hidden changes
+- [ ] Object-level diff: compare PDF objects between versions
+- [ ] Source URL detection: identify the origin of web-generated PDFs
+
+**Phase 8 - Detection depth** (current)
+- [x] Coverage gate — blind documents fail closed to UNVERIFIABLE
+- [x] MRZ checksums on digital-native identity documents
+- [x] Evidence highlighting — tamper-region boxes drawn on the preview
+- [x] Producer structural fingerprints (`provenance`) — catches a forged or
+      stripped Producer string via byte-level layout tells
+- [ ] Crypto verification: no HARD_POSITIVE evidence exists today, so nothing
+      can be proven genuine — 2D-Doc ECDSA / PAdES via pyHanko are the
+      candidates
+
+### Known gaps
+- The zero-FP corpus gates parametrize over `samples/`, which is gitignored,
+  so **they run locally only** — CI is ~764 tests, not ~888. A green CI badge
+  is not full coverage.
+- `src/scoring.py` still carries an in-place mutation flagged as a smell from
+  the pre-ledger engine.
   - Check for links pointing to same domain
   - Analyze image URLs if loaded from external sources
   - Look for footer/header text with URLs

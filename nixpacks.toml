@@ -1,7 +1,13 @@
 [phases.setup]
 # python313 pins the interpreter — without it nixpacks picks its own default,
 # which can drift away from what CI actually tested.
-nixPkgs = ["python313", "tesseract", "zbar", "libdmtx", "curl"]
+#
+# caddy is baked in here rather than curl'd at boot by start.sh: that fetched
+# an unpinned, unchecksummed binary from caddyserver.com on every container
+# start, so the version could drift under us, a bad response would be executed
+# unverified, and the app could not boot at all if the download failed. nix
+# pins the version and verifies the hash at build time.
+nixPkgs = ["python313", "caddy", "tesseract", "zbar", "libdmtx"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]
