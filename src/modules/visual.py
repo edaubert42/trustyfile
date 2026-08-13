@@ -8,7 +8,7 @@ This module analyzes visual elements of the PDF:
 
 How it works:
 - Convert PDF pages to images using PyMuPDF
-- Scan images for QR codes using pyzbar
+- Scan images for QR codes using OpenCV's QRCodeDetector
 - Search text for watermark patterns
 - Check if QR URLs match the document's claimed sender
 """
@@ -18,20 +18,15 @@ import logging
 from urllib.parse import urlparse
 from dataclasses import dataclass
 from typing import Optional
+
+import cv2
 import fitz  # PyMuPDF
-from PIL import Image
-import io
+import numpy as np
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
 
 logger = logging.getLogger(__name__)
-
-# TODO (next feature): QR code scanning via pyzbar
-# Requires: pip install pyzbar + sudo apt install libzbar0
-# See extract_qr_codes_from_pdf() below — currently disabled.
-PYZBAR_AVAILABLE = False
-_pyzbar = None
 
 
 # =============================================================================
@@ -62,30 +57,31 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
     Process:
     1. Open PDF with PyMuPDF
     2. Convert each page to an image (high resolution for better detection)
-    3. Use pyzbar to detect and decode QR codes
+    3. Use OpenCV's QRCodeDetector to detect and decode QR codes
     4. Return list of decoded QR codes with their positions
+
+    OpenCV is used instead of pyzbar on purpose: cv2 is already a runtime
+    dependency (Modules F/H), while pyzbar needs the libzbar0 system library,
+    which is one more thing to install on every deploy target. The trade-off
+    is scope: cv2 only reads QR codes, not EAN/Code128 barcodes — which is all
+    this module checks anyway (DataMatrix / 2D-Doc has its own module).
 
     Args:
         pdf_path: Path to the PDF file
 
     Returns:
-        List of QRCodeInfo objects
-
-    Note:
-        pyzbar requires libzbar to be installed on the system:
-        - Ubuntu/Debian: sudo apt install libzbar0
-        - macOS: brew install zbar
+        List of QRCodeInfo objects. Positions are in rendered-image pixels
+        (2x the PDF point coordinates, see zoom below).
     """
-    qr_codes = []
-
-    if not PYZBAR_AVAILABLE:
-        return []
+    qr_codes: list[QRCodeInfo] = []
 
     try:
         doc = fitz.open(pdf_path)
     except Exception as e:
         logger.error(f"Could not open PDF: {e}")
         return []
+
+    detector = cv2.QRCodeDetector()
 
     try:
         for page_num in range(len(doc)):
@@ -100,25 +96,47 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
             # Get pixmap (image) of the page
             pixmap = page.get_pixmap(matrix=matrix)
 
-            # Convert to PIL Image for pyzbar
-            img_data = pixmap.tobytes("png")
-            img = Image.open(io.BytesIO(img_data))
+            # Pixmap samples are a flat RGB(A) byte buffer; reshape into the
+            # (height, width, channels) array OpenCV expects.
+            img = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(
+                pixmap.height, pixmap.width, pixmap.n
+            )
+            if pixmap.n >= 3:
+                gray = cv2.cvtColor(img[:, :, :3], cv2.COLOR_RGB2GRAY)
+            else:
+                gray = img[:, :, 0]
 
-            # Detect QR codes
-            decoded_objects = _pyzbar.decode(img)
+            try:
+                found, texts, points, _ = detector.detectAndDecodeMulti(gray)
+            except cv2.error as e:
+                # A degenerate page image can crash the detector; skip the
+                # page rather than losing the whole document.
+                logger.warning(f"QR detection failed on page {page_num}: {e}")
+                continue
 
-            for obj in decoded_objects:
-                # obj.data is bytes, decode to string
-                data = obj.data.decode("utf-8", errors="ignore")
+            if not found:
+                continue
 
-                # Get bounding rectangle
-                rect = obj.rect  # (left, top, width, height)
+            for text, quad in zip(texts, points):
+                # detectAndDecodeMulti reports located-but-undecodable codes
+                # as empty strings; nothing to check on those.
+                if not text:
+                    continue
+
+                # quad is the 4 corner points; collapse to a bounding box.
+                xs, ys = quad[:, 0], quad[:, 1]
+                rect = (
+                    int(xs.min()),
+                    int(ys.min()),
+                    int(xs.max() - xs.min()),
+                    int(ys.max() - ys.min()),
+                )
 
                 qr_codes.append(QRCodeInfo(
-                    data=data,
+                    data=text,
                     page=page_num,
-                    rect=(rect.left, rect.top, rect.width, rect.height),
-                    qr_type=obj.type,  # "QRCODE", "EAN13", etc.
+                    rect=rect,
+                    qr_type="QRCODE",
                 ))
     finally:
         # Always close, even if a mid-loop exception (malformed page/image) occurs

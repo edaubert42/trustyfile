@@ -25,7 +25,8 @@ Pillow>=10.0.0,<13           # Image handling (green on 12.3.0)
 # MRZ analysis entirely. Do not relax without porting _has_face_photo first.
 opencv-python-headless>=4.10,<5   # Computer vision (headless for server)
 numpy>=1.26.0,<3         # Direct dep (images/forensics/identity/twod_doc), not just via cv2
-# pyzbar>=0.1.9          # QR code reading — next feature (requires libzbar0 system dep)
+# QR code reading is done with cv2.QRCodeDetector (no extra dep). pyzbar was
+# the original plan but needs the libzbar0 system library on every target.
 pylibdmtx>=0.1.10,<0.2   # DataMatrix reading (2D-DOC barcodes)
 setuptools>=70.0.0,<84   # Provides distutils for pylibdmtx on Python 3.13+
 
