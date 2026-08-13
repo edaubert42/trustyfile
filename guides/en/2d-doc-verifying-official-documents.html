@@ -63,6 +63,7 @@ a { color: #2563eb; }
 }
 .card:hover { border-color: #2563eb; }
 .card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
 .card p { margin: 0; color: #555; font-size: 0.92rem; }
 .card .more { color: #2563eb; font-size: 0.88rem; }
 footer {
@@ -81,8 +82,8 @@ footer {
         "headline": "2D-Doc: verifying French official documents",
         "description": "The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.",
         "inLanguage": "en",
-        "datePublished": "2026-08-02",
-        "dateModified": "2026-08-02",
+        "datePublished": "2026-08-13",
+        "dateModified": "2026-08-13",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents"
@@ -139,7 +140,7 @@ footer {
     </nav>
 
     <h1>2D-Doc: the only check that proves something</h1>
-    <p class="updated">Updated 2 August 2026</p>
+    <p class="updated">Updated 13 August 2026</p>
     <p class="intro">Every check described in the other guides is circumstantial — it makes fraud more or less likely, never certain. 2D-Doc is different: it rests on cryptography, and allows a clear-cut answer.</p>
     <h2>Contents</h2>
     <ol class="toc">
@@ -164,6 +165,27 @@ footer {
     <h2 id="check-with-the-issuer-in-parallel">Check with the issuer in parallel</h2>
     <p>For a French tax notice, the tax administration runs an online verification service (SVAIR) where you enter the tax number and the notice reference. The answer comes from the source itself, which beats any file analysis.</p>
     <p>General rule: when the issuer offers a way to verify directly with them, that is always the route to take first.</p>
+    <h2>More guides</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
+        <h3>How to spot a tampered invoice</h3>
+        <p>Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-proof-of-address">
+        <h3>How to verify a proof of address</h3>
+        <p>Utility, telecom and internet bills used as proof of address: the technical checks that reveal an edited document, and when the checks simply cannot apply.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-tell-if-a-pdf-was-modified">
+        <h3>How to tell if a PDF was modified</h3>
+        <p>A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-pay-slip">
+        <h3>How to verify a pay slip</h3>
+        <p>Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
+        <h3>How to spot a fake IBAN on an invoice</h3>
+        <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
+    </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>
         <p><a href="https://www.trustyfile.com/en">TrustyFile</a>

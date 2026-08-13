@@ -45,7 +45,7 @@ SITE = "https://www.trustyfile.com"
 # <lastmod> in the sitemap and dateModified in the Article JSON-LD; lying about
 # it (auto-setting it to "today" on every build) is the kind of freshness
 # signal Google discounts.
-LAST_MODIFIED = "2026-08-02"
+LAST_MODIFIED = "2026-08-13"
 
 
 @dataclass
@@ -118,8 +118,9 @@ CHROME = {
         "other_lang_label": "English",
         "read_more": "Lire le guide",
         "toc": "Sommaire",
+        "related": "Autres guides",
         "footer_contact": "Contact",
-        "updated": "Mis à jour le 2 août 2026",
+        "updated": "Mis à jour le 13 août 2026",
     },
     "en": {
         "lang": "en",
@@ -149,8 +150,9 @@ CHROME = {
         "other_lang_label": "Français",
         "read_more": "Read the guide",
         "toc": "Contents",
+        "related": "More guides",
         "footer_contact": "Contact",
-        "updated": "Updated 2 August 2026",
+        "updated": "Updated 13 August 2026",
     },
 }
 
@@ -563,6 +565,229 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
             ],
         ),
+        Guide(
+            slug="verifier-un-bulletin-de-salaire",
+            counterpart="how-to-verify-a-pay-slip",
+            title="Vérifier un bulletin de salaire",
+            description=(
+                "Faux bulletins de salaire dans les dossiers de location ou de "
+                "crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles "
+                "qui révèlent une fiche retouchée."
+            ),
+            heading="Comment vérifier un bulletin de salaire",
+            intro=(
+                "Le bulletin de salaire falsifié est devenu un classique des "
+                "dossiers de location et des demandes de crédit : un salaire "
+                "gonflé sur sa propre fiche, ou un nom remplacé sur celle d'un "
+                "tiers. Comme toute retouche, elle laisse des traces — et la "
+                "fiche de paie française a une particularité qui la rend plus "
+                "vérifiable que la plupart des documents."
+            ),
+            sections=[
+                Section(
+                    heading="Chercher d'abord le code 2D-Doc",
+                    paragraphs=[
+                        "Beaucoup de logiciels de paie français impriment un code "
+                        "2D-Doc sur le bulletin : un petit carré de type "
+                        "DataMatrix, généralement en haut ou en bas de page. Il "
+                        "contient les données clés — nom, période, montant net — "
+                        "signées cryptographiquement par l'émetteur.",
+                        "Sa présence change tout : si le salaire affiché sur la "
+                        "page ne correspond pas à celui encodé dans le code, "
+                        "quelqu'un a retouché le visuel sans pouvoir toucher au "
+                        "code. C'est l'un des rares contrôles proches de la "
+                        "preuve. Le fonctionnement détaillé est décrit dans "
+                        "<a href=\"/guides/2d-doc-verifier-un-document-officiel\">"
+                        "notre guide sur le 2D-Doc</a>.",
+                        "Son absence, en revanche, ne prouve rien : tous les "
+                        "employeurs n'utilisent pas un logiciel qui en génère.",
+                    ],
+                ),
+                Section(
+                    heading="Identifier le logiciel qui a produit la fiche",
+                    paragraphs=[
+                        "Les bulletins de salaire sortent de chaînes de paie "
+                        "industrielles — Silae, PayFit, ADP, Sage, Cegid — dont "
+                        "l'empreinte technique est très stable : même producteur "
+                        "PDF, mêmes polices embarquées, même structure d'un mois "
+                        "sur l'autre.",
+                        "Un bulletin dont les métadonnées annoncent un traitement "
+                        "de texte, un convertisseur en ligne ou un outil de "
+                        "capture d'écran contredit ce qu'il prétend être. Un "
+                        "employeur ne rédige pas les fiches de paie dans Word.",
+                    ],
+                ),
+                Section(
+                    heading="Refaire les calculs",
+                    paragraphs=[
+                        "Une fiche de paie est une addition publique. Le faussaire "
+                        "qui gonfle le net à payer oublie presque toujours de "
+                        "corriger tout ce qui en dépend :",
+                    ],
+                    bullets=[
+                        "<strong>Brut moins cotisations = net</strong> : chaque "
+                        "ligne de cotisation applique un taux à une base ; un net "
+                        "modifié sans recalcul des lignes casse l'addition.",
+                        "<strong>Le montant net social</strong> et le net "
+                        "imposable doivent rester cohérents avec le net à payer.",
+                        "<strong>Les cumuls annuels</strong> : un cumul inférieur "
+                        "au montant du mois, ou qui ne progresse pas d'un bulletin "
+                        "à l'autre, trahit une retouche isolée.",
+                        "<strong>Le salaire et le poste</strong> : un montant "
+                        "hors de proportion avec l'intitulé et la classification "
+                        "mérite une question.",
+                    ],
+                ),
+                Section(
+                    heading="Examiner la zone du nom et du montant",
+                    paragraphs=[
+                        "Comme pour le justificatif de domicile, la fraude "
+                        "courante ne fabrique pas une fiche entière : elle "
+                        "remplace un nom ou un montant sur une fiche authentique. "
+                        "Les indices se concentrent donc sur ces zones : "
+                        "changement de police au milieu d'une ligne, rectangle "
+                        "blanc recouvrant l'ancienne valeur, bloc d'image collé "
+                        "dont la résolution ne correspond pas au reste de la page.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier l'employeur",
+                    paragraphs=[
+                        "Le bulletin mentionne obligatoirement le SIRET de "
+                        "l'employeur, le code APE et la convention collective. "
+                        "Tout cela se contrôle de l'extérieur :",
+                    ],
+                    bullets=[
+                        "Le <strong>SIRET</strong> existe-t-il à l'annuaire des "
+                        "entreprises (INSEE), et correspond-il au nom affiché ?",
+                        "Le <strong>code APE</strong> est-il plausible pour le "
+                        "poste occupé ?",
+                        "La <strong>convention collective</strong> mentionnée "
+                        "est-elle celle du secteur ?",
+                        "L'entreprise est-elle toujours en activité à la période "
+                        "du bulletin ?",
+                    ],
+                ),
+                Section(
+                    heading="Le scan, encore une fois : non vérifiable",
+                    paragraphs=[
+                        "Un bulletin scanné ou photographié ne conserve ni couche "
+                        "texte, ni polices, ni métadonnées de paie. La plupart des "
+                        "contrôles ci-dessus deviennent inapplicables, et "
+                        "l'absence d'anomalie ne signifie alors rien. Quand vous "
+                        "êtes en position d'exiger, demandez le PDF d'origine — "
+                        "celui que le salarié télécharge depuis son espace RH — "
+                        "plutôt qu'une copie aplatie.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="detecter-un-faux-rib",
+            counterpart="how-to-spot-a-fake-iban",
+            title="Détecter un faux RIB ou un IBAN falsifié",
+            description=(
+                "La fraude au faux RIB détourne les virements vers le compte de "
+                "l'escroc. Clé IBAN, cohérence bancaire, traces de retouche : "
+                "comment vérifier un RIB reçu par e-mail."
+            ),
+            heading="Comment détecter un faux RIB",
+            intro=(
+                "La fraude au faux RIB est l'une des plus coûteuses qui soient : "
+                "un fournisseur annonce un « changement de coordonnées "
+                "bancaires », le virement part vers le compte de l'escroc, et "
+                "l'on s'en aperçoit des semaines plus tard, quand le vrai "
+                "fournisseur relance. Le document envoyé est souvent authentique "
+                "à un détail près : l'IBAN."
+            ),
+            sections=[
+                Section(
+                    heading="Comprendre le scénario",
+                    paragraphs=[
+                        "L'attaque prend trois formes principales : un e-mail "
+                        "imitant le fournisseur avec un RIB frauduleux en pièce "
+                        "jointe ; une boîte mail réellement compromise, d'où part "
+                        "un message parfaitement crédible ; ou une facture "
+                        "authentique interceptée puis renvoyée avec le seul IBAN "
+                        "modifié.",
+                        "Dans les trois cas, le fichier joint est le point de "
+                        "contrôle : c'est souvent un vrai document dont un seul "
+                        "champ a été retouché, et cette retouche localisée est "
+                        "détectable.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier la clé de contrôle de l'IBAN",
+                    paragraphs=[
+                        "Un IBAN embarque sa propre somme de contrôle : les deux "
+                        "chiffres après « FR » se calculent à partir du reste du "
+                        "numéro (modulo 97), sans réseau ni base de données. Un "
+                        "IBAN modifié à la main — un chiffre changé pour "
+                        "ressembler à l'original — échoue presque toujours ce "
+                        "test. La clé RIB, en fin de numéro, offre le même "
+                        "contrôle au format français.",
+                        "Attention au sens de ce test : une clé <em>fausse</em> "
+                        "condamne le document, mais une clé <em>valide</em> ne "
+                        "l'innocente pas. Les fraudeurs ouvrent de vrais comptes, "
+                        "avec de vrais IBAN parfaitement valides.",
+                    ],
+                ),
+                Section(
+                    heading="Confronter l'IBAN à la banque affichée",
+                    paragraphs=[
+                        "Dans un IBAN français, les cinq chiffres qui suivent la "
+                        "clé identifient la banque, les cinq suivants le guichet. "
+                        "Un RIB qui affiche le logo d'une banque mais dont le "
+                        "code établissement appartient à une autre — souvent un "
+                        "établissement de paiement en ligne — se contredit "
+                        "lui-même. Le BIC, quand il est imprimé, doit désigner le "
+                        "même établissement.",
+                        "Un IBAN étranger pour un fournisseur français n'est pas "
+                        "une preuve de fraude, mais c'est un signal qui justifie "
+                        "à lui seul une vérification téléphonique.",
+                    ],
+                ),
+                Section(
+                    heading="Chercher la retouche dans le fichier",
+                    paragraphs=[
+                        "Quand le RIB frauduleux est une facture ou un RIB "
+                        "authentique modifié, les indices sont ceux décrits dans "
+                        "<a href=\"/guides/verifier-une-facture-falsifiee\">le "
+                        "guide sur les factures falsifiées</a> — concentrés sur "
+                        "la ligne de l'IBAN :",
+                    ],
+                    bullets=[
+                        "Un <strong>changement de police</strong> au milieu de la "
+                        "ligne des coordonnées bancaires.",
+                        "Un <strong>rectangle blanc</strong> recouvrant l'ancien "
+                        "IBAN, le nouveau écrit par-dessus — l'ancien numéro est "
+                        "souvent encore présent sous le cache.",
+                        "Une <strong>révision du PDF</strong> où l'IBAN change "
+                        "d'une version à l'autre : l'un des rares indices proches "
+                        "de la preuve.",
+                        "Des <strong>métadonnées d'éditeur PDF</strong> sur un "
+                        "document censé sortir d'une chaîne de facturation "
+                        "automatisée.",
+                    ],
+                ),
+                Section(
+                    heading="Le rappel téléphonique reste la règle",
+                    paragraphs=[
+                        "Depuis fin 2025, les banques européennes doivent "
+                        "vérifier la concordance entre le nom du bénéficiaire et "
+                        "l'IBAN au moment du virement (« vérification du "
+                        "bénéficiaire »). C'est un filet supplémentaire, pas une "
+                        "raison de baisser la garde : l'alerte arrive au moment "
+                        "du paiement, pas au moment où la décision se prend.",
+                        "La règle d'or ne change pas : tout changement de "
+                        "coordonnées bancaires se confirme par téléphone, sur un "
+                        "numéro que vous possédiez déjà — jamais celui du message "
+                        "qui annonce le changement, ni celui imprimé sur le RIB "
+                        "suspect.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Guide(
@@ -947,6 +1172,222 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
             ],
         ),
+        Guide(
+            slug="how-to-verify-a-pay-slip",
+            counterpart="verifier-un-bulletin-de-salaire",
+            title="How to verify a pay slip",
+            description=(
+                "Fake pay slips in rental files and loan applications: payroll "
+                "software fingerprints, arithmetic checks and the French 2D-Doc "
+                "barcode that expose an edited document."
+            ),
+            heading="How to verify a pay slip",
+            intro=(
+                "The forged pay slip has become a staple of rental files and "
+                "loan applications: an inflated salary on one's own slip, or a "
+                "swapped name on somebody else's. Like every edit it leaves "
+                "traces — and the French pay slip has one feature that makes it "
+                "more verifiable than most documents."
+            ),
+            sections=[
+                Section(
+                    heading="Look for the 2D-Doc code first",
+                    paragraphs=[
+                        "Many French payroll systems print a 2D-Doc code on the "
+                        "slip: a small DataMatrix square, usually near the top or "
+                        "bottom of the page. It holds the key data — name, "
+                        "period, net amount — cryptographically signed by the "
+                        "issuer.",
+                        "Its presence changes everything: if the salary printed "
+                        "on the page does not match the one encoded in the "
+                        "square, somebody edited the visual without being able "
+                        "to touch the code. It is one of the few checks close to "
+                        "proof. The details are in "
+                        "<a href=\"/en/guides/2d-doc-verifying-official-documents\">"
+                        "our 2D-Doc guide</a>.",
+                        "Its absence, on the other hand, proves nothing: not "
+                        "every employer uses software that generates one.",
+                    ],
+                ),
+                Section(
+                    heading="Identify the software that produced the slip",
+                    paragraphs=[
+                        "Pay slips come out of industrial payroll pipelines — "
+                        "Silae, PayFit, ADP, Sage, Cegid — whose technical "
+                        "fingerprint is very stable: same PDF producer, same "
+                        "embedded fonts, same structure month after month.",
+                        "A slip whose metadata announces a word processor, an "
+                        "online converter or a screenshot tool contradicts what "
+                        "it claims to be. Employers do not type pay slips in "
+                        "Word.",
+                    ],
+                ),
+                Section(
+                    heading="Redo the arithmetic",
+                    paragraphs=[
+                        "A pay slip is a public addition. A forger who inflates "
+                        "the net pay almost always forgets to fix everything "
+                        "that depends on it:",
+                    ],
+                    bullets=[
+                        "<strong>Gross minus contributions = net</strong>: each "
+                        "contribution line applies a rate to a base; a net "
+                        "edited without recomputing the lines breaks the sum.",
+                        "<strong>The taxable and social net amounts</strong> "
+                        "must stay consistent with the net pay.",
+                        "<strong>Year-to-date totals</strong>: a cumulative "
+                        "figure lower than the month's amount, or one that does "
+                        "not grow from one slip to the next, betrays an isolated "
+                        "edit.",
+                        "<strong>Salary versus job title</strong>: an amount out "
+                        "of proportion with the position and grade deserves a "
+                        "question.",
+                    ],
+                ),
+                Section(
+                    heading="Examine the name and amount areas",
+                    paragraphs=[
+                        "As with proof of address, the common fraud does not "
+                        "build a slip from scratch: it swaps a name or an amount "
+                        "on a genuine one. The evidence therefore concentrates "
+                        "on those areas: a font change mid-line, a white "
+                        "rectangle covering the old value, a pasted image block "
+                        "whose resolution does not match the rest of the page.",
+                    ],
+                ),
+                Section(
+                    heading="Verify the employer",
+                    paragraphs=[
+                        "A French pay slip must state the employer's company "
+                        "registration number (SIRET), activity code and "
+                        "collective agreement. All of it can be checked from "
+                        "outside:",
+                    ],
+                    bullets=[
+                        "Does the <strong>SIRET</strong> exist in the public "
+                        "registry, and does it match the displayed name?",
+                        "Is the <strong>activity code</strong> plausible for the "
+                        "job held?",
+                        "Is the <strong>collective agreement</strong> the one "
+                        "for that sector?",
+                        "Was the company still active during the slip's period?",
+                    ],
+                ),
+                Section(
+                    heading="Scans, once again: unverifiable",
+                    paragraphs=[
+                        "A scanned or photographed slip keeps no text layer, no "
+                        "fonts, no payroll metadata. Most of the checks above "
+                        "become inapplicable, and the absence of anomalies then "
+                        "means nothing. When you are in a position to insist, "
+                        "ask for the original PDF — the one the employee "
+                        "downloads from the HR portal — rather than a flattened "
+                        "copy.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-spot-a-fake-iban",
+            counterpart="detecter-un-faux-rib",
+            title="How to spot a fake IBAN on an invoice",
+            description=(
+                "Payment redirection fraud swaps the bank details on a genuine "
+                "invoice. IBAN checksum, bank-code consistency and PDF tampering "
+                "traces: how to check details received by email."
+            ),
+            heading="How to spot fake bank details",
+            intro=(
+                "Payment redirection fraud is among the most expensive there "
+                "is: a supplier announces \"new bank details\", the transfer "
+                "goes to the fraudster's account, and nobody notices until the "
+                "real supplier chases the unpaid invoice weeks later. The "
+                "attached document is often genuine in every detail but one: "
+                "the IBAN."
+            ),
+            sections=[
+                Section(
+                    heading="Understand the scenario",
+                    paragraphs=[
+                        "The attack takes three main forms: an email imitating "
+                        "the supplier with a fraudulent bank-details document "
+                        "attached; a genuinely compromised mailbox, from which a "
+                        "perfectly credible message is sent; or an authentic "
+                        "invoice intercepted and re-sent with only the IBAN "
+                        "changed.",
+                        "In all three cases the attachment is the control point: "
+                        "it is often a real document with a single edited field, "
+                        "and that localised edit is detectable.",
+                    ],
+                ),
+                Section(
+                    heading="Verify the IBAN checksum",
+                    paragraphs=[
+                        "An IBAN carries its own checksum: the two digits after "
+                        "the country code are computed from the rest of the "
+                        "number (modulo 97), offline, with no database needed. A "
+                        "hand-edited IBAN — one digit changed to resemble the "
+                        "original — almost always fails this test.",
+                        "Mind what the test means: a <em>wrong</em> checksum "
+                        "condemns the document, but a <em>valid</em> one does "
+                        "not clear it. Fraudsters open real accounts, with real, "
+                        "perfectly valid IBANs.",
+                    ],
+                ),
+                Section(
+                    heading="Match the IBAN against the displayed bank",
+                    paragraphs=[
+                        "The digits at the start of the account portion identify "
+                        "the bank (in a French IBAN, the five digits after the "
+                        "check digits). A document showing one bank's logo while "
+                        "the bank code belongs to another — often an online "
+                        "payment institution — contradicts itself. The BIC, when "
+                        "printed, must name the same institution.",
+                        "A foreign IBAN for a domestic supplier is not proof of "
+                        "fraud, but it is a signal that alone justifies a phone "
+                        "check.",
+                    ],
+                ),
+                Section(
+                    heading="Look for the edit in the file",
+                    paragraphs=[
+                        "When the fraudulent document is a genuine invoice or "
+                        "bank-details sheet that was modified, the evidence is "
+                        "the same as in "
+                        "<a href=\"/en/guides/how-to-spot-a-tampered-invoice\">"
+                        "the tampered-invoice guide</a> — concentrated on the "
+                        "IBAN line:",
+                    ],
+                    bullets=[
+                        "A <strong>font change</strong> in the middle of the "
+                        "bank-details line.",
+                        "A <strong>white rectangle</strong> covering the old "
+                        "IBAN with the new one typed on top — the old number is "
+                        "often still present underneath.",
+                        "A <strong>PDF revision</strong> in which the IBAN "
+                        "differs from one version to the next: one of the few "
+                        "pieces of evidence close to proof.",
+                        "<strong>PDF-editor metadata</strong> on a document "
+                        "supposedly produced by an automated billing pipeline.",
+                    ],
+                ),
+                Section(
+                    heading="The phone call remains the rule",
+                    paragraphs=[
+                        "Since late 2025, European banks must check that the "
+                        "beneficiary name matches the IBAN at transfer time "
+                        "(verification of payee). That is an extra net, not a "
+                        "reason to relax: the alert comes when the payment is "
+                        "made, not when the decision is taken.",
+                        "The golden rule does not change: any change of bank "
+                        "details is confirmed by phone, on a number you already "
+                        "had — never the one in the message announcing the "
+                        "change, nor the one printed on the suspicious "
+                        "document.",
+                    ],
+                ),
+            ],
+        ),
     ],
 }
 
@@ -989,6 +1430,7 @@ a { color: #2563eb; }
 }
 .card:hover { border-color: #2563eb; }
 .card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
 .card p { margin: 0; color: #555; font-size: 0.92rem; }
 .card .more { color: #2563eb; font-size: 0.88rem; }
 footer {
@@ -1214,6 +1656,20 @@ def render_guide(lang: str, guide: Guide) -> str:
             for bullet in section.bullets:
                 parts.append(f"        <li>{bullet}</li>")
             parts.append("    </ul>")
+
+    # Related guides: every sibling in the same language. Internal links are
+    # the main way crawlers discover pages and how link signal flows between
+    # them; the sitemap alone is a much weaker channel. h3 (not h2) so the
+    # cards do not pollute the article's own outline.
+    siblings = [g for g in GUIDES[lang] if g.slug != guide.slug]
+    if siblings:
+        parts.append(f"    <h2>{chrome['related']}</h2>")
+        for other in siblings:
+            url = f"{chrome['guides_path']}/{other.slug}"
+            parts.append(f'    <a class="card" href="{url}">')
+            parts.append(f"        <h3>{html.escape(other.title)}</h3>")
+            parts.append(f"        <p>{html.escape(other.description)}</p>")
+            parts.append("    </a>")
 
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
     parts.append(_footer(lang))
