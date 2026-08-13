@@ -36,6 +36,7 @@ python-dateutil>=2.8.2,<3    # Date parsing utilities
 
 # XML (e-invoice / Factur-X) — SAFE parsing of untrusted embedded XML
 defusedxml>=0.7.1,<0.8   # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
+cryptography>=43,<50     # 2D-Doc ECDSA signature verification (twod_doc_crypto)
 
 # Web Interface
 # Capped at the next MINOR. app.py injects SEO meta tags through st.html with

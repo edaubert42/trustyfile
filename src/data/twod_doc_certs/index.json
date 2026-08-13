@@ -1,0 +1,4789 @@
+{
+  "meta": {
+    "source": "https://pub.ants.gouv.fr/2D-DOC/V1/PRD/01_TSL/tsl_signed.xml",
+    "tsl_sequence_number": "23",
+    "certificate_count": 237,
+    "cas": [
+      "FR01",
+      "FR03",
+      "FR04",
+      "FR05",
+      "FR06",
+      "FR07",
+      "FR09"
+    ]
+  },
+  "cas": {
+    "FR01": [
+      {
+        "file": "FR01_0.pem",
+        "subject": "C=FR,O=AriadNEXT,OU=0002 52076922500027,CN=FR01",
+        "serial": "586A8C9AD506EB68",
+        "not_before": "2012-06-26T15:22:34+00:00",
+        "not_after": "2022-06-26T15:22:34+00:00",
+        "candidate_ids": [
+          "0298",
+          "0298A1",
+          "06EB68",
+          "2FD849",
+          "6EB68",
+          "D506EB68",
+          "D849",
+          "EB68",
+          "EE2FD849",
+          "FD849",
+          "FR01"
+        ]
+      },
+      {
+        "file": "FR01_1.pem",
+        "subject": "C=FR,O=Bouygues Telecom,OU=0002 397480930,CN=BYT0",
+        "serial": "49F02A211948B945",
+        "not_before": "2014-06-17T07:33:58+00:00",
+        "not_after": "2017-06-16T07:33:58+00:00",
+        "candidate_ids": [
+          "1948B945",
+          "3AD7",
+          "3AD73C",
+          "48B945",
+          "8B945",
+          "8D032",
+          "B945",
+          "BYT0",
+          "C2D8D032",
+          "D032",
+          "D8D032"
+        ]
+      },
+      {
+        "file": "FR01_2.pem",
+        "subject": "C=FR,O=AriadNEXT,OU=0002 52076922500027,CN=0000",
+        "serial": "24741FEA9F8AF530",
+        "not_before": "2014-06-11T09:30:42+00:00",
+        "not_after": "2017-06-10T09:30:42+00:00",
+        "candidate_ids": [
+          "0000",
+          "266A5",
+          "4E6266A5",
+          "6266A5",
+          "66A5",
+          "76C4",
+          "76C4B2",
+          "8AF530",
+          "9F8AF530",
+          "AF530",
+          "F530"
+        ],
+        "test": true
+      },
+      {
+        "file": "FR01_3.pem",
+        "subject": "C=FR,O=SOCIETE FRANCAISE DU RADIOTELEPHONE - SFR,OU=0002 34305956400041,CN=SFR2",
+        "serial": "1997D1320CFFE14C",
+        "not_before": "2014-07-01T11:53:24+00:00",
+        "not_after": "2017-06-30T11:53:24+00:00",
+        "candidate_ids": [
+          "0CFFE14C",
+          "6ACBE48F",
+          "BC42",
+          "BC422E",
+          "BE48F",
+          "CBE48F",
+          "E14C",
+          "E48F",
+          "FE14C",
+          "FFE14C",
+          "SFR2"
+        ]
+      },
+      {
+        "file": "FR01_4.pem",
+        "subject": "C=FR,O=SOCIETE FRANCAISE DU RADIOTELEPHONE - SFR,OU=0002 34305956400041,CN=SFR0",
+        "serial": "6B7175A2CAB8163E",
+        "not_before": "2012-06-27T13:05:55+00:00",
+        "not_after": "2015-06-27T13:05:55+00:00",
+        "candidate_ids": [
+          "0D7986D3",
+          "163E",
+          "2250",
+          "2250FA",
+          "7986D3",
+          "8163E",
+          "86D3",
+          "986D3",
+          "B8163E",
+          "CAB8163E",
+          "SFR0"
+        ]
+      },
+      {
+        "file": "FR01_5.pem",
+        "subject": "C=FR,O=SOCIETE FRANCAISE DU RADIOTELEPHONE - SFR,OU=0002 34305956400041,CN=SFR1",
+        "serial": "547E5E9CBC340032",
+        "not_before": "2012-08-13T14:03:11+00:00",
+        "not_after": "2015-08-13T14:03:11+00:00",
+        "candidate_ids": [
+          "0032",
+          "340032",
+          "40032",
+          "5B1A",
+          "637D5B1A",
+          "7D5B1A",
+          "BC340032",
+          "D5B1A",
+          "F085",
+          "F0857C",
+          "SFR1"
+        ]
+      },
+      {
+        "file": "FR01_6.pem",
+        "subject": "C=DJ,O=MINISTÈRE EDUCATION DJIBOUTI,OU=SERVICES PUBLICS DJIBOUTIEN,CN=DJI1",
+        "serial": "4D20CD664DCA9B79",
+        "not_before": "2017-07-17T16:24:03+00:00",
+        "not_after": "2020-07-16T16:24:03+00:00",
+        "candidate_ids": [
+          "0F66",
+          "27940F66",
+          "40F66",
+          "4DCA9B79",
+          "6894",
+          "68941A",
+          "940F66",
+          "9B79",
+          "A9B79",
+          "CA9B79",
+          "DJI1"
+        ]
+      },
+      {
+        "file": "FR01_7.pem",
+        "subject": "C=DJ,O=MINISTERE EDUCATION NATIONALE ET FORMATION PROFESSIONNELLE,OU=SERVICES PUBLICS DJIBOUTIEN,CN=DJI2",
+        "serial": "7313A486FB819A2E",
+        "not_before": "2019-06-18T09:51:55+00:00",
+        "not_after": "2022-06-17T09:51:55+00:00",
+        "candidate_ids": [
+          "19A2E",
+          "20ED",
+          "21E3",
+          "21E3C6",
+          "420ED",
+          "4AF420ED",
+          "819A2E",
+          "9A2E",
+          "DJI2",
+          "F420ED",
+          "FB819A2E"
+        ]
+      }
+    ],
+    "FR03": [
+      {
+        "file": "FR03_0.pem",
+        "subject": "CN=FR03,OU=0002 48146308100036,O=DHIMYOTIS,C=FR",
+        "serial": "889C41F0BEB4313F330F9E2EDB8271EC",
+        "not_before": "2015-02-20T10:24:45+00:00",
+        "not_after": "2033-02-15T10:24:45+00:00",
+        "candidate_ids": [
+          "06E2",
+          "06E2D3",
+          "271EC",
+          "287A",
+          "71EC",
+          "8271EC",
+          "A1AD287A",
+          "AD287A",
+          "D287A",
+          "DB8271EC",
+          "FR03"
+        ]
+      },
+      {
+        "file": "FR03_1.pem",
+        "subject": "CN=SNC5,OU=0002 55204944776279,O=SOCIETE NATIONALE SNCF,C=FR",
+        "serial": "B5048CEBD905C36E448FFD5628D920EB",
+        "not_before": "2025-03-31T22:00:00+00:00",
+        "not_after": "2028-03-30T21:59:59+00:00",
+        "candidate_ids": [
+          "20EB",
+          "28D920EB",
+          "7CB1",
+          "920EB",
+          "A3FC7CB1",
+          "B1EF",
+          "B1EF1D",
+          "C7CB1",
+          "D920EB",
+          "FC7CB1",
+          "SNC5"
+        ]
+      },
+      {
+        "file": "FR03_2.pem",
+        "subject": "CN=SNC4,OU=0002 55204944776279,O=SOCIETE NATIONALE SNCF,C=FR",
+        "serial": "C431D024055062235EEF2662F674EE9",
+        "not_before": "2025-03-31T22:00:00+00:00",
+        "not_after": "2028-03-30T21:59:59+00:00",
+        "candidate_ids": [
+          "2318",
+          "2318FE",
+          "29B4D448",
+          "2F674EE9",
+          "4D448",
+          "4EE9",
+          "674EE9",
+          "74EE9",
+          "B4D448",
+          "D448",
+          "SNC4"
+        ]
+      },
+      {
+        "file": "FR03_3.pem",
+        "subject": "CN=CNO4,OU=0002 18004401800026,O=CENTRE NATIONAL DES OEUVRES UNIVERSITAIRES ET SCOLAIRES,C=FR",
+        "serial": "2DFB6D4F44E43BC70BBA7AC429486E38",
+        "not_before": "2025-06-23T00:00:00+00:00",
+        "not_after": "2028-06-21T23:59:59+00:00",
+        "candidate_ids": [
+          "25EA",
+          "29486E38",
+          "486E38",
+          "6E38",
+          "86E38",
+          "B25EA",
+          "CDFB25EA",
+          "CNO4",
+          "D7E2",
+          "D7E24E",
+          "FB25EA"
+        ]
+      },
+      {
+        "file": "FR03_4.pem",
+        "subject": "CN=EDFD,OU=0002 55208131766522,O=ELECTRICITE DE FRANCE,C=FR",
+        "serial": "7355DF113F9020DCD3F1E3B85991862E",
+        "not_before": "2025-07-22T00:00:00+00:00",
+        "not_after": "2028-07-20T23:59:59+00:00",
+        "candidate_ids": [
+          "1862E",
+          "201C",
+          "2F201C",
+          "4B2F201C",
+          "5991862E",
+          "69A8",
+          "69A8FD",
+          "862E",
+          "91862E",
+          "EDFD",
+          "F201C"
+        ]
+      },
+      {
+        "file": "FR03_5.pem",
+        "subject": "CN=EDFC,OU=0002 55208131766522,O=ELECTRICITE DE FRANCE,C=FR",
+        "serial": "AAC6A4FF43836C4243C12024CEF91D05",
+        "not_before": "2025-07-23T00:00:00+00:00",
+        "not_after": "2028-07-21T23:59:59+00:00",
+        "candidate_ids": [
+          "1D05",
+          "1FAAD",
+          "31FAAD",
+          "91D05",
+          "C631FAAD",
+          "CE84",
+          "CE844A",
+          "CEF91D05",
+          "EDFC",
+          "F91D05",
+          "FAAD"
+        ]
+      },
+      {
+        "file": "FR03_6.pem",
+        "subject": "CN=AGR3,OU=0002 80194705202244,O=GIE AG2R,C=FR",
+        "serial": "6A4833755829EF176257AD151D1CD867",
+        "not_before": "2025-09-02T00:00:00+00:00",
+        "not_after": "2028-08-31T23:59:59+00:00",
+        "candidate_ids": [
+          "00EF",
+          "00EF11",
+          "03819",
+          "1CD867",
+          "1D1CD867",
+          "3819",
+          "403819",
+          "AGR3",
+          "CD867",
+          "D867",
+          "FE403819"
+        ]
+      },
+      {
+        "file": "FR03_7.pem",
+        "subject": "CN=GSK1,OU=0002 64204136200202,O=LABORATOIRE GLAXOSMITHKLINE,C=FR",
+        "serial": "F139935F68677789B4FD7B4B14C63702",
+        "not_before": "2022-12-20T23:00:00+00:00",
+        "not_after": "2025-12-19T22:59:59+00:00",
+        "candidate_ids": [
+          "14C63702",
+          "1DC3E3",
+          "3702",
+          "63702",
+          "71A5",
+          "71A599",
+          "9A1DC3E3",
+          "C3E3",
+          "C63702",
+          "DC3E3",
+          "GSK1"
+        ]
+      },
+      {
+        "file": "FR03_8.pem",
+        "subject": "CN=ENG2,OU=0002 54210765113030,O=ENGIE,C=FR",
+        "serial": "6296D47D0DFD5B4DB924C6EAE54E8165",
+        "not_before": "2023-01-18T23:00:00+00:00",
+        "not_after": "2026-01-17T22:59:59+00:00",
+        "candidate_ids": [
+          "4E8165",
+          "7A167",
+          "8155",
+          "8155EE",
+          "8165",
+          "A167",
+          "DFF7A167",
+          "E54E8165",
+          "E8165",
+          "ENG2",
+          "F7A167"
+        ],
+        "shared_key_subjects": [
+          "CN=SNC2,OU=0002 55204944776279,O=SOCIETE NATIONALE SNCF,C=FR"
+        ]
+      },
+      {
+        "file": "FR03_9.pem",
+        "subject": "CN=GSK2,OU=0002 64204136200202,O=LABORATOIRE GLAXOSMITHKLINE,C=FR",
+        "serial": "B4A47A7261406A3F74F6B466A013DA0C",
+        "not_before": "2023-02-15T23:00:00+00:00",
+        "not_after": "2026-02-14T22:59:59+00:00",
+        "candidate_ids": [
+          "13DA0C",
+          "1D221",
+          "3DA0C",
+          "62E1D221",
+          "A013DA0C",
+          "D221",
+          "D2F5",
+          "D2F5A7",
+          "DA0C",
+          "E1D221",
+          "GSK2"
+        ]
+      },
+      {
+        "file": "FR03_10.pem",
+        "subject": "CN=EDFA,OU=0002 55208131766522,O=ELECTRICITE DE FRANCE,C=FR",
+        "serial": "C61DE86997947634C648103F4E16715F",
+        "not_before": "2023-03-01T23:00:00+00:00",
+        "not_after": "2026-02-28T22:59:59+00:00",
+        "candidate_ids": [
+          "16715F",
+          "1841",
+          "36881841",
+          "4E16715F",
+          "6715F",
+          "715F",
+          "81841",
+          "881841",
+          "B0D0",
+          "B0D07B",
+          "EDFA"
+        ]
+      },
+      {
+        "file": "FR03_11.pem",
+        "subject": "CN=ONI1,OU=0002 51102696500034,O=ORDRE NATIONAL DES INFIRMIERS,C=FR",
+        "serial": "FCE2EE91636589F6938EFD4114255DAC",
+        "not_before": "2026-06-18T00:00:00+00:00",
+        "not_after": "2029-06-16T23:59:59+00:00",
+        "candidate_ids": [
+          "14255DAC",
+          "1954A6",
+          "1B1954A6",
+          "255DAC",
+          "333D",
+          "333D9A",
+          "54A6",
+          "55DAC",
+          "5DAC",
+          "954A6",
+          "ONI1"
+        ]
+      },
+      {
+        "file": "FR03_12.pem",
+        "subject": "CN=TST6,OU=0002 48146308100036,O=CERTIGNA,C=FR",
+        "serial": "4FE7C73AFF7AA75C7C9062DE4C923D35",
+        "not_before": "2026-06-26T00:00:00+00:00",
+        "not_after": "2029-06-24T23:59:59+00:00",
+        "candidate_ids": [
+          "23D35",
+          "2E6E",
+          "3D35",
+          "42E6E",
+          "4C923D35",
+          "71842E6E",
+          "842E6E",
+          "923D35",
+          "9E63",
+          "9E6354",
+          "TST6"
+        ]
+      },
+      {
+        "file": "FR03_13.pem",
+        "subject": "CN=SUE0,OU=0002 41003460703064,O=SUEZ EAU FRANCE,C=FR",
+        "serial": "F9DF5C5B915F6567812A7304D54C40A5",
+        "not_before": "2023-04-13T22:00:00+00:00",
+        "not_after": "2026-04-12T21:59:59+00:00",
+        "candidate_ids": [
+          "22AC3",
+          "2AC3",
+          "40A5",
+          "4C40A5",
+          "B849",
+          "B8496F",
+          "C40A5",
+          "D54C40A5",
+          "D8E22AC3",
+          "E22AC3",
+          "SUE0"
+        ]
+      },
+      {
+        "file": "FR03_14.pem",
+        "subject": "CN=HER2,OU=0002 54555016200063,O=HERIGE,C=FR",
+        "serial": "D4E1AB757405D56A08A47D63F844FFE1",
+        "not_before": "2023-05-01T22:00:00+00:00",
+        "not_after": "2026-04-30T21:59:59+00:00",
+        "candidate_ids": [
+          "1C457B",
+          "44FFE1",
+          "457B",
+          "4FFE1",
+          "8294",
+          "829448",
+          "C457B",
+          "C91C457B",
+          "F844FFE1",
+          "FFE1",
+          "HER2"
+        ]
+      },
+      {
+        "file": "FR03_15.pem",
+        "subject": "CN=DSR6,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "2103FC3F96DFD4D21A8B520800FBD786",
+        "not_before": "2023-05-04T22:00:00+00:00",
+        "not_after": "2026-05-03T21:59:59+00:00",
+        "candidate_ids": [
+          "00FBD786",
+          "22B0D4",
+          "2B0D4",
+          "B0D4",
+          "BD786",
+          "D786",
+          "DSR6",
+          "E622B0D4",
+          "E71E",
+          "E71E65",
+          "FBD786"
+        ]
+      },
+      {
+        "file": "FR03_16.pem",
+        "subject": "CN=EDFB,OU=0002 48996768700109,O=EDF PRODUCTION ELECTRIQUE INSULAIRE SAS,C=FR",
+        "serial": "94025FF1681621FE93C0E91DF8750649",
+        "not_before": "2023-06-12T22:00:00+00:00",
+        "not_after": "2026-06-11T21:59:59+00:00",
+        "candidate_ids": [
+          "0649",
+          "1A6D2BC8",
+          "2BC8",
+          "2DAA",
+          "2DAAA8",
+          "50649",
+          "6D2BC8",
+          "750649",
+          "D2BC8",
+          "EDFB",
+          "F8750649"
+        ]
+      },
+      {
+        "file": "FR03_17.pem",
+        "subject": "CN=ONI0,OU=0002 51102696500034,O=ORDRE NATIONAL DES INFIRMIERS,C=FR",
+        "serial": "D632A7A4CD24CDF99E5B2BD91AF57CF8",
+        "not_before": "2023-06-28T22:00:00+00:00",
+        "not_after": "2026-06-27T21:59:59+00:00",
+        "candidate_ids": [
+          "0F32C",
+          "10F32C",
+          "1AF57CF8",
+          "33E3",
+          "33E3D7",
+          "57CF8",
+          "7CF8",
+          "8110F32C",
+          "F32C",
+          "F57CF8",
+          "ONI0"
+        ]
+      },
+      {
+        "file": "FR03_18.pem",
+        "subject": "CN=BOU2,OU=0002 57201524600216,O=BOUYGUES,C=FR",
+        "serial": "27728E8CC4DD4A8F7472D2A442B26832",
+        "not_before": "2023-09-07T22:00:00+00:00",
+        "not_after": "2026-09-06T21:59:59+00:00",
+        "candidate_ids": [
+          "0B152",
+          "26832",
+          "42B26832",
+          "5337",
+          "533750",
+          "6832",
+          "B152",
+          "B26832",
+          "BOU2",
+          "C0B152",
+          "E7C0B152"
+        ]
+      },
+      {
+        "file": "FR03_19.pem",
+        "subject": "CN=AXA1,OU=0002 72205746001971,O=AXA FRANCE IARD,C=FR",
+        "serial": "22E88A6AAE8F1B32A8316A8056136091",
+        "not_before": "2023-12-06T23:00:00+00:00",
+        "not_after": "2026-12-05T22:59:59+00:00",
+        "candidate_ids": [
+          "136091",
+          "331A",
+          "36091",
+          "56136091",
+          "5F331A",
+          "6091",
+          "AXA1",
+          "D85F331A",
+          "DEAD",
+          "DEADD5",
+          "F331A"
+        ]
+      },
+      {
+        "file": "FR03_20.pem",
+        "subject": "CN=THA2,OU=0002 42470496300083,O=THALES GLOBAL SERVICES SAS,C=FR",
+        "serial": "795A5E94CF71B40A90D101DE1E0B9183",
+        "not_before": "2024-01-15T23:00:00+00:00",
+        "not_after": "2027-01-14T22:59:59+00:00",
+        "candidate_ids": [
+          "0B9183",
+          "1E0B9183",
+          "383D57",
+          "3D57",
+          "4A1B",
+          "4A1B0C",
+          "83D57",
+          "84383D57",
+          "9183",
+          "B9183",
+          "THA2"
+        ]
+      },
+      {
+        "file": "FR03_21.pem",
+        "subject": "CN=0000,OU=0002 00000000000000,O=CERTIFICAT DE TEST,C=FR",
+        "serial": "11A11D22CF000D59E2660706C161EA33",
+        "not_before": "2015-08-07T12:45:08+00:00",
+        "not_after": "2018-08-06T12:45:08+00:00",
+        "candidate_ids": [
+          "0000",
+          "1EA33",
+          "61EA33",
+          "6E3D",
+          "75FF",
+          "75FF81",
+          "A3FE6E3D",
+          "C161EA33",
+          "E6E3D",
+          "EA33",
+          "FE6E3D"
+        ],
+        "test": true
+      },
+      {
+        "file": "FR03_22.pem",
+        "subject": "OU=0002 80194705200016,C=FR,O=GIE AG2R REUNICA,CN=AGR0",
+        "serial": "D6CF99B9CE6920949729A75FF86713C3",
+        "not_before": "2015-12-02T16:42:34+00:00",
+        "not_after": "2018-12-01T16:42:34+00:00",
+        "candidate_ids": [
+          "13C3",
+          "2A12",
+          "42A12",
+          "6713C3",
+          "713C3",
+          "8E5D",
+          "8E5D43",
+          "AGR0",
+          "B42A12",
+          "EDB42A12",
+          "F86713C3"
+        ]
+      },
+      {
+        "file": "FR03_23.pem",
+        "subject": "CN=TRU0,OU=0002 49532885800024,O=TRUST DESIGNER,C=FR",
+        "serial": "2D6175F317893B89146E9F7F481325A3",
+        "not_before": "2015-12-03T16:31:09+00:00",
+        "not_after": "2018-12-02T16:31:09+00:00",
+        "candidate_ids": [
+          "08FB6D9E",
+          "1325A3",
+          "25A3",
+          "325A3",
+          "481325A3",
+          "4FCE",
+          "4FCE73",
+          "6D9E",
+          "B6D9E",
+          "FB6D9E",
+          "TRU0"
+        ]
+      },
+      {
+        "file": "FR03_24.pem",
+        "subject": "CN=CRC0,OU=0002 38038685400018,O=CRCAM LOIRE-HAUTE LOIRE,C=FR",
+        "serial": "49EFE7B25F580F1B48E392C4340CF0CC",
+        "not_before": "2016-01-25T11:24:03+00:00",
+        "not_after": "2019-01-24T11:24:03+00:00",
+        "candidate_ids": [
+          "0CF0CC",
+          "340CF0CC",
+          "354A9A",
+          "4A9A",
+          "54A9A",
+          "752C",
+          "752C01",
+          "B5354A9A",
+          "CF0CC",
+          "CRC0",
+          "F0CC"
+        ]
+      },
+      {
+        "file": "FR03_25.pem",
+        "subject": "CN=CRC1,OU=0002 44495383000015,O=CRCAM NORD MIDI-PYRENEES,C=FR",
+        "serial": "FD581146949985E4336069D496800B2C",
+        "not_before": "2016-07-15T08:11:39+00:00",
+        "not_after": "2019-07-15T08:11:39+00:00",
+        "candidate_ids": [
+          "00B2C",
+          "0B2C",
+          "34DAF",
+          "4DAF",
+          "800B2C",
+          "96800B2C",
+          "CRC1",
+          "D2E6",
+          "D2E635",
+          "E34DAF",
+          "F4E34DAF"
+        ]
+      },
+      {
+        "file": "FR03_26.pem",
+        "subject": "CN=CAI0,OU=0002 47883493000016,O=CRCAM DE NORMANDIE,C=FR",
+        "serial": "769F91497C939AF2C5ABF555DA5C1EC2",
+        "not_before": "2016-08-31T13:14:23+00:00",
+        "not_after": "2019-08-31T13:14:23+00:00",
+        "candidate_ids": [
+          "1EC2",
+          "35DC",
+          "3E35DC",
+          "5C1EC2",
+          "81E8",
+          "81E8BD",
+          "BC3E35DC",
+          "C1EC2",
+          "CAI0",
+          "DA5C1EC2",
+          "E35DC"
+        ]
+      },
+      {
+        "file": "FR03_27.pem",
+        "subject": "2.5.4.5=2298002,CN=EDF0,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "691E6854F9FAAEA90D2843D3288A9040",
+        "not_before": "2016-08-31T13:17:26+00:00",
+        "not_after": "2019-08-31T13:17:26+00:00",
+        "candidate_ids": [
+          "1E9D0",
+          "288A9040",
+          "45BE",
+          "45BE30",
+          "7ED1E9D0",
+          "8A9040",
+          "9040",
+          "A9040",
+          "D1E9D0",
+          "E9D0",
+          "EDF0"
+        ]
+      },
+      {
+        "file": "FR03_28.pem",
+        "subject": "2.5.4.5=2290003,CN=EDF1,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "8DBF9C25502DAA396F7BE7D08D2167DB",
+        "not_before": "2016-08-31T13:18:28+00:00",
+        "not_after": "2019-08-31T13:18:28+00:00",
+        "candidate_ids": [
+          "12734",
+          "167DB",
+          "2167DB",
+          "2734",
+          "67DB",
+          "7AFC",
+          "7AFC4E",
+          "8D2167DB",
+          "D6F12734",
+          "EDF1",
+          "F12734"
+        ]
+      },
+      {
+        "file": "FR03_29.pem",
+        "subject": "CN=CVF0,OU=0002 40086818800014,O=CRCAM VAL DE FRANCE,C=FR",
+        "serial": "8A1F1092AB7B98CD5D6E84426F92D5F2",
+        "not_before": "2016-11-23T13:57:53+00:00",
+        "not_after": "2019-11-23T13:57:53+00:00",
+        "candidate_ids": [
+          "2D5F2",
+          "3CDF",
+          "3CDF88",
+          "4BBFCC1A",
+          "6F92D5F2",
+          "92D5F2",
+          "BFCC1A",
+          "CC1A",
+          "CVF0",
+          "D5F2",
+          "FCC1A"
+        ]
+      },
+      {
+        "file": "FR03_30.pem",
+        "subject": "CN=CCL0,OU=0002 39882471400016,O=CRCAM CENTRE LOIRE,C=FR",
+        "serial": "4A87CD080C497E8BA634B028E37A777F",
+        "not_before": "2016-11-23T13:58:58+00:00",
+        "not_after": "2019-11-23T13:58:58+00:00",
+        "candidate_ids": [
+          "49F8EEAE",
+          "4F8F",
+          "4F8F77",
+          "777F",
+          "7A777F",
+          "8EEAE",
+          "A777F",
+          "CCL0",
+          "E37A777F",
+          "EEAE",
+          "F8EEAE"
+        ]
+      },
+      {
+        "file": "FR03_31.pem",
+        "subject": "CN=CAV0,OU=0002 44024246900011,O=CRCAM ATLANTIQUE VENDEE,C=FR",
+        "serial": "81E63CB957F3A9A67BEA5B3D528D990A",
+        "not_before": "2016-11-23T13:59:01+00:00",
+        "not_after": "2019-11-23T13:59:01+00:00",
+        "candidate_ids": [
+          "528D990A",
+          "56F9E5",
+          "6481",
+          "64814A",
+          "6F9E5",
+          "8D990A",
+          "990A",
+          "CAV0",
+          "D456F9E5",
+          "D990A",
+          "F9E5"
+        ]
+      },
+      {
+        "file": "FR03_32.pem",
+        "subject": "CN=CCP0,OU=0002 77556972601040,O=CRCAM CHARENTE-PERIGORD,C=FR",
+        "serial": "148A67D1D051619501156BE9EE0C995F",
+        "not_before": "2016-11-23T14:00:15+00:00",
+        "not_after": "2019-11-23T14:00:15+00:00",
+        "candidate_ids": [
+          "0C995F",
+          "1F7F",
+          "3BAF",
+          "3BAF93",
+          "61F7F",
+          "995F",
+          "B4B61F7F",
+          "B61F7F",
+          "C995F",
+          "CCP0",
+          "EE0C995F"
+        ]
+      },
+      {
+        "file": "FR03_33.pem",
+        "subject": "CN=CCA0,OU=0002 77745617900020,O=CRCAM DES COTES D'ARMOR,C=FR",
+        "serial": "2AB6C3E71F706F720063B4298B66265C",
+        "not_before": "2016-12-13T13:11:32+00:00",
+        "not_after": "2019-12-13T13:11:32+00:00",
+        "candidate_ids": [
+          "265C",
+          "36951",
+          "6265C",
+          "66265C",
+          "6951",
+          "8B66265C",
+          "C36951",
+          "CBCC",
+          "CBCC5A",
+          "CCA0",
+          "FBC36951"
+        ]
+      },
+      {
+        "file": "FR03_34.pem",
+        "subject": "CN=CSM0,OU=0002 77617933500026,O=CRCAM SUD-MEDITERRANNEE,C=FR",
+        "serial": "650F13431B6356A43DC9DB01183C4B80",
+        "not_before": "2016-12-13T13:11:35+00:00",
+        "not_after": "2019-12-13T13:11:35+00:00",
+        "candidate_ids": [
+          "06F55747",
+          "183C4B80",
+          "3C4B80",
+          "4B80",
+          "55747",
+          "5747",
+          "BBDA",
+          "BBDA74",
+          "C4B80",
+          "CSM0",
+          "F55747"
+        ]
+      },
+      {
+        "file": "FR03_35.pem",
+        "subject": "CN=CLA0,OU=0002 49282641700015,O=CRCAM DU LANGUEDOC,C=FR",
+        "serial": "769E19A4B47BE25ABE2A30EF8CAB1598",
+        "not_before": "2016-12-13T13:12:39+00:00",
+        "not_after": "2019-12-13T13:12:39+00:00",
+        "candidate_ids": [
+          "0A4D98",
+          "1598",
+          "483C",
+          "483C41",
+          "4D98",
+          "8CAB1598",
+          "A4D98",
+          "AB1598",
+          "B1598",
+          "C00A4D98",
+          "CLA0"
+        ]
+      },
+      {
+        "file": "FR03_36.pem",
+        "subject": "CN=EDF2,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "2E222D3A711927992EF2A9ED9E9719C6",
+        "not_before": "2016-12-22T12:43:51+00:00",
+        "not_after": "2019-12-22T12:43:51+00:00",
+        "candidate_ids": [
+          "0712F1",
+          "12F1",
+          "19C6",
+          "712F1",
+          "719C6",
+          "9719C6",
+          "9E9719C6",
+          "CAC8",
+          "CAC849",
+          "EDF2",
+          "F40712F1"
+        ]
+      },
+      {
+        "file": "FR03_37.pem",
+        "subject": "CN=CNS0,OU=0002 43378673800016,O=CRCAM DE NORMANDIE-SEINE,C=FR",
+        "serial": "39118376555370B857F3846661754AF0",
+        "not_before": "2017-01-19T15:04:15+00:00",
+        "not_after": "2020-01-19T15:04:15+00:00",
+        "candidate_ids": [
+          "09C96",
+          "4679",
+          "46796A",
+          "4AF0",
+          "509C96",
+          "54AF0",
+          "61754AF0",
+          "72509C96",
+          "754AF0",
+          "9C96",
+          "CNS0"
+        ]
+      },
+      {
+        "file": "FR03_38.pem",
+        "subject": "CN=CAQ0,OU=0002 43465124600010,O=CRCAM AQUITAINE,C=FR",
+        "serial": "4DA69202E967FFBEEA71AE6010B4D212",
+        "not_before": "2017-01-19T15:05:20+00:00",
+        "not_after": "2020-01-19T15:05:20+00:00",
+        "candidate_ids": [
+          "0F1E3C",
+          "10B4D212",
+          "1E3C",
+          "4D212",
+          "5C0F1E3C",
+          "78F8",
+          "78F803",
+          "B4D212",
+          "CAQ0",
+          "D212",
+          "F1E3C"
+        ]
+      },
+      {
+        "file": "FR03_39.pem",
+        "subject": "CN=CRA0,OU=0002 40212195800019,O=CRCAM SUD RHONE ALPES,C=FR",
+        "serial": "5EDA8A009F2902F40A632C68D9DF3A02",
+        "not_before": "2017-01-19T15:05:23+00:00",
+        "not_after": "2020-01-19T15:05:23+00:00",
+        "candidate_ids": [
+          "1939A",
+          "3A02",
+          "51939A",
+          "8551939A",
+          "939A",
+          "A2D1",
+          "A2D102",
+          "CRA0",
+          "D9DF3A02",
+          "DF3A02",
+          "F3A02"
+        ]
+      },
+      {
+        "file": "FR03_40.pem",
+        "subject": "CN=ENG0,OU=0002 54210765113030,O=ENGIE,C=FR",
+        "serial": "F2E3293B6346B76638872CD9E369EBA4",
+        "not_before": "2017-01-27T13:25:14+00:00",
+        "not_after": "2020-01-27T13:25:14+00:00",
+        "candidate_ids": [
+          "217C3663",
+          "3663",
+          "69EBA4",
+          "7C3663",
+          "8D35",
+          "8D35ED",
+          "9EBA4",
+          "C3663",
+          "E369EBA4",
+          "EBA4",
+          "ENG0"
+        ]
+      },
+      {
+        "file": "FR03_41.pem",
+        "subject": "CN=ENE0,OU=0002 44460844213631,O=ENEDIS,C=FR",
+        "serial": "93EB5FF2CFA5D58F3323F50A377A1B72",
+        "not_before": "2017-02-06T14:36:47+00:00",
+        "not_after": "2020-02-06T14:36:47+00:00",
+        "candidate_ids": [
+          "0CC9358F",
+          "1B72",
+          "358F",
+          "377A1B72",
+          "755F",
+          "755F71",
+          "7A1B72",
+          "9358F",
+          "A1B72",
+          "C9358F",
+          "ENE0"
+        ]
+      },
+      {
+        "file": "FR03_42.pem",
+        "subject": "CN=CRT0,OU=0002 48146308100036,O=DHIMYOTIS,C=FR",
+        "serial": "78CC351CC3EFDDE283703E9D35124F5",
+        "not_before": "2017-02-14T12:47:15+00:00",
+        "not_after": "2020-02-14T12:47:15+00:00",
+        "candidate_ids": [
+          "124F5",
+          "12C2",
+          "24F5",
+          "5124F5",
+          "66F1",
+          "66F112",
+          "912C2",
+          "97C912C2",
+          "C912C2",
+          "CRT0",
+          "D35124F5"
+        ]
+      },
+      {
+        "file": "FR03_43.pem",
+        "subject": "CN=HER0,OU=0002 54555016200063,O=HERIGE,C=FR",
+        "serial": "62CFA5B3E0B3CEEA41A6725BEF73600B",
+        "not_before": "2017-03-10T13:43:05+00:00",
+        "not_after": "2020-03-09T13:43:05+00:00",
+        "candidate_ids": [
+          "1F9DC1",
+          "3600B",
+          "600B",
+          "73600B",
+          "9DC1",
+          "C91F9DC1",
+          "D085",
+          "D085DF",
+          "EF73600B",
+          "F9DC1",
+          "HER0"
+        ]
+      },
+      {
+        "file": "FR03_44.pem",
+        "subject": "CN=CTL0,OU=0002 77691620700025,O=CRCAM TOULOUSE 31,C=FR",
+        "serial": "935CC977B4E409A70B079BD1BF3900AC",
+        "not_before": "2017-04-07T12:36:53+00:00",
+        "not_after": "2020-04-06T12:36:53+00:00",
+        "candidate_ids": [
+          "00AC",
+          "0144",
+          "05AF",
+          "05AF23",
+          "3900AC",
+          "900AC",
+          "BF3900AC",
+          "C4EF0144",
+          "CTL0",
+          "EF0144",
+          "F0144"
+        ]
+      },
+      {
+        "file": "FR03_45.pem",
+        "subject": "CN=BOU0,OU=0002 57201524600216,O=BOUYGUES,C=FR",
+        "serial": "DB3F3E819A7EF5F6A50EBD24860B438D",
+        "not_before": "2017-05-15T18:57:32+00:00",
+        "not_after": "2020-05-14T18:57:32+00:00",
+        "candidate_ids": [
+          "0B438D",
+          "14AD2D",
+          "2F14AD2D",
+          "438D",
+          "4AD2D",
+          "4BB2",
+          "4BB218",
+          "860B438D",
+          "AD2D",
+          "B438D",
+          "BOU0"
+        ]
+      },
+      {
+        "file": "FR03_46.pem",
+        "subject": "CN=EDF3,OU=0002 48996768700109,O=EDF PEI SIEGE,C=FR",
+        "serial": "71B80E33482054D9B9DBC76725C6B7F4",
+        "not_before": "2017-05-16T16:46:32+00:00",
+        "not_after": "2020-05-15T16:46:32+00:00",
+        "candidate_ids": [
+          "25C6B7F4",
+          "58869EDA",
+          "69EDA",
+          "6B7F4",
+          "869EDA",
+          "9EDA",
+          "AFE3",
+          "AFE3C7",
+          "B7F4",
+          "C6B7F4",
+          "EDF3"
+        ]
+      },
+      {
+        "file": "FR03_47.pem",
+        "subject": "CN=ITS0,OU=0002 40453692200192,O=ITS GROUP,C=FR",
+        "serial": "7DDAF39348D3CFE4D019DC7FEEC2ECBD",
+        "not_before": "2017-06-12T09:07:54+00:00",
+        "not_after": "2020-06-11T09:07:54+00:00",
+        "candidate_ids": [
+          "0E8DB1",
+          "2ECBD",
+          "5DBA",
+          "5DBA73",
+          "8DB1",
+          "980E8DB1",
+          "C2ECBD",
+          "E8DB1",
+          "ECBD",
+          "EEC2ECBD",
+          "ITS0"
+        ]
+      },
+      {
+        "file": "FR03_48.pem",
+        "subject": "OU=AIGCEV SPECIMEN,CN=AIG0,OU=0002 82449156700015,O=ASSOCIATION INTERNATIONALE DE GOUVERNANCE DU CACHET,C=FR",
+        "serial": "547781D5EBB5A768FC61F824924BE37B",
+        "not_before": "2017-06-13T09:00:56+00:00",
+        "not_after": "2020-06-12T09:00:56+00:00",
+        "candidate_ids": [
+          "06E686",
+          "4BE37B",
+          "506D",
+          "506D57",
+          "6E686",
+          "924BE37B",
+          "AIG0",
+          "BE37B",
+          "CA06E686",
+          "E37B",
+          "E686"
+        ],
+        "test": true
+      },
+      {
+        "file": "FR03_49.pem",
+        "subject": "CN=CRC5,OU=0002 77566561500347,O=CRCAM PARIS IDF,C=FR",
+        "serial": "380A5E241043FF2DD7633B1B6E0B144",
+        "not_before": "2017-07-23T11:39:46+00:00",
+        "not_after": "2020-07-22T11:39:46+00:00",
+        "candidate_ids": [
+          "0B144",
+          "39D3",
+          "439D3",
+          "4439D3",
+          "5D4439D3",
+          "743D",
+          "743D53",
+          "B144",
+          "B6E0B144",
+          "CRC5",
+          "E0B144"
+        ]
+      },
+      {
+        "file": "FR03_50.pem",
+        "subject": "CN=THA0,OU=0002 38419243100060,O=GIE ASIRH,C=FR",
+        "serial": "82F9AACFE440C9C848F4A6B3E0EF37F6",
+        "not_before": "2017-12-14T10:28:04+00:00",
+        "not_after": "2020-12-13T10:28:04+00:00",
+        "candidate_ids": [
+          "1854F374",
+          "37F6",
+          "4F374",
+          "54F374",
+          "E0EF37F6",
+          "EF37F6",
+          "EFD7",
+          "EFD7C5",
+          "F374",
+          "F37F6",
+          "THA0"
+        ]
+      },
+      {
+        "file": "FR03_51.pem",
+        "subject": "CN=HFS0,OU=0002 45345054600024,O=HAVAS FINANCES SERVICES SNC,C=FR",
+        "serial": "B4A85AD7FF6607D62A94AA9CCAF9ED96",
+        "not_before": "2017-12-27T11:15:47+00:00",
+        "not_after": "2020-12-26T11:15:47+00:00",
+        "candidate_ids": [
+          "5DA7C5",
+          "745DA7C5",
+          "9ED96",
+          "A7C5",
+          "CAF9ED96",
+          "DA7C5",
+          "ED96",
+          "F9ED96",
+          "FB6E",
+          "FB6ECC",
+          "HFS0"
+        ]
+      },
+      {
+        "file": "FR03_52.pem",
+        "subject": "CN=SPE0,OU=0002 70980488400035,O=SPEIG,C=FR",
+        "serial": "3D6AD47D336D4C8DA9CEBEA47C2C2A2C",
+        "not_before": "2018-03-19T14:54:38+00:00",
+        "not_after": "2021-03-18T14:54:38+00:00",
+        "candidate_ids": [
+          "1135",
+          "113564",
+          "2752B0",
+          "2A2C",
+          "2C2A2C",
+          "52B0",
+          "752B0",
+          "7C2C2A2C",
+          "BA2752B0",
+          "C2A2C",
+          "SPE0"
+        ]
+      },
+      {
+        "file": "FR03_53.pem",
+        "subject": "CN=SOP0,OU=0002 32682006500083,O=SOPRA STERIA GROUP,C=FR",
+        "serial": "ED58A52453A227806946717402B512B5",
+        "not_before": "2018-03-23T11:12:44+00:00",
+        "not_after": "2021-03-22T11:12:44+00:00",
+        "candidate_ids": [
+          "02B512B5",
+          "12B5",
+          "208A949F",
+          "20B2",
+          "20B220",
+          "512B5",
+          "8A949F",
+          "949F",
+          "A949F",
+          "B512B5",
+          "SOP0"
+        ]
+      },
+      {
+        "file": "FR03_54.pem",
+        "subject": "CN=BDF0,OU=0002 57210489100013,O=BANQUE DE FRANCE,C=FR",
+        "serial": "DF2602C1EEDD93007F52EFEA6A239F67",
+        "not_before": "2018-06-14T23:37:36+00:00",
+        "not_after": "2021-06-13T23:37:36+00:00",
+        "candidate_ids": [
+          "239F67",
+          "2867",
+          "286767",
+          "39F67",
+          "45DDDB27",
+          "6A239F67",
+          "9F67",
+          "BDF0",
+          "DB27",
+          "DDB27",
+          "DDDB27"
+        ]
+      },
+      {
+        "file": "FR03_55.pem",
+        "subject": "CN=CNO0,OU=0002 18004401800026,O=CENTRE NATIONAL DES OEUVRES UNIVERSITAIRES ET SCOLAIRES,C=FR",
+        "serial": "FE6838E5BA03989994C7AF25C633BCF9",
+        "not_before": "2018-06-28T10:19:26+00:00",
+        "not_after": "2019-06-28T10:19:26+00:00",
+        "candidate_ids": [
+          "33BCF9",
+          "343D",
+          "343D67",
+          "3BCF9",
+          "68ACCC",
+          "8ACCC",
+          "ACCC",
+          "BCF9",
+          "C633BCF9",
+          "CNO0",
+          "F268ACCC"
+        ]
+      },
+      {
+        "file": "FR03_56.pem",
+        "subject": "CN=DHL0,OU=0002 59020077001012,O=DHL HOLDING FRANCE SAS,C=FR",
+        "serial": "E3C07A7F26AB9D375D5D58AC06138180",
+        "not_before": "2018-07-06T12:28:33+00:00",
+        "not_after": "2021-07-05T12:28:33+00:00",
+        "candidate_ids": [
+          "06138180",
+          "138180",
+          "339FFB",
+          "38180",
+          "39FFB",
+          "8180",
+          "9FFB",
+          "A2339FFB",
+          "B965",
+          "B96565",
+          "DHL0"
+        ]
+      },
+      {
+        "file": "FR03_57.pem",
+        "subject": "CN=EEN0,OU=0002 37967763600092,O=EDF ENERGIES NOUVELLES,C=FR",
+        "serial": "D4B98A03BFAC9C5FA1AB2694F83E1C3",
+        "not_before": "2018-10-12T10:30:11+00:00",
+        "not_after": "2021-10-11T10:30:11+00:00",
+        "candidate_ids": [
+          "03F87",
+          "3E1C3",
+          "3F87",
+          "403F87",
+          "4F83E1C3",
+          "6E403F87",
+          "83E1C3",
+          "C110",
+          "C110A1",
+          "E1C3",
+          "EEN0"
+        ]
+      },
+      {
+        "file": "FR03_58.pem",
+        "subject": "CN=BSI0,OU=0002 41390064800036,O=BERCY SERVICES I BSI,C=FR",
+        "serial": "5C094BB71E5CF79D1E1FFB4EE0333645",
+        "not_before": "2018-11-01T16:41:02+00:00",
+        "not_after": "2021-10-31T16:41:02+00:00",
+        "candidate_ids": [
+          "2D7A",
+          "333645",
+          "33645",
+          "3645",
+          "5D51",
+          "5D5155",
+          "BSI0",
+          "DCFE2D7A",
+          "E0333645",
+          "E2D7A",
+          "FE2D7A"
+        ]
+      },
+      {
+        "file": "FR03_59.pem",
+        "subject": "CN=AGR1,OU=0002 80194705200016,O=GIE AG2R REUNICA,C=FR",
+        "serial": "74E9321CA8D1B26E0E66946DB7541B16",
+        "not_before": "2018-11-29T11:22:05+00:00",
+        "not_after": "2021-11-28T11:22:05+00:00",
+        "candidate_ids": [
+          "06FA",
+          "06FAB5",
+          "1B16",
+          "41B16",
+          "496E",
+          "541B16",
+          "6496E",
+          "AGR1",
+          "B6496E",
+          "B7541B16",
+          "BCB6496E"
+        ]
+      },
+      {
+        "file": "FR03_60.pem",
+        "subject": "CN=CIB0,OU=0002 78462134400018,O=CONGES INTEMPERIES BTP - CAISSE DE L ILE DE FRANCE,C=FR",
+        "serial": "AEE40272CFD021600169A4710F96B96D",
+        "not_before": "2019-01-24T15:22:20+00:00",
+        "not_after": "2022-01-23T15:22:20+00:00",
+        "candidate_ids": [
+          "0F96B96D",
+          "5F6B",
+          "5F6BF9",
+          "6974",
+          "6B96D",
+          "96B96D",
+          "B96D",
+          "C6974",
+          "CIB0",
+          "DC6974",
+          "DDDC6974"
+        ]
+      },
+      {
+        "file": "FR03_61.pem",
+        "subject": "CN=CRC2,OU=0002 38038685400018,O=CRCAM LOIRE-HAUTE LOIRE,C=FR",
+        "serial": "11FAC7A75753E82147F17D6C101ABD2A",
+        "not_before": "2019-02-12T08:42:23+00:00",
+        "not_after": "2022-02-11T08:42:23+00:00",
+        "candidate_ids": [
+          "101ABD2A",
+          "1A7B",
+          "1A7B70",
+          "1ABD2A",
+          "2273EE46",
+          "3EE46",
+          "73EE46",
+          "ABD2A",
+          "BD2A",
+          "CRC2",
+          "EE46"
+        ]
+      },
+      {
+        "file": "FR03_62.pem",
+        "subject": "CN=SNC0,OU=0002 80833267000013,O=SNCF,C=FR",
+        "serial": "7A9EDEC78359CC67743CBE67B0E2CA8C",
+        "not_before": "2019-04-08T01:01:03+00:00",
+        "not_after": "2022-04-07T01:01:03+00:00",
+        "candidate_ids": [
+          "14E87EA3",
+          "2CA8C",
+          "7EA3",
+          "87EA3",
+          "B0E2CA8C",
+          "CA8C",
+          "DDF0",
+          "DDF08F",
+          "E2CA8C",
+          "E87EA3",
+          "SNC0"
+        ]
+      },
+      {
+        "file": "FR03_63.pem",
+        "subject": "CN=SNC1,OU=0002 80833267000013,O=SNCF,C=FR",
+        "serial": "9202931DA6C3FD9B431DDCFFBE6E57B3",
+        "not_before": "2019-04-12T18:01:32+00:00",
+        "not_after": "2022-04-11T18:01:32+00:00",
+        "candidate_ids": [
+          "0DCF1E",
+          "57B3",
+          "6E57B3",
+          "BE6E57B3",
+          "CC0DCF1E",
+          "CF1E",
+          "DCF1E",
+          "E275",
+          "E275C2",
+          "E57B3",
+          "SNC1"
+        ]
+      },
+      {
+        "file": "FR03_64.pem",
+        "subject": "CN=CNO1,OU=0002 18004401800026,O=CENTRE NATIONAL DES OEUVRES UNIVERSITAIRES ET SCOLAIRES,C=FR",
+        "serial": "C4A6A02481F6FDA9A9BBACDC7A566E9F",
+        "not_before": "2019-06-19T08:46:22+00:00",
+        "not_after": "2022-06-18T08:46:22+00:00",
+        "candidate_ids": [
+          "2D94E0",
+          "566E9F",
+          "5D21",
+          "5D21ED",
+          "66E9F",
+          "6E9F",
+          "7A566E9F",
+          "862D94E0",
+          "94E0",
+          "CNO1",
+          "D94E0"
+        ]
+      },
+      {
+        "file": "FR03_65.pem",
+        "subject": "CN=TES0,OU=0002 48146308100036,O=DHIMYOTIS,C=FR",
+        "serial": "3773A6A519F93011B1C77C28B19827C9",
+        "not_before": "2019-06-21T07:54:23+00:00",
+        "not_after": "2020-06-20T07:54:23+00:00",
+        "candidate_ids": [
+          "156584AD",
+          "27C9",
+          "584AD",
+          "6584AD",
+          "827C9",
+          "84AD",
+          "9193",
+          "919399",
+          "9827C9",
+          "B19827C9",
+          "TES0"
+        ]
+      },
+      {
+        "file": "FR03_66.pem",
+        "subject": "CN=CNO2,OU=0002 18004401800026,O=CENTRE NATIONAL DES OEUVRES UNIVERSITAIRES ET SCOLAIRES,C=FR",
+        "serial": "782D29142A2B80B800E9A0DF325C645B",
+        "not_before": "2019-06-21T08:17:31+00:00",
+        "not_after": "2022-06-20T08:17:31+00:00",
+        "candidate_ids": [
+          "2BAC",
+          "325C645B",
+          "3B14",
+          "3B1497",
+          "3ED82BAC",
+          "5C645B",
+          "645B",
+          "82BAC",
+          "C645B",
+          "CNO2",
+          "D82BAC"
+        ]
+      },
+      {
+        "file": "FR03_67.pem",
+        "subject": "CN=EDF4,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "AB080B420333530C6B855D6F97FCE80",
+        "not_before": "2019-08-13T13:27:49+00:00",
+        "not_after": "2022-08-12T13:27:49+00:00",
+        "candidate_ids": [
+          "1F09",
+          "1F0975",
+          "4FCF8",
+          "7FCE80",
+          "94FCF8",
+          "CE80",
+          "DC94FCF8",
+          "EDF4",
+          "F97FCE80",
+          "FCE80",
+          "FCF8"
+        ]
+      },
+      {
+        "file": "FR03_68.pem",
+        "subject": "CN=EDF5,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "3C0A60A429962CE394C110484298F4BB",
+        "not_before": "2019-08-13T13:30:57+00:00",
+        "not_after": "2022-08-12T13:30:57+00:00",
+        "candidate_ids": [
+          "1738E",
+          "4298F4BB",
+          "738E",
+          "8F4BB",
+          "98F4BB",
+          "A0A1738E",
+          "A1738E",
+          "CFCD",
+          "CFCDAC",
+          "EDF5",
+          "F4BB"
+        ]
+      },
+      {
+        "file": "FR03_69.pem",
+        "subject": "CN=CAI1,OU=0002 47883493000016,O=CRCAM DE NORMANDIE,C=FR",
+        "serial": "39F8CEFAD20A938F374DB04DE9A3F2A4",
+        "not_before": "2019-10-25T10:40:20+00:00",
+        "not_after": "2022-10-24T10:40:20+00:00",
+        "candidate_ids": [
+          "174CC8",
+          "23B7",
+          "23B7B0",
+          "3F2A4",
+          "4CC8",
+          "74CC8",
+          "A3F2A4",
+          "CAI1",
+          "E9A3F2A4",
+          "F2A4",
+          "FD174CC8"
+        ]
+      },
+      {
+        "file": "FR03_70.pem",
+        "subject": "CN=CRC3,OU=0002 40086818800014,O=CRCAM VAL DE FRANCE,C=FR",
+        "serial": "185EA412E28DB1BA3B2064AF2099CC7D",
+        "not_before": "2019-12-11T15:45:03+00:00",
+        "not_after": "2022-12-10T15:45:03+00:00",
+        "candidate_ids": [
+          "2099CC7D",
+          "7245",
+          "87245",
+          "8F49",
+          "8F495A",
+          "97D87245",
+          "99CC7D",
+          "9CC7D",
+          "CC7D",
+          "CRC3",
+          "D87245"
+        ]
+      },
+      {
+        "file": "FR03_71.pem",
+        "subject": "CN=GSK0,OU=0002 64204136200202,O=LABORATOIRE GLAXOSMITHKLINE,C=FR",
+        "serial": "C45BEDA65CFC2869CDB963EEF9A5B88F",
+        "not_before": "2020-01-09T13:11:08+00:00",
+        "not_after": "2023-01-08T13:11:08+00:00",
+        "candidate_ids": [
+          "5B88F",
+          "6366",
+          "636620",
+          "8B501",
+          "A5B88F",
+          "B501",
+          "B88F",
+          "C8B501",
+          "DCC8B501",
+          "F9A5B88F",
+          "GSK0"
+        ]
+      },
+      {
+        "file": "FR03_72.pem",
+        "subject": "CN=EDF6,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "E73FAADD90246C894ABD4AFBA1BA8540",
+        "not_before": "2020-01-10T13:14:47+00:00",
+        "not_after": "2023-01-09T13:14:47+00:00",
+        "candidate_ids": [
+          "6ABF6A",
+          "8540",
+          "A1BA8540",
+          "A8540",
+          "ABF6A",
+          "BA8540",
+          "BF6A",
+          "CB6ABF6A",
+          "EDF6",
+          "EFCD",
+          "EFCDD8"
+        ]
+      },
+      {
+        "file": "FR03_73.pem",
+        "subject": "CN=ENG1,OU=0002 54210765113030,O=ENGIE,C=FR",
+        "serial": "D29FD3A9EAAC681D176974A14097FC77",
+        "not_before": "2020-01-27T16:23:39+00:00",
+        "not_after": "2023-01-26T16:23:39+00:00",
+        "candidate_ids": [
+          "2F21B",
+          "4097FC77",
+          "7FC77",
+          "81C2",
+          "81C2E5",
+          "97FC77",
+          "C2F21B",
+          "D5C2F21B",
+          "ENG1",
+          "F21B",
+          "FC77"
+        ]
+      },
+      {
+        "file": "FR03_74.pem",
+        "subject": "CN=CAQ1,OU=0002 43465124603196,O=CRCAM AQUITAINE,C=FR",
+        "serial": "9A3E7D3EA2301CEBA71002A3B3BFB24",
+        "not_before": "2020-01-30T10:49:17+00:00",
+        "not_after": "2023-01-29T10:49:17+00:00",
+        "candidate_ids": [
+          "0927",
+          "3B3BFB24",
+          "3BFB24",
+          "70927",
+          "8626",
+          "8626ED",
+          "B5C70927",
+          "BFB24",
+          "C70927",
+          "CAQ1",
+          "FB24"
+        ]
+      },
+      {
+        "file": "FR03_75.pem",
+        "subject": "CN=CCL1,OU=0002 39882471400016,O=CRCAM CENTRE LOIRE,C=FR",
+        "serial": "C649A47106BFCEC67B56908336A53A80",
+        "not_before": "2020-01-30T10:56:00+00:00",
+        "not_after": "2023-01-29T10:56:00+00:00",
+        "candidate_ids": [
+          "05C6",
+          "3405C6",
+          "36A53A80",
+          "3A80",
+          "405C6",
+          "53A80",
+          "A53A80",
+          "CCL1",
+          "F3AA",
+          "F3AA9E",
+          "F43405C6"
+        ]
+      },
+      {
+        "file": "FR03_76.pem",
+        "subject": "CN=ENE1,OU=0002 44460844213631,O=ENEDIS,C=FR",
+        "serial": "85C48AA68B777F259D357B3131C8D2C7",
+        "not_before": "2020-01-30T11:32:34+00:00",
+        "not_after": "2023-01-29T11:32:34+00:00",
+        "candidate_ids": [
+          "03D0",
+          "03D00B",
+          "31C8D2C7",
+          "58CA59",
+          "8CA59",
+          "8D2C7",
+          "C8D2C7",
+          "CA59",
+          "D2C7",
+          "ENE1",
+          "F258CA59"
+        ]
+      },
+      {
+        "file": "FR03_77.pem",
+        "subject": "CN=AXA0,OU=0002 72205746001971,O=AXA FRANCE IARD,C=FR",
+        "serial": "717122E56621F5439820DD4FB40BDCF8",
+        "not_before": "2020-02-25T09:45:48+00:00",
+        "not_after": "2023-02-24T09:45:48+00:00",
+        "candidate_ids": [
+          "09B6",
+          "0BDCF8",
+          "1CEA",
+          "1CEAE4",
+          "409B6",
+          "4409B6",
+          "8D4409B6",
+          "AXA0",
+          "B40BDCF8",
+          "BDCF8",
+          "DCF8"
+        ]
+      },
+      {
+        "file": "FR03_78.pem",
+        "subject": "CN=HER1,OU=0002 54555016200063,O=HERIGE,C=FR",
+        "serial": "108DB431D83C4FDD6D161EA42BEE486C",
+        "not_before": "2020-02-25T09:50:45+00:00",
+        "not_after": "2023-02-24T09:50:45+00:00",
+        "candidate_ids": [
+          "1807",
+          "2BEE486C",
+          "371807",
+          "47371807",
+          "486C",
+          "71807",
+          "E486C",
+          "E7BB",
+          "E7BB38",
+          "EE486C",
+          "HER1"
+        ]
+      },
+      {
+        "file": "FR03_79.pem",
+        "subject": "CN=CNS1,OU=0002 43378673800016,O=CRCAM DE NORMANDIE-SEINE,C=FR",
+        "serial": "3CD6923FB566392412B60337E3F99D2B",
+        "not_before": "2020-02-25T09:55:00+00:00",
+        "not_after": "2023-02-24T09:55:00+00:00",
+        "candidate_ids": [
+          "4EAC",
+          "4EAC37",
+          "5B6EBA",
+          "6EBA",
+          "99D2B",
+          "9D2B",
+          "B6EBA",
+          "C75B6EBA",
+          "CNS1",
+          "E3F99D2B",
+          "F99D2B"
+        ]
+      },
+      {
+        "file": "FR03_80.pem",
+        "subject": "CN=DSR0,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "9A91EAD0D0090335744E64F5A8D27021",
+        "not_before": "2020-05-07T13:15:59+00:00",
+        "not_after": "2023-05-07T13:15:59+00:00",
+        "candidate_ids": [
+          "0312FC48",
+          "12FC48",
+          "27021",
+          "2FC48",
+          "6130",
+          "61303B",
+          "7021",
+          "A8D27021",
+          "D27021",
+          "DSR0",
+          "FC48"
+        ]
+      },
+      {
+        "file": "FR03_81.pem",
+        "subject": "CN=EDF7,OU=0002 48996768700109,O=EDF PEI SIEGE,C=FR",
+        "serial": "587460040C54D8676288D447CF6EFE78",
+        "not_before": "2020-05-27T13:42:39+00:00",
+        "not_after": "2023-05-27T13:42:39+00:00",
+        "candidate_ids": [
+          "0755",
+          "50755",
+          "550755",
+          "6EFE78",
+          "B0550755",
+          "CF6EFE78",
+          "E23A",
+          "E23A6A",
+          "EDF7",
+          "EFE78",
+          "FE78"
+        ]
+      },
+      {
+        "file": "FR03_82.pem",
+        "subject": "CN=BOU1,OU=0002 57201524600216,O=BOUYGUES,C=FR",
+        "serial": "8391F2BAF22C34AF6038267AA8A1BB6F",
+        "not_before": "2020-05-27T13:57:27+00:00",
+        "not_after": "2023-05-27T13:57:27+00:00",
+        "candidate_ids": [
+          "1BB6F",
+          "53A0",
+          "53A0A9",
+          "6B8D",
+          "8B9E6B8D",
+          "9E6B8D",
+          "A1BB6F",
+          "A8A1BB6F",
+          "BB6F",
+          "BOU1",
+          "E6B8D"
+        ]
+      },
+      {
+        "file": "FR03_83.pem",
+        "subject": "CN=CRC6,OU=0002 77566561500347,O=CRCAM PARIS IDF,C=FR",
+        "serial": "C4E0AA34F5A0A8D6FBF28DD811B71FA3",
+        "not_before": "2020-07-13T14:37:17+00:00",
+        "not_after": "2023-07-13T14:37:17+00:00",
+        "candidate_ids": [
+          "11B71FA3",
+          "1FA3",
+          "71FA3",
+          "9CB23",
+          "B71FA3",
+          "B9CB23",
+          "CB23",
+          "CRC6",
+          "DD40",
+          "DD40C4",
+          "E7B9CB23"
+        ]
+      },
+      {
+        "file": "FR03_84.pem",
+        "subject": "CN=ITS1,OU=0002 40453692200192,O=ITS GROUP,C=FR",
+        "serial": "9F98C7D3F742AAAFD7C73B3E652C2EEF",
+        "not_before": "2020-09-24T08:29:13+00:00",
+        "not_after": "2023-09-24T08:29:13+00:00",
+        "candidate_ids": [
+          "2C2EEF",
+          "2C3A3",
+          "2EEF",
+          "52C3A3",
+          "652C2EEF",
+          "8652C3A3",
+          "878D",
+          "878D3D",
+          "C2EEF",
+          "C3A3",
+          "ITS1"
+        ]
+      },
+      {
+        "file": "FR03_85.pem",
+        "subject": "CN=THA1,OU=0002 42470496300083,O=THALES GLOBAL SERVICES SAS,C=FR",
+        "serial": "6BFEB136C2BC8EC0E6CD7D7BA8F5BCEB",
+        "not_before": "2020-12-10T23:00:00+00:00",
+        "not_after": "2023-12-10T22:59:59+00:00",
+        "candidate_ids": [
+          "4AF1",
+          "4AF1C5",
+          "5BCEB",
+          "A8F5BCEB",
+          "ACF84B",
+          "BCEB",
+          "CF84B",
+          "F5BCEB",
+          "F84B",
+          "F9ACF84B",
+          "THA1"
+        ]
+      },
+      {
+        "file": "FR03_86.pem",
+        "subject": "CN=CFR1,OU=0002 41481940900023,O=CONFORAMA FRANCE,C=FR",
+        "serial": "9F5450B2EEBA0C795F3BB98DE542EEB7",
+        "not_before": "2024-04-08T22:00:00+00:00",
+        "not_after": "2027-04-08T21:59:59+00:00",
+        "candidate_ids": [
+          "17A2EF28",
+          "2EEB7",
+          "2EF28",
+          "42EEB7",
+          "6289",
+          "62896F",
+          "A2EF28",
+          "CFR1",
+          "E542EEB7",
+          "EEB7",
+          "EF28"
+        ]
+      },
+      {
+        "file": "FR03_87.pem",
+        "subject": "CN=CDS1,OU=0002 70980488400035,O=COLAS DIGITAL SOLUTIONS,C=FR",
+        "serial": "114F0E5BA7AC20758C743BB4D5FE1F8C",
+        "not_before": "2024-04-09T22:00:00+00:00",
+        "not_after": "2027-04-09T21:59:59+00:00",
+        "candidate_ids": [
+          "1F8C",
+          "2EEB",
+          "2EEBB6",
+          "4EFCF",
+          "71D4EFCF",
+          "CDS1",
+          "D4EFCF",
+          "D5FE1F8C",
+          "E1F8C",
+          "EFCF",
+          "FE1F8C"
+        ]
+      },
+      {
+        "file": "FR03_88.pem",
+        "subject": "CN=GIP0,OU=0002 18751272800036,O=GIP UNION RETRAITE,C=FR",
+        "serial": "4EC0CC7C217AD44D2FC9994B9DD7458D",
+        "not_before": "2024-04-21T22:00:00+00:00",
+        "not_after": "2027-04-21T21:59:59+00:00",
+        "candidate_ids": [
+          "02355524",
+          "0B37",
+          "0B3733",
+          "355524",
+          "458D",
+          "5524",
+          "55524",
+          "7458D",
+          "9DD7458D",
+          "D7458D",
+          "GIP0"
+        ]
+      },
+      {
+        "file": "FR03_89.pem",
+        "subject": "CN=HFS1,OU=0002 45345054600024,O=HAVAS FINANCES SERVICES SNC,C=FR",
+        "serial": "B8B372971D6C2ACBC58B016DB54C56B2",
+        "not_before": "2021-02-07T23:00:00+00:00",
+        "not_after": "2024-02-07T22:59:59+00:00",
+        "candidate_ids": [
+          "1F4EDA",
+          "4C56B2",
+          "4EDA",
+          "56B2",
+          "651F4EDA",
+          "73C7",
+          "73C743",
+          "B54C56B2",
+          "C56B2",
+          "F4EDA",
+          "HFS1"
+        ]
+      },
+      {
+        "file": "FR03_90.pem",
+        "subject": "CN=CFR0,OU=0002 41481940900023,O=CONFORAMA FRANCE,C=FR",
+        "serial": "BB9E7A0A19570DB48A45FCD181A7053F",
+        "not_before": "2021-02-15T23:00:00+00:00",
+        "not_after": "2024-02-15T22:59:59+00:00",
+        "candidate_ids": [
+          "053F",
+          "1D2D98",
+          "2D98",
+          "4A1D2D98",
+          "7053F",
+          "81A7053F",
+          "A7053F",
+          "B281",
+          "B28149",
+          "CFR0",
+          "D2D98"
+        ]
+      },
+      {
+        "file": "FR03_91.pem",
+        "subject": "CN=SOP1,OU=0002 32682006500083,O=SOPRA STERIA GROUP,C=FR",
+        "serial": "3BD120B06DDE201590D9C8F84E966C2C",
+        "not_before": "2021-03-18T23:00:00+00:00",
+        "not_after": "2024-03-17T22:59:59+00:00",
+        "candidate_ids": [
+          "078A5",
+          "4E966C2C",
+          "66C2C",
+          "6C2C",
+          "78A5",
+          "8078A5",
+          "966C2C",
+          "CFBC",
+          "CFBC89",
+          "D78078A5",
+          "SOP1"
+        ]
+      },
+      {
+        "file": "FR03_92.pem",
+        "subject": "CN=CDS0,OU=0002 70980488400035,O=COLAS DIGITAL SOLUTIONS,C=FR",
+        "serial": "81166FF0D94B502011BF75480C98F8DF",
+        "not_before": "2021-03-18T23:00:00+00:00",
+        "not_after": "2024-03-17T22:59:59+00:00",
+        "candidate_ids": [
+          "0C98F8DF",
+          "2B87",
+          "2B87D7",
+          "3EDB",
+          "8F8DF",
+          "98F8DF",
+          "B3EDB",
+          "CDS0",
+          "D3DB3EDB",
+          "DB3EDB",
+          "F8DF"
+        ]
+      },
+      {
+        "file": "FR03_93.pem",
+        "subject": "CN=DGD1,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "61EE8A9283ED9929DF6E73E207932CF5",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "00D5169F",
+          "07932CF5",
+          "169F",
+          "2CF5",
+          "32CF5",
+          "5169F",
+          "932CF5",
+          "9758",
+          "9758E0",
+          "D5169F",
+          "DGD1"
+        ]
+      },
+      {
+        "file": "FR03_94.pem",
+        "subject": "CN=DGD2,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "3644757681EB6B492AAE351C8DC261DC",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "261DC",
+          "339BCBAE",
+          "61DC",
+          "8DC261DC",
+          "93B2",
+          "93B208",
+          "9BCBAE",
+          "BCBAE",
+          "C261DC",
+          "CBAE",
+          "DGD2"
+        ]
+      },
+      {
+        "file": "FR03_95.pem",
+        "subject": "CN=DGD3,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "FE2C7743FA34DA2EEA9BFAFAFAF4B913",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "0392BEEB",
+          "2BEEB",
+          "4B913",
+          "89B6",
+          "89B69D",
+          "92BEEB",
+          "B913",
+          "BEEB",
+          "DGD3",
+          "F4B913",
+          "FAF4B913"
+        ]
+      },
+      {
+        "file": "FR03_96.pem",
+        "subject": "CN=DGD4,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "EEFC84689B2BEEF082D3AE7C5E0352BB",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "0352BB",
+          "1BAC",
+          "31ED",
+          "31ED26",
+          "352BB",
+          "52BB",
+          "5E0352BB",
+          "6A1BAC",
+          "A1BAC",
+          "DE6A1BAC",
+          "DGD4"
+        ]
+      },
+      {
+        "file": "FR03_97.pem",
+        "subject": "CN=DGD5,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "27DE28FC5D9B2AD58BC3C9BC23CBE51D",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "23CBE51D",
+          "24B12B",
+          "2824B12B",
+          "4B12B",
+          "B12B",
+          "B60D",
+          "B60D12",
+          "BE51D",
+          "CBE51D",
+          "DGD5",
+          "E51D"
+        ]
+      },
+      {
+        "file": "FR03_98.pem",
+        "subject": "CN=DGD6,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "18D0A05BE1A3378D5B5D6EA429958F47",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "29958F47",
+          "3AAA0",
+          "58F47",
+          "79B3AAA0",
+          "7FB8",
+          "7FB8F3",
+          "8F47",
+          "958F47",
+          "AAA0",
+          "B3AAA0",
+          "DGD6"
+        ]
+      },
+      {
+        "file": "FR03_99.pem",
+        "subject": "CN=AHP1,OU=0002 26750045200011,O=ASSISTANCE PUBLIQUE HOPITAUX DE PARIS,C=FR",
+        "serial": "AAED88FCE7B4133286FFE8DFBC5FE0C9",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "5FE0C9",
+          "68C9F16E",
+          "9F16E",
+          "AHP1",
+          "BC5FE0C9",
+          "C9F16E",
+          "D748",
+          "D7483E",
+          "E0C9",
+          "F16E",
+          "FE0C9"
+        ]
+      },
+      {
+        "file": "FR03_100.pem",
+        "subject": "CN=AHP2,OU=0002 26750045200011,O=ASSISTANCE PUBLIQUE HOPITAUX DE PARIS,C=FR",
+        "serial": "15DF96C633F251A2452BFD957434A801",
+        "not_before": "2021-03-25T23:00:00+00:00",
+        "not_after": "2024-03-24T22:59:59+00:00",
+        "candidate_ids": [
+          "34A801",
+          "4A801",
+          "7434A801",
+          "9BE0A2",
+          "A49BE0A2",
+          "A801",
+          "AHP2",
+          "BE0A2",
+          "C51F",
+          "C51FEC",
+          "E0A2"
+        ]
+      },
+      {
+        "file": "FR03_101.pem",
+        "subject": "CN=DGE0,OU=0002 13001759300034,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,C=FR",
+        "serial": "62B3A78F16EA99F088F320602C071B9F",
+        "not_before": "2024-05-20T22:00:00+00:00",
+        "not_after": "2027-05-20T21:59:59+00:00",
+        "candidate_ids": [
+          "071B9F",
+          "09D90",
+          "1B9F",
+          "2C071B9F",
+          "58B09D90",
+          "71B9F",
+          "7559",
+          "755982",
+          "9D90",
+          "B09D90",
+          "DGE0"
+        ]
+      },
+      {
+        "file": "FR03_102.pem",
+        "subject": "CN=AV01,OU=0002 18003502402369,O=CAISSE NATIONALE D'ASSURANCE MALADIE,C=FR",
+        "serial": "34FFBF0417983DCD8585769B9F910931",
+        "not_before": "2021-04-22T22:00:00+00:00",
+        "not_after": "2024-04-21T21:59:59+00:00",
+        "candidate_ids": [
+          "0931",
+          "10931",
+          "163B",
+          "163B6D",
+          "4985D32C",
+          "5D32C",
+          "85D32C",
+          "910931",
+          "9F910931",
+          "AV01",
+          "D32C"
+        ]
+      },
+      {
+        "file": "FR03_103.pem",
+        "subject": "CN=AV02,OU=0002 18003502402369,O=CAISSE NATIONALE D'ASSURANCE MALADIE,C=FR",
+        "serial": "342668A2FF09280DFF7ECA2EC73107CB",
+        "not_before": "2021-04-22T22:00:00+00:00",
+        "not_after": "2024-04-21T21:59:59+00:00",
+        "candidate_ids": [
+          "07CB",
+          "107CB",
+          "1C7205",
+          "3107CB",
+          "7205",
+          "AV02",
+          "C7205",
+          "C73107CB",
+          "D5DC",
+          "D5DC2F",
+          "F81C7205"
+        ]
+      },
+      {
+        "file": "FR03_104.pem",
+        "subject": "CN=DGD7,OU=0002 12002301500031,O=DIR GEN DES DOUANES ET DROITS INDIRECTS,C=FR",
+        "serial": "29B0D6BBDB0B0C8235C12704525FF2ED",
+        "not_before": "2024-06-03T22:00:00+00:00",
+        "not_after": "2027-06-03T21:59:59+00:00",
+        "candidate_ids": [
+          "19E2B",
+          "4EF19E2B",
+          "525FF2ED",
+          "5FF2ED",
+          "9E2B",
+          "9FBE",
+          "9FBE6C",
+          "DGD7",
+          "F19E2B",
+          "F2ED",
+          "FF2ED"
+        ]
+      },
+      {
+        "file": "FR03_105.pem",
+        "subject": "CN=DSR7,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "2784455BA25ED752137A77149C9FAB62",
+        "not_before": "2024-06-11T22:00:00+00:00",
+        "not_after": "2027-06-11T21:59:59+00:00",
+        "candidate_ids": [
+          "2B68E",
+          "56D2B68E",
+          "5ECC",
+          "5ECC5B",
+          "9C9FAB62",
+          "9FAB62",
+          "AB62",
+          "B68E",
+          "D2B68E",
+          "DSR7",
+          "FAB62"
+        ]
+      },
+      {
+        "file": "FR03_106.pem",
+        "subject": "CN=ING1,OU=0002 35297362200181,O=IMPRIMERIE NATIONALE,C=FR",
+        "serial": "D1368D3DAB5B2ACA4FB4B56E2A7A32B8",
+        "not_before": "2021-06-13T22:00:00+00:00",
+        "not_after": "2024-06-12T21:59:59+00:00",
+        "candidate_ids": [
+          "0D8D39",
+          "2A7A32B8",
+          "32B8",
+          "476E",
+          "476E34",
+          "7A32B8",
+          "8D39",
+          "910D8D39",
+          "A32B8",
+          "D8D39",
+          "ING1"
+        ]
+      },
+      {
+        "file": "FR03_107.pem",
+        "subject": "CN=BDF1,OU=0002 57210489100013,O=BANQUE DE FRANCE,C=FR",
+        "serial": "E5BBEA9AAAE61EF4DBA163370B98A9D5",
+        "not_before": "2021-10-21T22:00:00+00:00",
+        "not_after": "2024-10-20T21:59:59+00:00",
+        "candidate_ids": [
+          "0B98A9D5",
+          "38E3D",
+          "638E3D",
+          "6F42",
+          "6F4265",
+          "8A9D5",
+          "8E3D",
+          "98A9D5",
+          "A9D5",
+          "BDF1",
+          "CF638E3D"
+        ]
+      },
+      {
+        "file": "FR03_108.pem",
+        "subject": "CN=BDF2,OU=0002 57210489100013,O=BANQUE DE FRANCE,C=FR",
+        "serial": "804A63441DE1605FF5FFF763FEF33BB3",
+        "not_before": "2024-11-17T23:00:00+00:00",
+        "not_after": "2027-11-17T22:59:59+00:00",
+        "candidate_ids": [
+          "22B1AE",
+          "2B1AE",
+          "33BB3",
+          "3BB3",
+          "9A22B1AE",
+          "B1AE",
+          "BDF2",
+          "E0A1",
+          "E0A11E",
+          "F33BB3",
+          "FEF33BB3"
+        ]
+      },
+      {
+        "file": "FR03_109.pem",
+        "subject": "CN=ASP0,OU=0002 79361882800024,O=ASPEN NOTRE DAME DE BONDEVILLE,C=FR",
+        "serial": "DEA40D8C45090E25318402F56851642E",
+        "not_before": "2022-02-03T23:00:00+00:00",
+        "not_after": "2025-02-02T22:59:59+00:00",
+        "candidate_ids": [
+          "1642E",
+          "1D40",
+          "1D4031",
+          "51642E",
+          "5F7414",
+          "642E",
+          "6851642E",
+          "7414",
+          "925F7414",
+          "ASP0",
+          "F7414"
+        ]
+      },
+      {
+        "file": "FR03_110.pem",
+        "subject": "CN=DSR1,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "3D01A93B94C833845A536FA9A4C9A8F2",
+        "not_before": "2022-02-06T23:00:00+00:00",
+        "not_after": "2025-02-05T22:59:59+00:00",
+        "candidate_ids": [
+          "02168CFF",
+          "168CFF",
+          "68CFF",
+          "7821",
+          "7821A3",
+          "8CFF",
+          "9A8F2",
+          "A4C9A8F2",
+          "A8F2",
+          "C9A8F2",
+          "DSR1"
+        ]
+      },
+      {
+        "file": "FR03_111.pem",
+        "subject": "CN=SAG0,OU=0002 44029451000134,O=SAGEMCOM BROADBAND SAS,C=FR",
+        "serial": "EE9FA7DC7013883121E00A846DEE3F10",
+        "not_before": "2022-02-10T23:00:00+00:00",
+        "not_after": "2025-02-09T22:59:59+00:00",
+        "candidate_ids": [
+          "0E619A",
+          "3F10",
+          "410E619A",
+          "619A",
+          "6DEE3F10",
+          "BCDE",
+          "BCDEEC",
+          "E3F10",
+          "E619A",
+          "EE3F10",
+          "SAG0"
+        ]
+      },
+      {
+        "file": "FR03_112.pem",
+        "subject": "CN=DSR2,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "883679BD74D1AC59BB38AB5D896DBCC9",
+        "not_before": "2022-02-10T23:00:00+00:00",
+        "not_after": "2025-02-09T22:59:59+00:00",
+        "candidate_ids": [
+          "1A7331A0",
+          "31A0",
+          "331A0",
+          "3758",
+          "37586B",
+          "6DBCC9",
+          "7331A0",
+          "896DBCC9",
+          "BCC9",
+          "DBCC9",
+          "DSR2"
+        ]
+      },
+      {
+        "file": "FR03_113.pem",
+        "subject": "CN=DSR3,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "A47BFEED9DA1F7534079D6C78B77B35B",
+        "not_before": "2022-02-15T23:00:00+00:00",
+        "not_after": "2025-02-14T22:59:59+00:00",
+        "candidate_ids": [
+          "23B2D4",
+          "3B2D4",
+          "6B23B2D4",
+          "77B35B",
+          "7B35B",
+          "8B77B35B",
+          "B2D4",
+          "B35B",
+          "DSR3",
+          "E19A",
+          "E19AB1"
+        ],
+        "shared_key_subjects": [
+          "CN=DSR5,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR"
+        ]
+      },
+      {
+        "file": "FR03_114.pem",
+        "subject": "CN=SAG1,OU=0002  44029451000134,O=SAGEMCOM BROADBAND SAS,C=FR",
+        "serial": "807BA318BFAEABA233BC24D369403F4",
+        "not_before": "2022-02-15T23:00:00+00:00",
+        "not_after": "2025-02-14T22:59:59+00:00",
+        "candidate_ids": [
+          "03F4",
+          "2629",
+          "369403F4",
+          "403F4",
+          "92629",
+          "9403F4",
+          "A92629",
+          "DBA92629",
+          "EE35",
+          "EE35C9",
+          "SAG1"
+        ]
+      },
+      {
+        "file": "FR03_115.pem",
+        "subject": "CN=DSR4,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "7040742755F4ABB7ADFA2295CF0EEE3C",
+        "not_before": "2022-02-15T23:00:00+00:00",
+        "not_after": "2025-02-14T22:59:59+00:00",
+        "candidate_ids": [
+          "0EEE3C",
+          "2D41",
+          "2D4110",
+          "9ACB5",
+          "ACB5",
+          "C9ACB5",
+          "CF0EEE3C",
+          "DSR4",
+          "EE3C",
+          "EEE3C",
+          "F3C9ACB5"
+        ]
+      },
+      {
+        "file": "FR03_116.pem",
+        "subject": "CN=DSR5,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "D7A629A5C67BE2E1DD4280B2CD3414D",
+        "not_before": "2022-02-16T23:00:00+00:00",
+        "not_after": "2025-02-15T22:59:59+00:00",
+        "candidate_ids": [
+          "23B2D4",
+          "2CD3414D",
+          "3414D",
+          "3B2D4",
+          "414D",
+          "6B23B2D4",
+          "B2D4",
+          "D3414D",
+          "DSR5",
+          "E19A",
+          "E19AB1"
+        ],
+        "shared_key_subjects": [
+          "CN=DSR3,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR"
+        ]
+      },
+      {
+        "file": "FR03_117.pem",
+        "subject": "CN=AGR2,OU=0002 80194705202244,O=GIE AG2R,C=FR",
+        "serial": "A896D5A8B7DA55B239DABF4585F287A5",
+        "not_before": "2022-03-09T23:00:00+00:00",
+        "not_after": "2025-03-08T22:59:59+00:00",
+        "candidate_ids": [
+          "050C8C",
+          "0C8C",
+          "287A5",
+          "3A050C8C",
+          "4230",
+          "42307B",
+          "50C8C",
+          "85F287A5",
+          "87A5",
+          "AGR2",
+          "F287A5"
+        ]
+      },
+      {
+        "file": "FR03_118.pem",
+        "subject": "CN=SNC2,OU=0002 55204944776279,O=SOCIETE NATIONALE SNCF,C=FR",
+        "serial": "146613EEC1178D6A58358531DB5662FE",
+        "not_before": "2022-04-04T22:00:00+00:00",
+        "not_after": "2025-04-03T21:59:59+00:00",
+        "candidate_ids": [
+          "5662FE",
+          "62FE",
+          "662FE",
+          "7A167",
+          "8155",
+          "8155EE",
+          "A167",
+          "DB5662FE",
+          "DFF7A167",
+          "F7A167",
+          "SNC2"
+        ],
+        "shared_key_subjects": [
+          "CN=ENG2,OU=0002 54210765113030,O=ENGIE,C=FR"
+        ]
+      },
+      {
+        "file": "FR03_119.pem",
+        "subject": "CN=SNC3,OU=0002 55204944776279,O=SOCIETE NATIONALE SNCF,C=FR",
+        "serial": "7BE197E96B30CF7D547D1A054D9BF16",
+        "not_before": "2022-04-04T22:00:00+00:00",
+        "not_after": "2025-04-03T21:59:59+00:00",
+        "candidate_ids": [
+          "0024",
+          "43BA",
+          "43BA67",
+          "54D9BF16",
+          "74FC0024",
+          "9BF16",
+          "BF16",
+          "C0024",
+          "D9BF16",
+          "FC0024",
+          "SNC3"
+        ]
+      },
+      {
+        "file": "FR03_120.pem",
+        "subject": "CN=DSR8,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "7D7A45025FEAEA25CE0FB2EADA4A6785",
+        "not_before": "2025-02-12T23:00:00+00:00",
+        "not_after": "2028-02-12T22:59:59+00:00",
+        "candidate_ids": [
+          "1AFBD1",
+          "4A6785",
+          "6785",
+          "A6785",
+          "AFBD1",
+          "DA4A6785",
+          "DA8A",
+          "DA8AB3",
+          "DSR8",
+          "FA1AFBD1",
+          "FBD1"
+        ]
+      },
+      {
+        "file": "FR03_121.pem",
+        "subject": "CN=SAG2,OU=0002 44029451000159,O=SAGEMCOM BROADBAND SAS,C=FR",
+        "serial": "5AAB94727A40AD29BA6165931055201E",
+        "not_before": "2025-02-12T23:00:00+00:00",
+        "not_after": "2028-02-12T22:59:59+00:00",
+        "candidate_ids": [
+          "0C4A",
+          "1055201E",
+          "1AE70C4A",
+          "201E",
+          "5201E",
+          "55201E",
+          "70C4A",
+          "CEAB",
+          "CEABC1",
+          "E70C4A",
+          "SAG2"
+        ]
+      },
+      {
+        "file": "FR03_122.pem",
+        "subject": "CN=DSR9,OU=0002 12006102300038,O=DELEGATION A LA SECURITE ROUTIERE,C=FR",
+        "serial": "527720C81C5747E64BB2747C983BCB2A",
+        "not_before": "2025-02-12T23:00:00+00:00",
+        "not_after": "2028-02-12T22:59:59+00:00",
+        "candidate_ids": [
+          "3BCB2A",
+          "576EB13B",
+          "6EB13B",
+          "983BCB2A",
+          "A800",
+          "A800E9",
+          "B13B",
+          "BCB2A",
+          "CB2A",
+          "DSR9",
+          "EB13B"
+        ]
+      },
+      {
+        "file": "FR03_123.pem",
+        "subject": "CN=CNO3,OU=0002 18004401800026,O=CENTRE NATIONAL DES OEUVRES UNIVERSITAIRES ET SCOLAIRES (CNOUS),C=FR",
+        "serial": "1693349F74D62451CF243364B4ABF883",
+        "not_before": "2022-06-29T22:00:00+00:00",
+        "not_after": "2025-06-28T21:59:59+00:00",
+        "candidate_ids": [
+          "367B4241",
+          "4241",
+          "7B4241",
+          "ABF883",
+          "B4241",
+          "B4ABF883",
+          "BF883",
+          "CNO3",
+          "F883",
+          "F914",
+          "F914C7"
+        ]
+      },
+      {
+        "file": "FR03_124.pem",
+        "subject": "CN=CHG0,OU=0002 22310001700423,O=DEPARTEMENT DE LA HAUTE GARONNE,C=FR",
+        "serial": "721C934DB479027BE6A6BC12CA84EA49",
+        "not_before": "2025-03-10T23:00:00+00:00",
+        "not_after": "2028-03-09T22:59:59+00:00",
+        "candidate_ids": [
+          "4EA49",
+          "61FFCCCE",
+          "84EA49",
+          "CA84EA49",
+          "CCCE",
+          "CHG0",
+          "DA48",
+          "DA4864",
+          "EA49",
+          "FCCCE",
+          "FFCCCE"
+        ]
+      },
+      {
+        "file": "FR03_125.pem",
+        "subject": "CN=EDF8,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "796E8586550ED3F95E7721B3B6646964",
+        "not_before": "2022-07-24T22:00:00+00:00",
+        "not_after": "2025-07-23T21:59:59+00:00",
+        "candidate_ids": [
+          "1D5CA85E",
+          "46964",
+          "5CA85E",
+          "646964",
+          "6964",
+          "A85E",
+          "B6646964",
+          "C6B9",
+          "C6B925",
+          "CA85E",
+          "EDF8"
+        ]
+      },
+      {
+        "file": "FR03_126.pem",
+        "subject": "CN=EDF9,OU=0002 55208131766522,O=EDF,C=FR",
+        "serial": "A92756FE96B621B93B2F4482F9CC8F6C",
+        "not_before": "2022-07-24T22:00:00+00:00",
+        "not_after": "2025-07-23T21:59:59+00:00",
+        "candidate_ids": [
+          "239C",
+          "4167239C",
+          "67239C",
+          "7239C",
+          "8F6C",
+          "C8F6C",
+          "CC8F6C",
+          "E1B8",
+          "E1B8D8",
+          "EDF9",
+          "F9CC8F6C"
+        ]
+      }
+    ],
+    "FR04": [
+      {
+        "file": "FR04_0.pem",
+        "subject": "C=FR,O=AriadNEXT,OU=0002 52076922500027,CN=FR04",
+        "serial": "2C570A032722DE7C",
+        "not_before": "2015-05-20T12:23:53+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "1DA9",
+          "1DA97A",
+          "22DE7C",
+          "2722DE7C",
+          "2DE7C",
+          "3D6BF657",
+          "6BF657",
+          "BF657",
+          "DE7C",
+          "F657",
+          "FR04"
+        ]
+      },
+      {
+        "file": "FR04_1.pem",
+        "subject": "C=FR,O=AriadNEXT,OU=0002 520769225,CN=0000",
+        "serial": "4DDBBE036DE4E834",
+        "not_before": "2015-07-08T16:09:01+00:00",
+        "not_after": "2018-07-08T16:09:01+00:00",
+        "candidate_ids": [
+          "0000",
+          "4C69",
+          "4C694A",
+          "4E834",
+          "55D4F",
+          "5D4F",
+          "6DE4E834",
+          "A55D4F",
+          "D4A55D4F",
+          "E4E834",
+          "E834"
+        ],
+        "test": true
+      },
+      {
+        "file": "FR04_2.pem",
+        "subject": "C=FR,O=Université de La Rochelle,OU=0002 19170032700015,CN=ULR1",
+        "serial": "78A473BC5F24DD48",
+        "not_before": "2015-11-17T15:34:02+00:00",
+        "not_after": "2018-11-17T15:34:02+00:00",
+        "candidate_ids": [
+          "24DD48",
+          "3968E53A",
+          "4DD48",
+          "5F24DD48",
+          "68E53A",
+          "8E53A",
+          "CBA7",
+          "CBA79A",
+          "DD48",
+          "E53A",
+          "ULR1"
+        ]
+      },
+      {
+        "file": "FR04_3.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=IN00",
+        "serial": "5FD8F9299B83F3F7",
+        "not_before": "2015-12-08T13:00:35+00:00",
+        "not_after": "2018-12-08T13:00:35+00:00",
+        "candidate_ids": [
+          "2C63",
+          "2C63FF",
+          "3F3F7",
+          "83F3F7",
+          "94CFDBB3",
+          "9B83F3F7",
+          "CFDBB3",
+          "DBB3",
+          "F3F7",
+          "FDBB3",
+          "IN00"
+        ]
+      },
+      {
+        "file": "FR04_4.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT0",
+        "serial": "3F194E5D3AABBABE",
+        "not_before": "2016-04-07T09:11:59+00:00",
+        "not_after": "2019-04-08T09:11:59+00:00",
+        "candidate_ids": [
+          "3AABBABE",
+          "5548",
+          "55482B",
+          "8F704",
+          "A8F704",
+          "ABBABE",
+          "BABE",
+          "BBABE",
+          "BYT0",
+          "E5A8F704",
+          "F704"
+        ]
+      },
+      {
+        "file": "FR04_5.pem",
+        "subject": "C=FR,O=DELEGATION SECURITE CIRCULATION ROUTIERES,OU=0002 12006102300038,CN=MI00",
+        "serial": "1AA8E0000549D870",
+        "not_before": "2016-10-20T12:15:15+00:00",
+        "not_after": "2019-10-21T12:15:15+00:00",
+        "candidate_ids": [
+          "0549D870",
+          "46AFC5C9",
+          "49D870",
+          "9D870",
+          "AFC5C9",
+          "C5C9",
+          "D089",
+          "D08950",
+          "D870",
+          "FC5C9",
+          "MI00"
+        ]
+      },
+      {
+        "file": "FR04_6.pem",
+        "subject": "C=FR,O=Université de La Rochelle,OU=0002 191700327,CN=ULR2",
+        "serial": "30448EC9FE7A0477",
+        "not_before": "2016-11-16T13:08:25+00:00",
+        "not_after": "2019-11-17T13:08:25+00:00",
+        "candidate_ids": [
+          "024FE",
+          "0477",
+          "13D9",
+          "13D9D1",
+          "24FE",
+          "7024FE",
+          "7A0477",
+          "9E7024FE",
+          "A0477",
+          "FE7A0477",
+          "ULR2"
+        ]
+      },
+      {
+        "file": "FR04_7.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INC0",
+        "serial": "46D0B05D26DB6188",
+        "not_before": "2017-01-11T16:42:14+00:00",
+        "not_after": "2020-01-12T16:42:14+00:00",
+        "candidate_ids": [
+          "0EC69E",
+          "26DB6188",
+          "6188",
+          "B6188",
+          "C69E",
+          "DB6188",
+          "EC69E",
+          "F024",
+          "F024F1",
+          "FD0EC69E",
+          "INC0"
+        ]
+      },
+      {
+        "file": "FR04_8.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INV0",
+        "serial": "2343FC2C36EF023B",
+        "not_before": "2017-01-11T16:49:15+00:00",
+        "not_after": "2020-01-12T16:49:15+00:00",
+        "candidate_ids": [
+          "023B",
+          "177498",
+          "36EF023B",
+          "61EC",
+          "61EC3B",
+          "7498",
+          "77498",
+          "EF023B",
+          "F023B",
+          "F2177498",
+          "INV0"
+        ]
+      },
+      {
+        "file": "FR04_9.pem",
+        "subject": "C=FR,O=DELEGATION SECURITE ROUTIERE,OU=0002 12006102300038,CN=MI01",
+        "serial": "3BBB741E5331737",
+        "not_before": "2017-05-29T07:05:03+00:00",
+        "not_after": "2020-05-29T07:05:03+00:00",
+        "candidate_ids": [
+          "1737",
+          "31737",
+          "331737",
+          "4B4FE",
+          "54B4FE",
+          "7354B4FE",
+          "B4FE",
+          "E5331737",
+          "F549",
+          "F54942",
+          "MI01"
+        ]
+      },
+      {
+        "file": "FR04_10.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INV1",
+        "serial": "F06A698C50EA8D0",
+        "not_before": "2017-08-29T08:59:06+00:00",
+        "not_after": "2020-08-29T08:59:06+00:00",
+        "candidate_ids": [
+          "0EA8D0",
+          "1E7E",
+          "21E7E",
+          "421E7E",
+          "77421E7E",
+          "A8D0",
+          "AEE8",
+          "AEE831",
+          "C50EA8D0",
+          "EA8D0",
+          "INV1"
+        ]
+      },
+      {
+        "file": "FR04_11.pem",
+        "subject": "C=FR,O=INSTITUT NATIONAL DE LA SANTE ET DE LA RECHERCHE MEDICALE,OU=0002 18003604800015,CN=INS0",
+        "serial": "1D81B8A3D4F98CC2",
+        "not_before": "2017-09-01T14:15:10+00:00",
+        "not_after": "2020-09-01T14:15:10+00:00",
+        "candidate_ids": [
+          "578AFD83",
+          "8AFD83",
+          "8CC2",
+          "98CC2",
+          "AFD83",
+          "D4F98CC2",
+          "F341",
+          "F341DC",
+          "F98CC2",
+          "FD83",
+          "INS0"
+        ]
+      },
+      {
+        "file": "FR04_12.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT1",
+        "serial": "277EA32C366A6A76",
+        "not_before": "2017-09-28T15:30:38+00:00",
+        "not_after": "2020-09-28T15:30:38+00:00",
+        "candidate_ids": [
+          "16E8",
+          "16E872",
+          "31A6BB7E",
+          "366A6A76",
+          "6A6A76",
+          "6A76",
+          "6BB7E",
+          "A6A76",
+          "A6BB7E",
+          "BB7E",
+          "BYT1"
+        ]
+      },
+      {
+        "file": "FR04_13.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=IN01",
+        "serial": "79FB20B5E233ED2E",
+        "not_before": "2017-10-24T14:59:53+00:00",
+        "not_after": "2020-10-24T14:59:53+00:00",
+        "candidate_ids": [
+          "2A93",
+          "2A9333",
+          "33ED2E",
+          "3ED2E",
+          "7CD67",
+          "97CD67",
+          "CD67",
+          "CD97CD67",
+          "E233ED2E",
+          "ED2E",
+          "IN01"
+        ]
+      },
+      {
+        "file": "FR04_14.pem",
+        "subject": "C=FR,O=ADEC SAS,OU=0002 81325471100019,CN=ADE0",
+        "serial": "36BABED549DCB06",
+        "not_before": "2018-04-10T13:32:08+00:00",
+        "not_after": "2021-04-10T13:32:08+00:00",
+        "candidate_ids": [
+          "31C6FFAB",
+          "3864",
+          "3864FC",
+          "549DCB06",
+          "6FFAB",
+          "9DCB06",
+          "ADE0",
+          "C6FFAB",
+          "CB06",
+          "DCB06",
+          "FFAB"
+        ]
+      },
+      {
+        "file": "FR04_15.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DE LA SECURITE CIVILE,OU=0002 12001504500087,CN=MI02",
+        "serial": "58297D2F1A1CCC08",
+        "not_before": "2018-05-03T08:54:16+00:00",
+        "not_after": "2021-05-03T08:54:16+00:00",
+        "candidate_ids": [
+          "0C09",
+          "1A1CCC08",
+          "1CCC08",
+          "3E0C09",
+          "A575",
+          "A575F4",
+          "A93E0C09",
+          "CC08",
+          "CCC08",
+          "E0C09",
+          "MI02"
+        ]
+      },
+      {
+        "file": "FR04_16.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT2",
+        "serial": "167989FDED851515",
+        "not_before": "2019-02-28T13:35:12+00:00",
+        "not_after": "2022-02-28T13:35:12+00:00",
+        "candidate_ids": [
+          "1515",
+          "4A9C1",
+          "51515",
+          "52F4A9C1",
+          "851515",
+          "A9C1",
+          "BYT2",
+          "ED851515",
+          "F370",
+          "F37056",
+          "F4A9C1"
+        ]
+      },
+      {
+        "file": "FR04_17.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE0",
+        "serial": "2292117E524914B",
+        "not_before": "2019-04-08T15:46:56+00:00",
+        "not_after": "2022-04-08T15:46:56+00:00",
+        "candidate_ids": [
+          "0C303",
+          "24914B",
+          "4914B",
+          "49F1",
+          "49F179",
+          "914B",
+          "B0C303",
+          "C303",
+          "E524914B",
+          "EEB0C303",
+          "FPE0"
+        ]
+      },
+      {
+        "file": "FR04_18.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR0",
+        "serial": "1FA3EAC0D2571F19",
+        "not_before": "2019-10-22T07:55:37+00:00",
+        "not_after": "2022-10-22T07:55:37+00:00",
+        "candidate_ids": [
+          "1F19",
+          "41B5",
+          "41B51E",
+          "571F19",
+          "5E595",
+          "65E595",
+          "71F19",
+          "D2571F19",
+          "D265E595",
+          "DSR0",
+          "E595"
+        ]
+      },
+      {
+        "file": "FR04_19.pem",
+        "subject": "C=FR,O=INSTITUT NATIONAL DE LA SANTE ET DE LA RECHERCHE MEDICALE,OU=0002 18003604800015,CN=INS1",
+        "serial": "26AFC1C8545D8AFF",
+        "not_before": "2019-12-20T15:58:10+00:00",
+        "not_after": "2022-12-20T15:58:10+00:00",
+        "candidate_ids": [
+          "009A96EC",
+          "545D8AFF",
+          "5D8AFF",
+          "8AFF",
+          "96EC",
+          "9A96EC",
+          "A96EC",
+          "BE47",
+          "BE4787",
+          "D8AFF",
+          "INS1"
+        ]
+      },
+      {
+        "file": "FR04_20.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INC1",
+        "serial": "3265D38DD9445819",
+        "not_before": "2020-01-07T14:29:38+00:00",
+        "not_after": "2023-01-07T14:29:38+00:00",
+        "candidate_ids": [
+          "1A4F1",
+          "445819",
+          "45819",
+          "5819",
+          "71DF",
+          "71DF68",
+          "91A4F1",
+          "A091A4F1",
+          "A4F1",
+          "D9445819",
+          "INC1"
+        ]
+      },
+      {
+        "file": "FR04_21.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INV2",
+        "serial": "571D5E303AA4C628",
+        "not_before": "2020-01-07T14:33:31+00:00",
+        "not_after": "2023-01-07T14:33:31+00:00",
+        "candidate_ids": [
+          "23D79D74",
+          "3AA4C628",
+          "4C628",
+          "79D74",
+          "8BB7",
+          "8BB7FA",
+          "9D74",
+          "A4C628",
+          "C628",
+          "D79D74",
+          "INV2"
+        ]
+      },
+      {
+        "file": "FR04_22.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE1",
+        "serial": "260EF22294B1943E",
+        "not_before": "2020-03-30T14:09:29+00:00",
+        "not_after": "2023-03-31T14:09:29+00:00",
+        "candidate_ids": [
+          "1943E",
+          "199A",
+          "199AFB",
+          "943E",
+          "94B1943E",
+          "9BC057",
+          "B1943E",
+          "B39BC057",
+          "BC057",
+          "C057",
+          "FPE1"
+        ]
+      },
+      {
+        "file": "FR04_23.pem",
+        "subject": "C=FR,O=Imprimerie Nationale,OU=0002 352973622,CN=INT0",
+        "serial": "4E1272F2935CABBD",
+        "not_before": "2020-07-20T13:09:08+00:00",
+        "not_after": "2023-07-21T13:09:08+00:00",
+        "candidate_ids": [
+          "14F6AAA1",
+          "5CABBD",
+          "6AAA1",
+          "733A",
+          "733A77",
+          "935CABBD",
+          "AAA1",
+          "ABBD",
+          "CABBD",
+          "F6AAA1",
+          "INT0"
+        ]
+      },
+      {
+        "file": "FR04_24.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DE LA SECURITE CIVILE ET GESTION DES CRISES,OU=0002 12001504500087,CN=MI03",
+        "serial": "67A21CA6B7E80B79",
+        "not_before": "2020-08-26T13:17:08+00:00",
+        "not_after": "2023-08-27T13:17:08+00:00",
+        "candidate_ids": [
+          "0B79",
+          "184E38",
+          "1C184E38",
+          "3E45",
+          "3E4585",
+          "4E38",
+          "80B79",
+          "84E38",
+          "B7E80B79",
+          "E80B79",
+          "MI03"
+        ]
+      },
+      {
+        "file": "FR04_25.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE0",
+        "serial": "188E9928975E8E63",
+        "not_before": "2020-08-28T13:51:24+00:00",
+        "not_after": "2023-08-29T13:51:24+00:00",
+        "candidate_ids": [
+          "0F21F",
+          "2614",
+          "26143B",
+          "5E8E63",
+          "74B0F21F",
+          "8E63",
+          "975E8E63",
+          "B0F21F",
+          "DGE0",
+          "E8E63",
+          "F21F"
+        ]
+      },
+      {
+        "file": "FR04_26.pem",
+        "subject": "C=FR,O=ADEC SAS,OU=0002 81325471100019,CN=ADE1",
+        "serial": "222F052AFB80DE93",
+        "not_before": "2020-09-07T14:27:04+00:00",
+        "not_after": "2023-09-08T14:27:04+00:00",
+        "candidate_ids": [
+          "0DE93",
+          "228D",
+          "228D37",
+          "27DEF",
+          "7DEF",
+          "80DE93",
+          "ADE1",
+          "CCE27DEF",
+          "DE93",
+          "E27DEF",
+          "FB80DE93"
+        ]
+      },
+      {
+        "file": "FR04_27.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT3",
+        "serial": "3C3C66AF91EADF1E",
+        "not_before": "2020-10-02T07:14:05+00:00",
+        "not_after": "2023-10-03T07:14:05+00:00",
+        "candidate_ids": [
+          "084DF",
+          "407084DF",
+          "58E3",
+          "58E395",
+          "7084DF",
+          "84DF",
+          "91EADF1E",
+          "ADF1E",
+          "BYT3",
+          "DF1E",
+          "EADF1E"
+        ]
+      },
+      {
+        "file": "FR04_28.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=IN02",
+        "serial": "157C3D0CDB1B02AA",
+        "not_before": "2020-10-20T13:18:41+00:00",
+        "not_after": "2023-10-21T13:18:41+00:00",
+        "candidate_ids": [
+          "02AA",
+          "1B02AA",
+          "26666C",
+          "6666C",
+          "666C",
+          "B02AA",
+          "DB1B02AA",
+          "EBF7",
+          "EBF737",
+          "F926666C",
+          "IN02"
+        ]
+      },
+      {
+        "file": "FR04_29.pem",
+        "subject": "C=FR,O=OFFICE FRANCAIS DE LA BIODIVERSITE,OU=0002 130025919,CN=OFB0",
+        "serial": "B54388680BC07E5",
+        "not_before": "2021-01-26T14:44:38+00:00",
+        "not_after": "2024-01-27T14:44:38+00:00",
+        "candidate_ids": [
+          "07E5",
+          "43FC",
+          "43FC1C",
+          "4DB574FA",
+          "574FA",
+          "74FA",
+          "80BC07E5",
+          "B574FA",
+          "BC07E5",
+          "C07E5",
+          "OFB0"
+        ]
+      },
+      {
+        "file": "FR04_30.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR1",
+        "serial": "74A784F96F31CADE",
+        "not_before": "2021-03-25T10:28:01+00:00",
+        "not_after": "2024-03-25T10:28:01+00:00",
+        "candidate_ids": [
+          "11A4",
+          "11A4E2",
+          "1CADE",
+          "31CADE",
+          "476AFB",
+          "6AFB",
+          "6F31CADE",
+          "76AFB",
+          "CADE",
+          "DSR1",
+          "F7476AFB"
+        ]
+      },
+      {
+        "file": "FR04_31.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE1",
+        "serial": "630A1A83A4EBD7CC",
+        "not_before": "2021-03-25T10:33:23+00:00",
+        "not_after": "2024-03-25T10:33:23+00:00",
+        "candidate_ids": [
+          "2004",
+          "2004B1",
+          "2BA138",
+          "A138",
+          "A4EBD7CC",
+          "B52BA138",
+          "BA138",
+          "BD7CC",
+          "D7CC",
+          "DGE1",
+          "EBD7CC"
+        ]
+      },
+      {
+        "file": "FR04_32.pem",
+        "subject": "C=FR,O=FREE SAS,OU=0002 421938861,CN=FRE0",
+        "serial": "182D2AB05F6BFAB5",
+        "not_before": "2021-04-28T15:21:23+00:00",
+        "not_after": "2024-04-28T15:21:23+00:00",
+        "candidate_ids": [
+          "0432A",
+          "3EC9",
+          "3EC9F3",
+          "432A",
+          "5F6BFAB5",
+          "6BFAB5",
+          "BFAB5",
+          "EAF0432A",
+          "F0432A",
+          "FAB5",
+          "FRE0"
+        ]
+      },
+      {
+        "file": "FR04_33.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE2",
+        "serial": "33E9AFAFCE88CE0B",
+        "not_before": "2021-09-29T07:44:06+00:00",
+        "not_after": "2024-09-29T07:44:06+00:00",
+        "candidate_ids": [
+          "46589",
+          "6589",
+          "6DA2",
+          "6DA2A3",
+          "77C46589",
+          "88CE0B",
+          "8CE0B",
+          "C46589",
+          "CE0B",
+          "CE88CE0B",
+          "DGE2"
+        ]
+      },
+      {
+        "file": "FR04_34.pem",
+        "subject": "C=FR,O=EPSF,OU=0002 13000131600038,CN=EPS0",
+        "serial": "67F1351F2858E4CD",
+        "not_before": "2021-10-21T13:09:36+00:00",
+        "not_after": "2024-10-21T13:09:36+00:00",
+        "candidate_ids": [
+          "00A976EA",
+          "2858E4CD",
+          "58E4CD",
+          "76EA",
+          "8E4CD",
+          "976EA",
+          "9F24",
+          "9F24A3",
+          "A976EA",
+          "E4CD",
+          "EPS0"
+        ]
+      },
+      {
+        "file": "FR04_35.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR2",
+        "serial": "416DF977734B43A1",
+        "not_before": "2021-11-23T14:55:35+00:00",
+        "not_after": "2024-11-23T14:55:35+00:00",
+        "candidate_ids": [
+          "064496",
+          "43A1",
+          "4496",
+          "4B43A1",
+          "64496",
+          "734B43A1",
+          "B43A1",
+          "DSR2",
+          "E069",
+          "E0699E",
+          "E8064496"
+        ]
+      },
+      {
+        "file": "FR04_36.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR3",
+        "serial": "583B97F85CEA4575",
+        "not_before": "2021-12-07T13:56:24+00:00",
+        "not_after": "2024-12-07T13:56:24+00:00",
+        "candidate_ids": [
+          "3475E",
+          "4575",
+          "475E",
+          "5CEA4575",
+          "A4575",
+          "DC20",
+          "DC2092",
+          "DSR3",
+          "E3475E",
+          "EA4575",
+          "FFE3475E"
+        ]
+      },
+      {
+        "file": "FR04_37.pem",
+        "subject": "C=FR,O=LTR INDUSTRIES,OU=0002 31958012200046,CN=LTR0",
+        "serial": "896B7B1ACFD48C6",
+        "not_before": "2022-01-31T08:16:51+00:00",
+        "not_after": "2025-01-31T08:16:51+00:00",
+        "candidate_ids": [
+          "072ABD22",
+          "2ABD22",
+          "48C6",
+          "ABD22",
+          "ACFD48C6",
+          "BD22",
+          "BD33",
+          "BD3342",
+          "D48C6",
+          "FD48C6",
+          "LTR0"
+        ]
+      },
+      {
+        "file": "FR04_38.pem",
+        "subject": "C=FR,O=INSTITUT NATIONAL DE LA SANTE ET DE LA RECHERCHE MEDICALE,OU=0002 18003604800015,CN=INS2",
+        "serial": "6C935B16E118B4E8",
+        "not_before": "2022-03-03T16:05:35+00:00",
+        "not_after": "2025-03-03T16:05:35+00:00",
+        "candidate_ids": [
+          "18B4E8",
+          "8B4E8",
+          "9CFB",
+          "9CFBA9",
+          "B4E8",
+          "BE32",
+          "CBE32",
+          "CEFCBE32",
+          "E118B4E8",
+          "FCBE32",
+          "INS2"
+        ]
+      },
+      {
+        "file": "FR04_39.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE2",
+        "serial": "5109F949725ED3ED",
+        "not_before": "2022-03-15T09:36:34+00:00",
+        "not_after": "2025-03-15T09:36:34+00:00",
+        "candidate_ids": [
+          "1891",
+          "189170",
+          "246D2D03",
+          "2D03",
+          "5ED3ED",
+          "6D2D03",
+          "725ED3ED",
+          "D2D03",
+          "D3ED",
+          "ED3ED",
+          "FPE2"
+        ]
+      },
+      {
+        "file": "FR04_40.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INC2",
+        "serial": "5126835470043494",
+        "not_before": "2022-05-13T13:14:49+00:00",
+        "not_after": "2025-05-13T13:14:49+00:00",
+        "candidate_ids": [
+          "043494",
+          "17D86F8A",
+          "3494",
+          "43494",
+          "6F8A",
+          "70043494",
+          "86F8A",
+          "CDAA",
+          "CDAA35",
+          "D86F8A",
+          "INC2"
+        ]
+      },
+      {
+        "file": "FR04_41.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INV3",
+        "serial": "7B37960ADF96A1C7",
+        "not_before": "2022-05-13T13:17:00+00:00",
+        "not_after": "2025-05-13T13:17:00+00:00",
+        "candidate_ids": [
+          "186771E8",
+          "6771E8",
+          "6A1C7",
+          "71E8",
+          "771E8",
+          "96A1C7",
+          "9E04",
+          "9E04D9",
+          "A1C7",
+          "DF96A1C7",
+          "INV3"
+        ]
+      },
+      {
+        "file": "FR04_42.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE3",
+        "serial": "1F7473BC08BFA666",
+        "not_before": "2022-06-21T15:18:24+00:00",
+        "not_after": "2024-06-21T15:18:24+00:00",
+        "candidate_ids": [
+          "08BFA666",
+          "282E6E8F",
+          "2E6E8F",
+          "6E8F",
+          "A666",
+          "A8E1",
+          "A8E17B",
+          "BFA666",
+          "E6E8F",
+          "FA666",
+          "FPE3"
+        ]
+      },
+      {
+        "file": "FR04_43.pem",
+        "subject": "C=FR,O=ADEC,OU=0002 81325471100019,CN=ADE2",
+        "serial": "EA9C99AC8C56261",
+        "not_before": "2022-08-30T17:45:30+00:00",
+        "not_after": "2024-08-30T17:45:30+00:00",
+        "candidate_ids": [
+          "165C8DF0",
+          "56261",
+          "5C8DF0",
+          "6261",
+          "83B5",
+          "83B5F7",
+          "8DF0",
+          "ADE2",
+          "C56261",
+          "C8C56261",
+          "C8DF0"
+        ]
+      },
+      {
+        "file": "FR04_44.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DE LA SECURITE CIVILE ET GESTION DES CRISES,OU=0002 12001504500103,CN=MI04",
+        "serial": "25D17D92D7C9F11E",
+        "not_before": "2022-09-05T08:25:47+00:00",
+        "not_after": "2024-09-05T08:25:47+00:00",
+        "candidate_ids": [
+          "2CB25",
+          "9F11E",
+          "ACBC",
+          "ACBC40",
+          "C9F11E",
+          "CB25",
+          "CFE2CB25",
+          "D7C9F11E",
+          "E2CB25",
+          "F11E",
+          "MI04"
+        ]
+      },
+      {
+        "file": "FR04_45.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE3",
+        "serial": "5E0F24D339326BC0",
+        "not_before": "2022-09-28T14:09:24+00:00",
+        "not_after": "2024-09-28T14:09:24+00:00",
+        "candidate_ids": [
+          "26BC0",
+          "326BC0",
+          "39326BC0",
+          "6BC0",
+          "6CAD",
+          "6D6CAD",
+          "8C6D6CAD",
+          "CA96",
+          "CA96E4",
+          "D6CAD",
+          "DGE3"
+        ]
+      },
+      {
+        "file": "FR04_46.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT4",
+        "serial": "5EE37DD14259598D",
+        "not_before": "2022-10-03T07:57:50+00:00",
+        "not_after": "2024-10-03T07:57:50+00:00",
+        "candidate_ids": [
+          "388DA",
+          "4259598D",
+          "59598D",
+          "598D",
+          "88DA",
+          "9598D",
+          "BYT4",
+          "C388DA",
+          "E1C388DA",
+          "E40B",
+          "E40B35"
+        ]
+      },
+      {
+        "file": "FR04_47.pem",
+        "subject": "C=FR,O=LTR INDUSTRIES,OU=0002 319580122,CN=LTR1",
+        "serial": "53621C844F8373F3",
+        "not_before": "2022-11-07T14:11:20+00:00",
+        "not_after": "2024-11-07T14:11:20+00:00",
+        "candidate_ids": [
+          "2CF77D8A",
+          "373F3",
+          "4F8373F3",
+          "73F3",
+          "77D8A",
+          "7D8A",
+          "8373F3",
+          "F77D8A",
+          "FD06",
+          "FD0600",
+          "LTR1"
+        ]
+      },
+      {
+        "file": "FR04_48.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=IN03",
+        "serial": "41D8C70327343361",
+        "not_before": "2022-11-09T08:50:53+00:00",
+        "not_after": "2024-11-09T08:50:53+00:00",
+        "candidate_ids": [
+          "01CF8E48",
+          "27343361",
+          "3361",
+          "343361",
+          "43361",
+          "8E48",
+          "9165",
+          "91650E",
+          "CF8E48",
+          "F8E48",
+          "IN03"
+        ]
+      },
+      {
+        "file": "FR04_49.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INT1",
+        "serial": "18011C67C57DAA5F",
+        "not_before": "2022-11-09T09:18:07+00:00",
+        "not_after": "2024-11-09T09:18:07+00:00",
+        "candidate_ids": [
+          "176F1",
+          "3E91",
+          "3E9134",
+          "538176F1",
+          "76F1",
+          "7DAA5F",
+          "8176F1",
+          "AA5F",
+          "C57DAA5F",
+          "DAA5F",
+          "INT1"
+        ]
+      },
+      {
+        "file": "FR04_50.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE4",
+        "serial": "375CD9452FD2AAC8",
+        "not_before": "2023-04-20T11:59:46+00:00",
+        "not_after": "2025-04-20T11:59:46+00:00",
+        "candidate_ids": [
+          "2AAC8",
+          "2FD2AAC8",
+          "3DDD",
+          "49B3",
+          "49B390",
+          "53DDD",
+          "96F53DDD",
+          "AAC8",
+          "D2AAC8",
+          "F53DDD",
+          "FPE4"
+        ]
+      },
+      {
+        "file": "FR04_51.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR4",
+        "serial": "66D4DD5287CF7C4A",
+        "not_before": "2023-06-05T13:58:45+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "0FB921",
+          "7C4A",
+          "87CF7C4A",
+          "AC74",
+          "AC748F",
+          "B921",
+          "CF7C4A",
+          "DSR4",
+          "E30FB921",
+          "F7C4A",
+          "FB921"
+        ]
+      },
+      {
+        "file": "FR04_52.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE5",
+        "serial": "421F5F8B7F156D31",
+        "not_before": "2023-10-05T14:39:06+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "156D31",
+          "1ABF",
+          "1ABFC0",
+          "29F48875",
+          "48875",
+          "56D31",
+          "6D31",
+          "7F156D31",
+          "8875",
+          "F48875",
+          "FPE5"
+        ]
+      },
+      {
+        "file": "FR04_53.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE6",
+        "serial": "49A74F0A7893FDA2",
+        "not_before": "2023-11-13T12:19:14+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "2CE8B1",
+          "3A9F",
+          "3A9FFD",
+          "3FDA2",
+          "7893FDA2",
+          "93FDA2",
+          "CE8B1",
+          "D32CE8B1",
+          "E8B1",
+          "FDA2",
+          "FPE6"
+        ]
+      },
+      {
+        "file": "FR04_54.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE7",
+        "serial": "748F0E69F66C1870",
+        "not_before": "2023-11-22T08:22:22+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "03B3",
+          "061F",
+          "061F1C",
+          "1870",
+          "1E03B3",
+          "6C1870",
+          "921E03B3",
+          "C1870",
+          "E03B3",
+          "F66C1870",
+          "FPE7"
+        ]
+      },
+      {
+        "file": "FR04_55.pem",
+        "subject": "C=FR,O=MINISTERE DE L INTERIEUR ET DES OUTRE MER,OU=0002 11001401600015,CN=MI05",
+        "serial": "371F3E70821499B7",
+        "not_before": "2023-12-11T12:02:40+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "025823",
+          "1499B7",
+          "25823",
+          "499B7",
+          "4B025823",
+          "5823",
+          "821499B7",
+          "99B7",
+          "B00D",
+          "B00D17",
+          "MI05"
+        ]
+      },
+      {
+        "file": "FR04_56.pem",
+        "subject": "C=FR,O=OFFICE FRANCAIS DE LA BIODIVERSITE,OU=0002 130025919,CN=OFB1",
+        "serial": "75EE4CE64CA06CD6",
+        "not_before": "2023-12-18T12:31:36+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "06CD6",
+          "4CA06CD6",
+          "6CD6",
+          "77DFD2E6",
+          "A06CD6",
+          "A35E",
+          "A35E77",
+          "D2E6",
+          "DFD2E6",
+          "FD2E6",
+          "OFB1"
+        ]
+      },
+      {
+        "file": "FR04_57.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE9",
+        "serial": "7195B506196A02D3",
+        "not_before": "2024-01-09T10:49:14+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "02D3",
+          "0AC00",
+          "196A02D3",
+          "4627",
+          "46271C",
+          "6A02D3",
+          "A02D3",
+          "AC00",
+          "D0AC00",
+          "ECD0AC00",
+          "FPE9"
+        ]
+      },
+      {
+        "file": "FR04_58.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE8",
+        "serial": "3D6AC6812F5ECAC5",
+        "not_before": "2024-01-09T10:53:11+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "2F5ECAC5",
+          "5243",
+          "52435F",
+          "56943C",
+          "5ECAC5",
+          "6856943C",
+          "6943C",
+          "943C",
+          "CAC5",
+          "ECAC5",
+          "FPE8"
+        ]
+      },
+      {
+        "file": "FR04_59.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE4",
+        "serial": "D7C8B24F2A50F6B",
+        "not_before": "2024-03-25T09:38:12+00:00",
+        "not_after": "2025-05-20T12:23:53+00:00",
+        "candidate_ids": [
+          "0F6B",
+          "50F6B",
+          "60B96A55",
+          "6A55",
+          "96A55",
+          "A50F6B",
+          "B96A55",
+          "DCD6",
+          "DCD6AB",
+          "DGE4",
+          "F2A50F6B"
+        ]
+      }
+    ],
+    "FR05": [
+      {
+        "file": "FR05_0.pem",
+        "subject": "CN=FR05,OU=0002 130003262,O=Agence Nationale des Titres Sécurisés,C=FR",
+        "serial": "112053A188D4023F38F0D869FB139A812BD2",
+        "not_before": "2021-02-15T00:00:00+00:00",
+        "not_after": "2036-05-15T00:00:00+00:00",
+        "candidate_ids": [
+          "12BD2",
+          "12E6FC",
+          "2BD2",
+          "2E6FC",
+          "4F12E6FC",
+          "812BD2",
+          "9A812BD2",
+          "B146",
+          "B14631",
+          "E6FC",
+          "FR05"
+        ]
+      },
+      {
+        "file": "FR05_1.pem",
+        "subject": "CN=0001,OU=0002 130003262,O=Agence Nationale des Titres Sécurisés,C=FR",
+        "serial": "3C65DF5CF122099EA064CBC6F5A7ED33C28D9BDA",
+        "not_before": "2021-03-08T09:35:02+00:00",
+        "not_after": "2024-03-08T09:35:02+00:00",
+        "candidate_ids": [
+          "0001",
+          "1D37",
+          "2A58",
+          "2A58B0",
+          "8D9BDA",
+          "9A1D37",
+          "9BDA",
+          "A1D37",
+          "C28D9BDA",
+          "D9BDA",
+          "F09A1D37"
+        ]
+      },
+      {
+        "file": "FR05_2.pem",
+        "subject": "CN=0002,OU=0002 130003262,O=Agence Nationale des Titres Sécurisés,C=FR",
+        "serial": "238E01785663629FAAA4278D0A43FAE1DDD6360B",
+        "not_before": "2024-02-22T09:29:41+00:00",
+        "not_after": "2027-02-22T09:29:41+00:00",
+        "candidate_ids": [
+          "0002",
+          "360B",
+          "6360B",
+          "799BED4A",
+          "9BED4A",
+          "BED4A",
+          "D6360B",
+          "DDD6360B",
+          "E4DE",
+          "E4DE87",
+          "ED4A"
+        ]
+      }
+    ],
+    "FR06": [
+      {
+        "file": "FR06_0.pem",
+        "subject": "C=FR,O=ARIADNEXT,OU=0002 520769225,CN=FR06",
+        "serial": "55B043D0647B6B6F",
+        "not_before": "2022-12-12T15:11:47+00:00",
+        "not_after": "2032-12-11T23:00:00+00:00",
+        "candidate_ids": [
+          "2FBF8",
+          "57B2FBF8",
+          "647B6B6F",
+          "6B6F",
+          "7B6B6F",
+          "B2FBF8",
+          "B6B6F",
+          "E8CB",
+          "E8CBCD",
+          "FBF8",
+          "FR06"
+        ]
+      },
+      {
+        "file": "FR06_1.pem",
+        "subject": "C=FR,O=IDnow SAS,OU=0002 520769225,CN=0000",
+        "serial": "24E7429FD590444A8ACFEC01608152C960EA3EAA",
+        "not_before": "2024-03-27T10:04:39+00:00",
+        "not_after": "2027-03-27T10:04:38+00:00",
+        "candidate_ids": [
+          "0000",
+          "10CEE36A",
+          "3EAA",
+          "60EA3EAA",
+          "A3EAA",
+          "CEE36A",
+          "E36A",
+          "EA3EAA",
+          "EE36A",
+          "FEE6",
+          "FEE6EC"
+        ],
+        "test": true
+      },
+      {
+        "file": "FR06_2.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE2",
+        "serial": "3BEB5D6C8B8130E961146155A1BFC09C4CF311CC",
+        "not_before": "2024-03-27T15:02:00+00:00",
+        "not_after": "2027-03-27T15:01:59+00:00",
+        "candidate_ids": [
+          "11CC",
+          "311CC",
+          "4CF311CC",
+          "755F",
+          "755F96",
+          "A067",
+          "BCA067",
+          "CA067",
+          "E9BCA067",
+          "F311CC",
+          "FPE2"
+        ]
+      },
+      {
+        "file": "FR06_3.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE1",
+        "serial": "5CB90406EA6F5A12A5C4BE33BF8930E9043A80AE",
+        "not_before": "2024-03-27T15:14:23+00:00",
+        "not_after": "2027-03-27T15:14:22+00:00",
+        "candidate_ids": [
+          "043A80AE",
+          "3A80AE",
+          "3A868",
+          "6AC2",
+          "6AC252",
+          "80AE",
+          "92A3A868",
+          "A3A868",
+          "A80AE",
+          "A868",
+          "FPE1"
+        ]
+      },
+      {
+        "file": "FR06_4.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE0",
+        "serial": "16135DB53F787AA72FAD869B32B545083A25D066",
+        "not_before": "2024-03-27T15:14:58+00:00",
+        "not_after": "2027-03-27T15:14:57+00:00",
+        "candidate_ids": [
+          "25D066",
+          "3A25D066",
+          "5253",
+          "5D066",
+          "9D5253",
+          "C0AF",
+          "C0AF89",
+          "D066",
+          "D29D5253",
+          "D5253",
+          "FPE0"
+        ]
+      },
+      {
+        "file": "FR06_5.pem",
+        "subject": "C=FR,O=FREE SAS,OU=0002 421938861,CN=FRE0",
+        "serial": "4A4D54ABEE66FC68D662B742AB725DC641A18766",
+        "not_before": "2024-04-29T10:53:41+00:00",
+        "not_after": "2027-04-29T10:53:40+00:00",
+        "candidate_ids": [
+          "0FAA5A72",
+          "18766",
+          "41A18766",
+          "5A72",
+          "6316",
+          "6316D4",
+          "8766",
+          "A18766",
+          "A5A72",
+          "AA5A72",
+          "FRE0"
+        ]
+      },
+      {
+        "file": "FR06_6.pem",
+        "subject": "C=FR,O=EPSF,OU=0002 130001316,CN=EPS0",
+        "serial": "30888B38E3BA62FA5A6DEF2E6A2698E76E9D0ECA",
+        "not_before": "2024-06-21T15:48:17+00:00",
+        "not_after": "2027-06-21T15:48:16+00:00",
+        "candidate_ids": [
+          "0ECA",
+          "2EA84",
+          "52EA84",
+          "6E9D0ECA",
+          "9D0ECA",
+          "AC8F",
+          "AC8F27",
+          "D0ECA",
+          "EA84",
+          "EC52EA84",
+          "EPS0"
+        ]
+      },
+      {
+        "file": "FR06_7.pem",
+        "subject": "C=FR,O=ADEC,OU=0002 813254711,CN=ADE0",
+        "serial": "3E6CE62F3687E64ACC92632586D7F08EAC4FD990",
+        "not_before": "2024-07-05T08:15:04+00:00",
+        "not_after": "2027-07-05T08:15:03+00:00",
+        "candidate_ids": [
+          "01DF5",
+          "1DF5",
+          "31B01DF5",
+          "4FD990",
+          "AA87",
+          "AA87D4",
+          "AC4FD990",
+          "ADE0",
+          "B01DF5",
+          "D990",
+          "FD990"
+        ]
+      },
+      {
+        "file": "FR06_8.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR0",
+        "serial": "127403D13F261A4FEF4ACB9717455C8936E0C60D",
+        "not_before": "2024-08-21T07:53:41+00:00",
+        "not_after": "2027-08-21T07:53:40+00:00",
+        "candidate_ids": [
+          "0546",
+          "054612",
+          "0C60D",
+          "2FBD9FA2",
+          "36E0C60D",
+          "9FA2",
+          "BD9FA2",
+          "C60D",
+          "D9FA2",
+          "DSR0",
+          "E0C60D"
+        ]
+      },
+      {
+        "file": "FR06_9.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DE LA SECURITE CIVILE ET GESTION DES CRISES,OU=0002 12001504500103,CN=DSC0",
+        "serial": "38916AED8AAB581966345CCBB83238E48E553892",
+        "not_before": "2024-08-23T12:26:09+00:00",
+        "not_after": "2027-08-23T12:26:08+00:00",
+        "candidate_ids": [
+          "276EF356",
+          "3892",
+          "53892",
+          "553892",
+          "6EF356",
+          "7961",
+          "796192",
+          "8E553892",
+          "DSC0",
+          "EF356",
+          "F356"
+        ]
+      },
+      {
+        "file": "FR06_10.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE0",
+        "serial": "6D6EC0C6B5507A5DBFDA3179061B2329A5850CC6",
+        "not_before": "2024-09-27T08:06:27+00:00",
+        "not_after": "2027-09-27T08:06:26+00:00",
+        "candidate_ids": [
+          "0CC6",
+          "2E78",
+          "2E7835",
+          "50CC6",
+          "6ECE2",
+          "7DA6ECE2",
+          "850CC6",
+          "A5850CC6",
+          "A6ECE2",
+          "DGE0",
+          "ECE2"
+        ]
+      },
+      {
+        "file": "FR06_11.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE1",
+        "serial": "4276A9FFAB085BB824241A73122FF7123D908811",
+        "not_before": "2024-09-27T08:09:11+00:00",
+        "not_after": "2027-09-27T08:09:10+00:00",
+        "candidate_ids": [
+          "08811",
+          "3D908811",
+          "47EB5",
+          "60D47EB5",
+          "7EB5",
+          "8811",
+          "908811",
+          "C0CB",
+          "C0CB80",
+          "D47EB5",
+          "DGE1"
+        ]
+      },
+      {
+        "file": "FR06_12.pem",
+        "subject": "C=FR,O=BOUYGUES TELECOM,OU=0002 397480930,CN=BYT0",
+        "serial": "45FD1AC86BAA22DC06E1CFDFC694355B3F66420F",
+        "not_before": "2024-10-08T20:09:05+00:00",
+        "not_after": "2027-10-08T20:09:04+00:00",
+        "candidate_ids": [
+          "0F17A5",
+          "17A5",
+          "3F66420F",
+          "420F",
+          "6420F",
+          "66420F",
+          "7DCC",
+          "7DCC25",
+          "BYT0",
+          "CB0F17A5",
+          "F17A5"
+        ]
+      },
+      {
+        "file": "FR06_13.pem",
+        "subject": "C=FR,O=LTR INDUSTRIES,OU=0002 319580122,CN=LTR0",
+        "serial": "13A4B7967903929F3A53C89AE3F7FEF0560EE06C",
+        "not_before": "2024-11-04T08:44:12+00:00",
+        "not_after": "2027-11-04T08:44:11+00:00",
+        "candidate_ids": [
+          "0EE06C",
+          "11BED1",
+          "1BED1",
+          "560EE06C",
+          "6ECF",
+          "6ECFAB",
+          "AC11BED1",
+          "BED1",
+          "E06C",
+          "EE06C",
+          "LTR0"
+        ]
+      },
+      {
+        "file": "FR06_14.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=IN00",
+        "serial": "7CDA4AAC459DA1A2B9D90A116CD584AA3378D930",
+        "not_before": "2024-11-06T07:54:56+00:00",
+        "not_after": "2027-11-06T07:54:55+00:00",
+        "candidate_ids": [
+          "3378D930",
+          "3489D",
+          "489D",
+          "78D930",
+          "8D930",
+          "A633",
+          "A633EB",
+          "A9E3489D",
+          "D930",
+          "E3489D",
+          "IN00"
+        ]
+      },
+      {
+        "file": "FR06_15.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INT0",
+        "serial": "704EB50B1FEFCBEED8A366045978AD9F5DA76BF9",
+        "not_before": "2024-11-06T07:59:08+00:00",
+        "not_after": "2027-11-06T07:59:07+00:00",
+        "candidate_ids": [
+          "126A5A",
+          "26A5A",
+          "5DA76BF9",
+          "6A5A",
+          "6BF9",
+          "76BF9",
+          "8EBF",
+          "8EBFD7",
+          "A1126A5A",
+          "A76BF9",
+          "INT0"
+        ]
+      },
+      {
+        "file": "FR06_16.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INV0",
+        "serial": "71EE19A3B67A373DC673A3A4DCCF0B2EE08B7C99",
+        "not_before": "2024-11-06T08:05:20+00:00",
+        "not_after": "2027-11-06T08:05:19+00:00",
+        "candidate_ids": [
+          "1A5CA22C",
+          "1DE2",
+          "1DE28B",
+          "5CA22C",
+          "7C99",
+          "8B7C99",
+          "A22C",
+          "B7C99",
+          "CA22C",
+          "E08B7C99",
+          "INV0"
+        ]
+      },
+      {
+        "file": "FR06_17.pem",
+        "subject": "C=FR,O=IMPRIMERIE NATIONALE,OU=0002 352973622,CN=INC0",
+        "serial": "7462E260538685BACDFF4996BB851BE09D564A91",
+        "not_before": "2024-11-06T08:08:51+00:00",
+        "not_after": "2027-11-06T08:08:50+00:00",
+        "candidate_ids": [
+          "09628B",
+          "4609628B",
+          "4A91",
+          "564A91",
+          "628B",
+          "64A91",
+          "9628B",
+          "9D564A91",
+          "ADB8",
+          "ADB88B",
+          "INC0"
+        ]
+      },
+      {
+        "file": "FR06_18.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 12006102300038,CN=DSR1",
+        "serial": "54DA3AF306D4312AF1644F483FE6B1273C2BFBF9",
+        "not_before": "2024-12-03T09:35:52+00:00",
+        "not_after": "2027-12-03T09:35:51+00:00",
+        "candidate_ids": [
+          "070D",
+          "070DF3",
+          "1DD30",
+          "29C1DD30",
+          "2BFBF9",
+          "3C2BFBF9",
+          "BFBF9",
+          "C1DD30",
+          "DD30",
+          "DSR1",
+          "FBF9"
+        ]
+      },
+      {
+        "file": "FR06_19.pem",
+        "subject": "C=FR,O=INSTITUT NATIONAL DE LA SANTE ET DE LA RECHERCHE MEDICALE,OU=0002 18003604800015,CN=INS0",
+        "serial": "54A2CDAD95366B663DD019164B6C4A7574DBC5AE",
+        "not_before": "2025-03-03T11:10:47+00:00",
+        "not_after": "2028-03-02T11:10:46+00:00",
+        "candidate_ids": [
+          "3D586E",
+          "586E",
+          "74DBC5AE",
+          "B93D586E",
+          "BC5AE",
+          "C5AE",
+          "D586E",
+          "DBC5AE",
+          "E9B3",
+          "E9B341",
+          "INS0"
+        ]
+      },
+      {
+        "file": "FR06_20.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE6",
+        "serial": "7DF32A366699AE242CBCA3D6363854B45E0376BB",
+        "not_before": "2025-03-06T10:35:54+00:00",
+        "not_after": "2028-03-05T10:35:53+00:00",
+        "candidate_ids": [
+          "03319EBB",
+          "0376BB",
+          "19EBB",
+          "319EBB",
+          "376BB",
+          "3DE6",
+          "3DE663",
+          "5E0376BB",
+          "76BB",
+          "9EBB",
+          "FPE6"
+        ]
+      },
+      {
+        "file": "FR06_21.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE5",
+        "serial": "3C9568CD336CCE0558BAA5ED42C68979482F38E1",
+        "not_before": "2025-03-06T13:50:11+00:00",
+        "not_after": "2028-03-05T13:50:10+00:00",
+        "candidate_ids": [
+          "0FA4",
+          "292C0FA4",
+          "2C0FA4",
+          "2F38E1",
+          "38E1",
+          "482F38E1",
+          "6F1C",
+          "6F1CA6",
+          "C0FA4",
+          "F38E1",
+          "FPE5"
+        ]
+      },
+      {
+        "file": "FR06_22.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE4",
+        "serial": "3E36F8C31BFF1DD3106F354A9BCB72619B5B887C",
+        "not_before": "2025-03-06T13:53:47+00:00",
+        "not_after": "2028-03-05T13:53:46+00:00",
+        "candidate_ids": [
+          "37AF21",
+          "5B887C",
+          "7AF21",
+          "887C",
+          "8E8F",
+          "8E8F32",
+          "9B5B887C",
+          "AF21",
+          "B887C",
+          "D437AF21",
+          "FPE4"
+        ]
+      },
+      {
+        "file": "FR06_23.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES FINANCES PUBLIQUES,OU=0002 13000495500014,CN=FPE3",
+        "serial": "234B8A4557BF83AABDD006A216CBDC423381F168",
+        "not_before": "2025-03-06T13:55:51+00:00",
+        "not_after": "2028-03-05T13:55:50+00:00",
+        "candidate_ids": [
+          "1F168",
+          "2AD3",
+          "2AD31D",
+          "3381F168",
+          "55A621",
+          "5A621",
+          "81F168",
+          "A621",
+          "BA55A621",
+          "F168",
+          "FPE3"
+        ]
+      },
+      {
+        "file": "FR06_24.pem",
+        "subject": "C=FR,O=OFFICE FRANCAIS DE LA BIODIVERSITE,OU=0002 130025919,CN=OFB0",
+        "serial": "3B173C5DBABE075BC31C9D46065C0F0F934929EB",
+        "not_before": "2025-05-13T13:17:46+00:00",
+        "not_after": "2028-05-12T13:17:45+00:00",
+        "candidate_ids": [
+          "0AB1",
+          "0AB108",
+          "29EB",
+          "4929EB",
+          "5CAF2",
+          "75CAF2",
+          "8075CAF2",
+          "929EB",
+          "934929EB",
+          "CAF2",
+          "OFB0"
+        ]
+      },
+      {
+        "file": "FR06_25.pem",
+        "subject": "C=FR,O=MINISTERE DE L INTERIEUR,OU=0002 110014016,CN=MI00",
+        "serial": "34DA117C06C8559C3D8333070CD87F676782DAB",
+        "not_before": "2025-05-15T11:59:01+00:00",
+        "not_after": "2028-05-14T11:59:00+00:00",
+        "candidate_ids": [
+          "2DAB",
+          "747F",
+          "76782DAB",
+          "782DAB",
+          "82DAB",
+          "86D9747F",
+          "9747F",
+          "D9747F",
+          "E732",
+          "E732F0",
+          "MI00"
+        ]
+      },
+      {
+        "file": "FR06_26.pem",
+        "subject": "C=FR,O=DIRECTION GENERALE DES ETRANGERS EN FRANCE,OU=0002 130017593,CN=DGE2",
+        "serial": "54B2F8B469903CFBDE9CD8DE84D0EC944F2DE893",
+        "not_before": "2025-05-16T16:13:03+00:00",
+        "not_after": "2028-05-15T16:13:02+00:00",
+        "candidate_ids": [
+          "04C9",
+          "0504C9",
+          "2DE893",
+          "4F2DE893",
+          "504C9",
+          "AB60",
+          "AB60A7",
+          "C30504C9",
+          "DE893",
+          "DGE2",
+          "E893"
+        ]
+      },
+      {
+        "file": "FR06_27.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,OU=0002 120061023,CN=DSR2",
+        "serial": "39CC8382765599654B4332A56465CBD3CBF8192F",
+        "not_before": "2025-05-19T07:37:20+00:00",
+        "not_after": "2028-05-18T07:37:19+00:00",
+        "candidate_ids": [
+          "046547",
+          "192F",
+          "46547",
+          "6547",
+          "7008",
+          "700823",
+          "8192F",
+          "A8046547",
+          "CBF8192F",
+          "DSR2",
+          "F8192F"
+        ]
+      },
+      {
+        "file": "FR06_28.pem",
+        "subject": "C=FR,O=Service Technique de l Aviation Civile,OU=0002 16006402800022,CN=STA0",
+        "serial": "4A50D12669202173285419C2849008F03BD557B3",
+        "not_before": "2025-08-28T14:25:01+00:00",
+        "not_after": "2028-08-27T14:25:00+00:00",
+        "candidate_ids": [
+          "38B6",
+          "3BD557B3",
+          "4B93",
+          "4B9308",
+          "557B3",
+          "57B3",
+          "B38B6",
+          "D557B3",
+          "E2FB38B6",
+          "FB38B6",
+          "STA0"
+        ]
+      },
+      {
+        "file": "FR06_29.pem",
+        "subject": "C=FR,O=FREE SAS,OU=0002 421938861,CN=FRE1",
+        "serial": "5A3C79BFD331C38D9908D97CF7CE5038B806D6EE",
+        "not_before": "2026-04-20T10:12:28+00:00",
+        "not_after": "2029-04-19T10:12:27+00:00",
+        "candidate_ids": [
+          "06D6EE",
+          "2A157",
+          "6D6EE",
+          "85C2A157",
+          "A157",
+          "B806D6EE",
+          "C2A157",
+          "D6EE",
+          "DC82",
+          "DC82E9",
+          "FRE1"
+        ]
+      },
+      {
+        "file": "FR06_30.pem",
+        "subject": "C=FR,O=iMSA,OU=0002 84440620700010,CN=PNDS",
+        "serial": "61D2FE03985D4986B29832000D05F64099C5DDE0",
+        "not_before": "2026-05-07T08:28:33+00:00",
+        "not_after": "2029-05-06T08:28:32+00:00",
+        "candidate_ids": [
+          "4FCFC4",
+          "5DDE0",
+          "6631",
+          "6631D1",
+          "99C5DDE0",
+          "B84FCFC4",
+          "C5DDE0",
+          "CFC4",
+          "DDE0",
+          "FCFC4",
+          "PNDS"
+        ]
+      },
+      {
+        "file": "FR06_31.pem",
+        "subject": "C=FR,O=iMSA,OU=0002 84440620700010,CN=PND0",
+        "serial": "1613B2197334012DE0655DF31CD82B60AE08ACFD",
+        "not_before": "2026-06-03T13:20:42+00:00",
+        "not_after": "2029-06-02T13:20:41+00:00",
+        "candidate_ids": [
+          "08ACFD",
+          "4580",
+          "47CA4580",
+          "8ACFD",
+          "A4580",
+          "ACFD",
+          "AE08ACFD",
+          "C411",
+          "C4114D",
+          "CA4580",
+          "PND0"
+        ]
+      }
+    ],
+    "FR07": [
+      {
+        "file": "FR07_0.pem",
+        "subject": "C=FR,O=LEX PERSONA,2.5.4.97=NTRFR-480622257,OU=0002 480622257,CN=FR07",
+        "serial": "3B76D652E5E28583",
+        "not_before": "2024-10-09T09:39:40+00:00",
+        "not_after": "2034-10-09T09:39:40+00:00",
+        "candidate_ids": [
+          "28583",
+          "45162",
+          "5162",
+          "845162",
+          "8583",
+          "CC98",
+          "CC9882",
+          "E28583",
+          "E5E28583",
+          "FD845162",
+          "FR07"
+        ]
+      },
+      {
+        "file": "FR07_1.pem",
+        "subject": "C=FR,O=SAS Ne varietur,2.5.4.97=NTRFR-992573717,2.5.4.5=6224646d-82b6-41ca-99cb-0cb2bf023725,CN=VAR1",
+        "serial": "25FD76B987C098CF",
+        "not_before": "2026-03-03T13:21:21+00:00",
+        "not_after": "2029-03-02T13:21:20+00:00",
+        "candidate_ids": [
+          "098CF",
+          "222D9E",
+          "22D9E",
+          "2D9E",
+          "87C098CF",
+          "92A5",
+          "92A57A",
+          "98CF",
+          "B9222D9E",
+          "C098CF",
+          "VAR1"
+        ]
+      },
+      {
+        "file": "FR07_2.pem",
+        "subject": "C=FR,O=DELEGATION A LA SECURITE ROUTIERE,2.5.4.97=NTRFR-120061023,2.5.4.5=bb1b8c9b-9048-4b7c-9c8d-723ae260d3af,CN=DSR0",
+        "serial": "414CE6EAE52B0094",
+        "not_before": "2026-05-18T15:48:57+00:00",
+        "not_after": "2029-05-17T15:48:56+00:00",
+        "candidate_ids": [
+          "0094",
+          "0D3B70",
+          "2B0094",
+          "3B70",
+          "760D3B70",
+          "95B3",
+          "95B36E",
+          "B0094",
+          "D3B70",
+          "DSR0",
+          "E52B0094"
+        ]
+      },
+      {
+        "file": "FR07_3.pem",
+        "subject": "C=FR,O=ENGIE,2.5.4.97=NTRFR-542107651,2.5.4.5=829e34e8-1bc2-44f4-a44f-3454587a2c6f,CN=ENG3",
+        "serial": "13882A3E039A92F3",
+        "not_before": "2026-01-15T09:14:05+00:00",
+        "not_after": "2029-01-14T09:14:04+00:00",
+        "candidate_ids": [
+          "039A92F3",
+          "3105",
+          "83105",
+          "92F3",
+          "9A92F3",
+          "A83105",
+          "A92F3",
+          "ENG3",
+          "F9F0",
+          "F9F09E",
+          "FAA83105"
+        ]
+      },
+      {
+        "file": "FR07_4.pem",
+        "subject": "C=FR,O=SUEZ EAU FRANCE,2.5.4.97=NTRFR-410034607,2.5.4.5=ddf9415b-2d61-44da-83b1-f0cf301f925f,CN=SUE1",
+        "serial": "5C40A0120678ACA7",
+        "not_before": "2026-05-07T14:11:05+00:00",
+        "not_after": "2029-05-06T14:11:04+00:00",
+        "candidate_ids": [
+          "0678ACA7",
+          "100C",
+          "100CC2",
+          "594C",
+          "7594C",
+          "78ACA7",
+          "87594C",
+          "8ACA7",
+          "ACA7",
+          "E687594C",
+          "SUE1"
+        ]
+      }
+    ],
+    "FR09": [
+      {
+        "file": "FR09_0.pem",
+        "subject": "CN=FR09,OU=0002 130003262,O=Agence Nationale des Titres Sécurisés,C=FR",
+        "serial": "112092C11180062F16928E3706CC26F02DF7",
+        "not_before": "2025-12-04T00:00:00+00:00",
+        "not_after": "2041-03-04T00:00:00+00:00",
+        "candidate_ids": [
+          "02DF7",
+          "26F02DF7",
+          "2BC7",
+          "2DF7",
+          "42BC7",
+          "58642BC7",
+          "642BC7",
+          "8B62",
+          "8B62D4",
+          "F02DF7",
+          "FR09"
+        ]
+      },
+      {
+        "file": "FR09_1.pem",
+        "subject": "CN=0003,OU=0002 130003262,O=Agence Nationale des Titres Sécurisés,C=FR",
+        "serial": "15D622AA31E67135A0AF7FC353E551BA1FBB55B6",
+        "not_before": "2026-01-29T17:37:15+00:00",
+        "not_after": "2029-01-29T17:37:15+00:00",
+        "candidate_ids": [
+          "0003",
+          "1FBB55B6",
+          "348D",
+          "348DAE",
+          "55B6",
+          "5A5E",
+          "75A5E",
+          "A0D75A5E",
+          "B55B6",
+          "BB55B6",
+          "D75A5E"
+        ]
+      }
+    ]
+  }
+}

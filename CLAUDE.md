@@ -107,6 +107,8 @@ trustyfile/
 │   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
 │   │   ├── identity.py       # MRZ checksums (conditional)
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes
+│   │   ├── twod_doc_crypto.py # 2D-Doc ECDSA verification (offline, certs
+│   │   │                     # committed under src/data/twod_doc_certs/)
 │   │   └── span_conflict.py  # Shared helper (overlay + invisible)
 │   └── extractors/
 │       ├── pdf_extractor.py  # PDF text/image extraction
@@ -352,9 +354,11 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Evidence highlighting — tamper-region boxes drawn on the preview
 - [x] Producer structural fingerprints (`provenance`) — catches a forged or
       stripped Producer string via byte-level layout tells
-- [ ] Crypto verification: no HARD_POSITIVE evidence exists today, so nothing
-      can be proven genuine — 2D-Doc ECDSA / PAdES via pyHanko are the
-      candidates
+- [x] Crypto verification (part 1): 2D-Doc ECDSA signature verification
+      (`twod_doc_crypto.py`) — `TWOD_DOC_SIGNATURE_VALID` is the first
+      HARD_POSITIVE code; certs bundled offline in `src/data/twod_doc_certs/`
+      (rebuild with `scripts/fetch_twod_doc_certs.py`). PAdES via pyHanko
+      remains the candidate for part 2 (PDF signatures).
 
 ### Known gaps
 - The zero-FP corpus gates parametrize over `samples/`, which is gitignored,

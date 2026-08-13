@@ -34,15 +34,30 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED",     # Phase 2 Task 5: revision diff + editor Producer (C2)
     "INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED",      # Phase 7: Tr-3 shadow value + editor Producer (C2)
 })
-HARD_POSITIVE_CODES: frozenset[str] = frozenset(set())  # future: cryptographically verified signatures (pyHanko)
+# Hard genuine-direction evidence: cryptographic proof an attacker cannot
+# manufacture. TWOD_DOC_SIGNATURE_VALID is emitted (twod_doc._signature_flags)
+# ONLY when the barcode's ECDSA signature verifies against the ANTS-published
+# issuer certificate AND every barcode field matches the visible text — the
+# cross-check is what binds the authentic barcode to the page it sits on.
+# (pyHanko PAdES validation is the next candidate for this set.)
+HARD_POSITIVE_CODES: frozenset[str] = frozenset({
+    "TWOD_DOC_SIGNATURE_VALID",
+})
 # Soft positive signals — evidence FOR the document. Only signals an attacker
 # cannot cheaply manufacture belong here (an empty signature FIELD, for
 # instance, is attacker-controllable and must never be genuine-direction).
+#
+# NOTE: hard-positive codes are ALSO listed here on purpose: the summary
+# display layer (_get_dominant_theme, _build_bullets) keys off GENUINE_CODES
+# to keep genuine-direction flags out of tamper-theme dominance and out of
+# the negative-findings bullets. flag_to_evidence checks HARD_POSITIVE_CODES
+# first, so ledger kind stays "hard".
 GENUINE_CODES: frozenset[str] = frozenset({
     "STRUCT_SIGNATURE_TRUSTED",          # EU-trusted, validated signature
     "STRUCT_SIGNATURE_TRUSTED_EXPIRED",  # QC signature, cert since expired
     "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
     "TWOD_DOC_CONSISTENT",               # visible layer matches the signed 2D-Doc barcode fields
+    "TWOD_DOC_SIGNATURE_VALID",          # hard positive; here for display-layer exclusion (see NOTE)
 })
 
 
@@ -174,9 +189,10 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     # under a per-flag test). Genuine evidence still lifts clean documents
     # and offsets small incidental noise — its purpose.
     #
-    # Only SOFT genuine evidence is dropped: a future HARD positive
-    # (cryptographically verified signature) is a deliberate floor decision,
-    # not something soft heuristics may silently strip.
+    # Only SOFT genuine evidence is dropped here: a HARD positive
+    # (cryptographically verified signature) is never stripped from the
+    # ledger — the reader must see it — but its score FLOOR is separately
+    # gated below under the same net-tamper threshold.
     has_hard_tamper = any(e.kind == "hard" and e.direction == "tamper" for e in evidence)
     net_tamper = sum(
         _group_capped_soft_sum(items)
@@ -195,7 +211,17 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     has_hard_pos = any(e.kind == "hard" and e.direction == "genuine" for e in evidence)
     if has_hard_neg:
         score = min(score, HARD_NEGATIVE_CEILING)      # tampering veto wins
-    elif has_hard_pos:
+    elif has_hard_pos and net_tamper < SEVERITY_WEIGHTS["high"]:
+        # The hard-positive floor is withheld under the SAME net-tamper
+        # threshold that strips soft genuine evidence above. A verified
+        # 2D-Doc signature proves the BARCODE's data — not the parts of the
+        # page the barcode doesn't cover. When independent tamper evidence
+        # is heavy (e.g. a swapped IBAN caught by fonts/overlay on a
+        # document whose barcode doesn't encode the IBAN), flooring to 85
+        # would launder exactly the fraud this tool exists to catch
+        # (adversarial review 2026-08-13: genuine-barcode + edited
+        # bank-details scenario). The hard-positive FLAG itself survives —
+        # the reader sees both facts; only the score floor yields.
         score = max(score, HARD_POSITIVE_FLOOR)
 
     band, risk = _band_and_risk(score)

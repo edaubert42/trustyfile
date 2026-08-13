@@ -64,6 +64,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     # tampering: signed 2D-Doc barcode vs visible text consistency
     "TWOD_DOC_FIELD_MISMATCH": "tampering",
     "TWOD_DOC_CONSISTENT": "tampering",        # genuine-direction; bullets skip it
+    "TWOD_DOC_SIGNATURE_VALID": "tampering",   # hard genuine-direction; bullets skip it
+    "TWOD_DOC_SIGNATURE_INVALID": "tampering",
 
     # tampering: modification time gap, impossible dates in metadata
     "META_DOCUMENT_MODIFIED": "tampering",
@@ -384,6 +386,12 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "A field in the signed 2D-Doc barcode does not match the visible text."),
     "TWOD_DOC_CONSISTENT": lambda f: (
         "All fields of the signed 2D-Doc barcode match the visible text."),
+    "TWOD_DOC_SIGNATURE_VALID": lambda f: (
+        "The 2D-Doc barcode's cryptographic signature is valid and its fields "
+        "match the visible text: the document's key data is authentic."),
+    "TWOD_DOC_SIGNATURE_INVALID": lambda f: (
+        "The 2D-Doc barcode's cryptographic signature does not verify: the "
+        "barcode data was altered or fabricated."),
     "FORENSICS_ELA_MAJOR_EDIT": lambda f: (
         "Error-level analysis shows a region whose compression history differs "
         "sharply from the rest of the page — consistent with a pasted or "
@@ -844,6 +852,13 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Un champ du code 2D-Doc signé ne correspond pas au texte visible."),
     "TWOD_DOC_CONSISTENT": lambda f: (
         "Tous les champs du code 2D-Doc signé correspondent au texte visible."),
+    "TWOD_DOC_SIGNATURE_VALID": lambda f: (
+        "La signature cryptographique du code 2D-Doc est valide et ses champs "
+        "correspondent au texte visible : les données clés du document sont "
+        "authentiques."),
+    "TWOD_DOC_SIGNATURE_INVALID": lambda f: (
+        "La signature cryptographique du code 2D-Doc est invalide : les "
+        "données du code ont été modifiées ou fabriquées."),
     "FORENSICS_ELA_MAJOR_EDIT": lambda f: (
         "L'analyse des niveaux d'erreur révèle une zone dont l'historique de "
         "compression diffère nettement du reste de la page — compatible avec "
@@ -1442,15 +1457,32 @@ def _get_positive_signals(
             )
             break
 
-    # Machine-verified 2D-Doc consistency (flag with genuine direction)
-    for flags_in_theme in grouped.values():
-        if any(f.code == "TWOD_DOC_CONSISTENT" for f in flags_in_theme):
-            positives.append(
-                "Les champs du code 2D-Doc signé correspondent au document visible."
-                if lang == "fr" else
-                "The signed 2D-Doc barcode fields match the visible document."
-            )
-            break
+    # Cryptographically verified 2D-Doc: the strongest positive signal the
+    # tool can produce — takes precedence over the consistency-only wording.
+    signature_valid = any(
+        f.code == "TWOD_DOC_SIGNATURE_VALID"
+        for flags_in_theme in grouped.values() for f in flags_in_theme
+    )
+    if signature_valid:
+        positives.append(
+            "La signature cryptographique du code 2D-Doc est valide et ses "
+            "champs correspondent au document : les données clés sont "
+            "authentiques (vérification ECDSA)."
+            if lang == "fr" else
+            "The 2D-Doc barcode's cryptographic signature is valid and its "
+            "fields match the document: the key data is authentic "
+            "(ECDSA-verified)."
+        )
+    else:
+        # Machine-verified 2D-Doc consistency (flag with genuine direction)
+        for flags_in_theme in grouped.values():
+            if any(f.code == "TWOD_DOC_CONSISTENT" for f in flags_in_theme):
+                positives.append(
+                    "Les champs du code 2D-Doc signé correspondent au document visible."
+                    if lang == "fr" else
+                    "The signed 2D-Doc barcode fields match the visible document."
+                )
+                break
 
     # Check clean modules
     # Only mention positive signals if there are also negative findings

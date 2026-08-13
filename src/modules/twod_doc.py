@@ -651,10 +651,11 @@ def parse_twod_doc(raw_data: str) -> TwoDocData | None:
     # Parse message fields
     fields = parse_message(message_data)
 
-    # Convert signature to bytes if present
-    # Note: In version 02+, signature is Base32 encoded
-    # For now we just store the raw string
-    signature = signature_data.encode() if signature_data else None
+    # Convert signature to bytes if present (Base32 text in C40 barcodes).
+    # latin-1, NOT the default utf-8: the scanner decoded the barcode bytes
+    # with latin-1 (a lossless byte<->str mapping), so latin-1 is the only
+    # encoding that reproduces the original bytes for any content >= 0x80.
+    signature = signature_data.encode("latin-1") if signature_data else None
 
     return TwoDocData(
         header=header,
@@ -1848,6 +1849,57 @@ def verify_2d_doc_against_pdf(
                 )
 
     # =========================================================================
+    # Bank details (DI 31 IBAN, DI 32 BIC) — the payment-redirection fields
+    # =========================================================================
+    # These were in the DI registry from day one but never compared — the
+    # exact gap a "fraude au faux RIB" walks through: edit the visible IBAN
+    # on a genuine invoice, keep every other barcode-covered field intact.
+    # IBAN/BIC print with arbitrary spacing, so both sides are compared
+    # de-spaced and upper-cased.
+    # NOTE: `re` must be imported HERE: an `import re` higher in this
+    # function sits inside a conditional branch, which makes the name
+    # function-local and unbound whenever that branch is skipped.
+    import re
+    iban = twod_doc.get_field("31")
+    if iban:
+        iban_norm = re.sub(r"\s+", "", iban).upper()
+        text_norm = re.sub(r"\s+", "", pdf_text).upper()
+        match = bool(iban_norm) and iban_norm in text_norm
+        comparisons.append(ComparisonMatch(
+            di="31",
+            field_name="IBAN",
+            twod_doc_value=iban,
+            pdf_value=iban if match else None,
+            match=match,
+            confidence=1.0,
+            notes="compared space-insensitively",
+        ))
+        if not match:
+            fraud_indicators.append(
+                f"IBAN non trouvé: le 2D-DOC contient '{iban}' mais le texte "
+                "visible affiche d'autres coordonnées bancaires"
+            )
+
+    bic = twod_doc.get_field("32")
+    if bic:
+        bic_norm = re.sub(r"\s+", "", bic).upper()
+        text_norm = re.sub(r"\s+", "", pdf_text).upper()
+        match = bool(bic_norm) and bic_norm in text_norm
+        comparisons.append(ComparisonMatch(
+            di="32",
+            field_name="BIC",
+            twod_doc_value=bic,
+            pdf_value=bic if match else None,
+            match=match,
+            confidence=1.0,
+            notes="compared space-insensitively",
+        ))
+        if not match:
+            fraud_indicators.append(
+                f"BIC non trouvé: 2D-DOC contient '{bic}'"
+            )
+
+    # =========================================================================
     # Determine overall result
     # =========================================================================
 
@@ -1986,6 +2038,69 @@ def _flags_from_verification(result: TwoDocVerificationResult) -> list[Flag]:
     return flags
 
 
+def _signature_flags(check, verification_flags: list[Flag]) -> list[Flag]:
+    """Convert one signature-verification outcome into scoring flags.
+
+    Pure function. The security-critical gate lives here:
+
+    - HARD POSITIVE (`TWOD_DOC_SIGNATURE_VALID`) requires BOTH a valid
+      ECDSA signature AND the field-vs-visible-text consistency check
+      having passed (TWOD_DOC_CONSISTENT present). A valid signature alone
+      proves the BARCODE is authentic, not the document — a fraudster can
+      paste a genuine barcode into a forged PDF, and only the field
+      cross-check binds the barcode to the page it sits on. A valid
+      signature whose fields do NOT all match stays flagless here: the
+      TWOD_DOC_FIELD_MISMATCH flags already carry the tamper evidence, and
+      they are exactly the "authentic barcode, edited page" signature.
+
+    - `TWOD_DOC_SIGNATURE_INVALID` (cert resolved, math failed) is HIGH but
+      SOFT tamper evidence, not a hard veto: certificate resolution from
+      the ANTS snapshot is candidate-ID matching, and a resolver mismatch
+      must never brand a genuine document as forged. PROVISIONAL until a
+      real signed corpus exists (same posture as the field severities).
+
+    - Everything else (cert_not_found / no_signature / malformed /
+      unavailable / error) is neutral: recorded in the module details,
+      never scored. An issuer missing from our committed snapshot is a
+      snapshot-freshness problem, not evidence about the document.
+
+    Args:
+        check: SignatureCheck from verify_twod_doc_signature.
+        verification_flags: flags already produced by
+            _flags_from_verification for the SAME barcode.
+    """
+    consistent = any(f.code == "TWOD_DOC_CONSISTENT" for f in verification_flags)
+
+    if check.status == "valid" and consistent:
+        return [Flag(
+            severity="medium",  # kind=hard comes from HARD_POSITIVE_CODES
+            code="TWOD_DOC_SIGNATURE_VALID",
+            message=("The 2D-Doc barcode's ECDSA signature verifies against "
+                     f"the issuer's ANTS-published certificate ({check.ca_id} "
+                     f"{check.cert_id}), and every barcode field matches the "
+                     "visible text: the document's key data is "
+                     "cryptographically authentic."),
+            details={"ca_id": check.ca_id, "cert_id": check.cert_id,
+                     "cert_subject": check.cert_subject,
+                     "fields_cross_checked": True},
+        )]
+
+    if check.status == "invalid":
+        return [Flag(
+            severity="high",
+            code="TWOD_DOC_SIGNATURE_INVALID",
+            message=("The 2D-Doc barcode's ECDSA signature does NOT verify "
+                     f"against the issuer's certificate ({check.ca_id} "
+                     f"{check.cert_id}): the barcode data was altered or the "
+                     "barcode was fabricated."),
+            details={"ca_id": check.ca_id, "cert_id": check.cert_id,
+                     "cert_subject": check.cert_subject,
+                     "detail": check.detail},
+        )]
+
+    return []
+
+
 def analyze_twod_doc(pdf_data) -> ModuleResult:
     """Scored module: cross-check 2D-Doc barcodes against the visible text.
 
@@ -2016,19 +2131,37 @@ def analyze_twod_doc(pdf_data) -> ModuleResult:
 
     text = "\n".join(getattr(pdf_data, "text_by_page", []) or [])
     flags: list[Flag] = []
+    signature_checks: list[dict] = []
     for td in twod_docs:
         try:
-            flags.extend(_flags_from_verification(verify_2d_doc_against_pdf(td, text)))
+            td_flags = _flags_from_verification(verify_2d_doc_against_pdf(td, text))
         except Exception as exc:
             logger.warning("twod_doc: verification failed: %s", exc)
+            continue
+
+        # Cryptographic layer: verify the barcode's ECDSA signature against
+        # the committed ANTS certificate store (offline). Never raises.
+        try:
+            from src.modules.twod_doc_crypto import verify_twod_doc_signature
+            check = verify_twod_doc_signature(td)
+            signature_checks.append({
+                "ca_id": check.ca_id, "cert_id": check.cert_id,
+                "status": check.status, "detail": check.detail,
+            })
+            td_flags.extend(_signature_flags(check, td_flags))
+        except Exception as exc:
+            logger.warning("twod_doc: signature check failed: %s", exc)
+
+        flags.extend(td_flags)
 
     score = 100
     for f in flags:
-        if f.code == "TWOD_DOC_CONSISTENT":
-            continue  # positive signal — never reduces the module score
+        if f.code in ("TWOD_DOC_CONSISTENT", "TWOD_DOC_SIGNATURE_VALID"):
+            continue  # positive signals — never reduce the module score
         score -= {"low": 5, "medium": 15, "high": 30, "critical": 50}.get(f.severity, 0)
     return ModuleResult(module="twod_doc", flags=flags, score=max(0, score),
-                        confidence=1.0)
+                        confidence=1.0,
+                        details={"signature_checks": signature_checks})
 
 
 # =============================================================================
