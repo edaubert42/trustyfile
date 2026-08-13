@@ -1291,117 +1291,21 @@ def _check_mrz_coherence(
 # AUTHENTICITÉ DU SCAN
 # =============================================================================
 
-def _analyze_scan_authenticity(file_path: str, page_count: int) -> dict:
-    """
-    Analyse la première page d'un scan de pièce d'identité pour détecter des retouches.
-
-    Deux techniques complémentaires :
-
-    1. ELA (Error Level Analysis) :
-       Re-sauvegarde l'image en JPEG et compare avec l'original.
-       Les zones retouchées ont des niveaux d'erreur plus élevés
-       car elles n'ont pas subi autant de compressions que le reste.
-       → Seuil : si > 8% de l'image est suspecte → flag MEDIUM
-
-    2. Uniformité du bruit :
-       Une vraie photo a un bruit naturel (grain du capteur) relativement
-       uniforme. Un collage de zones provenant de sources différentes
-       crée des incohérences de bruit détectables.
-       → Grille 8×8 blocs, variance du Laplacien par bloc
-       → Coefficient de variation (std/mean) > 2.0 → bruit incohérent → flag LOW
-
-    Args:
-        file_path: Chemin vers le PDF de la pièce d'identité
-        page_count: Nombre de pages (non utilisé, on analyse toujours la page 1)
-
-    Returns:
-        Dict avec les résultats de l'analyse :
-        {
-            "ela_run": bool,          # False si erreur (dépendances manquantes, etc.)
-            "suspicious_ratio": float, # Ratio de pixels suspects ELA (0.0-1.0)
-            "suspicious_regions_count": int,
-            "is_ela_suspicious": bool,  # True si ratio > 8%
-            "noise_cv": float,         # Coefficient de variation du bruit
-            "noise_uniform": bool,     # True si bruit cohérent (cv <= 2.0)
-        }
-
-    Example:
-        >>> result = _analyze_scan_authenticity("cni.pdf", 1)
-        >>> result["is_ela_suspicious"]
-        False  # document authentique → peu de pixels suspects
-    """
-    try:
-        import cv2
-        import numpy as np
-        from src.extractors.ocr import render_page
-        from src.modules.forensics import compute_ela, detect_suspicious_regions
-    except ImportError as e:
-        logger.debug(f"_analyze_scan_authenticity : dépendance manquante ({e})")
-        return {"ela_run": False}
-
-    try:
-        # --- Rendu de la page 1 à 200 DPI ---
-        # 200 DPI = rapide + suffisant pour ELA (pas besoin de 300 DPI)
-        pil_img = render_page(file_path, 0, dpi=200)
-
-        # Convertir PIL (RGB) → numpy BGR (format OpenCV)
-        # PIL = R, G, B → OpenCV = B, G, R → on inverse avec [:, :, ::-1]
-        img_bgr = np.array(pil_img)[:, :, ::-1].copy()
-
-        # --- ELA ---
-        ela_img = compute_ela(img_bgr)
-        regions = detect_suspicious_regions(ela_img)
-
-        total_pixels = img_bgr.shape[0] * img_bgr.shape[1]
-        suspicious_area = sum(r["area"] for r in regions)
-        suspicious_ratio = suspicious_area / total_pixels if total_pixels > 0 else 0.0
-
-        # Seuil : 8% de l'image suspecte → flag MEDIUM
-        is_ela_suspicious = suspicious_ratio > 0.08
-
-        # --- Uniformité du bruit (grille 8×8) ---
-        # Convertir en niveaux de gris pour l'analyse du Laplacien
-        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-        h, w = gray.shape
-
-        # Découper en blocs et calculer la variance du Laplacien dans chaque bloc
-        # Le Laplacien mesure les variations locales → corrèle avec le niveau de bruit
-        block_h = h // 8
-        block_w = w // 8
-        variances = []
-
-        for row in range(8):
-            for col in range(8):
-                # Extraire le bloc
-                y1, y2 = row * block_h, (row + 1) * block_h
-                x1, x2 = col * block_w, (col + 1) * block_w
-                block = gray[y1:y2, x1:x2]
-
-                # Variance du Laplacien : grande variance = beaucoup de bruit ou de détail
-                lap_var = cv2.Laplacian(block, cv2.CV_64F).var()
-                variances.append(lap_var)
-
-        variances_arr = np.array(variances)
-        noise_mean = float(np.mean(variances_arr))
-        noise_std = float(np.std(variances_arr))
-
-        # Coefficient de variation = std / mean (normalisé par la moyenne)
-        # > 2.0 = le bruit varie trop d'une zone à l'autre → suspect
-        noise_cv = (noise_std / noise_mean) if noise_mean > 0 else 0.0
-        noise_uniform = noise_cv <= 2.0
-
-        return {
-            "ela_run": True,
-            "suspicious_ratio": round(suspicious_ratio, 4),
-            "suspicious_regions_count": len(regions),
-            "is_ela_suspicious": is_ela_suspicious,
-            "noise_cv": round(noise_cv, 3),
-            "noise_uniform": noise_uniform,
-        }
-
-    except Exception as e:
-        logger.warning(f"_analyze_scan_authenticity : erreur ({e})")
-        return {"ela_run": False}
+# Il n'y a volontairement AUCUN contrôle d'uniformité du bruit ici.
+#
+# L'ancienne fonction morte `_analyze_scan_authenticity` (jamais appelée)
+# proposait une grille 8×8 de variances du Laplacien avec un seuil sur le
+# coefficient de variation. Elle a été supprimée — et le détecteur n'a PAS
+# été recâblé — après vérification adversariale (2026-08-13) : sur une
+# capture légitime par défaut (carte d'identité photographiée sur un bureau,
+# ou scannée sur un plateau A4 qu'elle ne remplit pas), le contraste naturel
+# entre la carte (photo, hologramme, micro-texte) et le fond uni fait
+# dépasser le seuil SANS aucune retouche. L'audit du 2026-07-04
+# (docs/superpowers/research/2026-07-04-audit-and-research-findings.md)
+# avait déjà jugé la métrique non fondée conceptuellement. Un détecteur de
+# collage sur scan devra travailler sur la région de la carte, pas sur la
+# page entière — et être validé sur un vrai corpus de pièces d'identité,
+# qui n'existe pas encore dans ce projet.
 
 
 # =============================================================================

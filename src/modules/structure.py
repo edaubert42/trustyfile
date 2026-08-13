@@ -1707,14 +1707,63 @@ def check_acroform(pdf_path: str) -> list[Flag]:
     return flags
 
 
+def find_free_xrefs(doc: "fitz.Document") -> list[int]:
+    """
+    List the xref numbers of deleted or nulled-out objects, format-agnostically.
+
+    PyMuPDF returns the literal body ``"null"`` for a free (deleted) xref
+    slot, and it resolves the lookup through MuPDF's own cross-reference
+    abstraction, so this works identically for:
+
+    - classic ASCII xref tables (``nnnnnnnnnn ggggg f`` entries), and
+    - PDF 1.5+ cross-reference STREAMS, where entries are packed binary
+      inside a Flate-compressed stream object and no literal ``f`` exists
+      anywhere in the file.
+
+    KNOWN AMBIGUITY, accepted deliberately: an in-use object whose body is
+    the literal PDF ``null`` keyword is indistinguishable through this API
+    from a genuinely free slot (verified empirically on PyMuPDF 1.28 — no
+    available API separates them). We COUNT those too, on purpose: writing
+    ``null`` over an object's body is how some editors and redaction tools
+    soft-delete content without renumbering, which is exactly the editing
+    trace this check exists to surface. The flag message says "deleted
+    objects (ghost data)" and both patterns qualify.
+
+    The previous implementation grepped the raw bytes for the classic ASCII
+    form — completely blind on xref-stream files, and it also counted the
+    spec-mandated free-list head entry for object 0 (present in every
+    classic table, one per revision) as if it were a real deletion.
+
+    Args:
+        doc: An open fitz Document.
+
+    Returns:
+        Sorted list of xref numbers whose slot is free or whose object was
+        nulled out. Object 0 (the permanent free-list head, invalid to
+        query) is excluded.
+    """
+    free: list[int] = []
+    for xref in range(1, doc.xref_length()):
+        try:
+            body = doc.xref_object(xref)
+        except Exception:
+            # A slot MuPDF cannot resolve at all; not evidence of anything.
+            continue
+        # NOTE: xref_get_key(x, "Type") == ("null", "null") is NOT a valid
+        # test — it also matches live objects that simply have no /Type key.
+        # The whole body must be "null" (free slot or nulled-out object).
+        if body is not None and body.strip() == "null":
+            free.append(xref)
+    return free
+
+
 def check_object_streams(pdf_path: str, has_trusted_signature: bool = False) -> list[Flag]:
     """
-    Check for suspicious patterns in PDF object streams.
+    Check for deleted-but-still-present objects (ghost data).
 
-    Look for:
-    - Deleted objects that are still in the file
-    - Unusual object counts
-    - Signs of manipulation
+    Each free xref slot is an object that existed and was deleted; on a
+    document that claims to come out of a single-pass generator, many such
+    slots mean the file has an editing history.
 
     Args:
         pdf_path: Path to the PDF file
@@ -1726,44 +1775,52 @@ def check_object_streams(pdf_path: str, has_trusted_signature: bool = False) -> 
     flags = []
 
     try:
-        with open(pdf_path, 'rb') as f:
-            content = f.read()
-
-        # Count "obj" declarations vs "endobj"
-        obj_count = len(re.findall(rb'\d+\s+\d+\s+obj', content))
-        endobj_count = content.count(b'endobj')
-
-        # Look for free objects (deleted but still present)
-        # In xref table, 'f' means free (deleted)
-        free_objects = len(re.findall(rb'\d{10}\s+\d{5}\s+f', content))
-
-        # Threshold depends on whether document has a trusted signature
-        # Signed documents: signing process creates deleted objects (normal up to ~15)
-        # Unsigned documents: should have minimal deleted objects (suspicious if > 3)
-        if has_trusted_signature:
-            threshold = 15  # Signing process creates objects
-            explanation = ("Deleted objects may contain previous versions of content. "
-                          "For signed documents, some deleted objects are normal.")
-        else:
-            threshold = 10  # Some PDF generators create/delete temp objects normally
-            explanation = ("Deleted objects may contain previous versions of content. "
-                          "An unsigned document should have minimal deleted objects.")
-
-        if free_objects > threshold:
-            flags.append(Flag(
-                severity="medium",
-                code="STRUCT_DELETED_OBJECTS",
-                message=f"PDF contains {free_objects} deleted objects (ghost data)",
-                details={
-                    "free_objects": free_objects,
-                    "threshold": threshold,
-                    "has_trusted_signature": has_trusted_signature,
-                    "explanation": explanation,
-                }
-            ))
-
+        doc = fitz.open(pdf_path)
     except Exception as e:
         logger.error(f"Error checking object streams: {e}")
+        return flags
+
+    try:
+        free_xrefs = find_free_xrefs(doc)
+    except Exception as e:
+        logger.error(f"Error checking object streams: {e}")
+        return flags
+    finally:
+        doc.close()
+
+    free_objects = len(free_xrefs)
+
+    # Thresholds are lower than the historical 10/15: the old byte-regex
+    # counted one guaranteed false entry per revision (object 0's head
+    # entry), so its thresholds carried built-in noise. find_free_xrefs
+    # counts only real deletions/nullings. Calibration snapshot 2026-08-13:
+    # max 2 across the 94 local samples/ PDFs (the corpus band gates in
+    # tests/ would catch a regression end-to-end); still provisional
+    # beyond that corpus.
+    if has_trusted_signature:
+        threshold = 10  # Signing workflows legitimately free objects
+        explanation = ("Deleted objects may contain previous versions of content. "
+                       "For signed documents, some deleted objects are normal.")
+    else:
+        threshold = 5  # Some PDF generators create/delete temp objects normally
+        explanation = ("Deleted objects may contain previous versions of content. "
+                       "An unsigned document should have minimal deleted objects.")
+
+    if free_objects > threshold:
+        flags.append(Flag(
+            severity="medium",
+            code="STRUCT_DELETED_OBJECTS",
+            message=f"PDF contains {free_objects} deleted objects (ghost data)",
+            details={
+                "free_objects": free_objects,
+                # First few xref numbers, for the reviewer; the full list
+                # can be long and adds nothing.
+                "free_xrefs": free_xrefs[:20],
+                "threshold": threshold,
+                "has_trusted_signature": has_trusted_signature,
+                "explanation": explanation,
+            }
+        ))
 
     return flags
 
