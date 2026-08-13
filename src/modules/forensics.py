@@ -54,6 +54,7 @@ CLONE_HASH_BINS = 8  # Number of brightness bins for perceptual hash
 CLONE_MIN_DISTANCE = 64  # Minimum pixel distance between clones (ignore neighbors)
 CLONE_MIN_GROUP_SIZE = 10  # Minimum matching blocks to flag (higher = fewer false positives)
 CLONE_MAX_IMAGE_PIXELS = 2_000_000  # Skip images larger than this (performance limit)
+ELA_MAX_IMAGE_PIXELS = 25_000_000   # Never imdecode anything bigger (memory safety)
 
 
 # =============================================================================
@@ -419,6 +420,16 @@ def extract_images_as_arrays(pdf_path: str) -> list[dict]:
 
                     # Skip images too small for ELA
                     if width < MIN_IMAGE_WIDTH or height < MIN_IMAGE_HEIGHT:
+                        continue
+
+                    # Skip images too large to decode safely: dimensions come
+                    # from the (attacker-controlled) PDF, and imdecode would
+                    # allocate width*height*3 bytes before we could react.
+                    if width * height > ELA_MAX_IMAGE_PIXELS:
+                        logger.info(
+                            "Skipping oversized image xref=%d (%dx%d) for ELA",
+                            xref, width, height,
+                        )
                         continue
 
                     # Decode bytes into numpy array (OpenCV format)

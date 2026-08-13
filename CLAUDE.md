@@ -88,6 +88,9 @@ trustyfile/
 │   ├── preview.py            # Page render + evidence-box overlay
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Flag, ModuleResult, AnalysisResult
+│   ├── render_safety.py      # safe_zoom + page caps — every raster module
+│   │                         # clamps renders so hostile page geometry
+│   │                         # cannot exhaust memory
 │   ├── i18n.py, translations/  # EN/FR strings
 │   ├── modules/              # 13 detection modules (see Analysis Modules)
 │   │   ├── metadata.py       # Module A

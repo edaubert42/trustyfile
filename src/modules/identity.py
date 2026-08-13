@@ -78,6 +78,7 @@ import logging
 from datetime import date
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
+from src.render_safety import safe_zoom
 
 logger = logging.getLogger(__name__)
 
@@ -176,14 +177,15 @@ def _has_face_photo(pdf_data: PDFData) -> bool:
     # 72 DPI = résolution native PDF : image la plus petite possible
     # Une CNI (85×54mm) → ~240×152 pixels, suffisant pour Haar
     # (on cherche juste un visage, pas à le reconnaître)
-    scale = 72 / 72  # 72 DPI → facteur 1.0 (pas de zoom)
-    mat = fitz.Matrix(scale, scale)
-
     try:
         with fitz.open(pdf_data.file_path) as doc:
             pages_to_check = range(min(len(doc), 2))  # Max 2 pages
             for page_num in pages_to_check:
                 page = doc[page_num]
+                # safe_zoom : même à 72 DPI, une page aux dimensions
+                # aberrantes doit être plafonnée (entrée hostile).
+                scale = safe_zoom(page, dpi=72)
+                mat = fitz.Matrix(scale, scale)
 
                 # Rendu en niveaux de gris directement (plus rapide que RGB + conversion)
                 pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY)

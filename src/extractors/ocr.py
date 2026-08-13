@@ -26,6 +26,8 @@ import logging
 from pathlib import Path
 
 import fitz
+
+from src.render_safety import safe_zoom
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -98,13 +100,14 @@ def render_page(file_path: str, page_num: int, dpi: int = 300) -> Image.Image:
         >>> img.size
         (2480, 3508)  # A4 à 300 DPI
     """
-    scale = dpi / 72  # Facteur de zoom : 300/72 ≈ 4.17
-    mat = fitz.Matrix(scale, scale)
-
     with fitz.open(file_path) as doc:
         if page_num >= len(doc):
             raise ValueError(f"Page {page_num} n'existe pas dans {file_path}")
         page = doc[page_num]
+        # safe_zoom plafonne le nombre de pixels : une page aux dimensions
+        # aberrantes ne doit pas pouvoir épuiser la mémoire (entrée hostile).
+        scale = safe_zoom(page, dpi)  # 300/72 ≈ 4.17 sur une page normale
+        mat = fitz.Matrix(scale, scale)
         # get_pixmap retourne les pixels de la page rendue
         pix = page.get_pixmap(matrix=mat, colorspace=fitz.csRGB)
 
@@ -146,11 +149,12 @@ def render_page_bottom(
         >>> img.size  # Seulement le bas de la page
         (2480, 1052)
     """
-    scale = dpi / 72
-    mat = fitz.Matrix(scale, scale)
-
     with fitz.open(file_path) as doc:
         page = doc[page_num]
+        # Même plafond que render_page : le clip réduit la zone rendue, mais
+        # le calcul sur la page entière reste une borne sûre (conservatrice).
+        scale = safe_zoom(page, dpi)
+        mat = fitz.Matrix(scale, scale)
         page_rect = page.rect  # Rectangle de la page en coordonnées PDF (72 DPI)
 
         # Définir le rectangle de rognage : de from_y_ratio × hauteur jusqu'en bas

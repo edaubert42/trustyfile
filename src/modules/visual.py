@@ -25,6 +25,7 @@ import numpy as np
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
+from src.render_safety import MAX_SCAN_PAGES, safe_zoom
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +85,21 @@ def extract_qr_codes_from_pdf(pdf_path: str) -> list[QRCodeInfo]:
     detector = cv2.QRCodeDetector()
 
     try:
-        for page_num in range(len(doc)):
+        # Raster scanning every page of an arbitrarily long document is a
+        # denial-of-service vector; real invoices fit in a few pages.
+        page_limit = min(len(doc), MAX_SCAN_PAGES)
+        if len(doc) > MAX_SCAN_PAGES:
+            logger.info(
+                "QR scan limited to first %d of %d pages", MAX_SCAN_PAGES, len(doc)
+            )
+
+        for page_num in range(page_limit):
             page = doc[page_num]
 
-            # Convert page to image
-            # zoom=2 means 2x resolution (144 DPI instead of 72 DPI)
-            # Higher resolution = better QR detection but slower
-            zoom = 2
+            # Render at 144 DPI (zoom 2) — good QR detection without being
+            # slow. safe_zoom clamps the zoom on absurd page geometries so a
+            # hostile page cannot force a multi-gigabyte pixel buffer.
+            zoom = safe_zoom(page, dpi=144)
             matrix = fitz.Matrix(zoom, zoom)
 
             # Get pixmap (image) of the page

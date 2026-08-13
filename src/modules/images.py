@@ -29,6 +29,7 @@ from PIL import Image as PILImage
 
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
+from src.render_safety import MAX_SCAN_PAGES, safe_zoom
 
 logger = logging.getLogger(__name__)
 
@@ -706,11 +707,24 @@ def check_paste_artifacts(pdf_path: str) -> list[Flag]:
         logger.error(f"Could not open PDF for paste detection: {e}")
         return flags
 
-    zoom = 2  # Higher resolution for better detection accuracy
-
     try:
-        for page_num in range(len(doc)):
+        # Raster scanning is expensive and page count is attacker-controlled;
+        # real invoices fit well inside the cap.
+        page_limit = min(len(doc), MAX_SCAN_PAGES)
+        if len(doc) > MAX_SCAN_PAGES:
+            logger.info(
+                "Paste detection limited to first %d of %d pages",
+                MAX_SCAN_PAGES, len(doc),
+            )
+
+        for page_num in range(page_limit):
             page = doc[page_num]
+
+            # Higher resolution = better detection accuracy. safe_zoom clamps
+            # the pixel count on absurd page geometries; the SAME zoom must be
+            # used for find_amount_regions and the render, because the region
+            # coordinates are expressed in rendered-image pixels.
+            zoom = safe_zoom(page, dpi=144)
 
             # Step 1: Find where amounts appear on this page
             amount_regions = find_amount_regions(page, zoom=zoom)

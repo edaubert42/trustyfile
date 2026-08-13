@@ -8,6 +8,7 @@ import math
 from typing import Iterator
 
 from src.models import AnalysisResult
+from src.render_safety import safe_zoom
 
 
 def _iter_geometry(result: AnalysisResult) -> Iterator[tuple[int, tuple[float, float, float, float]]]:
@@ -137,8 +138,10 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
             except Exception:
                 continue  # one bad box must not blank the whole preview
 
-        # Create a matrix for zoom
-        mat = fitz.Matrix(zoom, zoom)
+        # Create a matrix for zoom — clamped so a hostile page geometry
+        # cannot make the preview allocate a multi-gigabyte buffer.
+        z = safe_zoom(page, zoom * 72)
+        mat = fitz.Matrix(z, z)
 
         # Render page to pixmap (image)
         pix = page.get_pixmap(matrix=mat)

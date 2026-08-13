@@ -27,6 +27,7 @@ from typing import Literal
 import logging
 
 from src.models import Flag, ModuleResult
+from src.render_safety import safe_zoom
 
 # Try to import pylibdmtx — it may not be available if libdmtx system library is missing
 # On Python 3.13+, distutils was removed. setuptools provides it as a shim,
@@ -825,8 +826,9 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
             page = doc[0]
 
             # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
-            # Render at 100 DPI just for the visual check
-            pf_zoom = 100 / 72
+            # Render at 100 DPI just for the visual check. safe_zoom caps the
+            # pixel count so a spec-maximum page cannot exhaust memory.
+            pf_zoom = safe_zoom(page, dpi=100)
             pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
             pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
             pf_w, pf_h = pf_img.size
@@ -849,7 +851,7 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
             logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
 
             # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
-            zoom = dpi / 72
+            zoom = safe_zoom(page, dpi=dpi)
             pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
             full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
             img_w, img_h = full_img.size
