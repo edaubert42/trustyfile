@@ -1156,6 +1156,12 @@ VERDICTS: dict[str, dict[str, str]] = {
     },
     "LOW": {
         "default": "This document appears legitimate. No issues detected.",
+        # The GENUINE/LOW band starts at score 80, which is still 2.6 nats of
+        # tamper evidence — so "no issues detected" was printed directly above
+        # a bullet list of issues (measured: a fabricated 2D-Doc whose ECDSA
+        # signature fails renders at 92/LOW). Selected on the bullet list being
+        # non-empty, not on risk level.
+        "with_findings": "This document looks broadly genuine, but note the findings below.",
     },
     "UNVERIFIABLE": {
         "default": "This document could not be read or verified. Treat it with caution and request a valid original.",
@@ -1185,6 +1191,7 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
     },
     "LOW": {
         "default": "Ce document semble légitime. Aucun problème détecté.",
+        "with_findings": "Ce document semble globalement authentique, mais prenez connaissance des points ci-dessous.",
     },
     "UNVERIFIABLE": {
         "default": "Ce document n'a pas pu être lu ou vérifié. Traitez-le avec prudence et demandez un original valide.",
@@ -1548,17 +1555,20 @@ def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisS
     # UNVERIFIABLE verdict via explicit code check — see COVERAGE_VERDICT.
     # A doc that ALSO failed extraction (pipeline crash) is a read failure,
     # not a scan, so EXTRACTION_FAILED takes precedence over the scan wording.
+    # Build the bullet list FIRST: the LOW verdict depends on whether there is
+    # anything to report, and must never claim "no issues detected" above a
+    # non-empty findings list.
+    bullets = _build_bullets(grouped, result.modules, lang)
+
     if (result.risk_level == "UNVERIFIABLE"
             and any(f.code == "COVERAGE_NO_TEXT_LAYER" for f in all_flags)
             and not any(f.code == "EXTRACTION_FAILED" for f in all_flags)):
         verdict = COVERAGE_VERDICT_FR if lang == "fr" else COVERAGE_VERDICT
+    elif result.risk_level == "LOW" and bullets:
+        verdict = _build_verdict(result.risk_level, "with_findings", lang)
     else:
         verdict = _build_verdict(result.risk_level, dominant_theme, lang)
 
-    # Build bullet list of findings
-    bullets = _build_bullets(grouped, result.modules, lang)
-
-    # Clean document: no bullets needed, verdict says it all
     return AnalysisSummary(verdict=verdict, bullets=bullets)
 
 

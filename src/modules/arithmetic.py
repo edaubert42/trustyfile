@@ -346,7 +346,11 @@ def cross_check(visible_total: float | None, totals: dict | None) -> Flag | None
     if any(abs(visible_total - t) <= TOLERANCE for t in totals["totals"]):
         return None
     return Flag(
-        severity="high",
+        # CRITICAL, not high — see ARITH_IBAN_MISMATCH. The printed total
+        # matching NO total in the file's own machine-readable XML is a
+        # cross-layer contradiction; the deposit/DuePayable guard above already
+        # clears the legitimate "amount due ≠ grand total" case.
+        severity="critical",
         code="ARITH_XML_VISIBLE_MISMATCH",
         message=(f"The total printed on the page ({visible_total:,.2f}) does not "
                  f"match any total in the embedded e-invoice XML "
@@ -494,7 +498,14 @@ def check_iban(text: str, xml_bytes: bytes | None) -> Flag | None:
     if not visible.isdisjoint(xml_ibans):
         return None                          # the real account still appears → clear
     return Flag(
-        severity="high",
+        # CRITICAL, not high: a lone high-severity flag scores 92/GENUINE under
+        # the -4.0-nat prior, so this — the signature of a payment-redirection
+        # edit — was reported as a legitimate document. This is a CONTRADICTION
+        # between two layers of the same file (fully disjoint IBAN sets), not a
+        # heuristic. Still SOFT: legitimate factoring/assignment-of-receivables
+        # invoices can show a third party's account, so it must land in REVIEW
+        # ("verify this") rather than veto the document outright.
+        severity="critical",
         code="ARITH_IBAN_MISMATCH",
         message=("The bank account (IBAN) shown on the page does not match the "
                  "payment account in the document's embedded e-invoice data: "

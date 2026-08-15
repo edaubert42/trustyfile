@@ -2053,11 +2053,16 @@ def _signature_flags(check, verification_flags: list[Flag]) -> list[Flag]:
       TWOD_DOC_FIELD_MISMATCH flags already carry the tamper evidence, and
       they are exactly the "authentic barcode, edited page" signature.
 
-    - `TWOD_DOC_SIGNATURE_INVALID` (cert resolved, math failed) is HIGH but
-      SOFT tamper evidence, not a hard veto: certificate resolution from
+    - `TWOD_DOC_SIGNATURE_INVALID` (cert resolved, math failed) is CRITICAL
+      but SOFT tamper evidence, not a hard veto: certificate resolution from
       the ANTS snapshot is candidate-ID matching, and a resolver mismatch
-      must never brand a genuine document as forged. PROVISIONAL until a
-      real signed corpus exists (same posture as the field severities).
+      must never brand a genuine document as forged. SOFT keeps that
+      promise — a lone critical lands in REVIEW ("verify this"), not in the
+      fraud bands. It was raised from HIGH because a lone high scored
+      92/GENUINE under the -4.0-nat prior: the tool reported "no issues
+      detected" on a document whose government barcode had been fabricated.
+      PROVISIONAL until a real signed corpus exists (same posture as the
+      field severities).
 
     - Everything else (cert_not_found / no_signature / malformed /
       unavailable / error) is neutral: recorded in the module details,
@@ -2087,7 +2092,7 @@ def _signature_flags(check, verification_flags: list[Flag]) -> list[Flag]:
 
     if check.status == "invalid":
         return [Flag(
-            severity="high",
+            severity="critical",
             code="TWOD_DOC_SIGNATURE_INVALID",
             message=("The 2D-Doc barcode's ECDSA signature does NOT verify "
                      f"against the issuer's certificate ({check.ca_id} "
