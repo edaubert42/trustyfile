@@ -353,3 +353,26 @@ class TestCheckObjectStreams:
         flags = check_object_streams(path, has_trusted_signature=True)
         deleted_flags = [f for f in flags if f.code == "STRUCT_DELETED_OBJECTS"]
         assert len(deleted_flags) == 0
+
+
+class TestXmpLibraryBoilerplate:
+    """A library's frozen xmptk string is not proof an editor touched the file.
+
+    Regression: TCPDF hardcodes Adobe's 2009 XMP Core string in its own XMP
+    template, so every TCPDF-generated PDF claimed "created by TCPDF but later
+    modified with Adobe Acrobat" at HIGH severity. Observed on the known-good
+    i2d_NetpresseInvoice.pdf, where it was the document's only ledger entry.
+    """
+
+    def test_tcpdf_boilerplate_is_not_an_editor_mismatch(self):
+        from src.modules.structure import XMP_TOOLKIT_LIBRARY_BOILERPLATE
+        boilerplate = "adobe xmp core 4.2.1-c043 52.372728, 2009/01/18-15:08:04"
+        assert XMP_TOOLKIT_LIBRARY_BOILERPLATE[boilerplate] == "tcpdf"
+
+    def test_real_acrobat_edit_of_a_tcpdf_file_still_flags(self):
+        """The exemption is pinned to the frozen string: a genuine Acrobat edit
+        rewrites xmptk to Acrobat's current version, which must still flag."""
+        from src.modules.structure import XMP_TOOLKIT_LIBRARY_BOILERPLATE
+        current_acrobat = "adobe xmp core 5.6-c015 84.159810, 2016/09/10-02:41:30"
+        assert not any(b in current_acrobat
+                       for b in XMP_TOOLKIT_LIBRARY_BOILERPLATE)
