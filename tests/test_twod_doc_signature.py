@@ -322,11 +322,26 @@ class TestSignatureFlagGating:
         check = SignatureCheck("valid", _CA_ID, _CERT_ID)
         assert _signature_flags(check, [_mismatch_flag()]) == []
 
-    def test_invalid_is_high_soft_flag(self):
+    def test_invalid_is_critical_soft_flag(self):
+        # CRITICAL, not high: a lone high scored 92/GENUINE under the -4.0-nat
+        # prior, so a fabricated government barcode was reported as "no issues
+        # detected". Still SOFT — see test_signature_invalid_is_soft_tamper —
+        # so a resolver mismatch lands the document in REVIEW, never in the
+        # fraud bands.
         check = SignatureCheck("invalid", _CA_ID, _CERT_ID)
         flags = _signature_flags(check, [_consistent_flag()])
         assert [f.code for f in flags] == ["TWOD_DOC_SIGNATURE_INVALID"]
-        assert flags[0].severity == "high"
+        assert flags[0].severity == "critical"
+
+    def test_invalid_signature_leaves_the_genuine_band(self):
+        """The point of the severity bump: this must not read as legitimate."""
+        from src.models import ModuleResult
+        from src.scoring import create_analysis_result
+        check = SignatureCheck("invalid", _CA_ID, _CERT_ID)
+        res = create_analysis_result("h", [ModuleResult(
+            module="twod_doc", score=50,
+            flags=_signature_flags(check, [_consistent_flag()]))])
+        assert res.band != "GENUINE"
 
     @pytest.mark.parametrize("status", [
         "cert_not_found", "test_cert", "no_signature", "malformed",
