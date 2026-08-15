@@ -77,10 +77,14 @@ class TestVerdictNotDrivenByGenuineFlag:
                 score=70,
                 confidence=1.0,
             ),
+            # FONTS_NOT_EMBEDDED rather than FONTS_SYSTEM_FONTS: the latter is in
+            # scoring.NON_EVIDENCE_CODES (a document description, not tamper
+            # evidence) so it no longer moves the risk level, which is the only
+            # job it had here. Both map to the non-verdict "fonts" theme.
             ModuleResult(
                 module="fonts",
-                flags=[Flag(severity="high", code="FONTS_SYSTEM_FONTS",
-                            message="system fonts used")],
+                flags=[Flag(severity="high", code="FONTS_NOT_EMBEDDED",
+                            message="fonts not embedded")],
                 score=70,
                 confidence=1.0,
             ),

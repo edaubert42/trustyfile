@@ -36,6 +36,44 @@ DOC_TYPE_CODE_MULTIPLIERS: dict[str, dict[str, float]] = {
 }
 
 
+# Flags that are shown to the reader but carry NO weight in the ledger, because
+# they do not claim anything about the document's integrity. Two kinds:
+#
+#   Pipeline status — says our analysis fell short, not that the file is more
+#   tampered. The real consequence is handled by a band override
+#   (coverage_blind / hard_detector_blinded), never by a token tamper nudge.
+#
+#   Document descriptions — ordinary properties of ordinary files. Charging
+#   tamper nats for them is a standing tax on every clean document. Each was
+#   measured across the local corpus before being added here; see the per-code
+#   notes. A code belongs here only if it does NOT discriminate good from bad.
+# All of these still SHOW in the per-module breakdown — they are informative to a
+# reader. They simply stop charging tamper nats.
+#
+# Excluding the three description codes changed nothing measurable on the 88-doc
+# labeled corpus (false positives, false negatives and ground-truth band agreement
+# all identical; mean legitimate score 95.5 -> 95.8). The reason to do it is the
+# gate interaction the corpus cannot show, because it holds no signed samples:
+# every low flag adds 0.2 nats to net_tamper, and net_tamper gates BOTH the
+# soft-genuine strip (1.5) and the hard-positive grant (0.7). Measured: a document
+# with a genuinely verified ANTS 2D-Doc signature scores 100, but add four low
+# description-flags and it drops to 96 — the cryptographic proof is switched off
+# because the file has no Producer field, uses Arial and carries no images. None of
+# those facts say anything about integrity.
+NON_EVIDENCE_CODES: frozenset[str] = frozenset({
+    # Pipeline status
+    "COVERAGE_NO_TEXT_LAYER",  # scoring role is the coverage_blind band override
+    "MODULE_ERROR",            # a module crashed; see hard_detector_blinded
+    # Document descriptions
+    "META_NO_PRODUCER",   # 9/30 known-good vs 0/58 known-bad — anti-correlated
+    "IMAGES_NO_IMAGES",   # images.py's own comment: "many legitimate invoices are text-only"
+    # Weakly correlated (24/58 bad vs 6/30 good) but never decisive: at 0.2 nats a
+    # low flag cannot move a band by itself, so its only real effect was pushing
+    # net_tamper across the gates above. Kept visible, not scored.
+    "FONTS_SYSTEM_FONTS",
+})
+
+
 def apply_doc_type_suppression(evidence, document_type: str):
     """Down-weight genre-specific FP-prone SOFT codes for a document type.
     Hard evidence is never touched. Returns Evidence, a down-weighted copy, or
@@ -190,18 +228,7 @@ def create_analysis_result(
         if not r.flags and r.score >= 100:
             continue
         for f in r.flags:
-            # The coverage flag's entire scoring role is the band override
-            # (coverage_blind param); it is a display/summary marker, not
-            # tamper evidence. Keeping it out of the ledger stops its 0.2-nat
-            # weight from nudging the band or the genuine-laundering threshold.
-            if f.code == "COVERAGE_NO_TEXT_LAYER":
-                continue
-            # MODULE_ERROR is pipeline STATUS, not evidence about the document:
-            # it says our analysis failed, not that the file is 0.2 nats more
-            # tampered. Same reasoning as COVERAGE_NO_TEXT_LAYER above. The
-            # real consequence of a crash is handled as a band cap
-            # (hard_detector_blinded), not as a token tamper contribution.
-            if f.code == "MODULE_ERROR":
+            if f.code in NON_EVIDENCE_CODES:
                 continue
             if downgrade_scanner_fp and _is_scanner_pipeline_critical(f):
                 f = replace(f, severity="low")
