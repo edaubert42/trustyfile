@@ -469,3 +469,50 @@ class TestBlindedHardDetector:
                 Flag("critical", "STRUCT_HIDDEN_MODIFICATION", "hidden")])],
             hard_detector_blinded=True)
         assert res.band == "SUSPICIOUS"
+
+
+class TestNonEvidenceCodes:
+    """Document descriptions and pipeline status must not charge tamper nats."""
+
+    def test_description_codes_are_excluded_from_the_ledger(self):
+        from src.scoring import NON_EVIDENCE_CODES
+        for code in ("META_NO_PRODUCER", "IMAGES_NO_IMAGES", "FONTS_SYSTEM_FONTS",
+                     "COVERAGE_NO_TEXT_LAYER", "MODULE_ERROR"):
+            assert code in NON_EVIDENCE_CODES
+
+    def test_a_described_document_scores_like_a_silent_one(self):
+        described = create_analysis_result("h", [
+            ModuleResult(module="metadata", score=90,
+                         flags=[Flag("low", "META_NO_PRODUCER", "no producer")]),
+            ModuleResult(module="fonts", score=90,
+                         flags=[Flag("low", "FONTS_SYSTEM_FONTS", "Arial")]),
+            ModuleResult(module="images", score=90,
+                         flags=[Flag("low", "IMAGES_NO_IMAGES", "text-only")]),
+        ])
+        silent = create_analysis_result("h", [ModuleResult(module="x", score=100)])
+        assert described.trust_score == silent.trust_score
+
+    def test_descriptions_cannot_switch_off_a_verified_signature(self):
+        """The reason this matters: every low flag adds 0.2 nats to net_tamper,
+        which gates the hard-positive grant at 0.7. Four description flags used to
+        drop a cryptographically verified document from 100 to 96."""
+        sig = ModuleResult(module="twod_doc", score=50, flags=[
+            Flag("medium", "TWOD_DOC_SIGNATURE_VALID", "ECDSA verifies")])
+        noise = [
+            ModuleResult(module="metadata", score=90,
+                         flags=[Flag("low", "META_NO_PRODUCER", "n")]),
+            ModuleResult(module="fonts", score=90,
+                         flags=[Flag("low", "FONTS_SYSTEM_FONTS", "n")]),
+            ModuleResult(module="images", score=90,
+                         flags=[Flag("low", "IMAGES_NO_IMAGES", "n")]),
+        ]
+        assert (create_analysis_result("h", [sig] + noise).trust_score
+                == create_analysis_result("h", [sig]).trust_score)
+
+    def test_excluded_flags_still_reach_the_reader(self):
+        """Excluded from SCORING, not from the report."""
+        mod = ModuleResult(module="metadata", score=90,
+                           flags=[Flag("low", "META_NO_PRODUCER", "no producer")])
+        res = create_analysis_result("h", [mod])
+        shown = [f.code for m in res.modules for f in m.flags]
+        assert "META_NO_PRODUCER" in shown
