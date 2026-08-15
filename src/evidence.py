@@ -135,6 +135,16 @@ def aggregate_soft(evidence: list["Evidence"], prior: float = PRIOR_LOG_ODDS) ->
 
 HARD_NEGATIVE_CEILING = 15
 HARD_POSITIVE_FLOOR = 85
+# Genuine-direction nats granted by hard (cryptographic) positive evidence.
+# A FLOOR alone could never bind: the floor was gated on net_tamper < 1.5 nats,
+# but with PRIOR_LOG_ODDS = -4.0 the soft score only falls below 85 once tamper
+# evidence passes ~2.27 nats, so the withhold gate always fired first. Measured
+# over 20,000 random ledgers containing the hard positive: the score was
+# identical with and without it in every single case — TWOD_DOC_SIGNATURE_VALID
+# moved the score by exactly 0. Hard evidence also never enters aggregate_soft,
+# so nothing else compensated. Granting nats puts it in the same additive space
+# as every other piece of evidence, where it demonstrably does something.
+HARD_POSITIVE_NATS = 2.5
 BAND_GENUINE_MIN = 80
 BAND_REVIEW_MIN = 50
 BAND_SUSPICIOUS_CRITICAL_MAX = 20  # below this, risk is CRITICAL
@@ -170,7 +180,8 @@ def _band_width(evidence: list["Evidence"]) -> int:
 
 def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
                        prior: float = PRIOR_LOG_ODDS,
-                       coverage_blind: bool = False) -> AggregateResult:
+                       coverage_blind: bool = False,
+                       hard_detector_blinded: bool = False) -> AggregateResult:
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
@@ -203,26 +214,28 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
         evidence = [e for e in evidence
                     if not (e.kind == "soft" and e.direction == "genuine")]
 
+    has_hard_neg = any(e.kind == "hard" and e.direction == "tamper" for e in evidence)
+    has_hard_pos = any(e.kind == "hard" and e.direction == "genuine" for e in evidence)
+
+    # Hard positive evidence contributes genuine-direction nats, gated BELOW a
+    # single medium finding (0.7 nats) — deliberately tighter than the 1.5-nat
+    # gate that strips SOFT genuine evidence. A verified 2D-Doc signature
+    # proves the BARCODE's data, not the parts of the page the barcode does not
+    # cover, so it must lift a document that has nothing else against it and
+    # must never offset an independent finding (adversarial review 2026-08-13:
+    # genuine-barcode + edited bank-details scenario). The hard-positive FLAG
+    # itself always survives in the ledger — the reader sees both facts.
+    hard_pos_applies = has_hard_pos and not has_hard_neg and net_tamper < SEVERITY_WEIGHTS["medium"]
     logit = aggregate_soft(evidence, prior=prior)
+    if hard_pos_applies:
+        logit -= HARD_POSITIVE_NATS
     score = round(100 * (1 - sigmoid(logit)))
     score = max(0, min(100, score))
 
-    has_hard_neg = any(e.kind == "hard" and e.direction == "tamper" for e in evidence)
-    has_hard_pos = any(e.kind == "hard" and e.direction == "genuine" for e in evidence)
     if has_hard_neg:
         score = min(score, HARD_NEGATIVE_CEILING)      # tampering veto wins
-    elif has_hard_pos and net_tamper < SEVERITY_WEIGHTS["high"]:
-        # The hard-positive floor is withheld under the SAME net-tamper
-        # threshold that strips soft genuine evidence above. A verified
-        # 2D-Doc signature proves the BARCODE's data — not the parts of the
-        # page the barcode doesn't cover. When independent tamper evidence
-        # is heavy (e.g. a swapped IBAN caught by fonts/overlay on a
-        # document whose barcode doesn't encode the IBAN), flooring to 85
-        # would launder exactly the fraud this tool exists to catch
-        # (adversarial review 2026-08-13: genuine-barcode + edited
-        # bank-details scenario). The hard-positive FLAG itself survives —
-        # the reader sees both facts; only the score floor yields.
-        score = max(score, HARD_POSITIVE_FLOOR)
+    elif hard_pos_applies:
+        score = max(score, HARD_POSITIVE_FLOOR)        # backstop; the nats above normally clear it
 
     band, risk = _band_and_risk(score)
     # Coverage gate (spec 2026-07-17, D1/D3): a blind document — no usable
@@ -236,6 +249,18 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
                                risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0,
                                ledger=list(evidence))
+    # A detector that could have produced HARD tamper evidence crashed, so the
+    # strongest proof this tool can offer was never looked for. Crashing must
+    # never be cheaper for an attacker than being caught: with overlay working,
+    # a confirmed cover-and-retype scores 15; with overlay crashed on the same
+    # document it scored 98. Deny the GENUINE band — the analysis is incomplete
+    # in exactly the direction that matters. Same "never proven fine" principle
+    # as the coverage gate, applied to a blinded detector instead of a blind
+    # document. SUSPICIOUS passes through untouched: surviving modules that did
+    # find tamper evidence still stand on their own.
+    if hard_detector_blinded and band == "GENUINE":
+        score = min(score, BAND_GENUINE_MIN - 1)
+        band, risk = _band_and_risk(score)
     half = _band_width(evidence)
     return AggregateResult(
         score=score, band=band, risk_level=risk,

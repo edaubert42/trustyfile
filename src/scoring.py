@@ -122,6 +122,7 @@ def create_analysis_result(
     analysis_time_ms: int = 0,
     document_type: DocumentType = "unknown",
     coverage_blind: bool = False,
+    hard_detector_blinded: bool = False,
 ) -> AnalysisResult:
     """
     Create the final analysis result from all module results.
@@ -139,6 +140,9 @@ def create_analysis_result(
         analysis_time_ms: Time taken for analysis in milliseconds
         document_type: Detected document type (used for evidence suppression)
         coverage_blind: True when the document has no usable text layer (see analyzer._coverage_blind); GENUINE/REVIEW results collapse to UNVERIFIABLE.
+        hard_detector_blinded: True when a module able to produce HARD tamper
+            evidence crashed, so the strongest available proof was never looked
+            for; denies the GENUINE band.
 
     Returns:
         AnalysisResult with final score, risk level, band, score range,
@@ -154,14 +158,29 @@ def create_analysis_result(
 
     # Known false positive on authentic SCANNED identity documents: downgrade the
     # scanner→viewer META_DOCUMENT_MODIFIED critical to "low" so it contributes
-    # negligible evidence instead of a critical-weight tamper signal. (Preserved
-    # from the pre-ledger engine; the in-place mutation is a known smell to revisit
-    # when detail-aware suppression lands in a later phase.)
-    if document_type == "identity":
-        for r in module_results:
-            for f in r.flags:
-                if _is_scanner_pipeline_critical(f):
-                    f.severity = "low"
+    # negligible evidence instead of a critical-weight tamper signal.
+    #
+    # Gated on the identity module having actually READ AN MRZ, not on the
+    # document_type label alone. document_type is decided by keyword hits in
+    # attacker-supplied text (src/document_type.py), and this downgrade sits
+    # OUTSIDE DOC_TYPE_CODE_MULTIPLIERS — so before this gate, pasting a few ID
+    # keywords into an invoice bought the exemption outright: the same ledger
+    # scored 38/SUSPICIOUS as "invoice" and 91/GENUINE as "identity". That
+    # falsified the invariant asserted at the top of this module. An MRZ that
+    # parses is a structural property of a real identity document, not a word
+    # an attacker can sprinkle into a body of text.
+    #
+    # The downgrade builds a NEW Flag rather than mutating in place: the caller's
+    # module_results are returned verbatim in AnalysisResult.modules and rendered
+    # by the per-module breakdown, so mutating here would permanently hide the
+    # module's real finding from the audit trail the reader most needs on an
+    # identity document — and would double-apply if the same objects were scored
+    # twice.
+    mrz_found = any(
+        r.module == "identity" and (r.details or {}).get("mrz_found")
+        for r in module_results
+    )
+    downgrade_scanner_fp = document_type == "identity" and mrz_found
 
     # Build the evidence ledger. A module that found nothing (no flags AND
     # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
@@ -177,13 +196,23 @@ def create_analysis_result(
             # weight from nudging the band or the genuine-laundering threshold.
             if f.code == "COVERAGE_NO_TEXT_LAYER":
                 continue
+            # MODULE_ERROR is pipeline STATUS, not evidence about the document:
+            # it says our analysis failed, not that the file is 0.2 nats more
+            # tampered. Same reasoning as COVERAGE_NO_TEXT_LAYER above. The
+            # real consequence of a crash is handled as a band cap
+            # (hard_detector_blinded), not as a token tamper contribution.
+            if f.code == "MODULE_ERROR":
+                continue
+            if downgrade_scanner_fp and _is_scanner_pipeline_critical(f):
+                f = replace(f, severity="low")
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:
                 evidence.append(ev)
 
     agg = aggregate_evidence(evidence, analyzable=analyzable,
-                             coverage_blind=coverage_blind)
+                             coverage_blind=coverage_blind,
+                             hard_detector_blinded=hard_detector_blinded)
 
     return AnalysisResult(
         file_hash=file_hash,

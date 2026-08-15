@@ -317,16 +317,54 @@ def test_scanner_pipeline_handles_non_numeric_hours():
     assert result.trust_score is not None
 
 
-def test_scanner_pipeline_identity_stays_genuine():
-    # Authentic scanned ID: scanner saved, viewer reopened ~6 min later. The
-    # known-FP META_DOCUMENT_MODIFIED critical must be downgraded to negligible
-    # evidence, so the document stays GENUINE rather than being flagged for review.
+def _scanner_fp_metadata():
+    """The known-FP flag: scanner saved, viewer reopened ~6 min later."""
     from src.models import ModuleResult, Flag
-    r = ModuleResult(module="metadata", score=0, confidence=1.0, flags=[
+    return ModuleResult(module="metadata", score=0, confidence=1.0, flags=[
         Flag("critical", "META_DOCUMENT_MODIFIED", "reopened",
              details={"time_difference_hours": 0.1})])
-    res = create_analysis_result("h", [r], document_type="identity")
+
+
+def _identity_module(mrz_found: bool):
+    from src.models import ModuleResult
+    return ModuleResult(module="identity", score=100, confidence=1.0,
+                        flags=[], details={"mrz_found": mrz_found})
+
+
+def test_scanner_pipeline_identity_stays_genuine():
+    # Authentic scanned ID: the known-FP META_DOCUMENT_MODIFIED critical is
+    # downgraded to negligible evidence, so the document stays GENUINE rather
+    # than being flagged for review. Requires a real MRZ (see below).
+    res = create_analysis_result(
+        "h", [_scanner_fp_metadata(), _identity_module(mrz_found=True)],
+        document_type="identity")
     assert res.band == "GENUINE" and res.trust_score >= 80
+
+
+def test_scanner_fp_exemption_requires_a_real_mrz():
+    """Security: the exemption must not be buyable by steering the classifier.
+
+    document_type comes from keyword hits in attacker-supplied text, and this
+    downgrade sits outside DOC_TYPE_CODE_MULTIPLIERS — so without an MRZ gate,
+    sprinkling ID keywords into a tampered invoice bought a 38 -> 91 swing.
+    """
+    res = create_analysis_result(
+        "h", [_scanner_fp_metadata(), _identity_module(mrz_found=False)],
+        document_type="identity")
+    assert res.band != "GENUINE"
+
+    # ...and with no identity module at all (the pure label-steering case).
+    res_no_module = create_analysis_result(
+        "h", [_scanner_fp_metadata()], document_type="identity")
+    assert res_no_module.band != "GENUINE"
+
+
+def test_scanner_fp_downgrade_does_not_mutate_the_audit_trail():
+    """The per-module breakdown must keep showing the module's real finding."""
+    meta = _scanner_fp_metadata()
+    create_analysis_result("h", [meta, _identity_module(mrz_found=True)],
+                           document_type="identity")
+    assert meta.flags[0].severity == "critical"
 
 
 class TestDocTypeSuppression:
@@ -365,3 +403,69 @@ class TestDocTypeSuppression:
                         {"scientific": {"CONTENT_SIREN_VAT_MISMATCH": 0.1}}, clear=False):
             out = apply_doc_type_suppression(e, "scientific")
         assert out is not None and out.kind == "hard" and out.weight == 3.0
+
+
+class TestHardPositiveEvidenceCounts:
+    """A cryptographically verified signature must move the score.
+
+    Regression: HARD_POSITIVE_FLOOR (85) was gated on net_tamper < 1.5 nats,
+    but with PRIOR_LOG_ODDS = -4.0 the soft score only falls below 85 past
+    ~2.27 nats — the withhold gate always fired first, so the floor could never
+    bind. Hard evidence also never enters aggregate_soft. Measured over 20,000
+    random ledgers: TWOD_DOC_SIGNATURE_VALID changed the score in zero of them.
+    """
+
+    @staticmethod
+    def _sig_valid():
+        return ModuleResult(module="twod_doc", score=50, flags=[
+            Flag("medium", "TWOD_DOC_SIGNATURE_VALID", "signature verifies")])
+
+    def test_verified_signature_beats_an_unremarkable_document(self):
+        with_sig = create_analysis_result("h", [self._sig_valid()]).trust_score
+        without = create_analysis_result(
+            "h", [ModuleResult(module="twod_doc", score=100, flags=[])]).trust_score
+        assert with_sig > without
+
+    def test_verified_signature_does_not_launder_real_findings(self):
+        """It proves the BARCODE's data, not the rest of the page."""
+        tampered = [ModuleResult(module="fonts", score=50, flags=[
+            Flag("high", "FONTS_MIDLINE_CHANGE", "retyped value")])]
+        assert (create_analysis_result("h", tampered + [self._sig_valid()]).trust_score
+                == create_analysis_result("h", tampered).trust_score)
+
+    def test_hard_tamper_still_wins_over_a_verified_signature(self):
+        res = create_analysis_result("h", [self._sig_valid(), ModuleResult(
+            module="overlay", score=0, flags=[
+                Flag("critical", "OVERLAY_COVER_AND_RETYPE_CONFIRMED", "covered")])])
+        assert res.trust_score <= 15
+
+
+class TestBlindedHardDetector:
+    """Crashing a detector must never be cheaper than being caught by it."""
+
+    @staticmethod
+    def _crashed_overlay():
+        return ModuleResult(module="overlay", score=100, confidence=0.0, flags=[
+            Flag("low", "MODULE_ERROR", "overlay failed",
+                 details={"module": "overlay", "error": "RuntimeError"})])
+
+    def test_blinded_hard_detector_denies_the_genuine_band(self):
+        res = create_analysis_result("h", [self._crashed_overlay()],
+                                     hard_detector_blinded=True)
+        assert res.band != "GENUINE"
+
+    def test_module_error_is_not_tamper_evidence(self):
+        """MODULE_ERROR is pipeline status; it must not nudge the ledger."""
+        crashed = create_analysis_result("h", [self._crashed_overlay()]).trust_score
+        clean = create_analysis_result(
+            "h", [ModuleResult(module="overlay", score=100, flags=[])]).trust_score
+        assert crashed == clean
+
+    def test_suspicious_still_passes_through(self):
+        """Surviving modules that DID find tamper evidence stand on their own."""
+        res = create_analysis_result("h", [self._crashed_overlay(), ModuleResult(
+            module="structure", score=0, flags=[
+                Flag("critical", "STRUCT_JAVASCRIPT_DETECTED", "js"),
+                Flag("critical", "STRUCT_HIDDEN_MODIFICATION", "hidden")])],
+            hard_detector_blinded=True)
+        assert res.band == "SUSPICIOUS"

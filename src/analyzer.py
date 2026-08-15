@@ -46,6 +46,14 @@ logger = logging.getLogger(__name__)
 # intent, not shared: the two checks compute different things).
 MIN_TEXT_CHARS_PER_PAGE = 50
 
+# Modules that can emit HARD tamper evidence (evidence.HARD_NEGATIVE_CODES) —
+# the only proof strong enough to veto the score outright. When one of these
+# crashes, the document defeated the detector most able to convict it, so the
+# result must not read GENUINE (see aggregate_evidence's hard_detector_blinded).
+# Keep in sync with HARD_NEGATIVE_CODES: overlay owns the two OVERLAY_*_CONFIRMED
+# codes, invisible owns INVISIBLE_TEXT_VALUE_CONFLICT_CONFIRMED.
+HARD_EVIDENCE_MODULES = frozenset({"overlay", "invisible"})
+
 
 def _coverage_blind(
     text_by_page: list[str],
@@ -309,6 +317,8 @@ class TrustyFileAnalyzer:
             analysis_time_ms=elapsed_ms,
             document_type=doc_type,
             coverage_blind=coverage_blind,
+            hard_detector_blinded=any(m in HARD_EVIDENCE_MODULES
+                                      for m in crashed_modules),
         )
 
         logger.info(f"Analysis complete: score={result.trust_score}, risk={result.risk_level}")
