@@ -881,6 +881,20 @@ XMP_TOOLKIT_SIGNATURES = {
     "itext": "iText (Java PDF library)",
 }
 
+# PDF libraries that ship a HARDCODED xmptk string in their XMP template, so
+# every file they generate claims a toolkit they never ran. TCPDF embeds Adobe's
+# 2009 XMP Core string verbatim in its source, which made the check below report
+# "created by TCPDF but later modified with Adobe Acrobat" — at HIGH severity —
+# for every TCPDF-generated PDF in existence (observed on the known-good
+# i2d_NetpresseInvoice.pdf, where it was the document's only ledger entry).
+#
+# Matching the exact frozen string AND the library's own Producer keeps the
+# detection intact: a real edit in Acrobat rewrites the XMP packet with Acrobat's
+# current version string, which no longer matches this constant.
+XMP_TOOLKIT_LIBRARY_BOILERPLATE: dict[str, str] = {
+    "adobe xmp core 4.2.1-c043 52.372728, 2009/01/18-15:08:04": "tcpdf",
+}
+
 # Known scanner software signatures (in Producer or Creator fields)
 # When a document comes from a scanner and is later opened in Acrobat,
 # that's a normal workflow (scan → OCR or view in Acrobat), not tampering.
@@ -958,8 +972,16 @@ def check_xmp_toolkit_mismatch(pdf_path: str, producer: str | None, creator: str
 
         xmptk = match.group(1)
 
-        # Check if the toolkit belongs to a known editor
         xmptk_lower = xmptk.lower()
+
+        # A library's frozen boilerplate toolkit string is not evidence that the
+        # named editor ever touched this file — see XMP_TOOLKIT_LIBRARY_BOILERPLATE.
+        producer_creator = f"{(producer or '').lower()} {(creator or '').lower()}"
+        for boilerplate, library in XMP_TOOLKIT_LIBRARY_BOILERPLATE.items():
+            if boilerplate in xmptk_lower and library in producer_creator:
+                return flags
+
+        # Check if the toolkit belongs to a known editor
         detected_editor = None
         for signature, editor_name in XMP_TOOLKIT_SIGNATURES.items():
             if signature in xmptk_lower:

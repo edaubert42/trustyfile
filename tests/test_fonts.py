@@ -287,3 +287,26 @@ class TestCheckMixedSubsetFonts:
         ]
         flags = check_mixed_subset_fonts(fonts)
         assert len(flags) == 1
+
+
+class TestGlyphFallbackNotAnEdit:
+    """A lone symbol in a substitute font is how PDFs draw bullets, not an edit.
+
+    Regression: the known-good i2d_free_fiber.pdf raised FONTS_MIDLINE_CHANGE at
+    HIGH severity because three bullet-list lines ("• Telephone :", "• Courrier :",
+    "• Internet :") each carried a leading "•" in DejaVuSans — the body font
+    NimbusSanL-Regu has no bullet glyph. Three lines is also the count that
+    escalates this flag to high, so one systemic fallback cost a legitimate
+    invoice 1.5 nats.
+    """
+
+    def test_lone_symbol_is_glyph_fallback(self):
+        from src.modules.fonts import _is_glyph_fallback
+        for symbol in ["•", "—", "©", "→", "·"]:
+            assert _is_glyph_fallback(symbol)
+
+    def test_real_content_is_never_glyph_fallback(self):
+        """The guard must not swallow a retyped value."""
+        from src.modules.fonts import _is_glyph_fallback
+        for text in ["1350", "1 350,00 €", "Total", "9", "A", "€1350"]:
+            assert not _is_glyph_fallback(text)

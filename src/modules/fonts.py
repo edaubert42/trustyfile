@@ -369,6 +369,35 @@ def check_mixed_subset_fonts(fonts: list[FontInfo]) -> list[Flag]:
     return flags
 
 
+def _is_glyph_fallback(text: str) -> bool:
+    """True if this span is a lone symbol the body font could not render.
+
+    A renderer that meets a character missing from the current font substitutes a
+    symbol-capable one for that character alone. The result is a one-character
+    span in a different family — indistinguishable, by family alone, from retyped
+    text. It is not evidence of editing: it is how every PDF generator draws a
+    bullet in a font that has no bullet glyph.
+
+    Observed on the known-good i2d_free_fiber.pdf, where the three "suspicious"
+    lines were "• Téléphone :", "• Courrier :" and "• Internet :" — in each case
+    the only differing span was the leading "•" in DejaVuSans, because the body
+    font NimbusSanL-Regu has no bullet. Three lines is also the threshold that
+    escalates this flag to HIGH, so one systemic fallback pattern was worth
+    1.5 nats against a legitimate invoice.
+
+    Kept deliberately narrow — a SINGLE non-alphanumeric character. A retyped
+    value is digits or letters and is never caught by this.
+
+    Examples:
+        >>> _is_glyph_fallback("•")
+        True
+        >>> _is_glyph_fallback("1350")   # a retyped amount
+        False
+    """
+    stripped = text.strip()
+    return len(stripped) == 1 and not stripped.isalnum()
+
+
 def check_midline_font_changes(pdf_path: str) -> list[Flag]:
     """
     Detect font changes within the same line of text.
@@ -462,10 +491,12 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
                         continue
 
                     # Check if font family changes within this line
-                    # Exclude generic CID font names — they're not real families
+                    # Exclude generic CID font names — they're not real families,
+                    # and lone symbol glyphs — see _is_glyph_fallback.
                     families_on_line = set(
                         s["family"] for s in span_families
                         if s["family"] != "_cidfont"
+                        and not _is_glyph_fallback(s["text"])
                     )
 
                     if len(families_on_line) > 1:
