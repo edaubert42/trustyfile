@@ -70,6 +70,24 @@ footer {
     margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
     text-align: center; color: #888; font-size: 0.85rem;
 }
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Crawler landing page — mirrors the Streamlit landing, element for element */
+header.brand { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 2.5rem; }
+header.brand .name { font-weight: 700; color: #1a1a2e; text-decoration: none; font-size: 1.05rem; }
+header.brand .subtitle { color: #888; font-size: 0.85rem; }
+p.tagline { font-size: 1.15rem; color: #444; margin: 0 0 1rem; }
+p.note { font-size: 0.85rem; color: #777; }
+ol.steps { list-style: none; padding: 0; display: flex; gap: 1rem; flex-wrap: wrap; margin: 2rem 0; }
+ol.steps li { flex: 1 1 180px; background: #f8f9fa; border-radius: 10px; padding: 1rem 1.1rem; }
+ol.steps .n {
+    display: inline-flex; width: 26px; height: 26px; border-radius: 50%;
+    background: #1a1a2e; color: #fff; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem;
+}
+ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
+ol.steps .d { color: #666; font-size: 0.9rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -123,6 +141,62 @@ footer {
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment fonctionne TrustyFile ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Déposez un PDF : il est analysé automatiquement par plus d'une dizaine de modules de détection, et chaque indice trouvé est versé dans un registre de preuves qui produit un score de confiance de 0 à 100, accompagné de la liste des anomalies et de leur explication."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Que vérifie TrustyFile exactement ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Les métadonnées du PDF (logiciel producteur, dates, convertisseurs en ligne), la cohérence des dates et des montants, les polices, les images embarquées (collages, résolutions, EXIF), la structure interne du fichier (révisions successives, objets supprimés, JavaScript), le texte masqué ou recouvert, les codes 2D-Doc et leur signature, et les identifiants d'entreprise (SIRET, SIREN, TVA, IBAN)."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Est-ce que TrustyFile stocke mes documents ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Votre document est traité temporairement, le temps de l'analyse, et n'est pas conservé. Seuls le hash du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être transmis à des API de vérification (INSEE, VIES, VirusTotal)."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "TrustyFile peut-il certifier qu'un document est authentique ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. TrustyFile est un outil d'aide à la décision, pas une autorité de certification : il calcule un score de risque à partir d'indices techniques. Un score élevé signale peu de traces de manipulation mais ne prouve pas l'authenticité ; un score bas mérite une vérification manuelle. Un document scanné puis aplati fournit peu de signal : dans ce cas TrustyFile le déclare non vérifiable plutôt que de le noter favorablement par défaut."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "TrustyFile est-il gratuit ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Oui, entièrement gratuit et sans inscription."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Quels formats et quelles limites ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Uniquement des fichiers PDF, jusqu'à 10 Mo et 20 pages."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -164,6 +238,21 @@ footer {
         <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
         <p class="more">Lire le guide &rarr;</p>
     </a>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment fonctionne TrustyFile ?</dt>
+        <dd>Déposez un PDF : il est analysé automatiquement par plus d&#x27;une dizaine de modules de détection, et chaque indice trouvé est versé dans un registre de preuves qui produit un score de confiance de 0 à 100, accompagné de la liste des anomalies et de leur explication.</dd>
+        <dt>Que vérifie TrustyFile exactement ?</dt>
+        <dd>Les métadonnées du PDF (logiciel producteur, dates, convertisseurs en ligne), la cohérence des dates et des montants, les polices, les images embarquées (collages, résolutions, EXIF), la structure interne du fichier (révisions successives, objets supprimés, JavaScript), le texte masqué ou recouvert, les codes 2D-Doc et leur signature, et les identifiants d&#x27;entreprise (SIRET, SIREN, TVA, IBAN).</dd>
+        <dt>Est-ce que TrustyFile stocke mes documents ?</dt>
+        <dd>Non. Votre document est traité temporairement, le temps de l&#x27;analyse, et n&#x27;est pas conservé. Seuls le hash du fichier et les identifiants d&#x27;entreprise (SIRET, TVA) peuvent être transmis à des API de vérification (INSEE, VIES, VirusTotal).</dd>
+        <dt>TrustyFile peut-il certifier qu&#x27;un document est authentique ?</dt>
+        <dd>Non. TrustyFile est un outil d&#x27;aide à la décision, pas une autorité de certification : il calcule un score de risque à partir d&#x27;indices techniques. Un score élevé signale peu de traces de manipulation mais ne prouve pas l&#x27;authenticité ; un score bas mérite une vérification manuelle. Un document scanné puis aplati fournit peu de signal : dans ce cas TrustyFile le déclare non vérifiable plutôt que de le noter favorablement par défaut.</dd>
+        <dt>TrustyFile est-il gratuit ?</dt>
+        <dd>Oui, entièrement gratuit et sans inscription.</dd>
+        <dt>Quels formats et quelles limites ?</dt>
+        <dd>Uniquement des fichiers PDF, jusqu&#x27;à 10 Mo et 20 pages.</dd>
+    </dl>
     <p>Ces guides décrivent la méthode. Pour l'appliquer à un document, TrustyFile effectue ces contrôles automatiquement et gratuitement.</p>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>
