@@ -12,9 +12,12 @@ title and description length budgets.
 
 from __future__ import annotations
 
+import html
+import json
 import re
 import sys
 import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -196,6 +199,90 @@ def test_seo_landing_pages_link_to_the_guides():
     en = (ROOT / "seo-en.html").read_text(encoding="utf-8")
     assert 'href="/guides/' in fr
     assert 'href="/en/guides/' in en
+
+
+class _VisibleText(HTMLParser):
+    """Collect the text nodes a reader sees in <body>, skipping script/style."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.in_body = False
+        self.skipping = 0
+        self.texts: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "body":
+            self.in_body = True
+        if tag in ("script", "style"):
+            self.skipping += 1
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style"):
+            self.skipping -= 1
+
+    def handle_data(self, data):
+        if self.in_body and not self.skipping:
+            # Separator glyphs and whitespace carry no content of their own.
+            text = data.strip(" \n\t·")
+            if text:
+                self.texts.append(text)
+
+
+@pytest.mark.parametrize("lang", ["fr", "en"])
+def test_landing_page_says_nothing_the_app_does_not(lang):
+    """The crawler landing page is built from the app's own strings — and only them.
+
+    Every visible text node must be a translation value app.py renders on its
+    landing (headline, tagline, disclaimers, steps, footer), a guide title, or
+    fixed chrome (brand, step numbers, punctuation, contact address, language
+    switch). Anything else is prose a human never sees: the cloaking bug this
+    generator exists to prevent (fixed 2026-08-27).
+    """
+    t = build_guides._translations(lang)
+    colon = " :" if lang == "fr" else ":"
+    allowed = {
+        t[key]
+        for key in (
+            "subtitle", "landing_headline", "landing_tagline", "disclaimer_upload",
+            "step1_title", "step1_desc", "step2_title", "step2_desc",
+            "step3_title", "step3_desc", "disclaimer_api",
+            "footer_guides", "footer_contact",
+        )
+    }
+    allowed |= {t["footer_guides"] + colon}
+    allowed |= {guide.title for guide in build_guides.GUIDES[lang]}
+    allowed |= {
+        "TrustyFile", "1", "2", "3", "contact@trustyfile.com",
+        build_guides.CHROME[lang]["lang_switch"],
+    }
+
+    parser = _VisibleText()
+    parser.feed(build_guides.render_landing(lang))
+    stray = [text for text in parser.texts if text not in allowed]
+    assert not stray, f"crawler page carries text the app landing does not: {stray}"
+
+
+@pytest.mark.parametrize("lang", ["fr", "en"])
+def test_faq_structured_data_matches_visible_faq(lang):
+    """FAQPage JSON-LD must describe exactly the <dt>/<dd> pairs on the page.
+
+    Structured data for content that is not visible is a Google spam-policy
+    violation in its own right; the two are generated from one list today,
+    but nothing else would notice if a refactor let them diverge.
+    """
+    page = build_guides.render_index(lang)
+    blocks = [
+        json.loads(block)
+        for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S)
+    ]
+    faq = next(block for block in blocks if block.get("@type") == "FAQPage")
+    from_ld = [(q["name"], q["acceptedAnswer"]["text"]) for q in faq["mainEntity"]]
+    visible = [
+        (html.unescape(q), html.unescape(a))
+        for q, a in re.findall(r"<dt>(.*?)</dt>\s*<dd>(.*?)</dd>", page, re.S)
+    ]
+    assert len(visible) >= 3
+    assert from_ld == visible
 
 
 def test_robots_does_not_block_the_guides():

@@ -2033,6 +2033,10 @@ def render_landing(lang: str) -> str:
         ]
     )
 
+    guide_links = " &middot; ".join(
+        f'<a href="{chrome["guides_path"]}/{g.slug}">{esc(g.title)}</a>' for g in GUIDES[lang]
+    )
+    colon = " :" if lang == "fr" else ":"
     steps = "\n".join(
         f'        <li><span class="n">{i}</span>'
         f'<strong>{esc(t[f"step{i}_title"])}</strong>'
@@ -2062,6 +2066,7 @@ def render_landing(lang: str) -> str:
         '    <ol class="steps">',
         steps,
         "    </ol>",
+        f'    <p class="note">{esc(t["footer_guides"])}{colon} {guide_links}</p>',
         f'    <p class="note">{esc(t["disclaimer_api"])}</p>',
         "    <footer>",
         f'        <p><a href="{chrome["index_path"]}">{esc(t["footer_guides"])}</a>',

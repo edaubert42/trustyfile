@@ -13,12 +13,23 @@ import html
 import json
 import logging
 import tempfile
+from contextlib import ExitStack
+from datetime import datetime
 import os
 import re
 from pathlib import Path
 from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
+
+# The landing page lists the verification guides. Their slugs and titles live
+# with the generator (scripts/build_guides.py), which also renders the
+# crawler-facing copy of this landing page — one source, so the two pages list
+# exactly the same links and the crawler never sees a link a human does not.
+try:
+    from scripts.build_guides import GUIDES as _GUIDES
+except Exception:  # a broken or missing generator must never take the app down
+    _GUIDES = {"fr": [], "en": []}
 
 
 def esc(s) -> str:
@@ -1098,6 +1109,20 @@ if uploaded_file is None:
         </div>
         """, unsafe_allow_html=True)
 
+    # Guide links. Until 2026-08-27 these existed only on the crawler-only
+    # copy of this page; a human gets the same row now, so the two stay
+    # equivalent (see scripts/build_guides.py render_landing).
+    _guides_prefix = "/guides/" if _current_lang == "fr" else "/en/guides/"
+    _guide_links = " · ".join(
+        f'<a href="{_guides_prefix}{g.slug}" style="color:#888; text-decoration:none;">{html.escape(g.title)}</a>'
+        for g in _GUIDES.get(_current_lang, [])
+    )
+    _landing_guides_html = (
+        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:1.8rem auto 0 auto; '
+        'line-height:1.9; max-width:640px;">'
+        f'{t("footer_guides")}{" :" if _current_lang == "fr" else ":"} {_guide_links}</p>'
+    ) if _guide_links else ""
+
     # "How it works" steps
     st.markdown(f"""
     <style>
@@ -1191,6 +1216,7 @@ if uploaded_file is None:
             <div class="step-desc">{t("step3_desc")}</div>
         </div>
     </div>
+    {_landing_guides_html}
     <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
         {t("disclaimer_api")}
     </p>
@@ -1291,18 +1317,20 @@ if uploaded_file is not None:
         mark_page_ready()
         st.stop()
 
+    # Materialise the upload on disk for THIS script run only. Every reader
+    # below (analyzer, preview renderer, 2D-Doc scan, revision history) takes
+    # a path, while the bytes themselves stay in Streamlit's session memory,
+    # so re-writing a few MB per rerun is cheap — and it is what lets the
+    # disclaimer say the document is not retained: the file is unlinked in
+    # the `finally` at the end of this block, and on analysis failure below.
+    # (Until 2026-08-27 the path was cached in session_state and the file
+    # outlived the analysis until the next upload, or forever if none came.)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(file_bytes)
+        tmp_path = tmp_file.name
+
     # Only re-run the analysis if the file changed (different hash than last time)
     if st.session_state.get("last_file_hash") != file_hash:
-        # Delete the previous temp file before creating a new one
-        old_tmp = st.session_state.get("cached_tmp_path")
-        if old_tmp and os.path.exists(old_tmp):
-            os.unlink(old_tmp)
-
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(file_bytes)
-            tmp_path = tmp_file.name
-
         try:
             # No st.spinner here: the loading splash covers this whole stretch
             # and shows t("analyzing") itself, so a second spinner underneath
@@ -1332,8 +1360,11 @@ if uploaded_file is not None:
 
             # Cache everything in session_state so page navigation doesn't re-trigger analysis
             st.session_state["last_file_hash"] = file_hash
-            st.session_state["cached_tmp_path"] = tmp_path
             st.session_state["cached_result"] = result
+            # Wall-clock time of THIS analysis, for the printed report. Kept in
+            # session_state so a later rerun (page change, language toggle)
+            # does not restamp it.
+            st.session_state["cached_analysed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state["cached_summary"] = summary
             st.session_state["cached_twod_doc"] = twod_doc_results
             # A stale manual page selection from a PREVIOUS file must not
@@ -1343,17 +1374,27 @@ if uploaded_file is not None:
             st.session_state.pop("page_selector", None)
 
         except Exception as _cache_err:
-            # If analysis fails, clear cache and re-raise so the outer handler catches it
+            # If analysis fails: clear the cache, drop the temp file, and
+            # re-raise so the outer handler catches it
             st.session_state.pop("last_file_hash", None)
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
             raise _cache_err
     else:
         # Same file: reuse cached results (page navigation, language switch, etc.)
-        tmp_path = st.session_state["cached_tmp_path"]
         result = st.session_state["cached_result"]
         summary = st.session_state["cached_summary"]
         twod_doc_results = st.session_state["cached_twod_doc"]
 
+    # Everything below renders inside one placeholder. If anything in the
+    # ~1,500 lines of results rendering raises, the except clause empties the
+    # placeholder — taking the half-drawn columns with it — and puts the error
+    # card in its place. ExitStack enters the container exactly as a `with`
+    # would, without indenting the whole block one level deeper.
+    _page_slot = st.empty()
+    _page_ctx = ExitStack()
     try:
+        _page_ctx.enter_context(_page_slot.container())
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
@@ -1591,8 +1632,7 @@ if uploaded_file is not None:
             # filename bar to say what it is about, so they come first there.
             # The script opens every <details> before printing (CSS cannot)
             # and restores the reader's state afterwards.
-            from datetime import datetime as _dt_now
-            _analysed_at = _dt_now.now().strftime("%Y-%m-%d %H:%M")
+            _analysed_at = st.session_state.get("cached_analysed_at", "")
             st.html(f"""
             <div class="tf-print-only tf-print-keep" style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:14px;">
                 <div style="font-size:1.1rem; font-weight:bold;">{t("print_report_title")}</div>
@@ -2985,7 +3025,8 @@ if uploaded_file is not None:
         # paths. Streamlit's own control-flow exceptions (st.stop, rerun)
         # derive from BaseException, so this clause leaves them alone.
         logging.getLogger(__name__).exception("results rendering failed")
-        st.markdown(f"""
+        _page_ctx.close()
+        _page_slot.markdown(f"""
         <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
             <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
             <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
@@ -3004,9 +3045,11 @@ if uploaded_file is not None:
         </div>
         """, unsafe_allow_html=True)
     finally:
-        # Don't delete tmp_path here — it's cached in session_state for page navigation.
-        # It will be deleted when a new file is uploaded (see above).
-        pass
+        _page_ctx.close()
+        # The temp file lives for this script run only (see where it is
+        # written); the next rerun re-materialises it from the upload bytes.
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 # Footer
 st.markdown(f"""
