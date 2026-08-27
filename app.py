@@ -11,13 +11,25 @@ import streamlit as st
 import streamlit.components.v1 as components
 import html
 import json
+import logging
 import tempfile
+from contextlib import ExitStack
+from datetime import datetime
 import os
 import re
 from pathlib import Path
 from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
+
+# The landing page lists the verification guides. Their slugs and titles live
+# with the generator (scripts/build_guides.py), which also renders the
+# crawler-facing copy of this landing page — one source, so the two pages list
+# exactly the same links and the crawler never sees a link a human does not.
+try:
+    from scripts.build_guides import GUIDES as _GUIDES
+except Exception:  # a broken or missing generator must never take the app down
+    _GUIDES = {"fr": [], "en": []}
 
 
 def esc(s) -> str:
@@ -767,6 +779,80 @@ st.markdown(f"""
     .flag-medium {{ color: #ffb627; }}
     .flag-low {{ color: #6c757d; }}
 
+    /* ---- Print / "Save as PDF" (roadmap #8, tier 1) ----
+       The results page IS the report. This stylesheet turns the dark UI into
+       a black-on-white document: hides the chrome (header, uploader, page
+       selector, footer, the print button itself), stacks the two columns and
+       remaps the inline dark-theme colours through [style*=...] attribute
+       selectors — blunt, but it leaves every existing inline style alone. */
+    .tf-print-only {{ display: none; }}
+    @media print {{
+        @page {{ margin: 12mm; }}
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
+        [data-testid="stAppViewBlockContainer"], [data-testid="stMainBlockContainer"] {{
+            background: #fff !important;
+            color: #000 !important;
+        }}
+        .tf-print-only {{ display: block; }}
+        .custom-header, .tf-footer, #tf-print-wrap,
+        [data-testid="stFileUploader"], [data-testid="stSelectbox"],
+        [data-testid="stStatusWidget"], [data-testid="stDecoration"],
+        [data-testid="stToolbar"], [data-testid="stBottom"],
+        header[data-testid="stHeader"] {{
+            display: none !important;
+        }}
+        /* Results above the preview, instead of two narrow columns */
+        [data-testid="stHorizontalBlock"] {{ display: block !important; }}
+        [data-testid="stColumn"] {{ width: 100% !important; flex: none !important; }}
+        [data-testid="stAppViewBlockContainer"], [data-testid="stMainBlockContainer"] {{
+            padding-top: 0 !important;
+            max-width: none !important;
+        }}
+        /* Text. Everything rendered through st.markdown goes via React, which
+           re-serialises inline styles (`color:#eee` in the source becomes
+           `color: rgb(238, 238, 238)` in the DOM), so no rule can match the
+           hex spelled in app.py. Blanket black text inside every Streamlit
+           block, then give the coloured severity pills their white text back. */
+        [data-testid="stMarkdown"] *, [data-testid="stHtml"] *,
+        [data-testid="stExpander"] * {{
+            color: #000 !important;
+        }}
+        [data-testid="stMarkdown"] [style*="color: white"][style*="background: rgb("],
+        [data-testid="stMarkdown"] [style*="color: white"][style*="background-color: rgb("] {{
+            color: #fff !important;
+        }}
+        /* Dark cards and bar tracks -> light paper cards. rgb() forms of
+           #1a1a2e #111 #0e1117 #1a1a1a #2a2a2a #0a0a0a #1e1e1e #333 and the
+           tinted entity cards #0a2e1a #0a1e3a #1a2a3a. */
+        [style*="background: rgb(26, 26, 46)"], [style*="background: rgb(17, 17, 17)"],
+        [style*="background: rgb(14, 17, 23)"], [style*="background: rgb(26, 26, 26)"],
+        [style*="background: rgb(42, 42, 42)"], [style*="background: rgb(10, 10, 10)"],
+        [style*="background: rgb(30, 30, 30)"], [style*="background: rgb(51, 51, 51)"],
+        [style*="background: rgb(10, 46, 26)"], [style*="background: rgb(10, 30, 58)"],
+        [style*="background: rgb(26, 42, 58)"] {{
+            background: #f3f4f6 !important;
+        }}
+        [style*="border: 1px solid rgb(42, 42, 42)"], [style*="border-top: 1px solid rgb(42, 42, 42)"],
+        [style*="border-bottom: 1px solid rgb(34, 34, 34)"] {{
+            border-color: #d1d5db !important;
+        }}
+        hr {{ border-color: #d1d5db !important; }}
+        [data-testid="stExpander"], [data-testid="stExpander"] details,
+        [data-testid="stExpander"] summary,
+        [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+            background: #fff !important;
+            border-color: #d1d5db !important;
+        }}
+        /* Gauge: the white score glyph and the dark track */
+        svg text[fill="white"] {{ fill: #000 !important; }}
+        svg circle[stroke="#2a2a2a"] {{ stroke: #e5e7eb !important; }}
+        /* Keep severity pills and score bars in colour */
+        * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+        details, .tf-print-keep {{ break-inside: avoid; }}
+        img {{ max-width: 100% !important; }}
+        a {{ text-decoration: none; color: inherit; }}
+    }}
+
     /* Label with hover tooltip */
     .tf-label {{
         position: relative;
@@ -791,9 +877,28 @@ st.markdown(f"""
         pointer-events: none;
         z-index: 10;
     }}
-    .tf-label:hover .tf-tip {{
+    .tf-label:hover .tf-tip,
+    .tf-label:focus .tf-tip,
+    .tf-label:focus-within .tf-tip {{
         visibility: visible;
         opacity: 1;
+    }}
+    /* The labels carry tabindex="0" so a tap (or Tab) focuses them: hover
+       does not exist on a touchscreen, and these tips are the only place
+       the score categories and the date rows are explained. */
+    .tf-label:focus {{
+        outline: 1px dotted #666;
+        outline-offset: 2px;
+    }}
+    @media (max-width: 600px) {{
+        /* The tip is absolutely positioned inside a ~100px label, so plain
+           `white-space: normal` would wrap it into a 72px-wide sliver.
+           max-content lets it take the width it needs, capped to the viewport. */
+        .tf-label .tf-tip {{
+            white-space: normal;
+            width: max-content;
+            max-width: 70vw;
+        }}
     }}
 
     /* Styled expanders — dark card look */
@@ -1004,6 +1109,20 @@ if uploaded_file is None:
         </div>
         """, unsafe_allow_html=True)
 
+    # Guide links. Until 2026-08-27 these existed only on the crawler-only
+    # copy of this page; a human gets the same row now, so the two stay
+    # equivalent (see scripts/build_guides.py render_landing).
+    _guides_prefix = "/guides/" if _current_lang == "fr" else "/en/guides/"
+    _guide_links = " · ".join(
+        f'<a href="{_guides_prefix}{g.slug}" style="color:#888; text-decoration:none;">{html.escape(g.title)}</a>'
+        for g in _GUIDES.get(_current_lang, [])
+    )
+    _landing_guides_html = (
+        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:1.8rem auto 0 auto; '
+        'line-height:1.9; max-width:640px;">'
+        f'{t("footer_guides")}{" :" if _current_lang == "fr" else ":"} {_guide_links}</p>'
+    ) if _guide_links else ""
+
     # "How it works" steps
     st.markdown(f"""
     <style>
@@ -1097,6 +1216,7 @@ if uploaded_file is None:
             <div class="step-desc">{t("step3_desc")}</div>
         </div>
     </div>
+    {_landing_guides_html}
     <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
         {t("disclaimer_api")}
     </p>
@@ -1197,18 +1317,20 @@ if uploaded_file is not None:
         mark_page_ready()
         st.stop()
 
+    # Materialise the upload on disk for THIS script run only. Every reader
+    # below (analyzer, preview renderer, 2D-Doc scan, revision history) takes
+    # a path, while the bytes themselves stay in Streamlit's session memory,
+    # so re-writing a few MB per rerun is cheap — and it is what lets the
+    # disclaimer say the document is not retained: the file is unlinked in
+    # the `finally` at the end of this block, and on analysis failure below.
+    # (Until 2026-08-27 the path was cached in session_state and the file
+    # outlived the analysis until the next upload, or forever if none came.)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(file_bytes)
+        tmp_path = tmp_file.name
+
     # Only re-run the analysis if the file changed (different hash than last time)
     if st.session_state.get("last_file_hash") != file_hash:
-        # Delete the previous temp file before creating a new one
-        old_tmp = st.session_state.get("cached_tmp_path")
-        if old_tmp and os.path.exists(old_tmp):
-            os.unlink(old_tmp)
-
-        # Save to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-            tmp_file.write(file_bytes)
-            tmp_path = tmp_file.name
-
         try:
             # No st.spinner here: the loading splash covers this whole stretch
             # and shows t("analyzing") itself, so a second spinner underneath
@@ -1238,8 +1360,11 @@ if uploaded_file is not None:
 
             # Cache everything in session_state so page navigation doesn't re-trigger analysis
             st.session_state["last_file_hash"] = file_hash
-            st.session_state["cached_tmp_path"] = tmp_path
             st.session_state["cached_result"] = result
+            # Wall-clock time of THIS analysis, for the printed report. Kept in
+            # session_state so a later rerun (page change, language toggle)
+            # does not restamp it.
+            st.session_state["cached_analysed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state["cached_summary"] = summary
             st.session_state["cached_twod_doc"] = twod_doc_results
             # A stale manual page selection from a PREVIOUS file must not
@@ -1249,17 +1374,27 @@ if uploaded_file is not None:
             st.session_state.pop("page_selector", None)
 
         except Exception as _cache_err:
-            # If analysis fails, clear cache and re-raise so the outer handler catches it
+            # If analysis fails: clear the cache, drop the temp file, and
+            # re-raise so the outer handler catches it
             st.session_state.pop("last_file_hash", None)
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
             raise _cache_err
     else:
         # Same file: reuse cached results (page navigation, language switch, etc.)
-        tmp_path = st.session_state["cached_tmp_path"]
         result = st.session_state["cached_result"]
         summary = st.session_state["cached_summary"]
         twod_doc_results = st.session_state["cached_twod_doc"]
 
+    # Everything below renders inside one placeholder. If anything in the
+    # ~1,500 lines of results rendering raises, the except clause empties the
+    # placeholder — taking the half-drawn columns with it — and puts the error
+    # card in its place. ExitStack enters the container exactly as a `with`
+    # would, without indenting the whole block one level deeper.
+    _page_slot = st.empty()
+    _page_ctx = ExitStack()
     try:
+        _page_ctx.enter_context(_page_slot.container())
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
@@ -1383,7 +1518,7 @@ if uploaded_file is not None:
                     )
 
             def label_with_tip(label, tip):
-                return (f'<span class="tf-label" style="{label_style}">'
+                return (f'<span class="tf-label" tabindex="0" style="{label_style}">'
                         f'{label}<span class="tf-tip">{tip}</span></span>')
 
             stated_row = ""
@@ -1491,13 +1626,64 @@ if uploaded_file is not None:
         # RIGHT COLUMN: Analysis Results
         # =================================================================
         with results_col:
+            # Print / "Save as PDF" (roadmap #8, tier 1). The report header is
+            # print-only: on screen the same facts sit in the file-properties
+            # block further down, but a printed page has no URL bar and no
+            # filename bar to say what it is about, so they come first there.
+            # The script opens every <details> before printing (CSS cannot)
+            # and restores the reader's state afterwards.
+            _analysed_at = st.session_state.get("cached_analysed_at", "")
+            st.html(f"""
+            <div class="tf-print-only tf-print-keep" style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:14px;">
+                <div style="font-size:1.1rem; font-weight:bold;">{t("print_report_title")}</div>
+                <div style="font-size:0.8rem;">{t("print_file")} {esc(uploaded_file.name)}</div>
+                <div style="font-size:0.8rem;">SHA-256 <code>{esc(result.file_hash)}</code></div>
+                <div style="font-size:0.8rem;">{t("print_date")} {_analysed_at} &middot; {t("print_generated_by")} https://www.trustyfile.com</div>
+            </div>
+            <div id="tf-print-wrap" style="display:flex; justify-content:flex-end; margin:0 0 0.2rem 0;">
+                <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
+                    {t("print_report")}
+                </button>
+            </div>
+            <script>
+            (function() {{
+                const btn = document.getElementById('tf-print');
+                if (btn && !btn.dataset.bound) {{
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', function() {{ window.print(); }});
+                }}
+                if (!window.__tfPrintHooks) {{
+                    window.__tfPrintHooks = true;
+                    window.addEventListener('beforeprint', function() {{
+                        document.querySelectorAll('details:not([open])').forEach(function(d) {{
+                            d.dataset.tfAutoOpen = '1';
+                            d.open = true;
+                        }});
+                    }});
+                    window.addEventListener('afterprint', function() {{
+                        document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
+                            d.open = false;
+                            delete d.dataset.tfAutoOpen;
+                        }});
+                    }});
+                }}
+            }})();
+            </script>
+            """, unsafe_allow_javascript=True)
+
             # Main score gauge (circular arc like HubSpot Website Grader)
             score = result.trust_score
             risk_level = result.risk_level
 
-            # Color based on score
+            # Color based on score. UNVERIFIABLE carries score 0 internally
+            # (the coverage gate fails closed), but a giant bold "0" reads as
+            # "maximally fraudulent" to a user whose scan simply had no text
+            # layer. Show a neutral glyph and a full grey ring instead: "not
+            # measured", not "empty tank".
+            gauge_number = str(score)
             if risk_level == "UNVERIFIABLE":
                 gauge_color = "#6c757d"   # neutral grey: could not verify (not fraud)
+                gauge_number = t("score_not_available")
             elif score >= 80:
                 gauge_color = "#28a745"
             elif score >= 50:
@@ -1512,7 +1698,10 @@ if uploaded_file is not None:
             # The circle starts at the top (rotated -90°)
             radius = 80
             circumference = 2 * 3.14159 * radius  # full circle
-            filled = circumference * (score / 100)
+            if risk_level == "UNVERIFIABLE":
+                filled = circumference          # full grey ring: nothing measured
+            else:
+                filled = circumference * (score / 100)
             size = 220
             center = size // 2
 
@@ -1531,11 +1720,14 @@ if uploaded_file is not None:
                         style="transition: stroke-dasharray 1s ease;"/>
                     <!-- Score text -->
                     <text x="{center}" y="{center - 5}" text-anchor="middle"
-                        font-size="48" font-weight="bold" fill="white">{score}</text>
+                        font-size="48" font-weight="bold" fill="white">{gauge_number}</text>
                     <text x="{center}" y="{center + 22}" text-anchor="middle"
                         font-size="14" fill="{gauge_color}" font-weight="bold">
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
+                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:340px; margin:0.2rem auto 0.8rem auto;">
+                    {t("score_caveat")}
+                </p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1578,7 +1770,7 @@ if uploaded_file is not None:
                     bars_html += f'''
                     <div style="display:flex; align-items:center; margin-bottom:6px;">
                         <span style="width:100px; flex-shrink:0;">
-                            <span class="tf-label" style="color:#555;">{label}<span class="tf-tip">{tooltip}</span></span>
+                            <span class="tf-label" tabindex="0" style="color:#555;">{label}<span class="tf-tip">{tooltip}</span></span>
                         </span>
                         <div style="flex:1; background:#1a1a1a; border-radius:4px;
                             height:10px; overflow:hidden;">
@@ -1607,7 +1799,7 @@ if uploaded_file is not None:
                 bars_html += f'''
                 <div style="display:flex; align-items:center; margin-bottom:6px;">
                     <span style="width:100px; flex-shrink:0;">
-                        <span class="tf-label" style="color:#eee;">{label}<span class="tf-tip">{tooltip}</span></span>
+                        <span class="tf-label" tabindex="0" style="color:#eee;">{label}<span class="tf-tip">{tooltip}</span></span>
                     </span>
                     <div style="flex:1; background:#2a2a2a; border-radius:4px;
                         height:10px; overflow:hidden;">
@@ -2825,10 +3017,39 @@ if uploaded_file is not None:
         if more_details_html:
             st.markdown(more_details_html, unsafe_allow_html=True)
 
+    except Exception:
+        # The analyzer isolates each detection module, but nothing guarded the
+        # ~1,500 lines of rendering above: one odd flag detail or a preview
+        # failure showed the user a raw Python traceback. Log the full trace
+        # server-side and show the same card as the too-large / too-many-pages
+        # paths. Streamlit's own control-flow exceptions (st.stop, rerun)
+        # derive from BaseException, so this clause leaves them alone.
+        logging.getLogger(__name__).exception("results rendering failed")
+        _page_ctx.close()
+        _page_slot.markdown(f"""
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
+            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
+            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("render_error_title")}</div>
+                </div>
+                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("render_error_message")}</div>
+            </div>
+            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
+                {t("back_to_home")}
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
     finally:
-        # Don't delete tmp_path here — it's cached in session_state for page navigation.
-        # It will be deleted when a new file is uploaded (see above).
-        pass
+        _page_ctx.close()
+        # The temp file lives for this script run only (see where it is
+        # written); the next rerun re-materialises it from the upload bytes.
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 # Footer
 st.markdown(f"""
@@ -2841,7 +3062,7 @@ st.markdown(f"""
     .tf-footer-label {{ display: none; }}
 }}
 </style>
-<div style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
+<div class="tf-footer" style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
     padding:0.3rem 1rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
     <a href="{'/guides/' if _current_lang == 'fr' else '/en/guides/'}" style="position:absolute; left:1rem;
         color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{t("footer_guides")}</a>

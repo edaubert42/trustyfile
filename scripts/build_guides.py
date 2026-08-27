@@ -3,10 +3,19 @@
 WHY THIS EXISTS
 ---------------
 `seo-fr.html` / `seo-en.html` are served *only to crawlers* — real users get
-proxied to Streamlit. Serving different HTML depending on the User-Agent is
-cloaking, which Google can penalise site-wide. The guides fix that: they are
-real URLs, served to **everyone**, linked from the app footer. A crawler and a
-human see the same bytes.
+proxied to Streamlit, whose landing page is built by JavaScript. Serving a
+crawler different *content* from what a human sees is cloaking, which Google
+can penalise site-wide. Two things keep us on the right side of that line:
+
+1. The crawler pages are generated here (`render_landing`) from the very same
+   `src/translations/*.json` strings that `app.py` renders on its landing page
+   — headline, tagline, the three steps, both disclaimers, the footer links.
+   Same words, static HTML: that is "dynamic rendering", not cloaking. Until
+   2026-08-27 they were hand-written and had drifted to ~800 words of prose,
+   a feature list and a FAQ that no human ever saw.
+2. The guides are real URLs served to **everyone**, linked from the app
+   footer. A crawler and a human see the same bytes. The FAQ that used to
+   live only on the crawler pages now lives on the guides index, visibly.
 
 They also carry the long-tail queries the single-page app can never rank for
 ("comment savoir si un PDF a été modifié", "vérifier un justificatif de
@@ -40,6 +49,16 @@ ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "guides"
 
 SITE = "https://www.trustyfile.com"
+
+# The app's own UI strings. The crawler landing pages are rendered from these so
+# they cannot say anything the Streamlit landing page does not.
+TRANSLATIONS_DIR = ROOT / "src" / "translations"
+
+
+def _translations(lang: str) -> dict[str, str]:
+    """Load src/translations/<lang>.json — the strings app.py renders via t()."""
+    return json.loads((TRANSLATIONS_DIR / f"{lang}.json").read_text(encoding="utf-8"))
+
 
 # Bumped by hand when the guide content is substantially rewritten. Feeds
 # <lastmod> in the sitemap and dateModified in the Article JSON-LD; lying about
@@ -121,6 +140,84 @@ CHROME = {
         "related": "Autres guides",
         "footer_contact": "Contact",
         "updated": "Mis à jour le 13 août 2026",
+        # Crawler landing page (seo-fr.html). Metadata only — the visible body
+        # comes from src/translations/fr.json, see render_landing().
+        "landing_path": "/",
+        "landing_title": "TrustyFile - Vérificateur de documents PDF gratuit",
+        "landing_description": (
+            "Vérificateur de documents PDF gratuit en ligne. Déposez un PDF et "
+            "obtenez un score de confiance instantané. Détecte les faux documents, "
+            "falsifications, incohérences de polices, anomalies de dates et plus encore."
+        ),
+        "landing_og_description": (
+            "Déposez un PDF et obtenez un score de confiance instantané. Détecte les "
+            "faux documents, falsifications, incohérences de polices et anomalies de dates."
+        ),
+        "landing_twitter_description": (
+            "Vérificateur de documents PDF gratuit. Déposez un PDF et obtenez un "
+            "score de confiance instantané."
+        ),
+        "landing_og_image_alt": "TrustyFile — détecteur de fraude documentaire",
+        "landing_webapp_description": (
+            "Détecteur de fraude documentaire gratuit en ligne. Analysez vos PDF pour "
+            "détecter les modifications, falsifications et incohérences."
+        ),
+        "landing_feature_list": [
+            "Analyse des métadonnées PDF",
+            "Détection des incohérences de dates et de montants",
+            "Analyse des polices et des images embarquées",
+            "Analyse de la structure interne du PDF",
+            "Détection du texte masqué ou recouvert",
+            "Vérification SIRET / SIREN / TVA",
+            "Lecture et vérification des codes 2D-Doc",
+        ],
+        "lang_switch": "EN",
+        # FAQ shown on the guides index (visible to everyone, hence eligible
+        # for FAQPage structured data). Moved here from the crawler-only page.
+        "faq_heading": "Questions fréquentes",
+        "faq": [
+            (
+                "Comment fonctionne TrustyFile ?",
+                "Déposez un PDF : il est analysé automatiquement par plus d'une "
+                "dizaine de modules de détection, et chaque indice trouvé est versé "
+                "dans un registre de preuves qui produit un score de confiance de 0 "
+                "à 100, accompagné de la liste des anomalies et de leur explication.",
+            ),
+            (
+                "Que vérifie TrustyFile exactement ?",
+                "Les métadonnées du PDF (logiciel producteur, dates, convertisseurs en "
+                "ligne), la cohérence des dates et des montants, les polices, les images "
+                "embarquées (collages, résolutions, EXIF), la structure interne du "
+                "fichier (révisions successives, objets supprimés, JavaScript), le texte "
+                "masqué ou recouvert, les codes 2D-Doc et leur signature, et les "
+                "identifiants d'entreprise (SIRET, SIREN, TVA, IBAN).",
+            ),
+            (
+                "Est-ce que TrustyFile stocke mes documents ?",
+                "Non. Votre document est traité temporairement, le temps de l'analyse, "
+                "et n'est pas conservé. Seuls le hash du fichier et les identifiants "
+                "d'entreprise (SIRET, TVA) peuvent être transmis à des API de "
+                "vérification (INSEE, VIES, VirusTotal).",
+            ),
+            (
+                "TrustyFile peut-il certifier qu'un document est authentique ?",
+                "Non. TrustyFile est un outil d'aide à la décision, pas une autorité de "
+                "certification : il calcule un score de risque à partir d'indices "
+                "techniques. Un score élevé signale peu de traces de manipulation mais "
+                "ne prouve pas l'authenticité ; un score bas mérite une vérification "
+                "manuelle. Un document scanné puis aplati fournit peu de signal : dans ce "
+                "cas TrustyFile le déclare non vérifiable plutôt que de le noter "
+                "favorablement par défaut.",
+            ),
+            (
+                "TrustyFile est-il gratuit ?",
+                "Oui, entièrement gratuit et sans inscription.",
+            ),
+            (
+                "Quels formats et quelles limites ?",
+                "Uniquement des fichiers PDF, jusqu'à 10 Mo et 20 pages.",
+            ),
+        ],
     },
     "en": {
         "lang": "en",
@@ -153,6 +250,79 @@ CHROME = {
         "related": "More guides",
         "footer_contact": "Contact",
         "updated": "Updated 13 August 2026",
+        "landing_path": "/en",
+        "landing_title": "TrustyFile - Free Document Fraud Detector",
+        "landing_description": (
+            "Free online document fraud detector. Upload a PDF and get an instant "
+            "trust score. Detects metadata tampering, font inconsistencies, date "
+            "anomalies, fake logos and more."
+        ),
+        "landing_og_description": (
+            "Upload a PDF and get an instant trust score. Detects metadata tampering, "
+            "font inconsistencies, date anomalies and more."
+        ),
+        "landing_twitter_description": (
+            "Free online document fraud detector. Upload a PDF and get an instant "
+            "trust score."
+        ),
+        "landing_og_image_alt": "TrustyFile — document fraud detection",
+        "landing_webapp_description": (
+            "Free online PDF fraud detector. Upload a PDF and get an instant trust "
+            "score. Detects metadata tampering, font inconsistencies, date anomalies, "
+            "fake logos and more."
+        ),
+        "landing_feature_list": [
+            "PDF metadata analysis",
+            "Date and amount consistency checks",
+            "Font and embedded image analysis",
+            "PDF internal structure analysis",
+            "Hidden or covered text detection",
+            "Company identifier verification (SIRET / VAT)",
+            "French 2D-Doc barcode decoding and signature verification",
+        ],
+        "lang_switch": "FR",
+        "faq_heading": "Frequently asked questions",
+        "faq": [
+            (
+                "How does TrustyFile work?",
+                "Upload a PDF: it is analysed automatically by more than a dozen "
+                "detection modules, and every signal found goes into an evidence ledger "
+                "that produces a trust score from 0 to 100, with the list of anomalies "
+                "and an explanation of each.",
+            ),
+            (
+                "What exactly does TrustyFile check?",
+                "PDF metadata (producer software, dates, online converters), date and "
+                "amount consistency, fonts, embedded images (pasting, resolution, EXIF), "
+                "the file's internal structure (successive revisions, deleted objects, "
+                "JavaScript), hidden or covered text, 2D-Doc barcodes and their "
+                "signature, and company identifiers (SIRET, SIREN, VAT, IBAN).",
+            ),
+            (
+                "Does TrustyFile store my documents?",
+                "No. Your document is processed temporarily, for the duration of the "
+                "analysis, and is not retained. Only the file hash and company "
+                "identifiers (SIRET, VAT) may be sent to verification APIs (INSEE, VIES, "
+                "VirusTotal).",
+            ),
+            (
+                "Can TrustyFile certify that a document is authentic?",
+                "No. TrustyFile is a decision-support tool, not a certification "
+                "authority: it computes a risk score from technical indicators. A high "
+                "score means few signs of manipulation but does not prove authenticity; "
+                "a low score deserves a manual check. A scanned, flattened document "
+                "yields little signal: in that case TrustyFile reports it as "
+                "unverifiable rather than scoring it well by default.",
+            ),
+            (
+                "Is TrustyFile free?",
+                "Yes, completely free, with no registration.",
+            ),
+            (
+                "Which formats and limits?",
+                "PDF files only, up to 10 MB and 20 pages.",
+            ),
+        ],
     },
 }
 
@@ -1437,6 +1607,24 @@ footer {
     margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
     text-align: center; color: #888; font-size: 0.85rem;
 }
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Crawler landing page — mirrors the Streamlit landing, element for element */
+header.brand { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 2.5rem; }
+header.brand .name { font-weight: 700; color: #1a1a2e; text-decoration: none; font-size: 1.05rem; }
+header.brand .subtitle { color: #888; font-size: 0.85rem; }
+p.tagline { font-size: 1.15rem; color: #444; margin: 0 0 1rem; }
+p.note { font-size: 0.85rem; color: #777; }
+ol.steps { list-style: none; padding: 0; display: flex; gap: 1rem; flex-wrap: wrap; margin: 2rem 0; }
+ol.steps li { flex: 1 1 180px; background: #f8f9fa; border-radius: 10px; padding: 1rem 1.1rem; }
+ol.steps .n {
+    display: inline-flex; width: 26px; height: 26px; border-radius: 50%;
+    background: #1a1a2e; color: #fff; align-items: center; justify-content: center;
+    font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem;
+}
+ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
+ol.steps .d { color: #666; font-size: 0.9rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -1477,6 +1665,8 @@ def _head(
     canonical: str,
     alternates: dict[str, str],
     json_ld: list[dict],
+    og_type: str = "article",
+    extra_head: str = "",
 ) -> str:
     """Build the <head> shared by every generated page.
 
@@ -1487,6 +1677,9 @@ def _head(
         canonical: absolute URL of this page.
         alternates: {hreflang: absolute URL}, including x-default.
         json_ld: structured-data objects, one <script> each.
+        og_type: Open Graph type — "article" for guides, "website" for the
+            landing pages.
+        extra_head: extra lines inserted before </head> (already escaped).
     """
     chrome = CHROME[lang]
     esc = html.escape
@@ -1514,7 +1707,7 @@ def _head(
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="canonical" href="{canonical}">
 {alt_links}
-    <meta property="og:type" content="article">
+    <meta property="og:type" content="{og_type}">
     <meta property="og:title" content="{esc(title)}">
     <meta property="og:description" content="{esc(description)}">
     <meta property="og:url" content="{canonical}">
@@ -1530,7 +1723,7 @@ def _head(
     <style>
 {STYLESHEET}    </style>
 {ld_blocks}
-</head>
+{extra_head}</head>
 <body>"""
 
 
@@ -1676,8 +1869,40 @@ def render_guide(lang: str, guide: Guide) -> str:
     return "\n".join(parts)
 
 
+def _faq_ld(lang: str) -> dict:
+    """FAQPage structured data for the FAQ rendered on the guides index.
+
+    Only valid because the same questions and answers are visible on the page
+    to every visitor: structured data describing content that is not shown is
+    a Google Search spam-policy violation in its own right.
+    """
+    return {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": question,
+                "acceptedAnswer": {"@type": "Answer", "text": answer},
+            }
+            for question, answer in CHROME[lang]["faq"]
+        ],
+    }
+
+
+def _faq_html(lang: str) -> list[str]:
+    """The visible FAQ: a heading and a definition list."""
+    chrome = CHROME[lang]
+    parts = [f"    <h2>{html.escape(chrome['faq_heading'])}</h2>", '    <dl class="faq">']
+    for question, answer in chrome["faq"]:
+        parts.append(f"        <dt>{html.escape(question)}</dt>")
+        parts.append(f"        <dd>{html.escape(answer)}</dd>")
+    parts.append("    </dl>")
+    return parts
+
+
 def render_index(lang: str) -> str:
-    """Render the guides index: the hub that links to every guide."""
+    """Render the guides index: the hub that links to every guide, plus the FAQ."""
     chrome = CHROME[lang]
     other_lang = "en" if lang == "fr" else "fr"
     canonical = f"{SITE}{chrome['index_path']}"
@@ -1714,7 +1939,7 @@ def render_index(lang: str) -> str:
             description=chrome["index_description"],
             canonical=canonical,
             alternates=alternates,
-            json_ld=[collection_ld],
+            json_ld=[collection_ld, _faq_ld(lang)],
         ),
         _nav(lang, CHROME[other_lang]["index_path"]),
         f"    <h1>{html.escape(chrome['index_heading'])}</h1>",
@@ -1727,9 +1952,132 @@ def render_index(lang: str) -> str:
         parts.append(f"        <p>{html.escape(guide.description)}</p>")
         parts.append(f'        <p class="more">{chrome["read_more"]} &rarr;</p>')
         parts.append("    </a>")
+    parts.extend(_faq_html(lang))
     parts.append(f"    <p>{chrome['index_outro']}</p>")
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
     parts.append(_footer(lang))
+    return "\n".join(parts)
+
+
+def render_landing(lang: str) -> str:
+    """Render the crawler-facing landing page (seo-fr.html / seo-en.html).
+
+    Caddy serves this file to search-engine and link-preview bots instead of
+    the Streamlit shell, whose landing content only exists after JavaScript
+    runs. To stay clear of cloaking, the *visible* body is limited to what
+    app.py renders when no file is uploaded — headline, tagline, the upload
+    disclaimer, the three steps, the API disclaimer and the footer links — and
+    every one of those strings is read from src/translations/<lang>.json, the
+    same file app.py's t() reads. Head metadata (title, description, JSON-LD)
+    comes from CHROME[lang]; it describes the app rather than adding content.
+
+    Example:
+        >>> "Vous avez un doute" in render_landing("fr")
+        True
+    """
+    chrome = CHROME[lang]
+    other_lang = "en" if lang == "fr" else "fr"
+    t = _translations(lang)
+    esc = html.escape
+
+    fr_home = f"{SITE}{CHROME['fr']['landing_path']}"
+    en_home = f"{SITE}{CHROME['en']['landing_path']}"
+    canonical = fr_home if lang == "fr" else en_home
+    alternates = {"fr": fr_home, "en": en_home, "x-default": fr_home}
+    id_suffix = "" if lang == "fr" else f"-{lang}"
+
+    graph_ld = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "Organization",
+                "@id": f"{SITE}/#organization",
+                "name": "TrustyFile",
+                "url": SITE,
+                "logo": f"{SITE}/favicon-192x192.png",
+                "email": "contact@trustyfile.com",
+            },
+            {
+                "@type": "WebSite",
+                "@id": f"{SITE}/#website{id_suffix}",
+                "name": "TrustyFile",
+                "url": canonical,
+                "inLanguage": lang,
+                "publisher": {"@id": f"{SITE}/#organization"},
+            },
+            {
+                "@type": "WebApplication",
+                "@id": f"{SITE}/#webapp{id_suffix}",
+                "name": "TrustyFile",
+                "url": canonical,
+                "description": chrome["landing_webapp_description"],
+                "applicationCategory": "SecurityApplication",
+                "browserRequirements": "Requires JavaScript",
+                "operatingSystem": "Any",
+                "inLanguage": lang,
+                "featureList": chrome["landing_feature_list"],
+                "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+                "image": f"{SITE}/og-image.png",
+                "publisher": {"@id": f"{SITE}/#organization"},
+            },
+        ],
+    }
+
+    extra_head = "\n".join(
+        [
+            '    <link rel="icon" href="/favicon-192x192.png" type="image/png" sizes="192x192">',
+            '    <link rel="manifest" href="/site.webmanifest">',
+            f'    <meta property="og:locale:alternate" content="{CHROME[other_lang]["locale"]}">',
+            f'    <meta property="og:image:alt" content="{esc(chrome["landing_og_image_alt"])}">',
+            "",
+        ]
+    )
+
+    guide_links = " &middot; ".join(
+        f'<a href="{chrome["guides_path"]}/{g.slug}">{esc(g.title)}</a>' for g in GUIDES[lang]
+    )
+    colon = " :" if lang == "fr" else ":"
+    steps = "\n".join(
+        f'        <li><span class="n">{i}</span>'
+        f'<strong>{esc(t[f"step{i}_title"])}</strong>'
+        f'<span class="d">{esc(t[f"step{i}_desc"])}</span></li>'
+        for i in (1, 2, 3)
+    )
+    other_home = CHROME[other_lang]["landing_path"]
+
+    parts = [
+        _head(
+            lang=lang,
+            title=chrome["landing_title"],
+            description=chrome["landing_description"],
+            canonical=canonical,
+            alternates=alternates,
+            json_ld=[graph_ld],
+            og_type="website",
+            extra_head=extra_head,
+        ),
+        '    <header class="brand">',
+        f'        <a class="name" href="{chrome["landing_path"]}">TrustyFile</a>',
+        f'        <span class="subtitle">{esc(t["subtitle"])}</span>',
+        "    </header>",
+        f"    <h1>{esc(t['landing_headline'])}</h1>",
+        f'    <p class="tagline">{esc(t["landing_tagline"])}</p>',
+        f'    <p class="note">{esc(t["disclaimer_upload"])}</p>',
+        '    <ol class="steps">',
+        steps,
+        "    </ol>",
+        f'    <p class="note">{esc(t["footer_guides"])}{colon} {guide_links}</p>',
+        f'    <p class="note">{esc(t["disclaimer_api"])}</p>',
+        "    <footer>",
+        f'        <p><a href="{chrome["index_path"]}">{esc(t["footer_guides"])}</a>',
+        f'        &middot; {esc(t["footer_contact"])} '
+        '<a href="mailto:contact@trustyfile.com">contact@trustyfile.com</a>',
+        f'        &middot; <a class="lang" href="{other_home}">{chrome["lang_switch"]}</a></p>',
+        "    </footer>",
+        "</body>",
+        "</html>",
+        "",
+    ]
     return "\n".join(parts)
 
 
@@ -1820,6 +2168,7 @@ def build() -> dict[Path, str]:
         pages[OUTPUT_DIR / lang / "index.html"] = render_index(lang)
         for guide in GUIDES[lang]:
             pages[OUTPUT_DIR / lang / f"{guide.slug}.html"] = render_guide(lang, guide)
+        pages[ROOT / f"seo-{lang}.html"] = render_landing(lang)
     pages[ROOT / "sitemap.xml"] = render_sitemap()
     return pages
 

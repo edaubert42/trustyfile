@@ -7,9 +7,56 @@ itself needs a script run context, which is why the header parsing lives in
 its own function.
 """
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 
 from src.i18n import _parse_accept_language, DEFAULT_LANG, SUPPORTED_LANGS
+
+ROOT = Path(__file__).resolve().parent.parent
+TRANSLATIONS = ROOT / "src" / "translations"
+
+
+def _load(lang: str) -> dict:
+    return json.loads((TRANSLATIONS / f"{lang}.json").read_text(encoding="utf-8"))
+
+
+def test_translation_files_have_identical_key_sets():
+    en, fr = _load("en"), _load("fr")
+    assert set(en) == set(fr), set(en) ^ set(fr)
+
+
+def test_every_app_translation_key_exists_in_both_languages():
+    """t() falls back to the raw key when a translation is missing, silently.
+
+    Every literal t("key") in app.py must resolve in both files, and every
+    dynamic family t(f"prefix{...}") must have the same members in both.
+    """
+    source = (ROOT / "app.py").read_text(encoding="utf-8")
+    literal = set(re.findall(r"""\bt\(\s*["']([A-Za-z0-9_]+)["']\s*\)""", source))
+    families = set(re.findall(r"""\bt\(f["']([A-Za-z0-9_]+)\{""", source))
+    assert literal, "no t() calls matched — the regex is broken, not the app"
+    assert families, "no dynamic t(f'...') calls matched — the regex is broken"
+
+    en, fr = _load("en"), _load("fr")
+    missing = {
+        key: [lang for lang, table in (("en", en), ("fr", fr)) if key not in table]
+        for key in sorted(literal)
+        if key not in en or key not in fr
+    }
+    assert not missing, f"keys used by app.py but absent from a translation file: {missing}"
+
+    for prefix in families:
+        en_members = {k for k in en if k.startswith(prefix)}
+        fr_members = {k for k in fr if k.startswith(prefix)}
+        assert en_members, f"dynamic family {prefix!r} has no keys at all"
+        assert en_members == fr_members, (prefix, en_members ^ fr_members)
+    # The two families the results page relies on, spelled out so a renamed
+    # band or severity cannot slip through as "some other member".
+    for key in ("risk_UNVERIFIABLE", "risk_CRITICAL", "severity_critical", "severity_low"):
+        assert key in en and key in fr, key
 
 
 class TestParseAcceptLanguage:

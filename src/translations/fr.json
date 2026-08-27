@@ -9,7 +9,7 @@
 
     "landing_headline": "Vous avez un doute ? Vérifiez.",
     "landing_tagline": "Analysez vos documents PDF en quelques secondes et détectez toute trace de modification.",
-    "disclaimer_upload": "Le traitement de votre document est temporaire. Nous garantissons qu'aucune donnée n'est stockée, enregistrée ou transmise à des tiers.",
+    "disclaimer_upload": "Votre document est traité temporairement, le temps de l'analyse, et n'est pas conservé. Seuls le hash du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être transmis à des API de vérification. PDF uniquement, 10 Mo et 20 pages maximum.",
     "disclaimer_api": "Seuls le hash du fichier et les identifiants d'entreprise peuvent être envoyés à des API externes (VirusTotal, INSEE, EU DSS) à des fins de vérification de fiabilité du document.",
     "browse_file": "Parcourir",
     "drop_pdf_here": "Déposez votre PDF ici",
@@ -26,6 +26,8 @@
     "too_many_pages_title": "Document trop long",
     "too_many_pages_message": "Ce document contient {count} pages. TrustyFile analyse uniquement les documents de 20 pages maximum.",
     "back_to_home": "Retour",
+    "render_error_title": "L'affichage du résultat a échoué",
+    "render_error_message": "Une erreur interne s'est produite pendant l'affichage de l'analyse ; elle a été enregistrée. Réessayez dans quelques instants ou avec un autre document.",
 
     "label_name": "Nom",
     "label_stated_date": "Date indiquée",
@@ -53,6 +55,13 @@
     "risk_HIGH": "RISQUE ÉLEVÉ",
     "risk_CRITICAL": "RISQUE CRITIQUE",
     "risk_UNVERIFIABLE": "NON VÉRIFIABLE",
+    "score_not_available": "—",
+    "score_caveat": "Un score élevé signale peu d'indices de manipulation ; il ne garantit pas l'authenticité du document. Un score bas mérite une vérification manuelle.",
+    "print_report": "Imprimer / enregistrer en PDF",
+    "print_report_title": "Rapport d'analyse TrustyFile",
+    "print_file": "Fichier :",
+    "print_date": "Analysé le",
+    "print_generated_by": "Généré par",
 
     "group_modifications": "Modifications",
     "group_consistency": "Cohérence",

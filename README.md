@@ -40,7 +40,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 - **VirusTotal lookup** — Check file hash against malware databases (requires API key)
 - **2D-DOC data panel** — View the decoded barcode fields (name, amount, dates) side by side with the document; the cross-check itself is scored by the `twod_doc` module above
 - **Modification history** — View what changed between PDF revisions with content diffs
-- **External verification (opt-in)** — SIRET/SIREN via INSEE, VAT via VIES; requires internet, off by default (`enable_external=True`)
+- **External verification** — SIRET/SIREN via INSEE, VAT via VIES; requires internet. On by default in the app (`enable_external = True` in `app.py`); pass `enable_external=False` to the analyzer to run fully offline
 
 ## Quick Start
 
