@@ -1536,6 +1536,9 @@ if uploaded_file is not None:
                         font-size="14" fill="{gauge_color}" font-weight="bold">
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
+                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:340px; margin:0.2rem auto 0.8rem auto;">
+                    {t("score_caveat")}
+                </p>
             </div>
             """, unsafe_allow_html=True)
 
