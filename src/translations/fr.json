@@ -26,6 +26,8 @@
     "too_many_pages_title": "Document trop long",
     "too_many_pages_message": "Ce document contient {count} pages. TrustyFile analyse uniquement les documents de 20 pages maximum.",
     "back_to_home": "Retour",
+    "render_error_title": "L'affichage du résultat a échoué",
+    "render_error_message": "Une erreur interne s'est produite pendant l'affichage de l'analyse ; elle a été enregistrée. Réessayez dans quelques instants ou avec un autre document.",
 
     "label_name": "Nom",
     "label_stated_date": "Date indiquée",

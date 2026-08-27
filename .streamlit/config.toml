@@ -33,6 +33,9 @@ gatherUsageStats = false
 
 [client]
 toolbarMode = "minimal"
+# Uncaught exceptions outside app.py's own guarded results block would still
+# print a full traceback into the page. Keep the details in the server log.
+showErrorDetails = "none"
 
 [theme]
 base = "dark"
