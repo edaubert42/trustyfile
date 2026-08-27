@@ -57,6 +57,11 @@
     "risk_UNVERIFIABLE": "NON VÉRIFIABLE",
     "score_not_available": "—",
     "score_caveat": "Un score élevé signale peu d'indices de manipulation ; il ne garantit pas l'authenticité du document. Un score bas mérite une vérification manuelle.",
+    "print_report": "Imprimer / enregistrer en PDF",
+    "print_report_title": "Rapport d'analyse TrustyFile",
+    "print_file": "Fichier :",
+    "print_date": "Analysé le",
+    "print_generated_by": "Généré par",
 
     "group_modifications": "Modifications",
     "group_consistency": "Cohérence",

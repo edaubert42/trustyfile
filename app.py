@@ -768,6 +768,80 @@ st.markdown(f"""
     .flag-medium {{ color: #ffb627; }}
     .flag-low {{ color: #6c757d; }}
 
+    /* ---- Print / "Save as PDF" (roadmap #8, tier 1) ----
+       The results page IS the report. This stylesheet turns the dark UI into
+       a black-on-white document: hides the chrome (header, uploader, page
+       selector, footer, the print button itself), stacks the two columns and
+       remaps the inline dark-theme colours through [style*=...] attribute
+       selectors — blunt, but it leaves every existing inline style alone. */
+    .tf-print-only {{ display: none; }}
+    @media print {{
+        @page {{ margin: 12mm; }}
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
+        [data-testid="stAppViewBlockContainer"], [data-testid="stMainBlockContainer"] {{
+            background: #fff !important;
+            color: #000 !important;
+        }}
+        .tf-print-only {{ display: block; }}
+        .custom-header, .tf-footer, #tf-print-wrap,
+        [data-testid="stFileUploader"], [data-testid="stSelectbox"],
+        [data-testid="stStatusWidget"], [data-testid="stDecoration"],
+        [data-testid="stToolbar"], [data-testid="stBottom"],
+        header[data-testid="stHeader"] {{
+            display: none !important;
+        }}
+        /* Results above the preview, instead of two narrow columns */
+        [data-testid="stHorizontalBlock"] {{ display: block !important; }}
+        [data-testid="stColumn"] {{ width: 100% !important; flex: none !important; }}
+        [data-testid="stAppViewBlockContainer"], [data-testid="stMainBlockContainer"] {{
+            padding-top: 0 !important;
+            max-width: none !important;
+        }}
+        /* Text. Everything rendered through st.markdown goes via React, which
+           re-serialises inline styles (`color:#eee` in the source becomes
+           `color: rgb(238, 238, 238)` in the DOM), so no rule can match the
+           hex spelled in app.py. Blanket black text inside every Streamlit
+           block, then give the coloured severity pills their white text back. */
+        [data-testid="stMarkdown"] *, [data-testid="stHtml"] *,
+        [data-testid="stExpander"] * {{
+            color: #000 !important;
+        }}
+        [data-testid="stMarkdown"] [style*="color: white"][style*="background: rgb("],
+        [data-testid="stMarkdown"] [style*="color: white"][style*="background-color: rgb("] {{
+            color: #fff !important;
+        }}
+        /* Dark cards and bar tracks -> light paper cards. rgb() forms of
+           #1a1a2e #111 #0e1117 #1a1a1a #2a2a2a #0a0a0a #1e1e1e #333 and the
+           tinted entity cards #0a2e1a #0a1e3a #1a2a3a. */
+        [style*="background: rgb(26, 26, 46)"], [style*="background: rgb(17, 17, 17)"],
+        [style*="background: rgb(14, 17, 23)"], [style*="background: rgb(26, 26, 26)"],
+        [style*="background: rgb(42, 42, 42)"], [style*="background: rgb(10, 10, 10)"],
+        [style*="background: rgb(30, 30, 30)"], [style*="background: rgb(51, 51, 51)"],
+        [style*="background: rgb(10, 46, 26)"], [style*="background: rgb(10, 30, 58)"],
+        [style*="background: rgb(26, 42, 58)"] {{
+            background: #f3f4f6 !important;
+        }}
+        [style*="border: 1px solid rgb(42, 42, 42)"], [style*="border-top: 1px solid rgb(42, 42, 42)"],
+        [style*="border-bottom: 1px solid rgb(34, 34, 34)"] {{
+            border-color: #d1d5db !important;
+        }}
+        hr {{ border-color: #d1d5db !important; }}
+        [data-testid="stExpander"], [data-testid="stExpander"] details,
+        [data-testid="stExpander"] summary,
+        [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+            background: #fff !important;
+            border-color: #d1d5db !important;
+        }}
+        /* Gauge: the white score glyph and the dark track */
+        svg text[fill="white"] {{ fill: #000 !important; }}
+        svg circle[stroke="#2a2a2a"] {{ stroke: #e5e7eb !important; }}
+        /* Keep severity pills and score bars in colour */
+        * {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+        details, .tf-print-keep {{ break-inside: avoid; }}
+        img {{ max-width: 100% !important; }}
+        a {{ text-decoration: none; color: inherit; }}
+    }}
+
     /* Label with hover tooltip */
     .tf-label {{
         position: relative;
@@ -806,8 +880,12 @@ st.markdown(f"""
         outline-offset: 2px;
     }}
     @media (max-width: 600px) {{
+        /* The tip is absolutely positioned inside a ~100px label, so plain
+           `white-space: normal` would wrap it into a 72px-wide sliver.
+           max-content lets it take the width it needs, capped to the viewport. */
         .tf-label .tf-tip {{
             white-space: normal;
+            width: max-content;
             max-width: 70vw;
         }}
     }}
@@ -1507,6 +1585,52 @@ if uploaded_file is not None:
         # RIGHT COLUMN: Analysis Results
         # =================================================================
         with results_col:
+            # Print / "Save as PDF" (roadmap #8, tier 1). The report header is
+            # print-only: on screen the same facts sit in the file-properties
+            # block further down, but a printed page has no URL bar and no
+            # filename bar to say what it is about, so they come first there.
+            # The script opens every <details> before printing (CSS cannot)
+            # and restores the reader's state afterwards.
+            from datetime import datetime as _dt_now
+            _analysed_at = _dt_now.now().strftime("%Y-%m-%d %H:%M")
+            st.html(f"""
+            <div class="tf-print-only tf-print-keep" style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:14px;">
+                <div style="font-size:1.1rem; font-weight:bold;">{t("print_report_title")}</div>
+                <div style="font-size:0.8rem;">{t("print_file")} {esc(uploaded_file.name)}</div>
+                <div style="font-size:0.8rem;">SHA-256 <code>{esc(result.file_hash)}</code></div>
+                <div style="font-size:0.8rem;">{t("print_date")} {_analysed_at} &middot; {t("print_generated_by")} https://www.trustyfile.com</div>
+            </div>
+            <div id="tf-print-wrap" style="display:flex; justify-content:flex-end; margin:0 0 0.2rem 0;">
+                <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
+                    {t("print_report")}
+                </button>
+            </div>
+            <script>
+            (function() {{
+                const btn = document.getElementById('tf-print');
+                if (btn && !btn.dataset.bound) {{
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', function() {{ window.print(); }});
+                }}
+                if (!window.__tfPrintHooks) {{
+                    window.__tfPrintHooks = true;
+                    window.addEventListener('beforeprint', function() {{
+                        document.querySelectorAll('details:not([open])').forEach(function(d) {{
+                            d.dataset.tfAutoOpen = '1';
+                            d.open = true;
+                        }});
+                    }});
+                    window.addEventListener('afterprint', function() {{
+                        document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
+                            d.open = false;
+                            delete d.dataset.tfAutoOpen;
+                        }});
+                    }});
+                }}
+            }})();
+            </script>
+            """, unsafe_allow_javascript=True)
+
             # Main score gauge (circular arc like HubSpot Website Grader)
             score = result.trust_score
             risk_level = result.risk_level
@@ -2895,7 +3019,7 @@ st.markdown(f"""
     .tf-footer-label {{ display: none; }}
 }}
 </style>
-<div style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
+<div class="tf-footer" style="position:fixed; bottom:0; left:0; right:0; display:flex; align-items:center; justify-content:center;
     padding:0.3rem 1rem; background:#0e1117; border-top:1px solid #1a1a2e; z-index:999;">
     <a href="{'/guides/' if _current_lang == 'fr' else '/en/guides/'}" style="position:absolute; left:1rem;
         color:#888; text-decoration:none; font-size:0.78rem; padding:2px 4px;">{t("footer_guides")}</a>
