@@ -84,6 +84,33 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/guides/verifier-un-extrait-kbis</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-un-extrait-kbis" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-un-extrait-kbis" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/guides/verifier-un-avis-d-imposition</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-un-avis-d-imposition" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-un-avis-d-imposition" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.trustyfile.com/outils/verifier-un-iban</loc>
     <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-un-iban" />
     <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/iban-checker" />
@@ -170,6 +197,33 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-spot-a-fake-iban" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/detecter-un-faux-rib" />
     <lastmod>2026-08-13</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-un-extrait-kbis" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-un-extrait-kbis" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-un-avis-d-imposition" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-un-avis-d-imposition" />
+    <lastmod>2026-09-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

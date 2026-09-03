@@ -458,6 +458,38 @@ def test_llms_txt_lists_every_public_page():
     assert linked - sitemap_locs == {f"{build_guides.SITE}/sitemap.xml"}
 
 
+_LINK_ROOTS = {
+    "/guides/": ROOT / "guides" / "fr",
+    "/en/guides/": ROOT / "guides" / "en",
+    "/outils/": ROOT / "tools" / "fr",
+    "/en/tools/": ROOT / "tools" / "en",
+}
+
+
+def test_internal_links_resolve_to_generated_files():
+    """Every site-relative link in every generated page points at a real page.
+
+    Guides cross-link each other by hand-typed slug inside prose; a typo
+    there renders fine and 404s in production, which nothing else catches.
+    """
+    broken = []
+    for path, content in build_guides.build().items():
+        if path.suffix != ".html":
+            continue
+        for href in re.findall(r'href="(/[^"#]*)', content):
+            for prefix, root in _LINK_ROOTS.items():
+                if href.startswith(prefix):
+                    slug = href[len(prefix):]
+                    target = root / "index.html" if slug == "" else root / f"{slug}.html"
+                    if not target.exists():
+                        broken.append((path.relative_to(ROOT).as_posix(), href))
+                    break
+            else:
+                # Not a generated section: the app root, /en, or a static asset.
+                assert href in ("/", "/en") or "." in href.rsplit("/", 1)[-1], href
+    assert not broken, broken
+
+
 @pytest.mark.parametrize(
     "lang,iso,expected",
     [

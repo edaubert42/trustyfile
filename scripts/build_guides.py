@@ -1074,6 +1074,446 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
             ],
         ),
+        Guide(
+            slug="fraude-au-faux-fournisseur-changement-de-rib",
+            counterpart="supplier-bank-detail-change-fraud",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["verifier-un-iban", "verifier-un-siret"],
+            title="Fraude au faux fournisseur : vérifier un changement de RIB",
+            description=(
+                "Un fournisseur annonce de nouvelles coordonnées bancaires ? Le "
+                "scénario de la fraude, les signaux d'alerte dans le message et le "
+                "RIB, et la procédure à suivre avant de payer."
+            ),
+            heading="Fraude au faux fournisseur : que faire face à un changement de RIB",
+            intro=(
+                "La fraude au faux fournisseur consiste à se faire passer pour un "
+                "fournisseur habituel afin de détourner ses paiements : un message "
+                "annonce un « changement de coordonnées bancaires », la comptabilité "
+                "met la fiche à jour, et le règlement suivant part sur le compte de "
+                "l'escroc. Le vrai fournisseur ne s'en aperçoit qu'en relançant sa "
+                "facture impayée, souvent des semaines plus tard. Ce guide s'adresse à "
+                "ceux qui traitent les paiements : reconnaître l'attaque, contrôler le "
+                "document reçu, et surtout appliquer la procédure qui la neutralise."
+            ),
+            sections=[
+                Section(
+                    heading="Comment se déroule l'attaque",
+                    paragraphs=[
+                        "Le fraudeur commence par se renseigner : qui sont vos "
+                        "fournisseurs, qui traite les factures chez vous, quand tombent "
+                        "les échéances. Sites web, appels d'offres, réseaux "
+                        "professionnels et, de plus en plus souvent, une boîte mail "
+                        "compromise chez le fournisseur lui-même fournissent tout cela.",
+                        "Vient ensuite l'usurpation. Dans la version la plus simple, le "
+                        "message part d'un domaine sosie — une lettre doublée, un "
+                        "<em>.co</em> à la place d'un <em>.com</em>, un tiret ajouté. "
+                        "Dans la version la plus dangereuse, il part de la vraie boîte "
+                        "mail du fournisseur, piratée, en réponse à un échange réel : "
+                        "l'expéditeur, le fil, la signature, tout est authentique. Seul "
+                        "le RIB ne l'est pas.",
+                        "Le déclencheur est un prétexte banal : changement de banque, "
+                        "fusion, réorganisation comptable, « suite à un contrôle ». Un "
+                        "RIB est joint, parfois une facture. Puis vient la pression : "
+                        "un rappel téléphonique, une échéance proche, une remise si le "
+                        "paiement est rapide. La <a href=\"/guides/detecter-un-faux-rib\">"
+                        "fraude au faux RIB</a> est le volet documentaire de ce scénario ; "
+                        "la « fraude au président », où l'ordre de virement urgent vient "
+                        "d'un prétendu dirigeant, en est la cousine.",
+                    ],
+                ),
+                Section(
+                    heading="Les signaux d'alerte dans le message",
+                    paragraphs=[
+                        "Aucun de ces indices ne prouve la fraude ; un seul suffit à "
+                        "déclencher la vérification décrite plus bas.",
+                    ],
+                    bullets=[
+                        "L'<strong>adresse d'expédition</strong> diffère d'une lettre du "
+                        "domaine habituel, ou l'adresse de réponse (<em>Reply-To</em>) "
+                        "n'est pas celle de l'expéditeur affiché.",
+                        "Un <strong>nouvel interlocuteur</strong> apparaît, ou l'on vous "
+                        "demande de ne plus passer par le contact habituel, « en congé » "
+                        "ou « parti ».",
+                        "<strong>Urgence et confidentialité</strong> : régler avant telle "
+                        "date, ne pas en parler, traiter « en direct ».",
+                        "La nouvelle banque est dans un <strong>autre pays</strong> que "
+                        "le fournisseur, ou c'est un établissement de paiement en ligne "
+                        "pour une entreprise qui, jusque-là, était dans une banque de "
+                        "réseau.",
+                        "Le fournisseur <strong>évite le téléphone</strong> ou ne rappelle "
+                        "que depuis un numéro inconnu.",
+                        "Le message arrive <strong>juste après l'émission d'une facture "
+                        "importante</strong> ou juste avant son échéance.",
+                    ],
+                ),
+                Section(
+                    heading="Ce que révèle le RIB joint",
+                    paragraphs=[
+                        "Le document est le seul élément tangible que vous tenez. Trois "
+                        "contrôles se font en quelques minutes :",
+                    ],
+                    bullets=[
+                        "La <strong>clé de l'IBAN</strong> (et la clé RIB pour un compte "
+                        "français) : une clé fausse condamne le document. Une clé valide "
+                        "ne l'innocente pas — les fraudeurs ouvrent de vrais comptes.",
+                        "La <strong>cohérence bancaire</strong> : le code établissement "
+                        "dans l'IBAN, le BIC et le nom de banque imprimé doivent désigner "
+                        "le même établissement ; un logo de grande banque sur un IBAN "
+                        "d'établissement de paiement se contredit.",
+                        "Les <strong>traces de retouche</strong> : changement de police "
+                        "sur la ligne de l'IBAN, rectangle blanc recouvrant l'ancien "
+                        "numéro, révision du PDF postérieure à sa création, métadonnées "
+                        "d'un éditeur PDF sur un document censé sortir de la banque. Le "
+                        "guide <a href=\"/guides/verifier-une-facture-falsifiee\">sur "
+                        "les factures falsifiées</a> détaille chacun de ces indices.",
+                    ],
+                ),
+                Section(
+                    heading="La procédure qui protège vraiment : le rappel",
+                    paragraphs=[
+                        "Aucun contrôle du document ne peut établir à qui appartient le "
+                        "compte. Une seule chose le peut : demander au fournisseur, par "
+                        "un canal que le fraudeur ne contrôle pas.",
+                        "Rappelez à un <strong>numéro que vous possédiez déjà</strong> — "
+                        "contrat, ancienne facture, fiche fournisseur, site officiel — "
+                        "jamais celui du message ni celui imprimé sur le RIB reçu. "
+                        "Parlez à une personne que vous connaissez, ou à défaut au "
+                        "service comptable, et faites-lui lire l'IBAN. Si la boîte mail "
+                        "du fournisseur est compromise, c'est aussi ainsi qu'il "
+                        "l'apprendra.",
+                        "Inscrivez ce rappel dans une <strong>procédure</strong> : tout "
+                        "changement de coordonnées bancaires est validé par deux "
+                        "personnes, après confirmation téléphonique tracée, et le premier "
+                        "paiement vers un nouveau compte attend ce feu vert quelle que "
+                        "soit l'urgence invoquée. L'urgence est l'outil du fraudeur ; la "
+                        "procédure est le vôtre.",
+                        "Depuis fin 2025, les banques de la zone euro vérifient la "
+                        "concordance entre le nom du bénéficiaire saisi et le titulaire "
+                        "de l'IBAN avant d'exécuter un virement. C'est un filet "
+                        "supplémentaire, pas une raison de sauter le rappel : le compte "
+                        "frauduleux est souvent ouvert sous un nom proche de celui du "
+                        "fournisseur, ou au nom d'une société écran.",
+                    ],
+                ),
+                Section(
+                    heading="Si le virement est déjà parti",
+                    paragraphs=[
+                        "Chaque heure compte : les fonds sont généralement retirés ou "
+                        "renvoyés à l'étranger en quelques jours.",
+                    ],
+                    bullets=[
+                        "<strong>Appelez votre banque</strong> immédiatement et demandez "
+                        "un rappel de fonds (<em>recall</em>) ; les chances baissent "
+                        "vite mais ne sont pas nulles tant que le compte destinataire "
+                        "n'a pas été vidé.",
+                        "<strong>Prévenez le vrai fournisseur</strong> : si sa messagerie "
+                        "est compromise, il doit la sécuriser et alerter ses autres "
+                        "clients.",
+                        "<strong>Déposez plainte</strong> et conservez tout : e-mails "
+                        "avec leurs en-têtes complets, RIB reçu, ordres de virement, "
+                        "relevés d'appels.",
+                        "<strong>Déclarez le sinistre</strong> à votre assureur si vous "
+                        "avez une garantie fraude ou cyber, dans les délais du contrat.",
+                        "<strong>Signalez</strong> l'attaque sur cybermalveillance.gouv.fr "
+                        "et revoyez la procédure interne qui a laissé passer le "
+                        "changement.",
+                    ],
+                ),
+                Section(
+                    heading="Ce qu'un contrôle automatique peut et ne peut pas faire",
+                    paragraphs=[
+                        "TrustyFile vérifie le document : clé de l'IBAN, cohérence des "
+                        "identifiants d'entreprise (SIRET, TVA), traces de retouche, "
+                        "révisions, texte recouvert. Il repère le RIB fabriqué ou modifié, "
+                        "cas le plus fréquent. Il ne peut pas savoir à qui appartient un "
+                        "compte parfaitement réel : ce dernier maillon reste le coup de "
+                        "téléphone — et il n'est pas remplaçable.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="verifier-un-extrait-kbis",
+            counterpart="how-to-verify-a-kbis-extract",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["verifier-un-siret", "verifier-un-siren"],
+            title="Vérifier un extrait Kbis : authenticité et cohérence",
+            description=(
+                "Confronter un Kbis au registre (SIREN, dirigeants, siège, état de "
+                "la société), repérer les indices d'un faux dans le PDF, et savoir ce "
+                "qu'un Kbis authentique ne prouve pas."
+            ),
+            heading="Comment vérifier un extrait Kbis",
+            intro=(
+                "L'extrait Kbis est la « carte d'identité » d'une société "
+                "commerciale : il atteste de son immatriculation au registre du "
+                "commerce et des sociétés (RCS) et résume ses informations légales. "
+                "On l'exige d'un nouveau fournisseur, d'un sous-traitant, d'un "
+                "locataire professionnel, d'un client en compte. C'est aussi l'un des "
+                "documents les plus faciles à falsifier : un PDF, un modèle que tout "
+                "le monde connaît, et une lecture souvent rapide. La bonne nouvelle : "
+                "tout ce qu'il contient se vérifie dans des registres publics, "
+                "gratuitement."
+            ),
+            sections=[
+                Section(
+                    heading="Ce que contient un Kbis, et ce qu'il n'est pas",
+                    paragraphs=[
+                        "Un extrait Kbis mentionne la dénomination, la forme juridique, "
+                        "le capital, l'adresse du siège, le numéro d'identification "
+                        "(SIREN) et le greffe d'immatriculation (« RCS » suivi de la "
+                        "ville), le code APE, la date d'immatriculation, la durée de la "
+                        "société, son activité, l'identité et la date de naissance des "
+                        "dirigeants, et le cas échéant les procédures collectives en "
+                        "cours (sauvegarde, redressement, liquidation). Il est délivré "
+                        "par le greffe du tribunal de commerce, en ligne via Infogreffe, "
+                        "et daté du jour de sa délivrance : c'est une photographie, "
+                        "d'où l'usage d'exiger un extrait de moins de trois mois.",
+                        "Deux confusions fréquentes. L'« extrait K » est l'équivalent "
+                        "pour un commerçant personne physique. Et un micro-entrepreneur, "
+                        "un artisan ou un professionnel libéral n'a <em>pas</em> de "
+                        "Kbis : il justifie de son existence par un avis de situation au "
+                        "répertoire SIRENE (INSEE) ou un extrait d'immatriculation au "
+                        "Registre national des entreprises (INPI). Un « Kbis » présenté "
+                        "par un auto-entrepreneur est, à lui seul, un signal d'alerte.",
+                    ],
+                ),
+                Section(
+                    heading="Confronter le document au registre",
+                    paragraphs=[
+                        "C'est le contrôle qui compte, et il est gratuit. L'<a "
+                        "href=\"https://annuaire-entreprises.data.gouv.fr\">Annuaire des "
+                        "entreprises</a> (service public) agrège les données de l'INSEE, "
+                        "de l'INPI et des greffes : état administratif (active ou "
+                        "cessée), siège, dirigeants, établissements, date de création. "
+                        "Infogreffe donne la fiche du RCS et délivre l'extrait officiel ; "
+                        "le BODACC publie les annonces légales — immatriculation, "
+                        "modifications, procédures collectives, radiation.",
+                        "Reprenez le Kbis ligne à ligne et comparez : même SIREN, même "
+                        "dénomination, même forme, même siège, mêmes dirigeants, même "
+                        "date d'immatriculation, même greffe. Un dirigeant absent du "
+                        "registre, une adresse différente, une société « active » sur le "
+                        "papier mais radiée ou en liquidation dans le registre : chacun "
+                        "de ces écarts vaut refus jusqu'à explication. Une modification "
+                        "toute récente peut ne pas être encore publiée — demandez alors "
+                        "le récépissé du greffe, pas un nouveau Kbis.",
+                    ],
+                ),
+                Section(
+                    heading="Les indices d'un faux dans le document lui-même",
+                    paragraphs=[
+                        "Avant même d'ouvrir le registre, le fichier peut se trahir :",
+                    ],
+                    bullets=[
+                        "Un <strong>SIREN dont la clé est fausse</strong> : les neuf "
+                        "chiffres obéissent à la formule de Luhn ; un numéro inventé ou "
+                        "modifié échoue presque toujours à ce test.",
+                        "Un <strong>greffe incohérent avec le siège</strong> : une "
+                        "société immatriculée « RCS Paris » dont le siège est à Lyon. "
+                        "Les transferts de siège existent, mais le décalage doit "
+                        "s'expliquer.",
+                        "Des <strong>dates impossibles</strong> : immatriculation "
+                        "postérieure à la date de délivrance, dirigeant né après la "
+                        "création, extrait « de moins de trois mois » daté de l'an "
+                        "dernier.",
+                        "Une <strong>mise en page approximative</strong> : police qui "
+                        "change au milieu d'une ligne, alignements irréguliers, "
+                        "rectangle blanc sous un champ. Le guide "
+                        "<a href=\"/guides/savoir-si-un-pdf-a-ete-modifie\">sur les PDF "
+                        "modifiés</a> explique comment les révisions et les objets "
+                        "fantômes trahissent la retouche.",
+                        "Des <strong>métadonnées d'éditeur PDF</strong> ou de "
+                        "convertisseur en ligne sur un document censé sortir de la chaîne "
+                        "du greffe.",
+                    ],
+                ),
+                Section(
+                    heading="Ce qu'un Kbis authentique ne prouve pas",
+                    paragraphs=[
+                        "Un Kbis authentique prouve qu'une société existe. Il ne prouve "
+                        "pas que la personne qui vous l'envoie la représente. Les "
+                        "usurpations d'identité de sociétés réelles, les sociétés "
+                        "dormantes rachetées pour servir de façade et les « sociétés "
+                        "éphémères » créées pour quelques mois d'escroquerie présentent "
+                        "toutes un Kbis parfaitement valide.",
+                        "Vérifiez donc aussi que votre interlocuteur figure parmi les "
+                        "dirigeants — ou dispose d'un mandat —, que le domaine de son "
+                        "adresse e-mail est bien celui de l'entreprise, et que la "
+                        "société n'est ni radiée ni en procédure collective. Une "
+                        "immatriculation de quelques mois, un capital symbolique et une "
+                        "première commande importante forment un ensemble qui justifie "
+                        "des garanties supplémentaires.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier l'ensemble du dossier",
+                    paragraphs=[
+                        "Le Kbis n'arrive jamais seul. Le RIB doit être au nom exact de "
+                        "la dénomination ; la facture doit porter un SIRET dont les neuf "
+                        "premiers chiffres sont le SIREN du Kbis et un numéro de TVA "
+                        "intracommunautaire cohérent avec lui (FR, une clé à deux "
+                        "chiffres, puis le SIREN) ; pour la sous-traitance, "
+                        "l'attestation de vigilance URSSAF complète l'obligation de "
+                        "vigilance. Toute incohérence entre ces pièces pèse plus lourd "
+                        "que la qualité de chacune prise isolément.",
+                        "TrustyFile fait ces recoupements sur les PDF que vous déposez : "
+                        "clés SIREN, SIRET et TVA, existence de l'entreprise auprès de "
+                        "l'INSEE, et traces de retouche dans le fichier. La confrontation "
+                        "au registre, elle, reste un geste que rien ne remplace.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="verifier-un-avis-d-imposition",
+            counterpart="how-to-verify-a-french-tax-notice",
+            published="2026-09-03",
+            modified="2026-09-03",
+            title="Vérifier un avis d'imposition : SVAIR, 2D-Doc et cohérence",
+            description=(
+                "Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat "
+                "avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et "
+                "les autres pièces du dossier."
+            ),
+            heading="Comment vérifier un avis d'imposition",
+            intro=(
+                "L'avis d'impôt sur le revenu est la pièce maîtresse d'un dossier de "
+                "location et de nombreuses demandes d'aide ou de crédit : il fixe le "
+                "revenu fiscal de référence du foyer. C'est aussi le justificatif le "
+                "plus retouché des dossiers locatifs, parce qu'un revenu gonflé ouvre "
+                "des portes que le vrai revenu ferme. Il se vérifie pourtant mieux que "
+                "presque tout autre document : l'administration fiscale met à "
+                "disposition un service de contrôle en ligne, et l'avis porte un code "
+                "2D-Doc signé."
+            ),
+            sections=[
+                Section(
+                    heading="Ce que dit un avis, et ce qui se falsifie",
+                    paragraphs=[
+                        "L'avis indique le numéro fiscal du déclarant (13 chiffres), la "
+                        "référence de l'avis (13 caractères), le revenu fiscal de "
+                        "référence, le nombre de parts, le montant de l'impôt, "
+                        "l'adresse et la situation de famille. Il porte deux années : "
+                        "celle des revenus déclarés et celle de l'émission, qui la suit. "
+                        "Juste après la déclaration, l'« avis de situation déclarative » "
+                        "(ASDIR) en tient lieu, avec les mêmes identifiants.",
+                        "Les fraudes suivent quatre schémas : un revenu fiscal de "
+                        "référence gonflé sur un avis authentique ; un vieil avis dont on "
+                        "a changé l'année ; l'avis d'une autre personne dont on a "
+                        "remplacé le nom et l'adresse ; un document entièrement fabriqué "
+                        "à partir d'un modèle. Les deux premiers sont les plus courants, "
+                        "et les deux contrôles ci-dessous les attrapent tous.",
+                    ],
+                ),
+                Section(
+                    heading="Le service de vérification des avis (SVAIR)",
+                    paragraphs=[
+                        "La Direction générale des Finances publiques propose un "
+                        "<a href=\"https://cfsmsp.impots.gouv.fr/secavis/\">service de "
+                        "vérification des avis</a>, accessible sans compte et destiné "
+                        "précisément aux tiers à qui l'avis est présenté : bailleurs, "
+                        "agences, administrations. Saisissez le numéro fiscal et la "
+                        "référence de l'avis tels qu'ils figurent sur le document : le "
+                        "service restitue les données connues de l'administration pour "
+                        "cet avis — revenu fiscal de référence, nombre de parts, "
+                        "situation de famille, adresse.",
+                        "Trois issues. Le couple numéro fiscal / référence est inconnu : "
+                        "le document est fabriqué ou l'un des identifiants a été "
+                        "retouché. Il est connu mais les chiffres diffèrent : l'avis est "
+                        "authentique et a été modifié après coup. Tout concorde : les "
+                        "montants sont bien ceux de l'administration. Ce contrôle prend "
+                        "une minute et l'emporte sur tous les autres.",
+                    ],
+                ),
+                Section(
+                    heading="Le code 2D-Doc",
+                    paragraphs=[
+                        "Les avis portent un code 2D-Doc : un DataMatrix signé "
+                        "électroniquement par l'administration fiscale, qui reprend les "
+                        "données clés du document (revenu fiscal de référence, nombre de "
+                        "parts, référence de l'avis, numéro fiscal, année). Un lecteur "
+                        "2D-Doc le décode et vérifie la signature ; TrustyFile le fait "
+                        "pour tout PDF déposé, hors ligne, avec les certificats publiés "
+                        "par l'autorité.",
+                        "Si les données décodées diffèrent de celles imprimées, le "
+                        "texte visible a été retouché et le code, lui, dit la vérité. Si "
+                        "la signature est invalide, le code a été recomposé — ce qu'un "
+                        "faussaire ne peut pas faire correctement sans la clé privée de "
+                        "l'administration. Un code illisible (scan flou, photo) n'est en "
+                        "revanche pas une preuve : il vous laisse simplement avec le "
+                        "contrôle SVAIR. Le guide <a href=\"/guides/2d-doc-verifier-un-"
+                        "document-officiel\">sur le 2D-Doc</a> détaille le mécanisme.",
+                    ],
+                ),
+                Section(
+                    heading="Les recoupements avec le reste du dossier",
+                    paragraphs=[
+                        "Un avis cohérent avec lui-même peut ne pas l'être avec le "
+                        "dossier :",
+                    ],
+                    bullets=[
+                        "<strong>Bulletins de salaire</strong> : pour un salarié, le "
+                        "revenu fiscal de référence est proche du cumul annuel « net "
+                        "imposable » des bulletins, diminué de l'abattement de 10 % pour "
+                        "frais professionnels. Un écart de plusieurs milliers d'euros "
+                        "demande une explication (autres revenus, changement de "
+                        "situation). Voir le guide <a href=\"/guides/verifier-un-"
+                        "bulletin-de-salaire\">sur les bulletins de salaire</a>.",
+                        "<strong>Adresse</strong> : celle de l'avis doit correspondre au "
+                        "<a href=\"/guides/verifier-un-justificatif-de-domicile\">"
+                        "justificatif de domicile</a> et à l'historique déclaré.",
+                        "<strong>Nombre de parts</strong> : cohérent avec la situation "
+                        "de famille annoncée (une part pour une personne seule, deux pour "
+                        "un couple, puis les demi-parts pour les enfants à charge).",
+                        "<strong>Années</strong> : un avis émis l'année N porte sur les "
+                        "revenus de N-1 ; un « dernier avis » de deux ans n'est pas le "
+                        "dernier.",
+                        "<strong>Orthographe des noms</strong> et civilité identiques sur "
+                        "toutes les pièces.",
+                    ],
+                ),
+                Section(
+                    heading="Les indices dans le fichier PDF",
+                    paragraphs=[
+                        "Un avis téléchargé depuis l'espace particulier d'impots.gouv.fr "
+                        "est un PDF numérique natif, produit d'un bloc par la chaîne de "
+                        "l'administration. Un avis modifié dans un éditeur PDF garde des "
+                        "traces : une révision ajoutée après la création, une police "
+                        "légèrement différente sur le montant retouché, l'ancien chiffre "
+                        "encore présent sous un rectangle blanc, des métadonnées "
+                        "d'éditeur ou de convertisseur en ligne. Le guide "
+                        "<a href=\"/guides/savoir-si-un-pdf-a-ete-modifie\">sur les PDF "
+                        "modifiés</a> passe ces indices en revue.",
+                        "Un avis scanné ou photographié perd tout cela : ni structure "
+                        "PDF exploitable, ni code 2D-Doc souvent lisible. Ce n'est pas "
+                        "un signe de fraude — beaucoup de gens n'ont qu'une version "
+                        "papier — mais c'est un document non vérifiable par lui-même. "
+                        "Demandez le PDF d'origine, ou passez directement par le "
+                        "contrôle SVAIR.",
+                    ],
+                ),
+                Section(
+                    heading="Cadre légal et bons réflexes",
+                    paragraphs=[
+                        "Un bailleur peut demander à un candidat son dernier ou "
+                        "avant-dernier avis d'imposition ou de non-imposition : la "
+                        "pièce figure dans la liste limitative fixée par le décret du 5 "
+                        "novembre 2015, qui interdit d'exiger d'autres documents que ceux "
+                        "qu'il énumère. Présenter un avis falsifié relève du faux et de "
+                        "l'usage de faux (article 441-1 du code pénal, jusqu'à trois ans "
+                        "d'emprisonnement et 45 000 euros d'amende).",
+                        "Face à un avis douteux : ne concluez pas, conservez le document "
+                        "et les échanges, et gardez à l'esprit que les pièces d'un "
+                        "candidat non retenu ne doivent pas être conservées au-delà du "
+                        "nécessaire. TrustyFile n'archive rien : le fichier est analysé, "
+                        "puis supprimé.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Guide(
@@ -1672,6 +2112,429 @@ GUIDES: dict[str, list[Guide]] = {
                         "had — never the one in the message announcing the "
                         "change, nor the one printed on the suspicious "
                         "document.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="supplier-bank-detail-change-fraud",
+            counterpart="fraude-au-faux-fournisseur-changement-de-rib",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["iban-checker", "siret-checker"],
+            title="Supplier bank-detail change fraud: verifying a new IBAN",
+            description=(
+                "A supplier announces new bank details? How the fraud works, the "
+                "warning signs in the message and in the attached document, and the "
+                "checks to run before you pay."
+            ),
+            heading="Supplier bank-detail change fraud: what to do with a new IBAN",
+            intro=(
+                "Supplier impersonation fraud — also called invoice redirection or "
+                "payment diversion fraud — consists of posing as a regular supplier "
+                "to hijack its payments: a message announces a \"change of bank "
+                "details\", accounts payable updates the vendor record, and the "
+                "next payment lands in the fraudster's account. The real supplier "
+                "only notices when it chases the unpaid invoice, often weeks later. "
+                "This guide is for whoever handles payments: recognise the attack, "
+                "check the document you received, and above all follow the one "
+                "procedure that defeats it."
+            ),
+            sections=[
+                Section(
+                    heading="How the attack unfolds",
+                    paragraphs=[
+                        "The fraudster starts with reconnaissance: who your suppliers "
+                        "are, who processes invoices on your side, when payments fall "
+                        "due. Websites, tender notices, professional networks and, "
+                        "increasingly, a compromised mailbox at the supplier itself "
+                        "provide all of it.",
+                        "Then comes the impersonation. In the simplest version the "
+                        "message comes from a look-alike domain — a doubled letter, "
+                        "<em>.co</em> instead of <em>.com</em>, an added hyphen. In the "
+                        "most dangerous version it comes from the supplier's real, "
+                        "hacked mailbox, as a reply inside a genuine thread: sender, "
+                        "history and signature are all authentic. Only the bank details "
+                        "are not.",
+                        "The trigger is a mundane pretext: a change of bank, a merger, "
+                        "an accounting reorganisation, \"following an audit\". A bank "
+                        "details document is attached, sometimes an invoice. Then the "
+                        "pressure: a follow-up call, a close due date, a discount for "
+                        "fast payment. <a href=\"/en/guides/how-to-spot-a-fake-iban\">"
+                        "Fake IBAN fraud</a> is the document side of this scenario; "
+                        "\"CEO fraud\", where the urgent transfer order comes from a "
+                        "supposed executive, is its cousin.",
+                    ],
+                ),
+                Section(
+                    heading="Warning signs in the message",
+                    paragraphs=[
+                        "None of these proves fraud; any one of them is enough to "
+                        "trigger the verification described below.",
+                    ],
+                    bullets=[
+                        "The <strong>sender address</strong> differs from the usual "
+                        "domain by one letter, or the reply address (<em>Reply-To</em>) "
+                        "is not the displayed sender.",
+                        "A <strong>new contact</strong> appears, or you are asked to stop "
+                        "going through the usual person, who is \"on leave\" or \"has "
+                        "left\".",
+                        "<strong>Urgency and secrecy</strong>: pay before a given date, "
+                        "keep it quiet, deal \"directly\".",
+                        "The new bank is in a <strong>different country</strong> from the "
+                        "supplier, or it is an online payment institution for a company "
+                        "that had always banked with a high-street bank.",
+                        "The supplier <strong>avoids the phone</strong> or only calls "
+                        "back from an unknown number.",
+                        "The message arrives <strong>right after a large invoice was "
+                        "issued</strong> or just before it falls due.",
+                    ],
+                ),
+                Section(
+                    heading="What the attached bank-detail document reveals",
+                    paragraphs=[
+                        "The document is the only tangible thing you hold. Three checks "
+                        "take a few minutes:",
+                    ],
+                    bullets=[
+                        "The <strong>IBAN check digits</strong> (and the RIB key for a "
+                        "French account): a wrong key condemns the document. A valid "
+                        "key does not clear it — fraudsters open real accounts.",
+                        "<strong>Bank consistency</strong>: the bank code inside the "
+                        "IBAN, the BIC and the printed bank name must all point to the "
+                        "same institution; a major bank's logo over a payment "
+                        "institution's IBAN contradicts itself.",
+                        "<strong>Traces of editing</strong>: a font change on the IBAN "
+                        "line, a white rectangle covering the old number, a PDF "
+                        "revision later than its creation, PDF-editor metadata on a "
+                        "document supposedly issued by a bank. The guide "
+                        "<a href=\"/en/guides/how-to-spot-a-tampered-invoice\">on "
+                        "tampered invoices</a> details each of these signals.",
+                    ],
+                ),
+                Section(
+                    heading="The procedure that actually protects you: the call-back",
+                    paragraphs=[
+                        "No check of the document can establish who owns the account. "
+                        "Only one thing can: asking the supplier, through a channel the "
+                        "fraudster does not control.",
+                        "Call a <strong>number you already had</strong> — the contract, "
+                        "an old invoice, the vendor record, the official website — never "
+                        "the one in the message or the one printed on the document you "
+                        "just received. Speak to someone you know, or failing that to "
+                        "the accounts department, and have them read the IBAN back. If "
+                        "the supplier's mailbox is compromised, this is also how they "
+                        "will find out.",
+                        "Write the call-back into a <strong>procedure</strong>: every "
+                        "change of bank details is approved by two people after a logged "
+                        "phone confirmation, and the first payment to a new account "
+                        "waits for that approval whatever urgency is claimed. Urgency is "
+                        "the fraudster's tool; the procedure is yours.",
+                        "Since late 2025, banks in the euro area check that the payee "
+                        "name entered matches the IBAN holder before executing a "
+                        "transfer. That is an extra net, not a reason to skip the call: "
+                        "the fraudulent account is often opened under a name close to "
+                        "the supplier's, or in the name of a shell company.",
+                    ],
+                ),
+                Section(
+                    heading="If the payment has already gone out",
+                    paragraphs=[
+                        "Every hour counts: the funds are usually withdrawn or moved "
+                        "abroad within days.",
+                    ],
+                    bullets=[
+                        "<strong>Call your bank</strong> immediately and request a "
+                        "recall of the transfer; the odds fall quickly but are not zero "
+                        "while the receiving account has not been emptied.",
+                        "<strong>Warn the real supplier</strong>: if its mailbox is "
+                        "compromised it must secure it and alert its other customers.",
+                        "<strong>File a police report</strong> and keep everything: "
+                        "e-mails with full headers, the bank-detail document, payment "
+                        "orders, call logs.",
+                        "<strong>Notify your insurer</strong> if you hold fraud or cyber "
+                        "cover, within the policy's deadlines.",
+                        "<strong>Review the internal process</strong> that let the "
+                        "change through, and report the attack to your national "
+                        "cybercrime service.",
+                    ],
+                ),
+                Section(
+                    heading="What an automated check can and cannot do",
+                    paragraphs=[
+                        "TrustyFile checks the document: IBAN check digits, consistency "
+                        "of company identifiers (SIRET, VAT), traces of editing, "
+                        "revisions, covered text. It catches the fabricated or altered "
+                        "bank-detail document, which is the most common case. It cannot "
+                        "know who owns a perfectly real account: that last link remains "
+                        "the phone call — and nothing replaces it.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-verify-a-kbis-extract",
+            counterpart="verifier-un-extrait-kbis",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["siret-checker", "siren-checker"],
+            title="How to verify a Kbis extract (French company registration)",
+            description=(
+                "Check a Kbis against the public registers (SIREN, directors, "
+                "registered office, company status), spot a forged PDF, and know "
+                "what a genuine Kbis does not prove."
+            ),
+            heading="How to verify a Kbis extract",
+            intro=(
+                "The Kbis extract is the \"identity card\" of a French commercial "
+                "company: it certifies its registration in the trade and companies "
+                "register (RCS) and summarises its legal particulars. It is asked of "
+                "any new supplier, subcontractor, business tenant or trade-credit "
+                "customer. It is also one of the easiest documents to forge: a PDF, "
+                "a layout everyone knows, and a reading that is often quick. The good "
+                "news: everything it contains can be checked in public registers, "
+                "for free."
+            ),
+            sections=[
+                Section(
+                    heading="What a Kbis contains, and what it is not",
+                    paragraphs=[
+                        "A Kbis states the company name, legal form, share capital, "
+                        "registered office address, identification number (SIREN) and "
+                        "registering court (\"RCS\" followed by a city), APE activity "
+                        "code, registration date, duration, activity, the identity and "
+                        "date of birth of its directors, and any ongoing insolvency "
+                        "proceedings (safeguard, receivership, liquidation). It is "
+                        "issued by the clerk of the commercial court, online through "
+                        "Infogreffe, and dated the day it is issued: it is a snapshot, "
+                        "hence the custom of demanding one less than three months old.",
+                        "Two frequent confusions. The \"extrait K\" is the equivalent for "
+                        "a sole trader. And a micro-entrepreneur, a craftsperson or a "
+                        "liberal professional has <em>no</em> Kbis: they prove their "
+                        "existence with a SIRENE status notice (INSEE) or an extract "
+                        "from the National Business Register (INPI). A \"Kbis\" "
+                        "presented by a micro-entrepreneur is, by itself, a warning "
+                        "sign.",
+                    ],
+                ),
+                Section(
+                    heading="Check the document against the register",
+                    paragraphs=[
+                        "This is the check that matters, and it is free. The official "
+                        "<a href=\"https://annuaire-entreprises.data.gouv.fr\">Annuaire "
+                        "des entreprises</a> aggregates data from INSEE, INPI and the "
+                        "court clerks: administrative status (active or ceased), "
+                        "registered office, directors, establishments, creation date. "
+                        "Infogreffe shows the RCS record and issues the official "
+                        "extract; the BODACC publishes legal notices — registration, "
+                        "amendments, insolvency proceedings, deregistration.",
+                        "Go through the Kbis line by line and compare: same SIREN, same "
+                        "name, same legal form, same office, same directors, same "
+                        "registration date, same court. A director missing from the "
+                        "register, a different address, a company \"active\" on paper "
+                        "but struck off or in liquidation in the register: each of these "
+                        "gaps means refusal until explained. A very recent amendment may "
+                        "not be published yet — then ask for the court's filing receipt, "
+                        "not for another Kbis.",
+                    ],
+                ),
+                Section(
+                    heading="Signs of a forgery in the document itself",
+                    paragraphs=[
+                        "Before you even open the register, the file can give itself "
+                        "away:",
+                    ],
+                    bullets=[
+                        "A <strong>SIREN with a wrong check digit</strong>: the nine "
+                        "digits follow the Luhn formula; an invented or altered number "
+                        "almost always fails it.",
+                        "A <strong>court inconsistent with the office</strong>: a company "
+                        "registered \"RCS Paris\" whose office is in Lyon. Office "
+                        "transfers happen, but the gap must be explained.",
+                        "<strong>Impossible dates</strong>: registration later than the "
+                        "issue date, a director born after the company was created, an "
+                        "extract \"less than three months old\" dated last year.",
+                        "<strong>Sloppy layout</strong>: a font that changes mid-line, "
+                        "uneven alignment, a white rectangle under a field. The guide "
+                        "<a href=\"/en/guides/how-to-tell-if-a-pdf-was-modified\">on "
+                        "modified PDFs</a> explains how revisions and ghost objects "
+                        "betray editing.",
+                        "<strong>PDF-editor or online-converter metadata</strong> on a "
+                        "document supposedly produced by the court clerk's system.",
+                    ],
+                ),
+                Section(
+                    heading="What a genuine Kbis does not prove",
+                    paragraphs=[
+                        "A genuine Kbis proves that a company exists. It does not prove "
+                        "that the person sending it represents that company. "
+                        "Impersonation of real companies, dormant companies bought as a "
+                        "front, and short-lived companies created for a few months of "
+                        "fraud all come with a perfectly valid Kbis.",
+                        "So also check that your contact is among the directors — or "
+                        "holds a mandate —, that their e-mail domain is the company's, "
+                        "and that the company is neither struck off nor in insolvency "
+                        "proceedings. A registration a few months old, a token share "
+                        "capital and a large first order together justify additional "
+                        "guarantees.",
+                    ],
+                ),
+                Section(
+                    heading="Check the whole file",
+                    paragraphs=[
+                        "A Kbis never comes alone. The bank-detail document must be in "
+                        "the exact company name; the invoice must carry a SIRET whose "
+                        "first nine digits are the Kbis SIREN and an intra-EU VAT number "
+                        "consistent with it (FR, a two-digit key, then the SIREN); for "
+                        "subcontracting, the URSSAF compliance certificate completes the "
+                        "statutory due-diligence file. Any inconsistency between these "
+                        "documents weighs more than the quality of each taken alone.",
+                        "TrustyFile runs these cross-checks on the PDFs you upload: "
+                        "SIREN, SIRET and VAT check digits, the company's existence in "
+                        "the INSEE register, and traces of editing in the file. "
+                        "Comparing with the register itself remains a step nothing "
+                        "replaces.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-verify-a-french-tax-notice",
+            counterpart="verifier-un-avis-d-imposition",
+            published="2026-09-03",
+            modified="2026-09-03",
+            title="How to verify a French tax notice (avis d'imposition)",
+            description=(
+                "Landlord or agency: verify a tenant's French income-tax notice with "
+                "the tax office's online service (SVAIR), the signed 2D-Doc code and "
+                "the other documents in the file."
+            ),
+            heading="How to verify a French tax notice",
+            intro=(
+                "The income-tax notice (<em>avis d'imposition</em>) is the "
+                "cornerstone of a French rental application and of many credit or "
+                "benefit requests: it sets the household's reference taxable income "
+                "(<em>revenu fiscal de référence</em>). It is also the most tampered "
+                "document in rental files, because an inflated income opens doors the "
+                "real one keeps shut. Yet it is easier to verify than almost any "
+                "other document: the tax administration offers an online check, and "
+                "the notice carries a signed 2D-Doc code."
+            ),
+            sections=[
+                Section(
+                    heading="What a notice says, and what gets forged",
+                    paragraphs=[
+                        "The notice shows the taxpayer's tax number (13 digits), the "
+                        "notice reference (13 characters), the reference taxable "
+                        "income, the number of household shares (<em>parts</em>), the "
+                        "tax due, the address and the family situation. It carries two "
+                        "years: the year of the income declared and the following year, "
+                        "when it is issued. Right after filing, the declarative status "
+                        "notice (ASDIR) stands in for it, with the same identifiers.",
+                        "Forgeries follow four patterns: an inflated reference income "
+                        "on a genuine notice; an old notice with the year changed; "
+                        "someone else's notice with the name and address replaced; a "
+                        "document built from scratch on a template. The first two are "
+                        "the most common, and the two checks below catch all four.",
+                    ],
+                ),
+                Section(
+                    heading="The tax office's verification service (SVAIR)",
+                    paragraphs=[
+                        "The French tax administration runs a "
+                        "<a href=\"https://cfsmsp.impots.gouv.fr/secavis/\">notice "
+                        "verification service</a>, open without an account and meant "
+                        "precisely for the third parties a notice is shown to: "
+                        "landlords, agencies, public bodies. Enter the tax number and "
+                        "the notice reference exactly as printed: the service returns "
+                        "the data the administration holds for that notice — reference "
+                        "taxable income, number of shares, family situation, address.",
+                        "Three outcomes. The tax number / reference pair is unknown: the "
+                        "document is fabricated or one identifier was altered. It is "
+                        "known but the figures differ: the notice is genuine and was "
+                        "edited afterwards. Everything matches: the amounts are the "
+                        "administration's. This check takes a minute and outranks every "
+                        "other.",
+                    ],
+                ),
+                Section(
+                    heading="The 2D-Doc code",
+                    paragraphs=[
+                        "Notices carry a 2D-Doc code: a DataMatrix electronically signed "
+                        "by the tax administration that repeats the document's key data "
+                        "(reference income, number of shares, notice reference, tax "
+                        "number, year). A 2D-Doc reader decodes it and verifies the "
+                        "signature; TrustyFile does so for every uploaded PDF, offline, "
+                        "with the certificates the authority publishes.",
+                        "If the decoded data differs from what is printed, the visible "
+                        "text was edited and the code tells the truth. If the signature "
+                        "is invalid, the code was recomposed — something a forger cannot "
+                        "do correctly without the administration's private key. An "
+                        "unreadable code (blurry scan, photo) is not proof of anything, "
+                        "though: it simply leaves you with the SVAIR check. The guide "
+                        "<a href=\"/en/guides/2d-doc-verifying-official-documents\">on "
+                        "2D-Doc</a> explains the mechanism.",
+                    ],
+                ),
+                Section(
+                    heading="Cross-checks with the rest of the file",
+                    paragraphs=[
+                        "A notice consistent with itself may not be consistent with the "
+                        "file:",
+                    ],
+                    bullets=[
+                        "<strong>Pay slips</strong>: for an employee, the reference "
+                        "taxable income is close to the annual cumulative \"net "
+                        "imposable\" on the pay slips, less the 10% flat deduction for "
+                        "professional expenses. A gap of several thousand euros needs an "
+                        "explanation (other income, a change of situation). See the "
+                        "guide <a href=\"/en/guides/how-to-verify-a-pay-slip\">on pay "
+                        "slips</a>.",
+                        "<strong>Address</strong>: the one on the notice must match the "
+                        "<a href=\"/en/guides/how-to-verify-a-proof-of-address\">proof "
+                        "of address</a> and the declared history.",
+                        "<strong>Number of shares</strong>: consistent with the stated "
+                        "family situation (one share for a single person, two for a "
+                        "couple, then half-shares for dependent children).",
+                        "<strong>Years</strong>: a notice issued in year N covers income "
+                        "of N-1; a two-year-old \"latest notice\" is not the latest.",
+                        "<strong>Spelling of names</strong> and title identical across "
+                        "every document.",
+                    ],
+                ),
+                Section(
+                    heading="Signs inside the PDF file",
+                    paragraphs=[
+                        "A notice downloaded from the taxpayer's personal space on "
+                        "impots.gouv.fr is a born-digital PDF, produced in one go by the "
+                        "administration's system. A notice altered in a PDF editor keeps "
+                        "traces: a revision added after creation, a slightly different "
+                        "font on the edited amount, the old figure still present under a "
+                        "white rectangle, editor or online-converter metadata. The guide "
+                        "<a href=\"/en/guides/how-to-tell-if-a-pdf-was-modified\">on "
+                        "modified PDFs</a> reviews these signals.",
+                        "A scanned or photographed notice loses all of this: no usable "
+                        "PDF structure, and often no readable 2D-Doc. That is not a sign "
+                        "of fraud — many people only have a paper copy — but it is a "
+                        "document that cannot be verified on its own. Ask for the "
+                        "original PDF, or go straight to the SVAIR check.",
+                    ],
+                ),
+                Section(
+                    heading="Legal framework and good habits",
+                    paragraphs=[
+                        "A landlord may ask an applicant for their latest or "
+                        "previous-year tax notice: it is on the exhaustive list of "
+                        "documents set by the decree of 5 November 2015, which forbids "
+                        "demanding anything not listed. Presenting a forged notice is "
+                        "forgery and use of forged documents (article 441-1 of the "
+                        "French criminal code, up to three years' imprisonment and a "
+                        "€45,000 fine).",
+                        "Faced with a doubtful notice: do not sign, keep the document "
+                        "and the exchanges, and remember that an unsuccessful "
+                        "applicant's documents must not be kept longer than necessary. "
+                        "TrustyFile archives nothing: the file is analysed, then "
+                        "deleted.",
                     ],
                 ),
             ],
