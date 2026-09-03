@@ -172,7 +172,7 @@ CHROME = {
         "index_description": (
             "Guides pratiques pour vérifier un document : facture, RIB, Kbis, "
             "attestation Urssaf, justificatif de domicile, bulletin de salaire, avis "
-            "d'imposition, PDF modifié. Méthode et indices."
+            "d'imposition, PDF modifié."
         ),
         "audience_headings": {
             "individuals": "Particuliers et dossiers de location",
