@@ -59,6 +59,53 @@ def tool_url_for_flag(code: str, lang: str) -> str | None:
     return None
 
 
+# Which guide explains a flag. Two routes: the flag *family* when the signal
+# is about the file itself (a second revision, a covered value, a stripped
+# Producer, a 2D-Doc signature), the *document type* otherwise — a font
+# change means something different on an invoice than on a tax notice, and
+# each of those has its own guide. Slugs are looked up in GUIDES at call time,
+# so a renamed guide yields no link rather than a dead one.
+_GUIDE_BY_FLAG_PREFIX = {
+    "STRUCT_": "pdf", "OVERLAY_": "pdf", "INVISIBLE_": "pdf", "META_": "pdf", "PROVENANCE_": "pdf",
+    "TWOD_": "twod_doc", "MRZ_": "twod_doc",
+}
+_GUIDE_BY_DOCUMENT_TYPE = {
+    "invoice": "invoice", "tax_document": "tax_notice", "attestation": "proof_of_address",
+    "identity": "twod_doc",
+}
+_GUIDE_SLUGS = {
+    "pdf": {"fr": "savoir-si-un-pdf-a-ete-modifie", "en": "how-to-tell-if-a-pdf-was-modified"},
+    "twod_doc": {"fr": "2d-doc-verifier-un-document-officiel", "en": "2d-doc-verifying-official-documents"},
+    "invoice": {"fr": "verifier-une-facture-falsifiee", "en": "how-to-spot-a-tampered-invoice"},
+    "tax_notice": {"fr": "verifier-un-avis-d-imposition", "en": "how-to-verify-a-french-tax-notice"},
+    "proof_of_address": {"fr": "verifier-un-justificatif-de-domicile", "en": "how-to-verify-a-proof-of-address"},
+}
+# Bookkeeping flags about the analysis itself, not about the document.
+_NO_GUIDE_PREFIXES = ("EXTRACTION_", "MODULE_", "COVERAGE_")
+
+
+def guide_url_for_flag(code: str, lang: str, document_type: str) -> str | None:
+    """Site-relative URL of the guide that explains a flag, if there is one.
+
+    Example:
+        >>> guide_url_for_flag("STRUCT_INCREMENTAL_UPDATES", "fr", "invoice")
+        '/guides/savoir-si-un-pdf-a-ete-modifie'
+        >>> guide_url_for_flag("FONTS_MIXED", "en", "invoice")
+        '/en/guides/how-to-spot-a-tampered-invoice'
+        >>> guide_url_for_flag("COVERAGE_GATE", "fr", "invoice") is None
+        True
+    """
+    if not code or code.startswith(_NO_GUIDE_PREFIXES):
+        return None
+    topic = next((topic for prefix, topic in _GUIDE_BY_FLAG_PREFIX.items() if code.startswith(prefix)), None)
+    if topic is None:
+        topic = _GUIDE_BY_DOCUMENT_TYPE.get(document_type, "pdf")
+    slug = _GUIDE_SLUGS[topic][lang]
+    if slug not in {guide.slug for guide in _GUIDES.get(lang, [])}:
+        return None
+    return ("/guides/" if lang == "fr" else "/en/guides/") + slug
+
+
 def esc(s) -> str:
     """Escape a value for safe interpolation into unsafe_allow_html markdown.
 
@@ -2141,11 +2188,21 @@ if uploaded_file is not None:
                 # document — or a corrected one — and see the check digit
                 # explained, without uploading anything.
                 tool_url = tool_url_for_flag(flag.code, get_lang())
+                guide_url = guide_url_for_flag(flag.code, get_lang(), result.document_type)
                 if tool_url:
                     details_content += (
                         f'<div style="margin-top:8px;"><a href="{tool_url}" target="_blank" rel="noopener" '
                         f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
                         f'{html_mod_flags.escape(t("flag_check_tool"))} &rarr;</a></div>'
+                    )
+                elif guide_url:
+                    # One action per flag: identifier flags get the checker (which
+                    # itself links the guides), every other flag gets the guide
+                    # that explains what was found and what to do next.
+                    details_content += (
+                        f'<div style="margin-top:8px;"><a href="{guide_url}" target="_blank" rel="noopener" '
+                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
+                        f'{html_mod_flags.escape(t("flag_read_guide"))} &rarr;</a></div>'
                     )
 
                 issues_html += (

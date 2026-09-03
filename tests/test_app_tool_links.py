@@ -70,3 +70,58 @@ def test_link_targets_are_generated_pages():
             url = app.tool_url_for_flag(code, lang)
             prefix = next(p for p in roots if url.startswith(p))
             assert (roots[prefix] / f"{url[len(prefix):]}.html").exists(), url
+
+
+# --- guide links --------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "code,lang,document_type,expected",
+    [
+        ("STRUCT_INCREMENTAL_UPDATES", "fr", "invoice", "/guides/savoir-si-un-pdf-a-ete-modifie"),
+        ("OVERLAY_COVER_AND_RETYPE", "en", "tax_document", "/en/guides/how-to-tell-if-a-pdf-was-modified"),
+        ("META_ONLINE_CONVERTER", "fr", "unknown", "/guides/savoir-si-un-pdf-a-ete-modifie"),
+        ("TWOD_DOC_SIGNATURE_INVALID", "fr", "tax_document", "/guides/2d-doc-verifier-un-document-officiel"),
+        ("MRZ_DOC_NUMBER_CHECK_FAIL", "en", "identity", "/en/guides/2d-doc-verifying-official-documents"),
+        ("FONTS_MIXED", "fr", "invoice", "/guides/verifier-une-facture-falsifiee"),
+        ("FONTS_MIXED", "en", "tax_document", "/en/guides/how-to-verify-a-french-tax-notice"),
+        ("IMAGES_PASTE_ARTIFACT", "fr", "attestation", "/guides/verifier-un-justificatif-de-domicile"),
+        ("IMAGES_PASTE_ARTIFACT", "en", "identity", "/en/guides/2d-doc-verifying-official-documents"),
+        ("VISUAL_WATERMARK", "en", "scientific", "/en/guides/how-to-tell-if-a-pdf-was-modified"),
+    ],
+)
+def test_flags_link_to_the_guide_that_explains_them(code, lang, document_type, expected):
+    import app
+
+    assert app.guide_url_for_flag(code, lang, document_type) == expected
+
+
+@pytest.mark.parametrize("code", ["EXTRACTION_FAILED", "MODULE_ERROR", "COVERAGE_GATE", ""])
+def test_bookkeeping_flags_get_no_guide(code):
+    import app
+
+    assert app.guide_url_for_flag(code, "fr", "invoice") is None
+
+
+def test_every_flag_code_in_the_modules_has_a_tool_or_a_guide():
+    import app
+
+    codes = set()
+    for path in (ROOT / "src" / "modules").glob("*.py"):
+        codes |= set(re.findall(r'code="([A-Z][A-Z_]+)"', path.read_text()))
+    assert len(codes) > 60, len(codes)
+    orphans = [
+        code for code in sorted(codes)
+        if not code.startswith(app._NO_GUIDE_PREFIXES)
+        and not (app.tool_url_for_flag(code, "fr") or app.guide_url_for_flag(code, "fr", "unknown"))
+    ]
+    assert not orphans, orphans
+
+
+def test_every_mapped_guide_slug_is_a_generated_page():
+    import app
+
+    for topic, by_lang in app._GUIDE_SLUGS.items():
+        for lang, slug in by_lang.items():
+            folder = ROOT / "guides" / lang
+            assert (folder / f"{slug}.html").exists(), (topic, lang, slug)
