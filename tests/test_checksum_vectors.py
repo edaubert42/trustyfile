@@ -26,6 +26,7 @@ from src.modules.content import (
     is_valid_iban,
     is_valid_siren,
     is_valid_siret,
+    validate_rib_key,
     validate_siret_checksum,
 )
 
@@ -49,6 +50,14 @@ def _vector_id(vector: dict) -> str:
 def test_python_validator_agrees_with_the_contract(vector):
     validator = PYTHON_VALIDATORS[vector["kind"]]
     assert validator(vector["input"]) is vector["valid"], vector["note"]
+    if "rib_ok" in vector:
+        # French RIB key: True / False, or None when the check does not apply.
+        assert validate_rib_key(vector["input"]) is vector["rib_ok"], vector["note"]
+
+
+def test_contract_covers_the_rib_key_both_ways():
+    outcomes = {v["rib_ok"] for v in VECTORS if "rib_ok" in v}
+    assert outcomes == {True, False, None}
 
 
 def test_contract_covers_every_kind_both_ways():
@@ -92,7 +101,10 @@ def test_javascript_validator_agrees_with_the_contract():
         const checks = require(process.argv[1]);
         const vectors = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8')).vectors;
         const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck };
-        const out = vectors.map(v => ({ kind: v.kind, input: v.input, valid: fn[v.kind](v.input).ok }));
+        const out = vectors.map(v => {
+          const r = fn[v.kind](v.input);
+          return { kind: v.kind, input: v.input, valid: r.ok, rib_ok: r.ribKeyOk === undefined ? 'absent' : r.ribKeyOk };
+        });
         process.stdout.write(JSON.stringify(out));
     """
     completed = subprocess.run(
@@ -106,6 +118,12 @@ def test_javascript_validator_agrees_with_the_contract():
         if r["valid"] is not v["valid"]
     ]
     assert not mismatches, f"JS disagrees with the contract (kind, input, js, expected): {mismatches}"
+    rib_mismatches = [
+        (r["input"], r["rib_ok"], v["rib_ok"])
+        for r, v in zip(results, VECTORS)
+        if "rib_ok" in v and r["rib_ok"] is not v["rib_ok"]
+    ]
+    assert not rib_mismatches, f"JS RIB key disagrees (input, js, expected): {rib_mismatches}"
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")

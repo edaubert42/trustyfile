@@ -1354,9 +1354,49 @@ def is_valid_iban(text: str) -> bool:
         False
     """
     iban = _strip_separators(text).upper()
-    if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban):
+    # [0-9] rather than \d: Python's \d (and str.isdigit()) accept full-width
+    # and Arabic-Indic digits, which the browser validator rejects. The two
+    # must give the same answer to the same paste.
+    if not re.fullmatch(r"[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}", iban):
         return False
     return validate_iban_checksum(iban)
+
+
+def validate_rib_key(text: str) -> bool | None:
+    """Check the RIB key of a French IBAN — the last two digits of its BBAN.
+
+    A French BBAN is bank (5) + branch (5) + account (11) + key (2). The key
+    is 97 - ((bank branch account) x 100 mod 97), with letters in the account
+    mapped to digits the RIB way (A,J=1 B,K,S=2 C,L,T=3 ... I,R,Z=9). It is a
+    check independent of the IBAN's own mod-97 digits, inherited from the
+    paper RIB, so a French IBAN can pass one and fail the other.
+
+    Returns None when the check does not apply (not a 27-character French
+    IBAN) — the same three-valued answer as `ribKeyOk` in tools/checksums.js,
+    which the IBAN checker page runs in the browser.
+
+    Example:
+        >>> validate_rib_key("FR76 3000 6000 0112 3456 7890 189")
+        True
+        >>> validate_rib_key("FR76 3000 6000 0112 3456 7890 180")
+        False
+        >>> validate_rib_key("DE89 3704 0044 0532 0130 00") is None
+        True
+    """
+    iban = _strip_separators(text).upper()
+    if not (iban.startswith("FR") and len(iban) == 27):
+        return None
+    bban = iban[4:]
+
+    def rib_digit(ch: str) -> str:
+        n = ord(ch) - 64  # A=1 ... Z=26
+        return str(n if n < 10 else n - 9 if n < 19 else n - 17)
+
+    account = "".join(rib_digit(c) if "A" <= c <= "Z" else c for c in bban[10:21])
+    digits = bban[:10] + account
+    if not re.fullmatch(r"[0-9]{21}", digits) or not re.fullmatch(r"[0-9]{2}", bban[21:23]):
+        return False
+    return 97 - (int(digits) * 100) % 97 == int(bban[21:23])
 
 
 def validate_siret_checksum(siret: str) -> bool:
@@ -1379,7 +1419,8 @@ def validate_siret_checksum(siret: str) -> bool:
         >>> validate_siret_checksum("55208131766522")
         True
     """
-    if len(siret) != 14 or not siret.isdigit():
+    # ASCII digits only — see is_valid_iban for why not str.isdigit().
+    if not re.fullmatch(r"[0-9]{14}", siret):
         return False
 
     total = 0
@@ -1418,7 +1459,8 @@ def validate_siren_checksum(siren: str) -> bool:
     Returns:
         True if checksum is valid, False otherwise
     """
-    if len(siren) != 9 or not siren.isdigit():
+    # ASCII digits only — see is_valid_iban for why not str.isdigit().
+    if not re.fullmatch(r"[0-9]{9}", siren):
         return False
 
     total = 0

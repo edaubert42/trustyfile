@@ -183,7 +183,22 @@ def test_tool_page_canonical_h1_and_inline_script(lang, tool):
     assert rendered.count("<h1>") == 1
     assert build_guides.CHECKSUM_JS.rstrip("\n") in rendered
     assert f'"kind": "{tool.kind}"' in rendered
-    assert "</script>" not in json.dumps(build_guides.CHROME[lang]["tool_i18n"])
+
+
+def test_tool_i18n_json_cannot_close_its_own_script_tag(monkeypatch):
+    """A translation containing </script> must not break out of the JSON block.
+
+    render_tool() escapes "</" as "<\/" inside the inline JSON (json.dumps
+    does not). Seed a hostile value and check the *rendered page*: the block
+    still ends at the real closing tag and parses back to the same string.
+    """
+    hostile = "</script><img src=x onerror=alert(1)>"
+    i18n = dict(build_guides.CHROME["fr"]["tool_i18n"], reminder=hostile)
+    monkeypatch.setitem(build_guides.CHROME["fr"], "tool_i18n", i18n)
+    rendered = build_guides.render_tool("fr", build_guides.TOOLS["fr"][0])
+    block = re.search(r'<script type="application/json" id="tf-i18n">(.*?)</script>', rendered, re.S).group(1)
+    assert "</script" not in block
+    assert json.loads(block)["reminder"] == hostile
 
 
 def test_tool_counterparts_are_reciprocal():
@@ -451,12 +466,15 @@ def test_sitemap_lastmod_comes_from_each_page():
 def test_guide_tool_callouts_point_at_real_tools(lang, guide):
     """A guide may offer checker tools; each slug must exist and be linked."""
     known = {tool.slug for tool in build_guides.TOOLS[lang]}
+    # Check the slugs before rendering: render_guide() would raise KeyError
+    # on an unknown one, which is a worse failure message than this assert.
+    for slug in guide.tools:
+        assert slug in known, f"{guide.slug} offers unknown tool {slug!r}"
+    assert len(guide.tools) == len(set(guide.tools))
     rendered = build_guides.render_guide(lang, guide)
     path = build_guides.CHROME[lang]["tools_path"]
     for slug in guide.tools:
-        assert slug in known, f"{guide.slug} offers unknown tool {slug!r}"
         assert f'href="{path}/{slug}"' in rendered
-    assert len(guide.tools) == len(set(guide.tools))
 
 
 def test_llms_txt_lists_every_public_page():

@@ -88,6 +88,13 @@ handle_path /en/tools/* {
 # trailing-slash form rather than serving the same page at two URLs.
 redir /guides /guides/ 301
 redir /en/guides /en/guides/ 301
+# Bare /outils and /en/tools: there is no tools index, so send the visitor
+# (and the crawler) to the tools section of the guides hub. Without these the
+# request fell through to the Streamlit shell — a 200 with the wrong page.
+redir /outils /guides/#outils 301
+redir /outils/ /guides/#outils 301
+redir /en/tools /en/guides/#outils 301
+redir /en/tools/ /en/guides/#outils 301
 
 # Static files served to everyone (robots.txt, sitemap.xml, static assets)
 handle /robots.txt {
