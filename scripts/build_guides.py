@@ -105,6 +105,9 @@ class Guide:
         tools: slugs of the checker tools (TOOLS[lang]) worth offering at the
             end of this guide, e.g. the IBAN checker under the fake-RIB guide.
             Slugs rather than objects so a typo fails the tests, not the reader.
+        audience: which section of the hub lists this guide — "individuals"
+            (rental files, personal documents), "business" (suppliers, company
+            paperwork) or "method" (how PDFs and 2D-Doc work, for everyone).
     """
 
     slug: str
@@ -117,6 +120,10 @@ class Guide:
     published: str = LAST_MODIFIED
     modified: str = LAST_MODIFIED
     tools: list[str] = field(default_factory=list)
+    audience: str = ""
+
+
+AUDIENCES = ("individuals", "business", "method")  # hub section order
 
 
 @dataclass
@@ -134,6 +141,8 @@ class Tool:
         sections: the explanatory body under the form: what the check proves,
             what it does not, how the algorithm works.
         modified: ISO date of the last substantive change (sitemap <lastmod>).
+        guides: slugs of the guides (GUIDES[lang]) to offer under the tool —
+            the IBAN checker points at the fake-RIB and supplier-fraud guides.
     """
 
     slug: str
@@ -146,6 +155,7 @@ class Tool:
     sections: list[Section]
     counterpart: str | None = None
     modified: str = TOOLS_LAUNCHED
+    guides: list[str] = field(default_factory=list)
 
 
 # --- Per-language chrome -----------------------------------------------------
@@ -160,10 +170,15 @@ CHROME = {
         "guides_path": "/guides",
         "index_title": "Guides - Vérifier un document PDF | TrustyFile",
         "index_description": (
-            "Guides pratiques pour vérifier un document PDF : facture falsifiée, "
-            "justificatif de domicile, bulletin de salaire, PDF modifié. Méthode, "
-            "indices techniques et limites."
+            "Guides pratiques pour vérifier un document : facture, RIB, Kbis, "
+            "attestation Urssaf, justificatif de domicile, bulletin de salaire, avis "
+            "d'imposition, PDF modifié. Méthode et indices."
         ),
+        "audience_headings": {
+            "individuals": "Particuliers et dossiers de location",
+            "business": "Entreprises et fournisseurs",
+            "method": "Méthode et technique",
+        },
         "index_heading": "Guides de vérification documentaire",
         "index_intro": (
             "Comment reconnaître un document falsifié, quels indices techniques "
@@ -312,10 +327,15 @@ CHROME = {
         "guides_path": "/en/guides",
         "index_title": "Guides - How to verify a PDF document | TrustyFile",
         "index_description": (
-            "Practical guides to verifying a PDF: tampered invoices, proof of "
-            "address, pay slips, modified files. Method, technical evidence and "
-            "the limits of automated checks."
+            "Practical guides to verifying a document: invoices, bank details, Kbis, "
+            "URSSAF certificates, proof of address, pay slips, French tax notices, "
+            "modified PDFs. Method and limits."
         ),
+        "audience_headings": {
+            "individuals": "Individuals and rental files",
+            "business": "Businesses and suppliers",
+            "method": "Method and technique",
+        },
         "index_heading": "Document verification guides",
         "index_intro": (
             "How to recognise a forged document, which technical signals to look "
@@ -459,6 +479,7 @@ GUIDES: dict[str, list[Guide]] = {
     "fr": [
         Guide(
             slug="verifier-une-facture-falsifiee",
+            audience="business",
             counterpart="how-to-spot-a-tampered-invoice",
             tools=["verifier-un-siret", "verifier-un-numero-de-tva", "verifier-un-siren"],
             title="Vérifier si une facture a été falsifiée",
@@ -588,6 +609,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="verifier-un-justificatif-de-domicile",
+            audience="individuals",
             counterpart="how-to-verify-a-proof-of-address",
             title="Vérifier un justificatif de domicile",
             description=(
@@ -685,6 +707,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="savoir-si-un-pdf-a-ete-modifie",
+            audience="method",
             counterpart="how-to-tell-if-a-pdf-was-modified",
             title="Savoir si un PDF a été modifié",
             description=(
@@ -780,6 +803,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="2d-doc-verifier-un-document-officiel",
+            audience="method",
             counterpart="2d-doc-verifying-official-documents",
             title="2D-Doc : vérifier un document officiel français",
             description=(
@@ -864,6 +888,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="verifier-un-bulletin-de-salaire",
+            audience="individuals",
             counterpart="how-to-verify-a-pay-slip",
             title="Vérifier un bulletin de salaire",
             description=(
@@ -981,6 +1006,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="detecter-un-faux-rib",
+            audience="business",
             counterpart="how-to-spot-a-fake-iban",
             tools=["verifier-un-iban"],
             title="Détecter un faux RIB ou un IBAN falsifié",
@@ -1088,6 +1114,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="fraude-au-faux-fournisseur-changement-de-rib",
+            audience="business",
             counterpart="supplier-bank-detail-change-fraud",
             published="2026-09-03",
             modified="2026-09-03",
@@ -1248,6 +1275,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="verifier-un-extrait-kbis",
+            audience="business",
             counterpart="how-to-verify-a-kbis-extract",
             published="2026-09-03",
             modified="2026-09-03",
@@ -1381,6 +1409,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="verifier-un-avis-d-imposition",
+            audience="individuals",
             counterpart="how-to-verify-a-french-tax-notice",
             published="2026-09-03",
             modified="2026-09-03",
@@ -1540,6 +1569,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="verifier-une-attestation-de-vigilance-urssaf",
+            audience="business",
             counterpart="how-to-verify-an-urssaf-vigilance-certificate",
             published="2026-09-03",
             modified="2026-09-03",
@@ -1674,6 +1704,7 @@ GUIDES: dict[str, list[Guide]] = {
     "en": [
         Guide(
             slug="how-to-spot-a-tampered-invoice",
+            audience="business",
             counterpart="verifier-une-facture-falsifiee",
             tools=["siret-checker", "vat-number-checker", "siren-checker"],
             title="How to spot a tampered invoice",
@@ -1795,6 +1826,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-verify-a-proof-of-address",
+            audience="individuals",
             counterpart="verifier-un-justificatif-de-domicile",
             title="How to verify a proof of address",
             description=(
@@ -1886,6 +1918,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-tell-if-a-pdf-was-modified",
+            audience="method",
             counterpart="savoir-si-un-pdf-a-ete-modifie",
             title="How to tell if a PDF was modified",
             description=(
@@ -1977,6 +2010,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="2d-doc-verifying-official-documents",
+            audience="method",
             counterpart="2d-doc-verifier-un-document-officiel",
             title="2D-Doc: verifying French official documents",
             description=(
@@ -2057,6 +2091,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-verify-a-pay-slip",
+            audience="individuals",
             counterpart="verifier-un-bulletin-de-salaire",
             title="How to verify a pay slip",
             description=(
@@ -2172,6 +2207,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-spot-a-fake-iban",
+            audience="business",
             counterpart="detecter-un-faux-rib",
             tools=["iban-checker"],
             title="How to spot a fake IBAN on an invoice",
@@ -2274,6 +2310,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="supplier-bank-detail-change-fraud",
+            audience="business",
             counterpart="fraude-au-faux-fournisseur-changement-de-rib",
             published="2026-09-03",
             modified="2026-09-03",
@@ -2430,6 +2467,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-verify-a-kbis-extract",
+            audience="business",
             counterpart="verifier-un-extrait-kbis",
             published="2026-09-03",
             modified="2026-09-03",
@@ -2556,6 +2594,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-verify-a-french-tax-notice",
+            audience="individuals",
             counterpart="verifier-un-avis-d-imposition",
             published="2026-09-03",
             modified="2026-09-03",
@@ -2713,6 +2752,7 @@ GUIDES: dict[str, list[Guide]] = {
         ),
         Guide(
             slug="how-to-verify-an-urssaf-vigilance-certificate",
+            audience="business",
             counterpart="verifier-une-attestation-de-vigilance-urssaf",
             published="2026-09-03",
             modified="2026-09-03",
@@ -2848,6 +2888,7 @@ TOOLS: dict[str, list[Tool]] = {
     "fr": [
         Tool(
             slug="verifier-un-iban",
+            guides=["detecter-un-faux-rib", "fraude-au-faux-fournisseur-changement-de-rib"],
             kind="iban",
             counterpart="iban-checker",
             title="Vérifier un IBAN : clé de contrôle et clé RIB",
@@ -2931,6 +2972,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="verifier-un-siret",
+            guides=["verifier-une-facture-falsifiee", "verifier-un-extrait-kbis", "verifier-une-attestation-de-vigilance-urssaf"],
             kind="siret",
             counterpart="siret-checker",
             title="Vérifier un SIRET : clé de Luhn et exception La Poste",
@@ -2999,6 +3041,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="verifier-un-siren",
+            guides=["verifier-un-extrait-kbis", "verifier-une-facture-falsifiee"],
             kind="siren",
             counterpart="siren-checker",
             title="Vérifier un SIREN et retrouver le numéro de TVA",
@@ -3057,6 +3100,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="verifier-un-numero-de-tva",
+            guides=["verifier-une-facture-falsifiee", "verifier-un-extrait-kbis"],
             kind="vat",
             counterpart="vat-number-checker",
             title="Vérifier un numéro de TVA intracommunautaire français",
@@ -3132,6 +3176,7 @@ TOOLS: dict[str, list[Tool]] = {
     "en": [
         Tool(
             slug="iban-checker",
+            guides=["how-to-spot-a-fake-iban", "supplier-bank-detail-change-fraud"],
             kind="iban",
             counterpart="verifier-un-iban",
             title="IBAN checker: validate the check digits and the length",
@@ -3214,6 +3259,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="siret-checker",
+            guides=["how-to-spot-a-tampered-invoice", "how-to-verify-a-kbis-extract", "how-to-verify-an-urssaf-vigilance-certificate"],
             kind="siret",
             counterpart="verifier-un-siret",
             title="SIRET checker: Luhn check digit and the La Poste rule",
@@ -3280,6 +3326,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="siren-checker",
+            guides=["how-to-verify-a-kbis-extract", "how-to-spot-a-tampered-invoice"],
             kind="siren",
             counterpart="verifier-un-siren",
             title="SIREN checker: Luhn check and matching French VAT number",
@@ -3336,6 +3383,7 @@ TOOLS: dict[str, list[Tool]] = {
         ),
         Tool(
             slug="vat-number-checker",
+            guides=["how-to-spot-a-tampered-invoice", "how-to-verify-a-kbis-extract"],
             kind="vat",
             counterpart="verifier-un-numero-de-tva",
             title="French VAT number checker: key and SIREN consistency",
@@ -3712,6 +3760,19 @@ def _updated_line(lang: str, iso_date: str) -> str:
     return f'<p class="updated"><time datetime="{iso_date}">{label}</time></p>'
 
 
+def _guide_cards(lang: str, guides: list["Guide"]) -> list[str]:
+    """Link cards for guides — shared by the hub and the tool pages."""
+    chrome = CHROME[lang]
+    parts: list[str] = []
+    for guide in guides:
+        parts.append(f'    <a class="card" href="{chrome["guides_path"]}/{guide.slug}">')
+        parts.append(f"        <h3>{html.escape(guide.title)}</h3>")
+        parts.append(f"        <p>{html.escape(guide.description)}</p>")
+        parts.append(f'        <p class="more">{chrome["read_more"]} &rarr;</p>')
+        parts.append("    </a>")
+    return parts
+
+
 def _tool_cards(lang: str, tools: list["Tool"]) -> list[str]:
     """Link cards for checker tools — shared by the hub, the guides and the tools."""
     chrome = CHROME[lang]
@@ -4053,13 +4114,14 @@ def render_index(lang: str) -> str:
         f"    <h1>{html.escape(chrome['index_heading'])}</h1>",
         f'    <p class="intro">{chrome["index_intro"]}</p>',
     ]
-    for guide in GUIDES[lang]:
-        url = f"{chrome['guides_path']}/{guide.slug}"
-        parts.append(f'    <a class="card" href="{url}">')
-        parts.append(f"        <h2>{html.escape(guide.title)}</h2>")
-        parts.append(f"        <p>{html.escape(guide.description)}</p>")
-        parts.append(f'        <p class="more">{chrome["read_more"]} &rarr;</p>')
-        parts.append("    </a>")
+    # One section per audience: with ten guides a flat list makes a landlord
+    # scan past supplier fraud and an accounts-payable clerk past pay slips.
+    for audience in AUDIENCES:
+        section = [g for g in GUIDES[lang] if g.audience == audience]
+        if not section:
+            continue
+        parts.append(f'    <h2 id="{audience}">{html.escape(chrome["audience_headings"][audience])}</h2>')
+        parts.extend(_guide_cards(lang, section))
     # Free checker tools: the hub is the one place that links every tool.
     parts.append(f'    <h2 id="outils">{html.escape(chrome["tools_heading"])}</h2>')
     parts.append(f'    <p>{html.escape(chrome["tools_intro"])}</p>')
@@ -4285,11 +4347,15 @@ def render_tool(lang: str, tool: Tool) -> str:
     siblings = [t for t in TOOLS[lang] if t.slug != tool.slug]
     if siblings:
         parts.append(f"    <h2>{chrome['related_tools']}</h2>")
-        for other in siblings:
-            parts.append(f'    <a class="card" href="{chrome["tools_path"]}/{other.slug}">')
-            parts.append(f"        <h3>{html.escape(other.title)}</h3>")
-            parts.append(f"        <p>{html.escape(other.description)}</p>")
-            parts.append("    </a>")
+        parts.extend(_tool_cards(lang, siblings))
+
+    # The guides this tool serves (the IBAN checker -> fake RIB, supplier
+    # fraud). A visitor who came for one number often has the whole document
+    # in front of them; and these are the tools' only links back to the guides.
+    if tool.guides:
+        by_slug = {guide.slug: guide for guide in GUIDES[lang]}
+        parts.append(f"    <h2>{chrome['related']}</h2>")
+        parts.extend(_guide_cards(lang, [by_slug[slug] for slug in tool.guides]))
 
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
     parts.append(f'    <script type="application/json" id="tf-i18n">{i18n_json}</script>')

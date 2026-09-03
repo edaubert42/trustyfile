@@ -530,6 +530,30 @@ def test_internal_links_resolve_to_generated_files():
     assert not broken, broken
 
 
+@pytest.mark.parametrize("lang", ["fr", "en"])
+def test_hub_groups_every_guide_under_exactly_one_audience(lang):
+    for guide in build_guides.GUIDES[lang]:
+        assert guide.audience in build_guides.AUDIENCES, (guide.slug, guide.audience)
+    page = build_guides.render_index(lang)
+    headings = build_guides.CHROME[lang]["audience_headings"]
+    for audience in build_guides.AUDIENCES:
+        assert f'<h2 id="{audience}">{html.escape(headings[audience])}</h2>' in page
+    for guide in build_guides.GUIDES[lang]:
+        assert page.count(f'href="{build_guides.CHROME[lang]["guides_path"]}/{guide.slug}"') == 1
+    assert len(build_guides.CHROME[lang]["index_description"]) <= 175
+
+
+@pytest.mark.parametrize("lang,tool", _all_tools(), ids=lambda v: getattr(v, "slug", v))
+def test_tool_related_guides_exist_and_are_linked(lang, tool):
+    known = {guide.slug for guide in build_guides.GUIDES[lang]}
+    assert tool.guides, f"{tool.slug} offers no guide"
+    for slug in tool.guides:
+        assert slug in known, (tool.slug, slug)
+    rendered = build_guides.render_tool(lang, tool)
+    for slug in tool.guides:
+        assert f'href="{build_guides.CHROME[lang]["guides_path"]}/{slug}"' in rendered
+
+
 @pytest.mark.parametrize(
     "lang,iso,expected",
     [

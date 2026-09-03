@@ -209,14 +209,28 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
         <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
     <a class="card" href="/outils/verifier-un-siren">
         <h3>Vérifier un SIREN et retrouver le numéro de TVA</h3>
         <p>Vérifiez la clé de Luhn d&#x27;un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
     <a class="card" href="/outils/verifier-un-numero-de-tva">
         <h3>Vérifier un numéro de TVA intracommunautaire français</h3>
         <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+        <p class="more">Lire le guide &rarr;</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "iban"}</script>

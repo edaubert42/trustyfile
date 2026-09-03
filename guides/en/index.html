@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guides - How to verify a PDF document | TrustyFile</title>
-    <meta name="description" content="Practical guides to verifying a PDF: tampered invoices, proof of address, pay slips, modified files. Method, technical evidence and the limits of automated checks.">
+    <meta name="description" content="Practical guides to verifying a document: invoices, bank details, Kbis, URSSAF certificates, proof of address, pay slips, French tax notices, modified PDFs. Method and limits.">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
     <meta name="theme-color" content="#1a1a2e">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -16,7 +16,7 @@
     <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/">
     <meta property="og:type" content="article">
     <meta property="og:title" content="Guides - How to verify a PDF document | TrustyFile">
-    <meta property="og:description" content="Practical guides to verifying a PDF: tampered invoices, proof of address, pay slips, modified files. Method, technical evidence and the limits of automated checks.">
+    <meta property="og:description" content="Practical guides to verifying a document: invoices, bank details, Kbis, URSSAF certificates, proof of address, pay slips, French tax notices, modified PDFs. Method and limits.">
     <meta property="og:url" content="https://www.trustyfile.com/en/guides/">
     <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -25,7 +25,7 @@
     <meta property="og:locale" content="en_US">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Guides - How to verify a PDF document | TrustyFile">
-    <meta name="twitter:description" content="Practical guides to verifying a PDF: tampered invoices, proof of address, pay slips, modified files. Method, technical evidence and the limits of automated checks.">
+    <meta name="twitter:description" content="Practical guides to verifying a document: invoices, bank details, Kbis, URSSAF certificates, proof of address, pay slips, French tax notices, modified PDFs. Method and limits.">
     <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
     <style>
 :root { color-scheme: light; }
@@ -120,7 +120,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "@context": "https://schema.org",
         "@type": "CollectionPage",
         "name": "Document verification guides",
-        "description": "Practical guides to verifying a PDF: tampered invoices, proof of address, pay slips, modified files. Method, technical evidence and the limits of automated checks.",
+        "description": "Practical guides to verifying a document: invoices, bank details, Kbis, URSSAF certificates, proof of address, pay slips, French tax notices, modified PDFs. Method and limits.",
         "url": "https://www.trustyfile.com/en/guides/",
         "inLanguage": "en",
         "hasPart": [
@@ -254,54 +254,57 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 
     <h1>Document verification guides</h1>
     <p class="intro">How to recognise a forged document, which technical signals to look at, and what an automated check can and cannot prove. Each guide answers one question.</p>
-    <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
-        <h2>How to spot a tampered invoice</h2>
-        <p>Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.</p>
-        <p class="more">Read the guide &rarr;</p>
-    </a>
+    <h2 id="individuals">Individuals and rental files</h2>
     <a class="card" href="/en/guides/how-to-verify-a-proof-of-address">
-        <h2>How to verify a proof of address</h2>
+        <h3>How to verify a proof of address</h3>
         <p>Utility, telecom and internet bills used as proof of address: the technical checks that reveal an edited document, and when the checks simply cannot apply.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
-    <a class="card" href="/en/guides/how-to-tell-if-a-pdf-was-modified">
-        <h2>How to tell if a PDF was modified</h2>
-        <p>A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.</p>
-        <p class="more">Read the guide &rarr;</p>
-    </a>
-    <a class="card" href="/en/guides/2d-doc-verifying-official-documents">
-        <h2>2D-Doc: verifying French official documents</h2>
-        <p>The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.</p>
-        <p class="more">Read the guide &rarr;</p>
-    </a>
     <a class="card" href="/en/guides/how-to-verify-a-pay-slip">
-        <h2>How to verify a pay slip</h2>
+        <h3>How to verify a pay slip</h3>
         <p>Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
+    <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
+        <h3>How to verify a French tax notice (avis d&#x27;imposition)</h3>
+        <p>Landlord or agency: verify a tenant&#x27;s French income-tax notice with the tax office&#x27;s online service (SVAIR), the signed 2D-Doc code and the other documents in the file.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <h2 id="business">Businesses and suppliers</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
+        <h3>How to spot a tampered invoice</h3>
+        <p>Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
     <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
-        <h2>How to spot a fake IBAN on an invoice</h2>
+        <h3>How to spot a fake IBAN on an invoice</h3>
         <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
     <a class="card" href="/en/guides/supplier-bank-detail-change-fraud">
-        <h2>Supplier bank-detail change fraud: verifying a new IBAN</h2>
+        <h3>Supplier bank-detail change fraud: verifying a new IBAN</h3>
         <p>A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
     <a class="card" href="/en/guides/how-to-verify-a-kbis-extract">
-        <h2>How to verify a Kbis extract (French company registration)</h2>
+        <h3>How to verify a Kbis extract (French company registration)</h3>
         <p>Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
-    <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
-        <h2>How to verify a French tax notice (avis d&#x27;imposition)</h2>
-        <p>Landlord or agency: verify a tenant&#x27;s French income-tax notice with the tax office&#x27;s online service (SVAIR), the signed 2D-Doc code and the other documents in the file.</p>
+    <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
+        <h3>How to verify an URSSAF vigilance certificate (France)</h3>
+        <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
-    <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
-        <h2>How to verify an URSSAF vigilance certificate (France)</h2>
-        <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    <h2 id="method">Method and technique</h2>
+    <a class="card" href="/en/guides/how-to-tell-if-a-pdf-was-modified">
+        <h3>How to tell if a PDF was modified</h3>
+        <p>A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/2d-doc-verifying-official-documents">
+        <h3>2D-Doc: verifying French official documents</h3>
+        <p>The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
     <h2 id="outils">Free tools</h2>

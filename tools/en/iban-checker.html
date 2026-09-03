@@ -209,14 +209,28 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/tools/siret-checker">
         <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
         <p>Free SIRET checker: validates the 14-digit French establishment number with the Luhn formula, including the special rule for La Poste establishments. Runs locally.</p>
+        <p class="more">Open the tool &rarr;</p>
     </a>
     <a class="card" href="/en/tools/siren-checker">
         <h3>SIREN checker: Luhn check and matching French VAT number</h3>
         <p>Free SIREN checker: validates the 9-digit French company number with the Luhn formula and derives the intra-EU VAT number it implies. Runs in your browser, nothing is sent.</p>
+        <p class="more">Open the tool &rarr;</p>
     </a>
     <a class="card" href="/en/tools/vat-number-checker">
         <h3>French VAT number checker: key and SIREN consistency</h3>
         <p>Free French VAT number checker: validates the two-digit key against the SIREN it precedes and the SIREN&#x27;s own Luhn digit. Runs in your browser; use VIES for registration.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <h2>More guides</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
+        <h3>How to spot a fake IBAN on an invoice</h3>
+        <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/supplier-bank-detail-change-fraud">
+        <h3>Supplier bank-detail change fraud: verifying a new IBAN</h3>
+        <p>A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.</p>
+        <p class="more">Read the guide &rarr;</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <script type="application/json" id="tf-i18n">{"format_iban": "Unexpected format: an IBAN starts with two letters (country) and two digits (check), followed by 11 to 30 characters.", "valid_iban": "Check digits valid (mod 97)", "invalid_iban": "Check digits invalid: this is not a well-formed IBAN — a wrong digit, a missing character or a made-up number.", "country": "Country: {country}", "length_ok": "Length matches {country} ({n} characters)", "length_ko": "Unusual length for {country}: {n} characters instead of {expected}", "length_unknown": "Length not checked: country outside the reference table", "rib_ok": "RIB key valid (French IBAN)", "rib_ko": "RIB key invalid: the last two digits do not match the account", "format_siret": "A SIRET has exactly 14 digits", "valid_siret": "Check digit valid", "invalid_siret": "Check digit invalid: this is not a well-formed SIRET", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "La Poste establishment: specific rule applied (digit sum is a multiple of 5)", "format_siren": "A SIREN has exactly 9 digits", "valid_siren": "Check digit valid", "invalid_siren": "Check digit invalid: this is not a well-formed SIREN", "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}", "format_vat": "Unexpected format: a French VAT number is FR, a two-digit key, then the 9 digits of the SIREN. Keys containing letters (rare) are not checked by this tool.", "valid_vat": "Check key valid: the key matches the SIREN", "invalid_vat": "Check key invalid: this VAT number is not self-consistent", "vat_parts": "Key {key} · SIREN {siren}", "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up", "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}", "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.", "kind": "iban"}</script>
