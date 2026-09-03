@@ -189,6 +189,7 @@
     "step3_desc": "Detailed result with detected anomalies",
 
     "footer_guides": "Guides",
+    "footer_tools": "Free tools",
     "footer_contact": "Questions or feedback?",
 
     "label_date": "Date",
@@ -199,7 +200,6 @@
     "label_bank": "Bank",
     "label_branch": "Branch",
     "label_check": "Check",
-    "label_confidence": "Confidence",
     "label_weight": "Weight",
     "label_flags": "Flags",
 

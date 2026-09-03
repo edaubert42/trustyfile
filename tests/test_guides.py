@@ -16,6 +16,7 @@ import html
 import json
 import re
 import sys
+from datetime import date
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
@@ -267,6 +268,12 @@ def test_seo_landing_pages_link_to_the_guides():
     en = (ROOT / "seo-en.html").read_text(encoding="utf-8")
     assert 'href="/guides/' in fr
     assert 'href="/en/guides/' in en
+    # Same for the checker tools: a page only the hub links to is one hop
+    # further from the home page than it needs to be.
+    for tool in build_guides.TOOLS["fr"]:
+        assert f'href="/outils/{tool.slug}"' in fr
+    for tool in build_guides.TOOLS["en"]:
+        assert f'href="/en/tools/{tool.slug}"' in en
 
 
 class _VisibleText(HTMLParser):
@@ -314,11 +321,12 @@ def test_landing_page_says_nothing_the_app_does_not(lang):
             "subtitle", "landing_headline", "landing_tagline", "disclaimer_upload",
             "step1_title", "step1_desc", "step2_title", "step2_desc",
             "step3_title", "step3_desc", "disclaimer_api",
-            "footer_guides", "footer_contact",
+            "footer_guides", "footer_tools", "footer_contact",
         )
     }
-    allowed |= {t["footer_guides"] + colon}
+    allowed |= {t["footer_guides"] + colon, t["footer_tools"] + colon}
     allowed |= {guide.title for guide in build_guides.GUIDES[lang]}
+    allowed |= {tool.title for tool in build_guides.TOOLS[lang]}
     allowed |= {
         "TrustyFile", "1", "2", "3", "contact@trustyfile.com",
         build_guides.CHROME[lang]["lang_switch"],
@@ -362,6 +370,102 @@ def test_robots_does_not_block_the_guides():
         if line.lower().startswith("disallow:")
     ]
     for rule in disallowed:
-        assert rule and not "/guides".startswith(rule.rstrip("*")), (
-            f"robots.txt rule {rule!r} blocks the guides"
-        )
+        for public in ("/guides", "/en/guides", "/outils", "/en/tools", "/llms.txt"):
+            assert rule and not public.startswith(rule.rstrip("*")), (
+                f"robots.txt rule {rule!r} blocks {public}"
+            )
+
+
+# --- Dates, tool callouts, llms.txt -----------------------------------------
+
+
+@pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
+def test_guide_dates_are_real_and_rendered(lang, guide):
+    """published <= modified, both ISO, and the page shows the same date it declares.
+
+    The visible "updated" line, the Article JSON-LD and the sitemap must agree:
+    a dateModified that says one thing while the page says another is the
+    inconsistency Google treats as an unreliable freshness signal.
+    """
+    published = date.fromisoformat(guide.published)
+    modified = date.fromisoformat(guide.modified)
+    assert published <= modified <= date.today()
+    rendered = build_guides.render_guide(lang, guide)
+    assert f'<time datetime="{guide.modified}">' in rendered
+    assert rendered.count("<time ") == 1
+    article = next(
+        json.loads(block)
+        for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', rendered, re.S)
+        if json.loads(block).get("@type") == "Article"
+    )
+    assert article["datePublished"] == guide.published
+    assert article["dateModified"] == guide.modified
+
+
+def test_sitemap_lastmod_comes_from_each_page():
+    """Every guide and tool URL carries its own modified date, not a global one."""
+    tree = ET.parse(ROOT / "sitemap.xml")
+    ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    lastmod = {
+        url.find("sm:loc", ns).text: url.find("sm:lastmod", ns).text
+        for url in tree.getroot().findall("sm:url", ns)
+    }
+    for lang in ("fr", "en"):
+        chrome = build_guides.CHROME[lang]
+        for guide in build_guides.GUIDES[lang]:
+            loc = f"{build_guides.SITE}{chrome['guides_path']}/{guide.slug}"
+            assert lastmod[loc] == guide.modified, loc
+        for tool in build_guides.TOOLS[lang]:
+            loc = f"{build_guides.SITE}{chrome['tools_path']}/{tool.slug}"
+            assert lastmod[loc] == tool.modified, loc
+    # Hubs and landings list everything, so they moved when the newest page did.
+    newest = build_guides.latest_content_date()
+    for loc in (f"{build_guides.SITE}/", f"{build_guides.SITE}/en"):
+        assert lastmod[loc] == newest
+    for value in lastmod.values():
+        date.fromisoformat(value)
+
+
+@pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
+def test_guide_tool_callouts_point_at_real_tools(lang, guide):
+    """A guide may offer checker tools; each slug must exist and be linked."""
+    known = {tool.slug for tool in build_guides.TOOLS[lang]}
+    rendered = build_guides.render_guide(lang, guide)
+    path = build_guides.CHROME[lang]["tools_path"]
+    for slug in guide.tools:
+        assert slug in known, f"{guide.slug} offers unknown tool {slug!r}"
+        assert f'href="{path}/{slug}"' in rendered
+    assert len(guide.tools) == len(set(guide.tools))
+
+
+def test_llms_txt_lists_every_public_page():
+    """llms.txt (llmstxt.org) names every guide and tool, and only public URLs.
+
+    Committed-output parity with the generator is covered by
+    test_committed_output_matches_generator, since build() emits it.
+    """
+    text = build_guides.render_llms_txt()
+    assert text.startswith("# TrustyFile\n\n> ")
+    linked = set(re.findall(r"\]\((https://[^)]+)\)", text))
+    for lang in ("fr", "en"):
+        chrome = build_guides.CHROME[lang]
+        assert f"{build_guides.SITE}{chrome['index_path']}" in linked
+        for guide in build_guides.GUIDES[lang]:
+            assert f"{build_guides.SITE}{chrome['guides_path']}/{guide.slug}" in linked
+        for tool in build_guides.TOOLS[lang]:
+            assert f"{build_guides.SITE}{chrome['tools_path']}/{tool.slug}" in linked
+    sitemap_locs = {entry.loc for entry in build_guides.sitemap_entries()}
+    assert linked - sitemap_locs == {f"{build_guides.SITE}/sitemap.xml"}
+
+
+@pytest.mark.parametrize(
+    "lang,iso,expected",
+    [
+        ("fr", "2026-08-13", "13 août 2026"),
+        ("fr", "2026-09-01", "1er septembre 2026"),
+        ("en", "2026-08-13", "13 August 2026"),
+        ("en", "2026-09-01", "1 September 2026"),
+    ],
+)
+def test_format_date(lang, iso, expected):
+    assert build_guides._format_date(lang, iso) == expected

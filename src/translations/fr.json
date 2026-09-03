@@ -189,6 +189,7 @@
     "step3_desc": "Résultat détaillé avec les anomalies détectées",
 
     "footer_guides": "Guides",
+    "footer_tools": "Outils gratuits",
     "footer_contact": "Questions ou suggestions ?",
 
     "label_date": "Date",
@@ -199,7 +200,6 @@
     "label_bank": "Banque",
     "label_branch": "Agence",
     "label_check": "Contrôle",
-    "label_confidence": "Fiabilité",
     "label_weight": "Poids",
     "label_flags": "Alertes",
 

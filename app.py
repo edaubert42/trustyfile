@@ -22,14 +22,16 @@ from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
 
-# The landing page lists the verification guides. Their slugs and titles live
-# with the generator (scripts/build_guides.py), which also renders the
-# crawler-facing copy of this landing page — one source, so the two pages list
-# exactly the same links and the crawler never sees a link a human does not.
+# The landing page lists the verification guides and the checker tools. Their
+# slugs and titles live with the generator (scripts/build_guides.py), which
+# also renders the crawler-facing copy of this landing page — one source, so
+# the two pages list exactly the same links and the crawler never sees a link
+# a human does not.
 try:
-    from scripts.build_guides import GUIDES as _GUIDES
+    from scripts.build_guides import GUIDES as _GUIDES, TOOLS as _TOOLS
 except Exception:  # a broken or missing generator must never take the app down
     _GUIDES = {"fr": [], "en": []}
+    _TOOLS = {"fr": [], "en": []}
 
 
 def esc(s) -> str:
@@ -1122,6 +1124,18 @@ if uploaded_file is None:
         'line-height:1.9; max-width:640px;">'
         f'{t("footer_guides")}{" :" if _current_lang == "fr" else ":"} {_guide_links}</p>'
     ) if _guide_links else ""
+    # Checker tools (IBAN / SIRET / SIREN), same treatment: a visitor with a
+    # single number to check should not have to upload a document to find them.
+    _tools_prefix = "/outils/" if _current_lang == "fr" else "/en/tools/"
+    _tool_links = " · ".join(
+        f'<a href="{_tools_prefix}{tool.slug}" style="color:#888; text-decoration:none;">{html.escape(tool.title)}</a>'
+        for tool in _TOOLS.get(_current_lang, [])
+    )
+    _landing_tools_html = (
+        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:0.4rem auto 0 auto; '
+        'line-height:1.9; max-width:640px;">'
+        f'{t("footer_tools")}{" :" if _current_lang == "fr" else ":"} {_tool_links}</p>'
+    ) if _tool_links else ""
 
     # "How it works" steps
     st.markdown(f"""
@@ -1217,6 +1231,7 @@ if uploaded_file is None:
         </div>
     </div>
     {_landing_guides_html}
+    {_landing_tools_html}
     <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
         {t("disclaimer_api")}
     </p>
@@ -2267,7 +2282,6 @@ if uploaded_file is not None:
                 f'</div>'
                 f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
                 f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
-                f'<span>{t("label_confidence")}: {module.confidence:.0%}</span>'
                 f'<span>{t("label_flags")}: {len(module.flags)}</span>'
                 f'</div>'
                 f'{flags_html}'

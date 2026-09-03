@@ -1,5 +1,6 @@
 """Render the static pages: guides (/guides, /en/guides), the crawler landing
-pages (seo-*.html) and the checker tools (/outils, /en/tools).
+pages (seo-*.html), the checker tools (/outils, /en/tools), sitemap.xml
+and llms.txt.
 
 WHY THIS EXISTS
 ---------------
@@ -61,11 +62,14 @@ def _translations(lang: str) -> dict[str, str]:
     return json.loads((TRANSLATIONS_DIR / f"{lang}.json").read_text(encoding="utf-8"))
 
 
-# Bumped by hand when the guide content is substantially rewritten. Feeds
-# <lastmod> in the sitemap and dateModified in the Article JSON-LD; lying about
-# it (auto-setting it to "today" on every build) is the kind of freshness
-# signal Google discounts.
+# Default `published` / `modified` date for the guides written before pages
+# carried their own dates. Bumped by hand when a guide is substantially
+# rewritten — never auto-set to "today" on every build: a lastmod that moves
+# without the content moving is the kind of freshness signal Google discounts.
 LAST_MODIFIED = "2026-08-13"
+
+# The day the checker tools first went live; their sitemap <lastmod>.
+TOOLS_LAUNCHED = "2026-09-03"
 
 
 @dataclass
@@ -95,6 +99,12 @@ class Guide:
         sections: the body.
         counterpart: slug of the same guide in the other language, for the
             hreflang links. None while a translation does not exist yet.
+        published: ISO date the page first went live (Article datePublished).
+        modified: ISO date of the last substantive rewrite (dateModified, the
+            visible "updated" line and the sitemap <lastmod>). Bump by hand.
+        tools: slugs of the checker tools (TOOLS[lang]) worth offering at the
+            end of this guide, e.g. the IBAN checker under the fake-RIB guide.
+            Slugs rather than objects so a typo fails the tests, not the reader.
     """
 
     slug: str
@@ -104,6 +114,9 @@ class Guide:
     intro: str
     sections: list[Section]
     counterpart: str | None = None
+    published: str = LAST_MODIFIED
+    modified: str = LAST_MODIFIED
+    tools: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -120,6 +133,7 @@ class Tool:
         placeholder: example value shown in the empty input.
         sections: the explanatory body under the form: what the check proves,
             what it does not, how the algorithm works.
+        modified: ISO date of the last substantive change (sitemap <lastmod>).
     """
 
     slug: str
@@ -131,6 +145,7 @@ class Tool:
     placeholder: str
     sections: list[Section]
     counterpart: str | None = None
+    modified: str = TOOLS_LAUNCHED
 
 
 # --- Per-language chrome -----------------------------------------------------
@@ -167,7 +182,7 @@ CHROME = {
         "toc": "Sommaire",
         "related": "Autres guides",
         "footer_contact": "Contact",
-        "updated": "Mis à jour le 13 août 2026",
+        "updated": "Mis à jour le {date}",
         # Crawler landing page (seo-fr.html). Metadata only — the visible body
         # comes from src/translations/fr.json, see render_landing().
         "landing_path": "/",
@@ -313,7 +328,7 @@ CHROME = {
         "toc": "Contents",
         "related": "More guides",
         "footer_contact": "Contact",
-        "updated": "Updated 13 August 2026",
+        "updated": "Updated {date}",
         "landing_path": "/en",
         "landing_title": "TrustyFile - Free Document Fraud Detector",
         "landing_description": (
@@ -433,6 +448,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="verifier-une-facture-falsifiee",
             counterpart="how-to-spot-a-tampered-invoice",
+            tools=["verifier-un-siret", "verifier-un-siren"],
             title="Vérifier si une facture a été falsifiée",
             description=(
                 "Montant retouché, date modifiée, IBAN remplacé : les indices "
@@ -954,6 +970,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="detecter-un-faux-rib",
             counterpart="how-to-spot-a-fake-iban",
+            tools=["verifier-un-iban"],
             title="Détecter un faux RIB ou un IBAN falsifié",
             description=(
                 "La fraude au faux RIB détourne les virements vers le compte de "
@@ -1062,6 +1079,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="how-to-spot-a-tampered-invoice",
             counterpart="verifier-une-facture-falsifiee",
+            tools=["siret-checker", "siren-checker"],
             title="How to spot a tampered invoice",
             description=(
                 "Edited amounts, altered dates, swapped bank details: the "
@@ -1559,6 +1577,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="how-to-spot-a-fake-iban",
             counterpart="detecter-un-faux-rib",
+            tools=["iban-checker"],
             title="How to spot a fake IBAN on an invoice",
             description=(
                 "Payment redirection fraud swaps the bank details on a genuine "
@@ -2327,6 +2346,60 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 """
 
 
+_MONTHS = {
+    "fr": [
+        "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+        "août", "septembre", "octobre", "novembre", "décembre",
+    ],
+    "en": [
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+    ],
+}
+
+
+def _format_date(lang: str, iso_date: str) -> str:
+    """Spell out an ISO date the way a reader of that language expects.
+
+    French writes the day first with no leading zero, and "1er" for the
+    first; English here follows the same day-month-year order, which is what
+    the previous hand-written labels used.
+
+    Example:
+        >>> _format_date("fr", "2026-09-01")
+        '1er septembre 2026'
+        >>> _format_date("en", "2026-08-13")
+        '13 August 2026'
+    """
+    year, month, day = (int(part) for part in iso_date.split("-"))
+    day_text = "1er" if lang == "fr" and day == 1 else str(day)
+    return f"{day_text} {_MONTHS[lang][month - 1]} {year}"
+
+
+def _updated_line(lang: str, iso_date: str) -> str:
+    """The visible "updated on" line, with a machine-readable <time>.
+
+    Example:
+        >>> _updated_line("fr", "2026-08-13")
+        '<p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>'
+    """
+    label = CHROME[lang]["updated"].format(date=_format_date(lang, iso_date))
+    return f'<p class="updated"><time datetime="{iso_date}">{label}</time></p>'
+
+
+def _tool_cards(lang: str, tools: list["Tool"]) -> list[str]:
+    """Link cards for checker tools — shared by the hub, the guides and the tools."""
+    chrome = CHROME[lang]
+    parts: list[str] = []
+    for tool in tools:
+        parts.append(f'    <a class="card" href="{chrome["tools_path"]}/{tool.slug}">')
+        parts.append(f"        <h3>{html.escape(tool.title)}</h3>")
+        parts.append(f"        <p>{html.escape(tool.description)}</p>")
+        parts.append(f'        <p class="more">{chrome["open_tool"]} &rarr;</p>')
+        parts.append("    </a>")
+    return parts
+
+
 def _slugify_heading(heading: str) -> str:
     """Turn a section heading into a stable #anchor.
 
@@ -2472,8 +2545,8 @@ def render_guide(lang: str, guide: Guide) -> str:
         "headline": guide.title,
         "description": guide.description,
         "inLanguage": lang,
-        "datePublished": LAST_MODIFIED,
-        "dateModified": LAST_MODIFIED,
+        "datePublished": guide.published,
+        "dateModified": guide.modified,
         "mainEntityOfPage": {"@type": "WebPage", "@id": canonical},
         "image": f"{SITE}/og-image.png",
         "author": {"@type": "Organization", "name": "TrustyFile", "url": SITE},
@@ -2518,7 +2591,7 @@ def render_guide(lang: str, guide: Guide) -> str:
         ),
         _nav(lang, other_url),
         f"    <h1>{html.escape(guide.heading)}</h1>",
-        f'    <p class="updated">{chrome["updated"]}</p>',
+        f"    {_updated_line(lang, guide.modified)}",
         f'    <p class="intro">{guide.intro}</p>',
     ]
 
@@ -2544,6 +2617,15 @@ def render_guide(lang: str, guide: Guide) -> str:
             for bullet in section.bullets:
                 parts.append(f"        <li>{bullet}</li>")
             parts.append("    </ul>")
+
+    # Checker tools the reader is likely to want next (the fake-RIB guide
+    # offers the IBAN checker, the invoice guide the SIRET one). A guide is the
+    # page a searcher lands on; the tool is what they came to do. Also the
+    # only inbound links the tools get besides the hub and the landing.
+    if guide.tools:
+        by_slug = {tool.slug: tool for tool in TOOLS[lang]}
+        parts.append(f"    <h2>{html.escape(chrome['tools_heading'])}</h2>")
+        parts.extend(_tool_cards(lang, [by_slug[slug] for slug in guide.tools]))
 
     # Related guides: every sibling in the same language. Internal links are
     # the main way crawlers discover pages and how link signal flows between
@@ -2650,13 +2732,7 @@ def render_index(lang: str) -> str:
     # Free checker tools: the hub is the one place that links every tool.
     parts.append(f'    <h2 id="outils">{html.escape(chrome["tools_heading"])}</h2>')
     parts.append(f'    <p>{html.escape(chrome["tools_intro"])}</p>')
-    for tool in TOOLS[lang]:
-        url = f"{chrome['tools_path']}/{tool.slug}"
-        parts.append(f'    <a class="card" href="{url}">')
-        parts.append(f"        <h3>{html.escape(tool.title)}</h3>")
-        parts.append(f"        <p>{html.escape(tool.description)}</p>")
-        parts.append(f'        <p class="more">{chrome["open_tool"]} &rarr;</p>')
-        parts.append("    </a>")
+    parts.extend(_tool_cards(lang, TOOLS[lang]))
     parts.extend(_faq_html(lang))
     parts.append(f"    <p>{chrome['index_outro']}</p>")
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
@@ -2741,6 +2817,10 @@ def render_landing(lang: str) -> str:
     guide_links = " &middot; ".join(
         f'<a href="{chrome["guides_path"]}/{g.slug}">{esc(g.title)}</a>' for g in GUIDES[lang]
     )
+    tool_links = " &middot; ".join(
+        f'<a href="{chrome["tools_path"]}/{tool.slug}">{esc(tool.title)}</a>'
+        for tool in TOOLS[lang]
+    )
     colon = " :" if lang == "fr" else ":"
     steps = "\n".join(
         f'        <li><span class="n">{i}</span>'
@@ -2772,6 +2852,7 @@ def render_landing(lang: str) -> str:
         steps,
         "    </ol>",
         f'    <p class="note">{esc(t["footer_guides"])}{colon} {guide_links}</p>',
+        f'    <p class="note">{esc(t["footer_tools"])}{colon} {tool_links}</p>',
         f'    <p class="note">{esc(t["disclaimer_api"])}</p>',
         "    <footer>",
         f'        <p><a href="{chrome["index_path"]}">{esc(t["footer_guides"])}</a>',
@@ -2897,12 +2978,16 @@ class SitemapEntry:
         en: English equivalent.
         priority: relative importance within this site only. Google largely
             ignores it; kept because other engines still read it.
+        lastmod: ISO date of the last substantive change to that URL. Google
+            does use this one — provided it is truthful, so it comes from the
+            page's own date, not from the build time.
     """
 
     loc: str
     fr: str
     en: str
     priority: str
+    lastmod: str
 
 
 def sitemap_entries() -> list[SitemapEntry]:
@@ -2912,9 +2997,12 @@ def sitemap_entries() -> list[SitemapEntry]:
     including itself — or Google discards the whole cluster.
     """
     fr_home, en_home = SITE + "/", SITE + "/en"
+    # The landing pages and the hubs list every guide and tool, so they last
+    # changed when the newest of those did.
+    newest = latest_content_date()
     entries = [
-        SitemapEntry(fr_home, fr_home, en_home, "1.0"),
-        SitemapEntry(en_home, fr_home, en_home, "0.9"),
+        SitemapEntry(fr_home, fr_home, en_home, "1.0", newest),
+        SitemapEntry(en_home, fr_home, en_home, "0.9", newest),
     ]
     for lang in ("fr", "en"):
         other = "en" if lang == "fr" else "fr"
@@ -2925,6 +3013,7 @@ def sitemap_entries() -> list[SitemapEntry]:
                 f"{SITE}{CHROME['fr']['index_path']}",
                 f"{SITE}{CHROME['en']['index_path']}",
                 "0.8",
+                newest,
             )
         )
         for guide in GUIDES[lang]:
@@ -2935,13 +3024,23 @@ def sitemap_entries() -> list[SitemapEntry]:
             else:
                 # No translation yet: the page is its own only alternate.
                 fr_url = en_url = loc
-            entries.append(SitemapEntry(loc, fr_url, en_url, "0.7"))
+            entries.append(SitemapEntry(loc, fr_url, en_url, "0.7", guide.modified))
         for tool in TOOLS[lang]:
             loc = f"{SITE}{CHROME[lang]['tools_path']}/{tool.slug}"
             other_loc = f"{SITE}{CHROME[other]['tools_path']}/{tool.counterpart}"
             fr_url, en_url = (loc, other_loc) if lang == "fr" else (other_loc, loc)
-            entries.append(SitemapEntry(loc, fr_url, en_url, "0.7"))
+            entries.append(SitemapEntry(loc, fr_url, en_url, "0.7", tool.modified))
     return entries
+
+
+def latest_content_date() -> str:
+    """The most recent `modified` date across every guide and tool.
+
+    ISO dates sort as strings, so max() is enough.
+    """
+    dates = [g.modified for guides in GUIDES.values() for g in guides]
+    dates += [t.modified for tools in TOOLS.values() for t in tools]
+    return max(dates)
 
 
 def render_sitemap() -> str:
@@ -2963,12 +3062,69 @@ def render_sitemap() -> str:
             f'    <xhtml:link rel="alternate" hreflang="fr" href="{entry.fr}" />',
             f'    <xhtml:link rel="alternate" hreflang="en" href="{entry.en}" />',
             f'    <xhtml:link rel="alternate" hreflang="x-default" href="{entry.fr}" />',
-            f"    <lastmod>{LAST_MODIFIED}</lastmod>",
+            f"    <lastmod>{entry.lastmod}</lastmod>",
             "    <changefreq>monthly</changefreq>",
             f"    <priority>{entry.priority}</priority>",
             "  </url>",
         ]
     lines.append("</urlset>")
+    return "\n".join(lines) + "\n"
+
+
+def render_llms_txt() -> str:
+    """Render /llms.txt: a Markdown map of the site for AI answer engines.
+
+    The llms.txt convention (llmstxt.org) is a plain Markdown file at the site
+    root: an h1, a one-line summary in a blockquote, then h2 sections of
+    "- [title](url): description" links. Assistants that browse (ChatGPT,
+    Perplexity, Claude — all already in the Caddyfile's crawler list) read it
+    to find the pages worth citing, and citations are a growing referral
+    source. Everything listed is a public page served identically to every
+    visitor, so this adds no content the site does not already show.
+    """
+    lines = [
+        "# TrustyFile",
+        "",
+        "> Vérificateur de documents PDF gratuit : déposez un PDF et obtenez un "
+        "score de confiance fondé sur des indices techniques (métadonnées, "
+        "révisions, polices, texte masqué, 2D-Doc, identifiants d'entreprise). "
+        "Free online PDF document fraud detector: upload a PDF and get a trust "
+        "score built from technical evidence.",
+        "",
+        "TrustyFile est un outil d'aide à la décision, pas une autorité de "
+        "certification : un score élevé signale peu de traces de manipulation, "
+        "il ne prouve pas l'authenticité. Les documents ne sont pas conservés. "
+        "Decision support, not certification: a high score means few signs of "
+        "tampering, not proof of authenticity. Documents are not retained.",
+        "",
+        f"- [Application (français)]({SITE}/)",
+        f"- [Application (English)]({SITE}/en)",
+        "",
+    ]
+    headings = {
+        "fr": ("Guides (français)", "Outils gratuits (français)"),
+        "en": ("Guides (English)", "Free tools (English)"),
+    }
+    for lang in ("fr", "en"):
+        chrome = CHROME[lang]
+        guides_heading, tools_heading = headings[lang]
+        lines.append(f"## {guides_heading}")
+        lines.append("")
+        lines.append(f"- [{chrome['index_heading']}]({SITE}{chrome['index_path']})")
+        for guide in GUIDES[lang]:
+            url = f"{SITE}{chrome['guides_path']}/{guide.slug}"
+            lines.append(f"- [{guide.title}]({url}): {guide.description}")
+        lines.append("")
+        lines.append(f"## {tools_heading}")
+        lines.append("")
+        for tool in TOOLS[lang]:
+            url = f"{SITE}{chrome['tools_path']}/{tool.slug}"
+            lines.append(f"- [{tool.title}]({url}): {tool.description}")
+        lines.append("")
+    lines.append("## Optional")
+    lines.append("")
+    lines.append(f"- [Sitemap]({SITE}/sitemap.xml)")
+    lines.append("- [Contact](mailto:contact@trustyfile.com)")
     return "\n".join(lines) + "\n"
 
 
@@ -2986,6 +3142,7 @@ def build() -> dict[Path, str]:
     # test (tests/test_checksum_vectors.py). Not served by Caddy.
     pages[ROOT / "tools" / "checksums.js"] = CHECKSUM_JS
     pages[ROOT / "sitemap.xml"] = render_sitemap()
+    pages[ROOT / "llms.txt"] = render_llms_txt()
     return pages
 
 
