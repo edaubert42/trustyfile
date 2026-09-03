@@ -8,6 +8,28 @@
 # Smaller payloads mean a faster LCP, which Google scores as a ranking signal.
 encode zstd gzip
 
+# Security headers on every response, static pages and the Streamlit proxy
+# alike. `defer` applies them after the upstream has answered, so they reach
+# proxied responses too. Before this block the site sent none of them.
+#   HSTS: TLS terminates at Railway's edge and HTTP already 301s to HTTPS;
+#         this makes browsers skip the insecure hop for a year.
+#   nosniff: never let a browser guess a content type (matters for the
+#         per-session /media/ uploads Streamlit serves).
+#   SAMEORIGIN, not DENY: Streamlit renders components in same-origin
+#         iframes, which DENY would block.
+#   Referrer-Policy: full URL to our own pages, origin only to third parties
+#         (the links to gouv.fr registers in the guides).
+#   Permissions-Policy: the app uploads files; it never needs camera,
+#         microphone or location.
+header {
+	Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	X-Content-Type-Options "nosniff"
+	X-Frame-Options "SAMEORIGIN"
+	Referrer-Policy "strict-origin-when-cross-origin"
+	Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	defer
+}
+
 # Crawler user-agents (case-insensitive). The three matchers below MUST stay
 # byte-identical: Caddy cannot share a regexp between named matchers, so this
 # list is duplicated on purpose. Edit one, edit all three.
