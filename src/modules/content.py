@@ -1306,6 +1306,59 @@ def check_reference_consistency(text: str) -> list[Flag]:
 # French legal mentions that should be present on invoices
 # These are required by law for French companies
 
+# La Poste's single SIREN; its SIRETs follow a rule of their own, see
+# validate_siret_checksum.
+LA_POSTE_SIREN = "356000000"
+
+
+def _strip_separators(text: str) -> str:
+    """Drop the spaces, dots and hyphens people paste along with a number.
+
+    Example:
+        >>> _strip_separators("552 081 317.66522")
+        '55208131766522'
+    """
+    return re.sub(r"[\s.\-]", "", text or "")
+
+
+def is_valid_siret(text: str) -> bool:
+    """Validate a SIRET as a user would paste it (spaces, dots tolerated).
+
+    This is the contract the /outils/verifier-un-siret page reimplements in
+    JavaScript; tests/test_checksum_vectors.py holds both to the same vectors.
+
+    Example:
+        >>> is_valid_siret("552 081 317 66522")
+        True
+    """
+    return validate_siret_checksum(_strip_separators(text))
+
+
+def is_valid_siren(text: str) -> bool:
+    """Validate a SIREN as a user would paste it. See is_valid_siret."""
+    return validate_siren_checksum(_strip_separators(text))
+
+
+def is_valid_iban(text: str) -> bool:
+    """Validate an IBAN as a user would paste it: normalise, check the shape, then mod 97.
+
+    validate_iban_checksum() assumes a clean, upper-case IBAN because the
+    extraction regex upstream guarantees one; a pasted string does not, so
+    this wrapper does the normalising and rejects anything that is not
+    two letters, two digits and 11-30 alphanumerics before running the sum.
+
+    Example:
+        >>> is_valid_iban("fr76 3000 6000 0112 3456 7890 189")
+        True
+        >>> is_valid_iban("XX00")
+        False
+    """
+    iban = _strip_separators(text).upper()
+    if not re.fullmatch(r"[A-Z]{2}\d{2}[A-Z0-9]{11,30}", iban):
+        return False
+    return validate_iban_checksum(iban)
+
+
 def validate_siret_checksum(siret: str) -> bool:
     """
     Validate a SIRET number using the Luhn algorithm.
@@ -1339,7 +1392,18 @@ def validate_siret_checksum(siret: str) -> bool:
                 d -= 9
         total += d
 
-    return total % 10 == 0
+    if total % 10 == 0:
+        return True
+
+    # La Poste (SIREN 356 000 000) has so many establishments that INSEE gave
+    # its SIRETs their own rule: only the head office 35600000000048 follows
+    # Luhn; every other La Poste SIRET is valid when the plain sum of its 14
+    # digits is a multiple of 5. Without this branch every La Poste invoice
+    # would be flagged for an "invalid" SIRET (added 2026-08-28).
+    if siret.startswith(LA_POSTE_SIREN):
+        return sum(int(c) for c in siret) % 5 == 0
+
+    return False
 
 
 def validate_siren_checksum(siren: str) -> bool:
