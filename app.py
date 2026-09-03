@@ -33,6 +33,30 @@ except Exception:  # a broken or missing generator must never take the app down
     _GUIDES = {"fr": [], "en": []}
     _TOOLS = {"fr": [], "en": []}
 
+# Which checker page can re-run the check behind a flag. Matched on the flag
+# code (CONTENT_INVALID_IBAN, EXTERNAL_SIRET_NOT_FOUND, ...) rather than on a
+# hand-kept list, so a new identifier flag gets its link for free. VAT flags
+# go to the SIREN checker, which derives the French VAT key from the SIREN.
+_TOOL_KIND_BY_CODE_TOKEN = (("IBAN", "iban"), ("SIRET", "siret"), ("SIREN", "siren"), ("VAT", "siren"))
+
+
+def tool_url_for_flag(code: str, lang: str) -> str | None:
+    """Site-relative URL of the checker page matching a flag code, if any.
+
+    Example:
+        >>> tool_url_for_flag("CONTENT_INVALID_IBAN", "fr")
+        '/outils/verifier-un-iban'
+        >>> tool_url_for_flag("META_ONLINE_CONVERTER", "fr") is None
+        True
+    """
+    prefix = "/outils/" if lang == "fr" else "/en/tools/"
+    for token, kind in _TOOL_KIND_BY_CODE_TOKEN:
+        if token in code:
+            for tool in _TOOLS.get(lang, []):
+                if tool.kind == kind:
+                    return prefix + tool.slug
+    return None
+
 
 def esc(s) -> str:
     """Escape a value for safe interpolation into unsafe_allow_html markdown.
@@ -2064,6 +2088,18 @@ if uploaded_file is not None:
                         f'{rows_html}</div>'
                     )
 
+                # Identifier flags (IBAN / SIRET / SIREN / VAT) link to the free
+                # checker page: the reader can re-type the number from the
+                # document — or a corrected one — and see the check digit
+                # explained, without uploading anything.
+                tool_url = tool_url_for_flag(flag.code, get_lang())
+                if tool_url:
+                    details_content += (
+                        f'<div style="margin-top:8px;"><a href="{tool_url}" target="_blank" rel="noopener" '
+                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
+                        f'{html_mod_flags.escape(t("flag_check_tool"))} &rarr;</a></div>'
+                    )
+
                 issues_html += (
                     f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                     f'border-radius:8px; padding:0; margin-bottom:8px;">'
@@ -2280,6 +2316,11 @@ if uploaded_file is not None:
                 f'<span style="background:{sc_color}; color:white; font-size:0.68rem; font-weight:bold; '
                 f'padding:2px 10px; border-radius:10px;">{mod_score}/100</span>'
                 f'</div>'
+                # module.confidence (0.3-1.0, e.g. metadata 0.3 when a PDF has no
+                # metadata) is deliberately not shown here: the evidence ledger
+                # never reads it (flag_to_evidence pins confidence to 1.0), so a
+                # "Fiabilité : 30 %" next to the module score had no bearing on
+                # the verdict and read as a document-reliability figure it is not.
                 f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
                 f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
                 f'<span>{t("label_flags")}: {len(module.flags)}</span>'
