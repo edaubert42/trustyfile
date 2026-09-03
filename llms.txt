@@ -29,6 +29,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [Vérifier un SIRET : clé de Luhn et exception La Poste](https://www.trustyfile.com/outils/verifier-un-siret): Vérifiez la clé de contrôle d'un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.
 - [Vérifier un SIREN et retrouver le numéro de TVA](https://www.trustyfile.com/outils/verifier-un-siren): Vérifiez la clé de Luhn d'un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.
 - [Vérifier un numéro de TVA intracommunautaire français](https://www.trustyfile.com/outils/verifier-un-numero-de-tva): Vérifiez la clé d'un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l'existence du numéro, VIES.
+- [Vérifier la clé d'un numéro de sécurité sociale (NIR)](https://www.trustyfile.com/outils/verifier-un-numero-de-securite-sociale): Vérifiez la clé de contrôle d'un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n'est envoyé.
 
 ## Guides (English)
 
@@ -50,6 +51,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [SIRET checker: Luhn check digit and the La Poste rule](https://www.trustyfile.com/en/tools/siret-checker): Free SIRET checker: validates the 14-digit French establishment number with the Luhn formula, including the special rule for La Poste establishments. Runs locally.
 - [SIREN checker: Luhn check and matching French VAT number](https://www.trustyfile.com/en/tools/siren-checker): Free SIREN checker: validates the 9-digit French company number with the Luhn formula and derives the intra-EU VAT number it implies. Runs in your browser, nothing is sent.
 - [French VAT number checker: key and SIREN consistency](https://www.trustyfile.com/en/tools/vat-number-checker): Free French VAT number checker: validates the two-digit key against the SIREN it precedes and the SIREN's own Luhn digit. Runs in your browser; use VIES for registration.
+- [French social security number (NIR) key checker](https://www.trustyfile.com/en/tools/french-social-security-number-checker): Check the two-digit key of a French social security number (13 digits plus key, Corsica's 2A/2B included). The number stays in your browser: nothing is sent anywhere.
 
 ## Optional
 

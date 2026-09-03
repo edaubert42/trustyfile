@@ -25,6 +25,7 @@ import pytest
 from src.modules.content import (
     is_valid_french_vat,
     is_valid_iban,
+    is_valid_nir,
     is_valid_siren,
     is_valid_siret,
     validate_rib_key,
@@ -41,6 +42,7 @@ PYTHON_VALIDATORS = {
     "siret": is_valid_siret,
     "siren": is_valid_siren,
     "vat": is_valid_french_vat,
+    "nir": is_valid_nir,
 }
 
 
@@ -102,7 +104,7 @@ def test_javascript_validator_agrees_with_the_contract():
     harness = """
         const checks = require(process.argv[1]);
         const vectors = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8')).vectors;
-        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck, vat: checks.vatCheck };
+        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck, vat: checks.vatCheck, nir: checks.nirCheck };
         const out = vectors.map(v => {
           const r = fn[v.kind](v.input);
           return { kind: v.kind, input: v.input, valid: r.ok, rib_ok: r.ribKeyOk === undefined ? 'absent' : r.ribKeyOk };

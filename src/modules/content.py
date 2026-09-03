@@ -1384,6 +1384,30 @@ def is_valid_french_vat(text: str) -> bool:
     return validate_french_vat(vat)
 
 
+def is_valid_nir(text: str) -> bool:
+    """Validate a French social security number (NIR) as a user would paste it.
+
+    Format: 13 characters (sex, year, month, département, commune, order —
+    the département may read 2A or 2B for Corsica) followed by a two-digit
+    key. Key = 97 - (the 13 digits mod 97), with 2A read as 19 and 2B as 18
+    (INSEE rule). Separators are stripped; ASCII digits only, see
+    is_valid_iban. Contract shared with the browser checker through
+    tests/fixtures/checksum_vectors.json.
+
+    Example:
+        >>> is_valid_nir("1 85 05 78 006 084 91")
+        True
+        >>> is_valid_nir("1 85 05 78 006 084 92")
+        False
+    """
+    nir = _strip_separators(text).upper()
+    if not re.fullmatch(r"[1-8][0-9]{4}(?:[0-9]{2}|2A|2B)[0-9]{8}", nir):
+        return False
+    dept = nir[5:7]
+    digits = nir[:5] + {"2A": "19", "2B": "18"}.get(dept, dept) + nir[7:13]
+    return 97 - int(digits) % 97 == int(nir[13:15])
+
+
 def validate_rib_key(text: str) -> bool | None:
     """Check the RIB key of a French IBAN — the last two digits of its BBAN.
 

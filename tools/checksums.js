@@ -94,7 +94,23 @@
              sirenOk: sirenOk, expectedKey: expectedKey };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);

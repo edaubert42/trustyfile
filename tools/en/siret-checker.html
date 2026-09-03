@@ -212,6 +212,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Free French VAT number checker: validates the two-digit key against the SIREN it precedes and the SIREN&#x27;s own Luhn digit. Runs in your browser; use VIES for registration.</p>
         <p class="more">Open the tool &rarr;</p>
     </a>
+    <a class="card" href="/en/tools/french-social-security-number-checker">
+        <h3>French social security number (NIR) key checker</h3>
+        <p>Check the two-digit key of a French social security number (13 digits plus key, Corsica&#x27;s 2A/2B included). The number stays in your browser: nothing is sent anywhere.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
     <h2>More guides</h2>
     <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
         <h3>How to spot a tampered invoice</h3>
@@ -229,7 +234,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p class="more">Read the guide &rarr;</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
-    <script type="application/json" id="tf-i18n">{"format_iban": "Unexpected format: an IBAN starts with two letters (country) and two digits (check), followed by 11 to 30 characters.", "valid_iban": "Check digits valid (mod 97)", "invalid_iban": "Check digits invalid: this is not a well-formed IBAN — a wrong digit, a missing character or a made-up number.", "country": "Country: {country}", "length_ok": "Length matches {country} ({n} characters)", "length_ko": "Unusual length for {country}: {n} characters instead of {expected}", "length_unknown": "Length not checked: country outside the reference table", "rib_ok": "RIB key valid (French IBAN)", "rib_ko": "RIB key invalid: the last two digits do not match the account", "format_siret": "A SIRET has exactly 14 digits", "valid_siret": "Check digit valid", "invalid_siret": "Check digit invalid: this is not a well-formed SIRET", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "La Poste establishment: specific rule applied (digit sum is a multiple of 5)", "format_siren": "A SIREN has exactly 9 digits", "valid_siren": "Check digit valid", "invalid_siren": "Check digit invalid: this is not a well-formed SIREN", "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}", "format_vat": "Unexpected format: a French VAT number is FR, a two-digit key, then the 9 digits of the SIREN. Keys containing letters (rare) are not checked by this tool.", "valid_vat": "Check key valid: the key matches the SIREN", "invalid_vat": "Check key invalid: this VAT number is not self-consistent", "vat_parts": "Key {key} · SIREN {siren}", "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up", "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}", "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.", "kind": "siret"}</script>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Unexpected format: an IBAN starts with two letters (country) and two digits (check), followed by 11 to 30 characters.", "valid_iban": "Check digits valid (mod 97)", "invalid_iban": "Check digits invalid: this is not a well-formed IBAN — a wrong digit, a missing character or a made-up number.", "country": "Country: {country}", "length_ok": "Length matches {country} ({n} characters)", "length_ko": "Unusual length for {country}: {n} characters instead of {expected}", "length_unknown": "Length not checked: country outside the reference table", "rib_ok": "RIB key valid (French IBAN)", "rib_ko": "RIB key invalid: the last two digits do not match the account", "format_siret": "A SIRET has exactly 14 digits", "valid_siret": "Check digit valid", "invalid_siret": "Check digit invalid: this is not a well-formed SIRET", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "La Poste establishment: specific rule applied (digit sum is a multiple of 5)", "format_siren": "A SIREN has exactly 9 digits", "valid_siren": "Check digit valid", "invalid_siren": "Check digit invalid: this is not a well-formed SIREN", "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}", "format_vat": "Unexpected format: a French VAT number is FR, a two-digit key, then the 9 digits of the SIREN. Keys containing letters (rare) are not checked by this tool.", "valid_vat": "Check key valid: the key matches the SIREN", "invalid_vat": "Check key invalid: this VAT number is not self-consistent", "vat_parts": "Key {key} · SIREN {siren}", "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up", "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}", "format_nir": "Unexpected format: a French social security number is 13 digits (the département may read 2A or 2B) followed by a two-digit key — 15 characters.", "valid_nir": "Check key valid", "invalid_nir": "Check key invalid: this is not a well-formed NIR — a wrong digit or a made-up number", "nir_parts": "{sex} · born {month}/{year} · département or country {dept}", "nir_male": "Male", "nir_female": "Female", "nir_temporary": "Provisional number", "nir_key_expected": "Expected key for these 13 digits: {expected}", "reminder_nir": "A valid key only proves the number is well-formed — not that it was ever assigned, nor that it belongs to the person named on the document.", "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.", "kind": "siret"}</script>
     <script>
 // TrustyFile checksum validators. Generated by scripts/build_guides.py —
 // mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
@@ -327,7 +332,23 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
              sirenOk: sirenOk, expectedKey: expectedKey };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);
@@ -339,8 +360,8 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
   var input = document.getElementById('tf-input');
   var out = document.getElementById('tf-result');
   var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
-                vat: TFChecks.vatCheck }[kind];
-  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13 }[kind];
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15 }[kind];
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -378,10 +399,16 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
       if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
       else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
     }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
     var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
     out.className = 'result show ' + cls;
     out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
-                    '<p class="fine">' + esc(M.reminder) + '</p>';
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
   }
   function run() { render(check(input.value)); }
   form.addEventListener('submit', function (e) { e.preventDefault(); run(); });

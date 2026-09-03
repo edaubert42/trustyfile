@@ -135,7 +135,7 @@ class Tool:
     /outils/<slug>, EN at /en/tools/<slug>.
 
     Attributes:
-        kind: "iban" | "siret" | "siren" | "vat" — selects the JS validator and the
+        kind: "iban" | "siret" | "siren" | "vat" | "nir" — selects the JS validator and the
             result messages (CHROME[lang]["tool_i18n"]).
         placeholder: example value shown in the empty input.
         sections: the explanatory body under the form: what the check proves,
@@ -235,8 +235,8 @@ CHROME = {
         "tools_heading": "Outils gratuits",
         "tools_intro": (
             "Un numéro à vérifier plutôt qu'un document entier ? Ces outils "
-            "contrôlent la clé d'un IBAN, d'un SIRET, d'un SIREN ou d'un numéro de "
-            "TVA directement dans votre navigateur."
+            "contrôlent la clé d'un IBAN, d'un SIRET, d'un SIREN, d'un numéro de "
+            "TVA ou d'un numéro de sécurité sociale directement dans votre navigateur."
         ),
         "tool_button": "Vérifier",
         "tool_privacy": (
@@ -270,6 +270,15 @@ CHROME = {
             "vat_parts": "Clé {key} · SIREN {siren}",
             "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé",
             "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}",
+            "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.",
+            "valid_nir": "Clé de contrôle valide",
+            "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé",
+            "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}",
+            "nir_male": "Homme",
+            "nir_female": "Femme",
+            "nir_temporary": "Numéro provisoire",
+            "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}",
+            "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.",
             "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.",
         },
         # FAQ shown on the guides index (visible to everyone, hence eligible
@@ -390,8 +399,8 @@ CHROME = {
         "tools_heading": "Free tools",
         "tools_intro": (
             "A single number to check rather than a whole document? These tools "
-            "validate the check digits of an IBAN, a SIRET, a SIREN or a French VAT "
-            "number right in your browser."
+            "validate the check digits of an IBAN, a SIRET, a SIREN, a French VAT "
+            "number or a French social security number right in your browser."
         ),
         "tool_button": "Check",
         "tool_privacy": (
@@ -425,6 +434,15 @@ CHROME = {
             "vat_parts": "Key {key} · SIREN {siren}",
             "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up",
             "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}",
+            "format_nir": "Unexpected format: a French social security number is 13 digits (the département may read 2A or 2B) followed by a two-digit key — 15 characters.",
+            "valid_nir": "Check key valid",
+            "invalid_nir": "Check key invalid: this is not a well-formed NIR — a wrong digit or a made-up number",
+            "nir_parts": "{sex} · born {month}/{year} · département or country {dept}",
+            "nir_male": "Male",
+            "nir_female": "Female",
+            "nir_temporary": "Provisional number",
+            "nir_key_expected": "Expected key for these 13 digits: {expected}",
+            "reminder_nir": "A valid key only proves the number is well-formed — not that it was ever assigned, nor that it belongs to the person named on the document.",
             "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.",
         },
         "faq_heading": "Frequently asked questions",
@@ -889,6 +907,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="verifier-un-bulletin-de-salaire",
             audience="individuals",
+            tools=["verifier-un-numero-de-securite-sociale"],
             counterpart="how-to-verify-a-pay-slip",
             title="Vérifier un bulletin de salaire",
             description=(
@@ -2095,6 +2114,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="how-to-verify-a-pay-slip",
             audience="individuals",
+            tools=["french-social-security-number-checker"],
             counterpart="verifier-un-bulletin-de-salaire",
             title="How to verify a pay slip",
             description=(
@@ -3177,6 +3197,90 @@ TOOLS: dict[str, list[Tool]] = {
                 ),
             ],
         ),
+        Tool(
+            slug="verifier-un-numero-de-securite-sociale",
+            guides=["verifier-un-bulletin-de-salaire", "verifier-un-justificatif-de-domicile"],
+            kind="nir",
+            counterpart="french-social-security-number-checker",
+            title="Vérifier la clé d'un numéro de sécurité sociale (NIR)",
+            description=(
+                "Vérifiez la clé de contrôle d'un numéro de sécurité sociale français "
+                "(13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans "
+                "votre navigateur : rien n'est envoyé."
+            ),
+            heading="Vérifier un numéro de sécurité sociale",
+            intro=(
+                "Collez un numéro de sécurité sociale tel qu'il figure sur un bulletin "
+                "de salaire ou une attestation : l'outil recalcule sa clé à deux "
+                "chiffres et décode ce que les 13 premiers chiffres disent. Il s'agit "
+                "d'une donnée personnelle : tout se calcule dans votre navigateur, "
+                "le numéro n'est envoyé nulle part."
+            ),
+            placeholder="1 85 05 78 006 084 91",
+            sections=[
+                Section(
+                    "Ce que ce contrôle prouve",
+                    paragraphs=[
+                        "Que le numéro est bien formé. Les deux derniers chiffres sont une "
+                        "clé calculée sur les treize autres : 97 moins le reste de leur "
+                        "division par 97 — pour la Corse, 2A compte pour 19 et 2B pour 18. "
+                        "Un chiffre mal recopié, deux chiffres inversés ou un numéro tapé "
+                        "au hasard échouent dans la quasi-totalité des cas.",
+                    ],
+                ),
+                Section(
+                    "Ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Que le numéro a été attribué, ni qu'il appartient à la personne "
+                        "nommée sur le document. Le répertoire national (RNIPP, tenu par "
+                        "l'Insee) n'est pas consultable par le public ; seuls les "
+                        "organismes de protection sociale et, via la déclaration sociale "
+                        "nominative, les employeurs y ont accès. Les générateurs de faux "
+                        "bulletins de salaire calculent une clé correcte : une clé valide "
+                        "ne vaut donc pas authentification. Ce sont les autres indices du "
+                        "<a href=\"/guides/verifier-un-bulletin-de-salaire\">guide sur les "
+                        "bulletins de salaire</a> qui font la différence.",
+                    ],
+                ),
+                Section(
+                    "Comment lire le numéro",
+                    bullets=[
+                        "<strong>1er chiffre</strong> : sexe (1 homme, 2 femme). 3, 4, 7 "
+                        "ou 8 signalent un numéro provisoire.",
+                        "<strong>Chiffres 2 à 5</strong> : année puis mois de naissance. Un "
+                        "mois de 20, ou de 30 à 99, correspond à une date incomplète ou à "
+                        "un cas particulier, pas à une erreur.",
+                        "<strong>Chiffres 6 et 7</strong> : département de naissance (2A ou "
+                        "2B pour la Corse, 99 pour une naissance à l'étranger — les trois "
+                        "chiffres suivants donnent alors le pays).",
+                        "<strong>Chiffres 8 à 10</strong> : commune (ou pays), puis "
+                        "<strong>11 à 13</strong> : numéro d'ordre dans le registre.",
+                        "<strong>Clé</strong> : les deux derniers chiffres, recalculés ici.",
+                    ],
+                ),
+                Section(
+                    "Recouper avec le document",
+                    paragraphs=[
+                        "Sur un bulletin de salaire, le sexe et l'année de naissance décodés "
+                        "doivent correspondre à la personne ; un numéro « féminin » sur le "
+                        "bulletin d'un homme, ou une année de naissance incompatible avec "
+                        "l'âge annoncé, trahit un modèle rempli à la hâte. Le numéro doit "
+                        "aussi être identique d'un bulletin à l'autre et sur l'attestation "
+                        "employeur.",
+                    ],
+                ),
+                Section(
+                    "Vérifier tout le bulletin, pas seulement le numéro",
+                    paragraphs=[
+                        "TrustyFile examine le fichier PDF dans son ensemble : révisions "
+                        "successives, texte recouvert, polices incohérentes, métadonnées de "
+                        "générateur en ligne, cohérence des montants. Un faux bulletin "
+                        "moderne a presque toujours une clé NIR valide et presque toujours "
+                        "l'un de ces autres défauts.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Tool(
@@ -3457,6 +3561,86 @@ TOOLS: dict[str, list[Tool]] = {
                 ),
             ],
         ),
+        Tool(
+            slug="french-social-security-number-checker",
+            guides=["how-to-verify-a-pay-slip", "how-to-verify-a-proof-of-address"],
+            kind="nir",
+            counterpart="verifier-un-numero-de-securite-sociale",
+            title="French social security number (NIR) key checker",
+            description=(
+                "Check the two-digit key of a French social security number (13 digits "
+                "plus key, Corsica's 2A/2B included). The number stays in your browser: "
+                "nothing is sent anywhere."
+            ),
+            heading="Check a French social security number",
+            intro=(
+                "Paste a French social security number as printed on a pay slip or a "
+                "certificate: the tool recomputes its two-digit key and decodes what the "
+                "first 13 digits say. This is personal data: everything is computed in "
+                "your browser and the number is not sent anywhere."
+            ),
+            placeholder="1 85 05 78 006 084 91",
+            sections=[
+                Section(
+                    "What this check proves",
+                    paragraphs=[
+                        "That the number is well-formed. The last two digits are a key "
+                        "computed from the other thirteen: 97 minus the remainder of their "
+                        "division by 97 — for Corsica, 2A counts as 19 and 2B as 18. A "
+                        "miscopied digit, two swapped digits or a number typed at random "
+                        "fail in almost every case.",
+                    ],
+                ),
+                Section(
+                    "What it does not prove",
+                    paragraphs=[
+                        "That the number was ever assigned, or that it belongs to the "
+                        "person named on the document. The national register (RNIPP, kept "
+                        "by INSEE) is not open to the public; only social-protection "
+                        "bodies and, through payroll declarations, employers can query it. "
+                        "Fake pay-slip generators compute a correct key, so a valid key is "
+                        "no authentication. The other signals in the "
+                        "<a href=\"/en/guides/how-to-verify-a-pay-slip\">pay-slip guide</a> "
+                        "are what make the difference.",
+                    ],
+                ),
+                Section(
+                    "How to read the number",
+                    bullets=[
+                        "<strong>1st digit</strong>: sex (1 male, 2 female). 3, 4, 7 or 8 "
+                        "mark a provisional number.",
+                        "<strong>Digits 2 to 5</strong>: year then month of birth. A month "
+                        "of 20, or 30 to 99, means an incomplete date or a special case, "
+                        "not an error.",
+                        "<strong>Digits 6 and 7</strong>: département of birth (2A or 2B "
+                        "for Corsica, 99 for a birth abroad — the next three digits then "
+                        "give the country).",
+                        "<strong>Digits 8 to 10</strong>: municipality (or country), then "
+                        "<strong>11 to 13</strong>: order number in the register.",
+                        "<strong>Key</strong>: the last two digits, recomputed here.",
+                    ],
+                ),
+                Section(
+                    "Cross-check with the document",
+                    paragraphs=[
+                        "On a pay slip, the decoded sex and birth year must match the "
+                        "person; a \"female\" number on a man's pay slip, or a birth year "
+                        "incompatible with the stated age, betrays a template filled in a "
+                        "hurry. The number must also be identical from one pay slip to the "
+                        "next and on the employer's certificate.",
+                    ],
+                ),
+                Section(
+                    "Check the whole pay slip, not just the number",
+                    paragraphs=[
+                        "TrustyFile examines the PDF as a whole: successive revisions, "
+                        "covered text, inconsistent fonts, online-generator metadata, "
+                        "arithmetic consistency. A modern fake pay slip almost always has a "
+                        "valid NIR key — and almost always one of these other defects.",
+                    ],
+                ),
+            ],
+        ),
     ],
 }
 
@@ -3562,7 +3746,23 @@ CHECKSUM_JS = r"""// TrustyFile checksum validators. Generated by scripts/build_
              sirenOk: sirenOk, expectedKey: expectedKey };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);
@@ -3579,8 +3779,8 @@ TOOL_GLUE_JS = r"""(function () {
   var input = document.getElementById('tf-input');
   var out = document.getElementById('tf-result');
   var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
-                vat: TFChecks.vatCheck }[kind];
-  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13 }[kind];
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15 }[kind];
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -3618,10 +3818,16 @@ TOOL_GLUE_JS = r"""(function () {
       if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
       else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
     }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
     var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
     out.className = 'result show ' + cls;
     out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
-                    '<p class="fine">' + esc(M.reminder) + '</p>';
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
   }
   function run() { render(check(input.value)); }
   form.addEventListener('submit', function (e) { e.preventDefault(); run(); });

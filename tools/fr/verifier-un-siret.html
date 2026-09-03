@@ -212,6 +212,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
         <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
+    <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
+        <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n&#x27;est envoyé.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
@@ -229,7 +234,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p class="more">Lire le guide &rarr;</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
-    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "siret"}</script>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.", "valid_nir": "Clé de contrôle valide", "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé", "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}", "nir_male": "Homme", "nir_female": "Femme", "nir_temporary": "Numéro provisoire", "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}", "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "siret"}</script>
     <script>
 // TrustyFile checksum validators. Generated by scripts/build_guides.py —
 // mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
@@ -327,7 +332,23 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
              sirenOk: sirenOk, expectedKey: expectedKey };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);
@@ -339,8 +360,8 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
   var input = document.getElementById('tf-input');
   var out = document.getElementById('tf-result');
   var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
-                vat: TFChecks.vatCheck }[kind];
-  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13 }[kind];
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15 }[kind];
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -378,10 +399,16 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
       if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
       else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
     }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
     var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
     out.className = 'result show ' + cls;
     out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
-                    '<p class="fine">' + esc(M.reminder) + '</p>';
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
   }
   function run() { render(check(input.value)); }
   form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
