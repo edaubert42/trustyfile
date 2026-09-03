@@ -77,6 +77,27 @@ def test_title_and_description_fit_serp_budget(lang, guide):
     )
 
 
+@pytest.mark.parametrize("lang", ["fr", "en"])
+def test_landing_descriptions_fit_their_budgets_and_reach_the_head(lang):
+    """The crawler landing pages obey the same display budgets as the guides.
+
+    They are not Guide objects, so the parametrized budget test above skips
+    them — which is how the French meta description reached 211 characters
+    unnoticed. The OG / Twitter variants exist because link previews truncate
+    harder than a results page; check they are the ones actually emitted.
+    """
+    chrome = build_guides.CHROME[lang]
+    assert 80 <= len(chrome["landing_description"]) <= 175
+    assert len(chrome["landing_og_description"]) <= 175
+    assert len(chrome["landing_twitter_description"]) <= 175
+    assert len(chrome["landing_title"]) <= 65
+    rendered = build_guides.render_landing(lang)
+    esc = html.escape
+    assert f'<meta name="description" content="{esc(chrome["landing_description"])}">' in rendered
+    assert f'<meta property="og:description" content="{esc(chrome["landing_og_description"])}">' in rendered
+    assert f'<meta name="twitter:description" content="{esc(chrome["landing_twitter_description"])}">' in rendered
+
+
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_slug_is_url_safe(lang, guide):
     """Slugs are lowercase ASCII with hyphens — no accents, no spaces.

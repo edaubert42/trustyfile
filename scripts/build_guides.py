@@ -188,9 +188,9 @@ CHROME = {
         "landing_path": "/",
         "landing_title": "TrustyFile - Vérificateur de documents PDF gratuit",
         "landing_description": (
-            "Vérificateur de documents PDF gratuit en ligne. Déposez un PDF et "
-            "obtenez un score de confiance instantané. Détecte les faux documents, "
-            "falsifications, incohérences de polices, anomalies de dates et plus encore."
+            "Vérificateur de documents PDF gratuit en ligne. Déposez un PDF, obtenez "
+            "un score de confiance instantané : falsifications, polices, dates, texte "
+            "masqué et plus encore."
         ),
         "landing_og_description": (
             "Déposez un PDF et obtenez un score de confiance instantané. Détecte les "
@@ -1059,7 +1059,7 @@ GUIDES: dict[str, list[Guide]] = {
                 Section(
                     heading="Le rappel téléphonique reste la règle",
                     paragraphs=[
-                        "Depuis fin 2025, les banques européennes doivent "
+                        "Depuis le 9 octobre 2025, les banques de la zone euro doivent "
                         "vérifier la concordance entre le nom du bénéficiaire et "
                         "l'IBAN au moment du virement (« vérification du "
                         "bénéficiaire »). C'est un filet supplémentaire, pas une "
@@ -1189,7 +1189,7 @@ GUIDES: dict[str, list[Guide]] = {
                         "paiement vers un nouveau compte attend ce feu vert quelle que "
                         "soit l'urgence invoquée. L'urgence est l'outil du fraudeur ; la "
                         "procédure est le vôtre.",
-                        "Depuis fin 2025, les banques de la zone euro vérifient la "
+                        "Depuis le 9 octobre 2025, les banques de la zone euro vérifient la "
                         "concordance entre le nom du bénéficiaire saisi et le titulaire "
                         "de l'IBAN avant d'exécuter un virement. C'est un filet "
                         "supplémentaire, pas une raison de sauter le rappel : le compte "
@@ -1201,7 +1201,7 @@ GUIDES: dict[str, list[Guide]] = {
                     heading="Si le virement est déjà parti",
                     paragraphs=[
                         "Chaque heure compte : les fonds sont généralement retirés ou "
-                        "renvoyés à l'étranger en quelques jours.",
+                        "renvoyés à l'étranger en quelques heures ou quelques jours.",
                     ],
                     bullets=[
                         "<strong>Appelez votre banque</strong> immédiatement et demandez "
@@ -1394,7 +1394,7 @@ GUIDES: dict[str, list[Guide]] = {
                     heading="Ce que dit un avis, et ce qui se falsifie",
                     paragraphs=[
                         "L'avis indique le numéro fiscal du déclarant (13 chiffres), la "
-                        "référence de l'avis (13 caractères), le revenu fiscal de "
+                        "référence de l'avis (13 chiffres), le revenu fiscal de "
                         "référence, le nombre de parts, le montant de l'impôt, "
                         "l'adresse et la situation de famille. Il porte deux années : "
                         "celle des revenus déclarés et celle de l'émission, qui la suit. "
@@ -1405,27 +1405,36 @@ GUIDES: dict[str, list[Guide]] = {
                         "a changé l'année ; l'avis d'une autre personne dont on a "
                         "remplacé le nom et l'adresse ; un document entièrement fabriqué "
                         "à partir d'un modèle. Les deux premiers sont les plus courants, "
-                        "et les deux contrôles ci-dessous les attrapent tous.",
+                        "et les deux contrôles ci-dessous, pris ensemble, les attrapent "
+                        "tous : le premier établit que l'avis existe et qu'il est le "
+                        "dernier émis, le second que ses chiffres n'ont pas été touchés.",
                     ],
                 ),
                 Section(
                     heading="Le service de vérification des avis (SVAIR)",
                     paragraphs=[
                         "La Direction générale des Finances publiques propose un "
-                        "<a href=\"https://cfsmsp.impots.gouv.fr/secavis/\">service de "
-                        "vérification des avis</a>, accessible sans compte et destiné "
-                        "précisément aux tiers à qui l'avis est présenté : bailleurs, "
-                        "agences, administrations. Saisissez le numéro fiscal et la "
-                        "référence de l'avis tels qu'ils figurent sur le document : le "
-                        "service restitue les données connues de l'administration pour "
-                        "cet avis — revenu fiscal de référence, nombre de parts, "
-                        "situation de famille, adresse.",
-                        "Trois issues. Le couple numéro fiscal / référence est inconnu : "
-                        "le document est fabriqué ou l'un des identifiants a été "
-                        "retouché. Il est connu mais les chiffres diffèrent : l'avis est "
-                        "authentique et a été modifié après coup. Tout concorde : les "
-                        "montants sont bien ceux de l'administration. Ce contrôle prend "
-                        "une minute et l'emporte sur tous les autres.",
+                        "<a href=\"https://www.impots.gouv.fr/verifavis2-api/front\">"
+                        "service de vérification des avis</a> (SVAIR), accessible sans "
+                        "compte depuis impots.gouv.fr, rubrique « Vérifier un avis "
+                        "d'impôt », et destiné précisément aux tiers à qui l'avis est "
+                        "présenté : bailleurs, agences, administrations. Saisissez les "
+                        "deux identifiants imprimés sur le document — le numéro fiscal "
+                        "(13 chiffres) et la référence de l'avis (13 chiffres) — et le "
+                        "service répond d'un mot : <em>conforme</em> si ce couple "
+                        "correspond au dernier avis connu de l'administration pour cet "
+                        "usager, <em>non conforme</em> sinon. Il n'affiche aucun "
+                        "montant : la confidentialité des données fiscales l'interdit.",
+                        "Lisez ce verdict pour ce qu'il est. « Non conforme » signifie "
+                        "que le couple est inconnu — document fabriqué, identifiant "
+                        "retouché ou mal saisi — ou qu'un avis plus récent a été émis "
+                        "depuis : le candidat montre un ancien avis, peut-être remplacé "
+                        "par une déclaration rectificative. « Conforme » prouve qu'un "
+                        "avis authentique porte bien ces identifiants et qu'il est le "
+                        "dernier en date ; il ne prouve pas que les chiffres imprimés "
+                        "sont ceux d'origine, puisque le service ne les compare pas. Un "
+                        "revenu gonflé sur un avis authentique et à jour passe ce "
+                        "contrôle : c'est le code 2D-Doc qui l'attrape.",
                     ],
                 ),
                 Section(
@@ -1443,8 +1452,9 @@ GUIDES: dict[str, list[Guide]] = {
                         "la signature est invalide, le code a été recomposé — ce qu'un "
                         "faussaire ne peut pas faire correctement sans la clé privée de "
                         "l'administration. Un code illisible (scan flou, photo) n'est en "
-                        "revanche pas une preuve : il vous laisse simplement avec le "
-                        "contrôle SVAIR. Le guide <a href=\"/guides/2d-doc-verifier-un-"
+                        "revanche pas une preuve : il vous laisse avec le contrôle SVAIR "
+                        "— qui atteste l'existence de l'avis, pas ses chiffres — et les "
+                        "recoupements ci-dessous. Le guide <a href=\"/guides/2d-doc-verifier-un-"
                         "document-officiel\">sur le 2D-Doc</a> détaille le mécanisme.",
                     ],
                 ),
@@ -1455,10 +1465,12 @@ GUIDES: dict[str, list[Guide]] = {
                         "dossier :",
                     ],
                     bullets=[
-                        "<strong>Bulletins de salaire</strong> : pour un salarié, le "
-                        "revenu fiscal de référence est proche du cumul annuel « net "
-                        "imposable » des bulletins, diminué de l'abattement de 10 % pour "
-                        "frais professionnels. Un écart de plusieurs milliers d'euros "
+                        "<strong>Bulletins de salaire</strong> : pour un salarié sans "
+                        "autre revenu, le revenu fiscal de référence est proche du cumul "
+                        "annuel « net imposable » des bulletins, diminué de l'abattement "
+                        "de 10 % pour frais professionnels ; certains revenus exonérés y "
+                        "sont réintégrés et peuvent creuser l'écart. Un écart de "
+                        "plusieurs milliers d'euros "
                         "demande une explication (autres revenus, changement de "
                         "situation). Voir le guide <a href=\"/guides/verifier-un-"
                         "bulletin-de-salaire\">sur les bulletins de salaire</a>.",
@@ -1491,8 +1503,8 @@ GUIDES: dict[str, list[Guide]] = {
                         "PDF exploitable, ni code 2D-Doc souvent lisible. Ce n'est pas "
                         "un signe de fraude — beaucoup de gens n'ont qu'une version "
                         "papier — mais c'est un document non vérifiable par lui-même. "
-                        "Demandez le PDF d'origine, ou passez directement par le "
-                        "contrôle SVAIR.",
+                        "Demandez le PDF d'origine : lui seul permet de lire le code "
+                        "2D-Doc et de contrôler les montants.",
                     ],
                 ),
                 Section(
@@ -2102,7 +2114,7 @@ GUIDES: dict[str, list[Guide]] = {
                 Section(
                     heading="The phone call remains the rule",
                     paragraphs=[
-                        "Since late 2025, European banks must check that the "
+                        "Since 9 October 2025, euro-area banks must check that the "
                         "beneficiary name matches the IBAN at transfer time "
                         "(verification of payee). That is an extra net, not a "
                         "reason to relax: the alert comes when the payment is "
@@ -2230,7 +2242,7 @@ GUIDES: dict[str, list[Guide]] = {
                         "phone confirmation, and the first payment to a new account "
                         "waits for that approval whatever urgency is claimed. Urgency is "
                         "the fraudster's tool; the procedure is yours.",
-                        "Since late 2025, banks in the euro area check that the payee "
+                        "Since 9 October 2025, banks in the euro area check that the payee "
                         "name entered matches the IBAN holder before executing a "
                         "transfer. That is an extra net, not a reason to skip the call: "
                         "the fraudulent account is often opened under a name close to "
@@ -2241,7 +2253,7 @@ GUIDES: dict[str, list[Guide]] = {
                     heading="If the payment has already gone out",
                     paragraphs=[
                         "Every hour counts: the funds are usually withdrawn or moved "
-                        "abroad within days.",
+                        "abroad within hours or days.",
                     ],
                     bullets=[
                         "<strong>Call your bank</strong> immediately and request a "
@@ -2425,7 +2437,7 @@ GUIDES: dict[str, list[Guide]] = {
                     heading="What a notice says, and what gets forged",
                     paragraphs=[
                         "The notice shows the taxpayer's tax number (13 digits), the "
-                        "notice reference (13 characters), the reference taxable "
+                        "notice reference (13 digits), the reference taxable "
                         "income, the number of household shares (<em>parts</em>), the "
                         "tax due, the address and the family situation. It carries two "
                         "years: the year of the income declared and the following year, "
@@ -2435,26 +2447,37 @@ GUIDES: dict[str, list[Guide]] = {
                         "on a genuine notice; an old notice with the year changed; "
                         "someone else's notice with the name and address replaced; a "
                         "document built from scratch on a template. The first two are "
-                        "the most common, and the two checks below catch all four.",
+                        "the most common, and the two checks below, taken together, "
+                        "catch all four: the first establishes that the notice exists "
+                        "and is the latest issued, the second that its figures were not "
+                        "touched.",
                     ],
                 ),
                 Section(
                     heading="The tax office's verification service (SVAIR)",
                     paragraphs=[
                         "The French tax administration runs a "
-                        "<a href=\"https://cfsmsp.impots.gouv.fr/secavis/\">notice "
-                        "verification service</a>, open without an account and meant "
-                        "precisely for the third parties a notice is shown to: "
-                        "landlords, agencies, public bodies. Enter the tax number and "
-                        "the notice reference exactly as printed: the service returns "
-                        "the data the administration holds for that notice — reference "
-                        "taxable income, number of shares, family situation, address.",
-                        "Three outcomes. The tax number / reference pair is unknown: the "
-                        "document is fabricated or one identifier was altered. It is "
-                        "known but the figures differ: the notice is genuine and was "
-                        "edited afterwards. Everything matches: the amounts are the "
-                        "administration's. This check takes a minute and outranks every "
-                        "other.",
+                        "<a href=\"https://www.impots.gouv.fr/verifavis2-api/front\">"
+                        "notice verification service</a> (SVAIR), open without an "
+                        "account from impots.gouv.fr under \"Vérifier un avis d'impôt\" "
+                        "and meant precisely for the third parties a notice is shown to: "
+                        "landlords, agencies, public bodies. Enter the two identifiers "
+                        "printed on the document — the tax number (13 digits) and the "
+                        "notice reference (13 digits) — and the service answers with one "
+                        "word: <em>conforme</em> if that pair matches the latest notice "
+                        "the administration holds for that taxpayer, <em>non "
+                        "conforme</em> otherwise. It displays no amounts: tax "
+                        "confidentiality forbids it.",
+                        "Read that verdict for what it is. \"Non conforme\" means the "
+                        "pair is unknown — a fabricated document, an altered or mistyped "
+                        "identifier — or that a more recent notice has since been "
+                        "issued: the applicant is showing you an old notice, perhaps "
+                        "superseded by a corrective return. \"Conforme\" proves that a "
+                        "genuine notice carries these identifiers and that it is the "
+                        "latest one; it does not prove that the printed figures are the "
+                        "original ones, since the service does not compare them. An "
+                        "inflated income on a genuine, current notice passes this check: "
+                        "the 2D-Doc code is what catches it.",
                     ],
                 ),
                 Section(
@@ -2471,7 +2494,9 @@ GUIDES: dict[str, list[Guide]] = {
                         "is invalid, the code was recomposed — something a forger cannot "
                         "do correctly without the administration's private key. An "
                         "unreadable code (blurry scan, photo) is not proof of anything, "
-                        "though: it simply leaves you with the SVAIR check. The guide "
+                        "though: it leaves you with the SVAIR check — which attests that "
+                        "the notice exists, not its figures — and the cross-checks "
+                        "below. The guide "
                         "<a href=\"/en/guides/2d-doc-verifying-official-documents\">on "
                         "2D-Doc</a> explains the mechanism.",
                     ],
@@ -2483,10 +2508,12 @@ GUIDES: dict[str, list[Guide]] = {
                         "file:",
                     ],
                     bullets=[
-                        "<strong>Pay slips</strong>: for an employee, the reference "
-                        "taxable income is close to the annual cumulative \"net "
-                        "imposable\" on the pay slips, less the 10% flat deduction for "
-                        "professional expenses. A gap of several thousand euros needs an "
+                        "<strong>Pay slips</strong>: for an employee with no other "
+                        "income, the reference taxable income is close to the annual "
+                        "cumulative \"net imposable\" on the pay slips, less the 10% flat "
+                        "deduction for professional expenses; some tax-exempt income is "
+                        "added back and can widen the gap. A gap of several thousand "
+                        "euros needs an "
                         "explanation (other income, a change of situation). See the "
                         "guide <a href=\"/en/guides/how-to-verify-a-pay-slip\">on pay "
                         "slips</a>.",
@@ -2517,7 +2544,8 @@ GUIDES: dict[str, list[Guide]] = {
                         "PDF structure, and often no readable 2D-Doc. That is not a sign "
                         "of fraud — many people only have a paper copy — but it is a "
                         "document that cannot be verified on its own. Ask for the "
-                        "original PDF, or go straight to the SVAIR check.",
+                        "original PDF: it alone lets you read the 2D-Doc code and check "
+                        "the amounts.",
                     ],
                 ),
                 Section(
@@ -3298,13 +3326,19 @@ def _head(
     json_ld: list[dict],
     og_type: str = "article",
     extra_head: str = "",
+    og_description: str | None = None,
+    twitter_description: str | None = None,
 ) -> str:
     """Build the <head> shared by every generated page.
 
     Args:
         lang: "fr" or "en".
         title: <title> text, already plain (escaped here).
-        description: meta description text.
+        description: meta description text; also the Open Graph and Twitter
+            description unless the two overrides below are given.
+        og_description: shorter copy for link previews (Facebook, LinkedIn,
+            Slack...), which truncate harder than a results page.
+        twitter_description: same for Twitter/X cards.
         canonical: absolute URL of this page.
         alternates: {hreflang: absolute URL}, including x-default.
         json_ld: structured-data objects, one <script> each.
@@ -3340,7 +3374,7 @@ def _head(
 {alt_links}
     <meta property="og:type" content="{og_type}">
     <meta property="og:title" content="{esc(title)}">
-    <meta property="og:description" content="{esc(description)}">
+    <meta property="og:description" content="{esc(og_description or description)}">
     <meta property="og:url" content="{canonical}">
     <meta property="og:image" content="{SITE}/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -3349,7 +3383,7 @@ def _head(
     <meta property="og:locale" content="{chrome['locale']}">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{esc(title)}">
-    <meta name="twitter:description" content="{esc(description)}">
+    <meta name="twitter:description" content="{esc(twitter_description or description)}">
     <meta name="twitter:image" content="{SITE}/og-image.png">
     <style>
 {STYLESHEET}    </style>
@@ -3703,6 +3737,8 @@ def render_landing(lang: str) -> str:
             json_ld=[graph_ld],
             og_type="website",
             extra_head=extra_head,
+            og_description=chrome["landing_og_description"],
+            twitter_description=chrome["landing_twitter_description"],
         ),
         '    <header class="brand">',
         f'        <a class="name" href="{chrome["landing_path"]}">TrustyFile</a>',
@@ -3960,8 +3996,12 @@ def render_llms_txt() -> str:
         "Decision support, not certification: a high score means few signs of "
         "tampering, not proof of authenticity. Documents are not retained.",
         "",
-        f"- [Application (français)]({SITE}/)",
-        f"- [Application (English)]({SITE}/en)",
+        "## Application",
+        "",
+        f"- [TrustyFile (français)]({SITE}/): analyse gratuite d'un PDF, "
+        "sans inscription, résultat en quelques secondes.",
+        f"- [TrustyFile (English)]({SITE}/en): free PDF analysis, no sign-up, "
+        "results in seconds.",
         "",
     ]
     headings = {

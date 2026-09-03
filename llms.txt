@@ -4,8 +4,10 @@
 
 TrustyFile est un outil d'aide à la décision, pas une autorité de certification : un score élevé signale peu de traces de manipulation, il ne prouve pas l'authenticité. Les documents ne sont pas conservés. Decision support, not certification: a high score means few signs of tampering, not proof of authenticity. Documents are not retained.
 
-- [Application (français)](https://www.trustyfile.com/)
-- [Application (English)](https://www.trustyfile.com/en)
+## Application
+
+- [TrustyFile (français)](https://www.trustyfile.com/): analyse gratuite d'un PDF, sans inscription, résultat en quelques secondes.
+- [TrustyFile (English)](https://www.trustyfile.com/en): free PDF analysis, no sign-up, results in seconds.
 
 ## Guides (français)
 
