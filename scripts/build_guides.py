@@ -1642,11 +1642,14 @@ GUIDES: dict[str, list[Guide]] = {
                         "correspond à aucune attestation en cours de validité : le code "
                         "est mal recopié, l'attestation est périmée, ou elle a été "
                         "modifiée ou fabriquée.",
-                        "Si le code est reconnu, comparez ce que l'Urssaf vous renvoie "
-                        "au document reçu — dénomination, SIRET, période de validité. Un "
-                        "fraudeur peut coller le code authentique d'une autre entreprise "
-                        "sur une attestation fabriquée à son nom : le code passe, la "
-                        "comparaison ne passe pas.",
+                        "Si le code est reconnu, l'Urssaf affiche les éléments de "
+                        "l'attestation qu'elle a réellement émise : le nom de l'entreprise "
+                        "(« identification du diffuseur »), le SIRET de chaque "
+                        "établissement, la date de certification du document et la "
+                        "dernière période analysée. Comparez-les ligne à ligne au document "
+                        "reçu : un fraudeur peut coller le code authentique d'une autre "
+                        "entreprise sur une attestation fabriquée à son nom — le code "
+                        "passe, la comparaison ne passe pas.",
                     ],
                 ),
                 Section(
@@ -2819,11 +2822,13 @@ GUIDES: dict[str, list[Guide]] = {
                         "does not recognise it, it answers that the code matches no "
                         "certificate currently in force: the code was miscopied, the "
                         "certificate has expired, or it was altered or fabricated.",
-                        "If the code is recognised, compare what URSSAF returns with the "
-                        "document you received — company name, SIRET, validity period. A "
-                        "fraudster can paste another company's genuine code onto a "
-                        "certificate fabricated in their own name: the code passes, the "
-                        "comparison does not.",
+                        "If the code is recognised, URSSAF displays the details of the "
+                        "certificate it actually issued: the company name (\"identification "
+                        "du diffuseur\"), the SIRET of each establishment, the document's "
+                        "certification date and the last period analysed. Compare them line "
+                        "by line with the document you received: a fraudster can paste "
+                        "another company's genuine code onto a certificate fabricated in "
+                        "their own name — the code passes, the comparison does not.",
                     ],
                 ),
                 Section(
