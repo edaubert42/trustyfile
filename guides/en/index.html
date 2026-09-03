@@ -88,6 +88,28 @@ ol.steps .n {
 }
 ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
 ol.steps .d { color: #666; font-size: 0.9rem; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -237,6 +259,23 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
         <h2>How to spot a fake IBAN on an invoice</h2>
         <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
         <p class="more">Read the guide &rarr;</p>
+    </a>
+    <h2 id="outils">Free tools</h2>
+    <p>A single number to check rather than a whole document? These tools validate the check digits of an IBAN, a SIRET or a SIREN right in your browser.</p>
+    <a class="card" href="/en/tools/iban-checker">
+        <h3>IBAN checker: validate the check digits and the length</h3>
+        <p>Free IBAN checker: validates the mod-97 check digits, the expected length for the country and, for French IBANs, the RIB key. Everything runs in your browser.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/siret-checker">
+        <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
+        <p>Free SIRET checker: validates the 14-digit French establishment number with the Luhn formula, including the special rule for La Poste establishments. Runs locally.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/siren-checker">
+        <h3>SIREN checker: Luhn check and matching French VAT number</h3>
+        <p>Free SIREN checker: validates the 9-digit French company number with the Luhn formula and derives the intra-EU VAT number it implies. Runs in your browser, nothing is sent.</p>
+        <p class="more">Open the tool &rarr;</p>
     </a>
     <h2>Frequently asked questions</h2>
     <dl class="faq">

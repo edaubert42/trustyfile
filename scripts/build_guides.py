@@ -1,4 +1,5 @@
-"""Render the static guide pages served at /guides (FR) and /en/guides (EN).
+"""Render the static pages: guides (/guides, /en/guides), the crawler landing
+pages (seo-*.html) and the checker tools (/outils, /en/tools).
 
 WHY THIS EXISTS
 ---------------
@@ -105,6 +106,33 @@ class Guide:
     counterpart: str | None = None
 
 
+@dataclass
+class Tool:
+    """A standalone checker page (IBAN / SIRET / SIREN), in a single language.
+
+    Same head/nav/footer as a guide, plus a form whose validation runs in the
+    visitor's browser: nothing is sent anywhere. FR pages live at
+    /outils/<slug>, EN at /en/tools/<slug>.
+
+    Attributes:
+        kind: "iban" | "siret" | "siren" — selects the JS validator and the
+            result messages (CHROME[lang]["tool_i18n"]).
+        placeholder: example value shown in the empty input.
+        sections: the explanatory body under the form: what the check proves,
+            what it does not, how the algorithm works.
+    """
+
+    slug: str
+    title: str
+    description: str
+    heading: str
+    intro: str
+    kind: str
+    placeholder: str
+    sections: list[Section]
+    counterpart: str | None = None
+
+
 # --- Per-language chrome -----------------------------------------------------
 # Everything that wraps the content: labels, the index page, the back link.
 
@@ -172,6 +200,42 @@ CHROME = {
             "Lecture et vérification des codes 2D-Doc",
         ],
         "lang_switch": "EN",
+        # Free checker tools (/outils/<slug>)
+        "tools_path": "/outils",
+        "tools_heading": "Outils gratuits",
+        "tools_intro": (
+            "Un numéro à vérifier plutôt qu'un document entier ? Ces outils "
+            "contrôlent la clé d'un IBAN, d'un SIRET ou d'un SIREN directement "
+            "dans votre navigateur."
+        ),
+        "tool_button": "Vérifier",
+        "tool_privacy": (
+            "Le calcul se fait dans votre navigateur : le numéro saisi n'est envoyé "
+            "à aucun serveur."
+        ),
+        "related_tools": "Autres outils",
+        "open_tool": "Ouvrir l'outil",
+        "tool_i18n": {
+            "format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.",
+            "valid_iban": "Clé de contrôle valide (mod 97)",
+            "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.",
+            "country": "Pays : {country}",
+            "length_ok": "Longueur conforme pour {country} ({n} caractères)",
+            "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}",
+            "length_unknown": "Longueur non vérifiée : pays hors de la table de référence",
+            "rib_ok": "Clé RIB valide (IBAN français)",
+            "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte",
+            "format_siret": "Un SIRET compte exactement 14 chiffres",
+            "valid_siret": "Clé de contrôle valide",
+            "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé",
+            "siren_part": "SIREN {siren} · NIC {nic}",
+            "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)",
+            "format_siren": "Un SIREN compte exactement 9 chiffres",
+            "valid_siren": "Clé de contrôle valide",
+            "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé",
+            "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}",
+            "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.",
+        },
         # FAQ shown on the guides index (visible to everyone, hence eligible
         # for FAQPage structured data). Moved here from the crawler-only page.
         "faq_heading": "Questions fréquentes",
@@ -281,6 +345,41 @@ CHROME = {
             "French 2D-Doc barcode decoding and signature verification",
         ],
         "lang_switch": "FR",
+        "tools_path": "/en/tools",
+        "tools_heading": "Free tools",
+        "tools_intro": (
+            "A single number to check rather than a whole document? These tools "
+            "validate the check digits of an IBAN, a SIRET or a SIREN right in "
+            "your browser."
+        ),
+        "tool_button": "Check",
+        "tool_privacy": (
+            "The calculation runs in your browser: the number you type is not sent "
+            "to any server."
+        ),
+        "related_tools": "Other tools",
+        "open_tool": "Open the tool",
+        "tool_i18n": {
+            "format_iban": "Unexpected format: an IBAN starts with two letters (country) and two digits (check), followed by 11 to 30 characters.",
+            "valid_iban": "Check digits valid (mod 97)",
+            "invalid_iban": "Check digits invalid: this is not a well-formed IBAN — a wrong digit, a missing character or a made-up number.",
+            "country": "Country: {country}",
+            "length_ok": "Length matches {country} ({n} characters)",
+            "length_ko": "Unusual length for {country}: {n} characters instead of {expected}",
+            "length_unknown": "Length not checked: country outside the reference table",
+            "rib_ok": "RIB key valid (French IBAN)",
+            "rib_ko": "RIB key invalid: the last two digits do not match the account",
+            "format_siret": "A SIRET has exactly 14 digits",
+            "valid_siret": "Check digit valid",
+            "invalid_siret": "Check digit invalid: this is not a well-formed SIRET",
+            "siren_part": "SIREN {siren} · NIC {nic}",
+            "la_poste": "La Poste establishment: specific rule applied (digit sum is a multiple of 5)",
+            "format_siren": "A SIREN has exactly 9 digits",
+            "valid_siren": "Check digit valid",
+            "invalid_siren": "Check digit invalid: this is not a well-formed SIREN",
+            "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}",
+            "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.",
+        },
         "faq_heading": "Frequently asked questions",
         "faq": [
             (
@@ -1564,6 +1663,580 @@ GUIDES: dict[str, list[Guide]] = {
 
 # --- Rendering ---------------------------------------------------------------
 
+# --- Checker tools -----------------------------------------------------------
+
+TOOLS: dict[str, list[Tool]] = {
+    "fr": [
+        Tool(
+            slug="verifier-un-iban",
+            kind="iban",
+            counterpart="iban-checker",
+            title="Vérifier un IBAN : clé de contrôle et clé RIB",
+            description=(
+                "Vérifiez gratuitement la clé de contrôle d'un IBAN (mod 97), sa "
+                "longueur selon le pays et la clé RIB d'un IBAN français. Le calcul "
+                "reste dans votre navigateur."
+            ),
+            heading="Vérifier un IBAN",
+            intro=(
+                "Collez un IBAN pour contrôler sa clé (mod 97), sa longueur pour le "
+                "pays et, pour un IBAN français, la clé RIB. Tout se calcule dans "
+                "votre navigateur : le numéro n'est envoyé nulle part."
+            ),
+            placeholder="FR76 3000 6000 0112 3456 7890 189",
+            sections=[
+                Section(
+                    "Ce que ce contrôle prouve",
+                    paragraphs=[
+                        "Un IBAN porte deux chiffres de contrôle (positions 3 et 4) "
+                        "calculés à partir de tout le reste. Si la clé est valide, le "
+                        "numéro est bien formé : une faute de frappe, deux chiffres "
+                        "inversés ou un numéro inventé au hasard échouent dans la "
+                        "quasi-totalité des cas.",
+                        "Pour un IBAN français, l'outil vérifie aussi la clé RIB (les "
+                        "deux derniers chiffres), un second contrôle indépendant hérité "
+                        "du relevé d'identité bancaire.",
+                    ],
+                ),
+                Section(
+                    "Ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Que le compte existe, qu'il est ouvert, ou qu'il appartient à "
+                        "l'entreprise dont le nom figure sur la facture. La fraude au "
+                        "faux fournisseur — un e-mail annonçant un « changement de "
+                        "coordonnées bancaires » — utilise des IBAN parfaitement "
+                        "valides : le compte est simplement celui du fraudeur.",
+                        "La seule vérification qui vaille avant de payer sur un nouvel "
+                        "IBAN : rappeler le fournisseur à un numéro que vous connaissiez "
+                        "déjà, jamais celui indiqué dans le message.",
+                    ],
+                    bullets=[
+                        '<a href="/guides/detecter-un-faux-rib">Détecter un faux RIB ou '
+                        "un IBAN falsifié</a> : les indices à chercher dans le document "
+                        "lui-même.",
+                    ],
+                ),
+                Section(
+                    "Comment lire le résultat",
+                    bullets=[
+                        "Clé valide, longueur conforme : le numéro est bien formé — rien "
+                        "de plus.",
+                        "Clé invalide : recopiez le numéro depuis le document original ; "
+                        "si l'erreur persiste, le RIB a été mal saisi ou trafiqué.",
+                        "Longueur inhabituelle : chaque pays fixe une longueur (27 "
+                        "caractères en France, 22 en Allemagne, 16 en Belgique) ; un "
+                        "écart signale un caractère perdu ou ajouté.",
+                    ],
+                ),
+                Section(
+                    "L'algorithme, en quatre étapes (ISO 13616)",
+                    bullets=[
+                        "Déplacer les quatre premiers caractères (pays et clé) à la fin.",
+                        "Remplacer chaque lettre par un nombre : A = 10, B = 11 … Z = 35.",
+                        "Calculer le reste de la division du grand nombre obtenu par 97.",
+                        "Le reste doit valoir 1. Pour un IBAN français, la clé RIB doit "
+                        "valoir 97 moins le reste de « banque, guichet, compte » × 100 "
+                        "divisé par 97.",
+                    ],
+                ),
+                Section(
+                    "Vérifier toute la facture, pas seulement l'IBAN",
+                    paragraphs=[
+                        "TrustyFile fait ce contrôle sur les IBAN trouvés dans un PDF, "
+                        "puis cherche ce qu'un IBAN valide ne dira jamais : un montant "
+                        "recouvert, une révision ajoutée après coup, un texte masqué, un "
+                        "identifiant d'entreprise inconnu du registre.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="verifier-un-siret",
+            kind="siret",
+            counterpart="siret-checker",
+            title="Vérifier un SIRET : clé de Luhn et exception La Poste",
+            description=(
+                "Vérifiez la clé de contrôle d'un numéro SIRET (14 chiffres, formule "
+                "de Luhn), y compris la règle spécifique aux établissements de La "
+                "Poste. Calcul local, sans envoi."
+            ),
+            heading="Vérifier un SIRET",
+            intro=(
+                "Collez un SIRET : l'outil contrôle ses 14 chiffres avec la formule de "
+                "Luhn et applique la règle particulière des établissements de La "
+                "Poste. Le numéro reste dans votre navigateur."
+            ),
+            placeholder="552 081 317 66522",
+            sections=[
+                Section(
+                    "SIRET, SIREN, NIC",
+                    paragraphs=[
+                        "Le SIRET identifie un établissement : les 9 chiffres du SIREN "
+                        "(l'entreprise) suivis des 5 chiffres du NIC (l'établissement). "
+                        "Une même entreprise a autant de SIRET que de sites.",
+                    ],
+                ),
+                Section(
+                    "Ce que ce contrôle prouve",
+                    paragraphs=[
+                        "Que le numéro est bien formé : le dernier chiffre est une clé "
+                        "de Luhn calculée sur les treize autres. Une faute de frappe ou "
+                        "un numéro inventé échouent.",
+                    ],
+                ),
+                Section(
+                    "Ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Que l'entreprise existe, qu'elle est active, ou qu'elle porte "
+                        "le nom indiqué sur le document. Pour cela il faut interroger le "
+                        'registre : l\'<a href="https://annuaire-entreprises.data.gouv.fr/">'
+                        "Annuaire des entreprises</a> (gratuit, officiel) donne la raison "
+                        "sociale, l'adresse et l'état de l'établissement. TrustyFile "
+                        "effectue cette interrogation automatiquement lors de l'analyse "
+                        "d'un document.",
+                    ],
+                ),
+                Section(
+                    "L'exception La Poste",
+                    paragraphs=[
+                        "La Poste (SIREN 356 000 000) compte tant d'établissements que "
+                        "l'INSEE lui a attribué sa propre règle : seul le siège "
+                        "(356 000 000 00048) suit la formule de Luhn ; pour tout autre "
+                        "SIRET de La Poste, la somme des 14 chiffres doit être un "
+                        "multiple de 5. Un vérificateur qui l'ignore déclare fausses "
+                        "toutes les factures de La Poste.",
+                    ],
+                ),
+                Section(
+                    "La formule de Luhn",
+                    bullets=[
+                        "Doubler un chiffre sur deux, en commençant par le premier.",
+                        "Si un chiffre doublé dépasse 9, lui retirer 9.",
+                        "Additionner les 14 chiffres obtenus.",
+                        "Le total doit être un multiple de 10.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="verifier-un-siren",
+            kind="siren",
+            counterpart="siren-checker",
+            title="Vérifier un SIREN et retrouver le numéro de TVA",
+            description=(
+                "Vérifiez la clé de Luhn d'un numéro SIREN (9 chiffres) et obtenez le "
+                "numéro de TVA intracommunautaire qui lui correspond. Calcul dans "
+                "votre navigateur, sans envoi."
+            ),
+            heading="Vérifier un SIREN",
+            intro=(
+                "Collez un SIREN : l'outil contrôle ses 9 chiffres avec la formule de "
+                "Luhn et calcule le numéro de TVA intracommunautaire attendu (FR, clé, "
+                "SIREN). Le numéro reste dans votre navigateur."
+            ),
+            placeholder="552 081 317",
+            sections=[
+                Section(
+                    "Ce que ce contrôle prouve",
+                    paragraphs=[
+                        "Que le numéro est bien formé : le neuvième chiffre est une clé "
+                        "de Luhn calculée sur les huit autres. Une faute de frappe ou un "
+                        "numéro inventé échouent.",
+                    ],
+                ),
+                Section(
+                    "Ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Que l'entreprise existe ou qu'elle porte le nom indiqué. "
+                        'L\'<a href="https://annuaire-entreprises.data.gouv.fr/">Annuaire '
+                        "des entreprises</a> répond à cette question gratuitement ; "
+                        "TrustyFile l'interroge automatiquement pendant l'analyse d'un "
+                        "document.",
+                    ],
+                ),
+                Section(
+                    "Du SIREN au numéro de TVA",
+                    paragraphs=[
+                        "En France, le numéro de TVA intracommunautaire dérive du "
+                        "SIREN : FR, une clé à deux chiffres, puis le SIREN. La clé vaut "
+                        "(12 + 3 × (SIREN modulo 97)) modulo 97. Un numéro de TVA dont "
+                        "la clé ne correspond pas au SIREN imprimé à côté est un signal "
+                        "d'alerte fort — l'une des incohérences que TrustyFile recherche "
+                        "dans une facture.",
+                    ],
+                ),
+                Section(
+                    "La formule de Luhn",
+                    bullets=[
+                        "Doubler un chiffre sur deux, en commençant par le deuxième.",
+                        "Si un chiffre doublé dépasse 9, lui retirer 9.",
+                        "Additionner les 9 chiffres obtenus.",
+                        "Le total doit être un multiple de 10.",
+                    ],
+                ),
+            ],
+        ),
+    ],
+    "en": [
+        Tool(
+            slug="iban-checker",
+            kind="iban",
+            counterpart="verifier-un-iban",
+            title="IBAN checker: validate the check digits and the length",
+            description=(
+                "Free IBAN checker: validates the mod-97 check digits, the expected "
+                "length for the country and, for French IBANs, the RIB key. "
+                "Everything runs in your browser."
+            ),
+            heading="Check an IBAN",
+            intro=(
+                "Paste an IBAN to validate its check digits (mod 97), its length for "
+                "the country and, for a French IBAN, the RIB key. Everything is "
+                "computed in your browser: the number is sent nowhere."
+            ),
+            placeholder="GB82 WEST 1234 5698 7654 32",
+            sections=[
+                Section(
+                    "What this check proves",
+                    paragraphs=[
+                        "An IBAN carries two check digits (positions 3 and 4) computed "
+                        "from everything else. If they validate, the number is "
+                        "well-formed: a typo, two swapped digits or a number made up at "
+                        "random fail almost every time.",
+                        "For a French IBAN the tool also verifies the RIB key (the last "
+                        "two digits), a second, independent check inherited from the "
+                        "French bank account statement.",
+                    ],
+                ),
+                Section(
+                    "What it does not prove",
+                    paragraphs=[
+                        "That the account exists, is open, or belongs to the company "
+                        "named on the invoice. Vendor-impersonation fraud — an e-mail "
+                        "announcing “new bank details” — uses perfectly valid IBANs: "
+                        "the account simply belongs to the fraudster.",
+                        "The only check that matters before paying a new IBAN: call the "
+                        "supplier on a number you already had, never the one in the "
+                        "message.",
+                    ],
+                    bullets=[
+                        '<a href="/en/guides/how-to-spot-a-fake-iban">How to spot a fake '
+                        "IBAN on an invoice</a>: the signals to look for in the document "
+                        "itself.",
+                    ],
+                ),
+                Section(
+                    "How to read the result",
+                    bullets=[
+                        "Valid check digits, expected length: the number is well-formed "
+                        "— nothing more.",
+                        "Invalid check digits: copy the number again from the original "
+                        "document; if it still fails, the IBAN was mistyped or tampered "
+                        "with.",
+                        "Unusual length: every country fixes one (27 characters in "
+                        "France, 22 in Germany and the UK, 16 in Belgium); a mismatch "
+                        "means a character was lost or added.",
+                    ],
+                ),
+                Section(
+                    "The algorithm in four steps (ISO 13616)",
+                    bullets=[
+                        "Move the first four characters (country and check digits) to the end.",
+                        "Replace every letter with a number: A = 10, B = 11 … Z = 35.",
+                        "Take the remainder of the resulting large number divided by 97.",
+                        "The remainder must be 1. For a French IBAN, the RIB key must "
+                        "equal 97 minus the remainder of “bank, branch, account” × 100 "
+                        "divided by 97.",
+                    ],
+                ),
+                Section(
+                    "Check the whole invoice, not only the IBAN",
+                    paragraphs=[
+                        "TrustyFile runs this check on the IBANs found in a PDF, then "
+                        "looks for what a valid IBAN will never tell you: a covered "
+                        "amount, a revision added afterwards, hidden text, a company "
+                        "identifier the registry does not know.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="siret-checker",
+            kind="siret",
+            counterpart="verifier-un-siret",
+            title="SIRET checker: Luhn check digit and the La Poste rule",
+            description=(
+                "Free SIRET checker: validates the 14-digit French establishment "
+                "number with the Luhn formula, including the special rule for La "
+                "Poste establishments. Runs locally."
+            ),
+            heading="Check a SIRET",
+            intro=(
+                "Paste a SIRET: the tool validates its 14 digits with the Luhn formula "
+                "and applies the special rule for La Poste establishments. The number "
+                "stays in your browser."
+            ),
+            placeholder="552 081 317 66522",
+            sections=[
+                Section(
+                    "SIRET, SIREN, NIC",
+                    paragraphs=[
+                        "A SIRET identifies an establishment: the 9 digits of the SIREN "
+                        "(the company) followed by the 5 digits of the NIC (the site). "
+                        "One company has as many SIRETs as it has sites.",
+                    ],
+                ),
+                Section(
+                    "What this check proves",
+                    paragraphs=[
+                        "That the number is well-formed: the last digit is a Luhn check "
+                        "digit computed from the other thirteen. A typo or a made-up "
+                        "number fails.",
+                    ],
+                ),
+                Section(
+                    "What it does not prove",
+                    paragraphs=[
+                        "That the company exists, is active, or bears the name printed "
+                        "on the document. For that you need the registry: the official, "
+                        'free <a href="https://annuaire-entreprises.data.gouv.fr/">Annuaire '
+                        "des entreprises</a> returns the legal name, address and status "
+                        "of the establishment. TrustyFile queries it automatically while "
+                        "analysing a document.",
+                    ],
+                ),
+                Section(
+                    "The La Poste exception",
+                    paragraphs=[
+                        "La Poste (SIREN 356 000 000) has so many establishments that "
+                        "INSEE gave it a rule of its own: only the head office "
+                        "(356 000 000 00048) follows Luhn; for any other La Poste SIRET "
+                        "the sum of the 14 digits must be a multiple of 5. A checker "
+                        "that ignores this calls every La Poste invoice a forgery.",
+                    ],
+                ),
+                Section(
+                    "The Luhn formula",
+                    bullets=[
+                        "Double every other digit, starting with the first.",
+                        "If a doubled digit exceeds 9, subtract 9.",
+                        "Add up the 14 resulting digits.",
+                        "The total must be a multiple of 10.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="siren-checker",
+            kind="siren",
+            counterpart="verifier-un-siren",
+            title="SIREN checker: Luhn check and matching French VAT number",
+            description=(
+                "Free SIREN checker: validates the 9-digit French company number with "
+                "the Luhn formula and derives the intra-EU VAT number it implies. "
+                "Runs in your browser, nothing is sent."
+            ),
+            heading="Check a SIREN",
+            intro=(
+                "Paste a SIREN: the tool validates its 9 digits with the Luhn formula "
+                "and derives the intra-EU VAT number to expect (FR, key, SIREN). The "
+                "number stays in your browser."
+            ),
+            placeholder="552 081 317",
+            sections=[
+                Section(
+                    "What this check proves",
+                    paragraphs=[
+                        "That the number is well-formed: the ninth digit is a Luhn check "
+                        "digit computed from the other eight. A typo or a made-up number "
+                        "fails.",
+                    ],
+                ),
+                Section(
+                    "What it does not prove",
+                    paragraphs=[
+                        "That the company exists or bears the name shown. The "
+                        '<a href="https://annuaire-entreprises.data.gouv.fr/">Annuaire des '
+                        "entreprises</a> answers that for free; TrustyFile queries it "
+                        "automatically while analysing a document.",
+                    ],
+                ),
+                Section(
+                    "From SIREN to VAT number",
+                    paragraphs=[
+                        "In France the intra-EU VAT number derives from the SIREN: FR, "
+                        "a two-digit key, then the SIREN. The key is (12 + 3 × (SIREN "
+                        "mod 97)) mod 97. A VAT number whose key does not match the "
+                        "SIREN printed next to it is a strong warning sign — one of the "
+                        "inconsistencies TrustyFile looks for in an invoice.",
+                    ],
+                ),
+                Section(
+                    "The Luhn formula",
+                    bullets=[
+                        "Double every other digit, starting with the second.",
+                        "If a doubled digit exceeds 9, subtract 9.",
+                        "Add up the 9 resulting digits.",
+                        "The total must be a multiple of 10.",
+                    ],
+                ),
+            ],
+        ),
+    ],
+}
+
+# The validators the tool pages run in the browser. This is a JavaScript
+# reimplementation of src/modules/content.py's is_valid_iban / is_valid_siret /
+# is_valid_siren — same normalisation, same rules — and tests/test_checksum_vectors.py
+# runs both over tests/fixtures/checksum_vectors.json so they cannot drift.
+# It is inlined into every tool page and also written to tools/checksums.js
+# for the Node side of that test.
+CHECKSUM_JS = r"""// TrustyFile checksum validators. Generated by scripts/build_guides.py —
+// mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
+(function (root) {
+  'use strict';
+  var LA_POSTE_SIREN = '356000000';
+  var IBAN_LENGTHS = { AT: 20, BE: 16, CH: 21, DE: 22, ES: 24, FR: 27, GB: 22, IE: 22,
+                       IT: 27, LU: 20, MC: 27, NL: 18, PL: 28, PT: 25 };
+
+  function stripSeparators(text) { return String(text == null ? '' : text).replace(/[\s.\-]/g, ''); }
+
+  // Luhn as content.py applies it: for 14 digits the doubled positions are the
+  // even indexes from the left (0, 2, ... 12); for 9 digits the odd ones (1, 3, 5, 7).
+  function luhnOk(digits, doubleEvenIndexes) {
+    var total = 0;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits.charCodeAt(i) - 48;
+      if ((i % 2 === 0) === doubleEvenIndexes) { d *= 2; if (d > 9) { d -= 9; } }
+      total += d;
+    }
+    return total % 10 === 0;
+  }
+  function digitSum(digits) {
+    var s = 0;
+    for (var i = 0; i < digits.length; i++) { s += digits.charCodeAt(i) - 48; }
+    return s;
+  }
+  // Remainder of a long decimal string divided by 97, digit by digit (no BigInt needed).
+  function mod97(digits) {
+    var m = 0;
+    for (var i = 0; i < digits.length; i++) { m = (m * 10 + (digits.charCodeAt(i) - 48)) % 97; }
+    return m;
+  }
+
+  function sirenCheck(text) {
+    var siren = stripSeparators(text);
+    if (!/^\d{9}$/.test(siren)) { return { ok: false, reason: 'format', value: siren }; }
+    var ok = luhnOk(siren, false);
+    // French VAT key, as content.py's validate_french_vat computes it.
+    var key = (12 + 3 * mod97(siren)) % 97;
+    return { ok: ok, reason: ok ? null : 'checksum', value: siren, vatKey: (key < 10 ? '0' : '') + key };
+  }
+
+  function siretCheck(text) {
+    var siret = stripSeparators(text);
+    if (!/^\d{14}$/.test(siret)) { return { ok: false, reason: 'format', value: siret }; }
+    var luhn = luhnOk(siret, true);
+    var laPoste = siret.indexOf(LA_POSTE_SIREN) === 0;
+    var ok = luhn || (laPoste && digitSum(siret) % 5 === 0);
+    return { ok: ok, reason: ok ? null : 'checksum', value: siret,
+             siren: siret.slice(0, 9), nic: siret.slice(9), laPoste: laPoste && ok && !luhn };
+  }
+
+  // French RIB key: bank (5) branch (5) account (11) key (2). Letters in the
+  // account map to digits (A,J=1 B,K,S=2 ... I,R,Z=9); key = 97 - (BGC x 100 mod 97).
+  function ribKeyOk(bban) {
+    var account = bban.slice(10, 21).toUpperCase().replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    var remainder = (mod97(bban.slice(0, 10) + account) * 100) % 97;
+    return (97 - remainder) === parseInt(bban.slice(21, 23), 10);
+  }
+
+  function ibanCheck(text) {
+    var iban = stripSeparators(text).toUpperCase();
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) { return { ok: false, reason: 'format', value: iban }; }
+    var rearranged = iban.slice(4) + iban.slice(0, 4);
+    var numeric = '';
+    for (var i = 0; i < rearranged.length; i++) {
+      var c = rearranged.charCodeAt(i);
+      numeric += c >= 65 ? String(c - 55) : rearranged.charAt(i);   // A=10 ... Z=35
+    }
+    var ok = mod97(numeric) === 1;
+    var country = iban.slice(0, 2);
+    var expected = IBAN_LENGTHS[country] || null;
+    return { ok: ok, reason: ok ? null : 'checksum', value: iban, country: country,
+             expectedLength: expected, lengthOk: expected ? iban.length === expected : null,
+             formatted: iban.replace(/(.{4})/g, '$1 ').trim(),
+             ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck };
+  root.TFChecks = api;
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+})(typeof window !== 'undefined' ? window : this);
+"""
+
+# Page glue: reads the per-language messages from the #tf-i18n JSON block,
+# runs the right validator and renders the result. Every string goes through
+# esc() — the input is the visitor's own, but the habit is cheap.
+TOOL_GLUE_JS = r"""(function () {
+  'use strict';
+  var M = JSON.parse(document.getElementById('tf-i18n').textContent);
+  var kind = M.kind;
+  var form = document.getElementById('tf-form');
+  var input = document.getElementById('tf-input');
+  var out = document.getElementById('tf-result');
+  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck }[kind];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(template, values) {
+    return template.replace(/\{(\w+)\}/g, function (_, k) { return values[k] == null ? '' : values[k]; });
+  }
+  function render(r) {
+    if (!r.value) { out.className = 'result'; out.innerHTML = ''; return; }
+    var cls, title, lines = [];
+    if (r.reason === 'format') { cls = 'ko'; title = M['format_' + kind]; }
+    else if (r.ok) { cls = 'ok'; title = M['valid_' + kind]; }
+    else { cls = 'ko'; title = M['invalid_' + kind]; }
+    if (kind === 'iban' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      lines.push(fmt(M.country, { country: r.country }));
+      if (r.expectedLength) {
+        lines.push(fmt(r.lengthOk ? M.length_ok : M.length_ko,
+                       { country: r.country, n: r.value.length, expected: r.expectedLength }));
+        if (r.ok && !r.lengthOk) { cls = 'warn'; }
+      } else {
+        lines.push(M.length_unknown);
+      }
+      if (r.ribKeyOk !== null) { lines.push(r.ribKeyOk ? M.rib_ok : M.rib_ko); if (r.ok && !r.ribKeyOk) { cls = 'warn'; } }
+    }
+    if (kind === 'siret' && r.reason !== 'format') {
+      lines.push(fmt(M.siren_part, { siren: r.siren, nic: r.nic }));
+      if (r.laPoste) { lines.push(M.la_poste); }
+    }
+    if (kind === 'siren' && r.ok) { lines.push(fmt(M.vat_hint, { key: r.vatKey, siren: r.value })); }
+    var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
+    out.className = 'result show ' + cls;
+    out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
+                    '<p class="fine">' + esc(M.reminder) + '</p>';
+  }
+  function run() { render(check(input.value)); }
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+  input.addEventListener('input', function () {
+    var compact = input.value.replace(/[\s.\-]/g, '');
+    if (compact.length >= (kind === 'iban' ? 15 : (kind === 'siret' ? 14 : 9))) { run(); }
+    else { out.className = 'result'; out.innerHTML = ''; }
+  });
+})();
+"""
+
+
 STYLESHEET = """\
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
@@ -1625,6 +2298,28 @@ ol.steps .n {
 }
 ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
 ol.steps .d { color: #666; font-size: 0.9rem; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -1952,6 +2647,16 @@ def render_index(lang: str) -> str:
         parts.append(f"        <p>{html.escape(guide.description)}</p>")
         parts.append(f'        <p class="more">{chrome["read_more"]} &rarr;</p>')
         parts.append("    </a>")
+    # Free checker tools: the hub is the one place that links every tool.
+    parts.append(f'    <h2 id="outils">{html.escape(chrome["tools_heading"])}</h2>')
+    parts.append(f'    <p>{html.escape(chrome["tools_intro"])}</p>')
+    for tool in TOOLS[lang]:
+        url = f"{chrome['tools_path']}/{tool.slug}"
+        parts.append(f'    <a class="card" href="{url}">')
+        parts.append(f"        <h3>{html.escape(tool.title)}</h3>")
+        parts.append(f"        <p>{html.escape(tool.description)}</p>")
+        parts.append(f'        <p class="more">{chrome["open_tool"]} &rarr;</p>')
+        parts.append("    </a>")
     parts.extend(_faq_html(lang))
     parts.append(f"    <p>{chrome['index_outro']}</p>")
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
@@ -2081,6 +2786,107 @@ def render_landing(lang: str) -> str:
     return "\n".join(parts)
 
 
+def render_tool(lang: str, tool: Tool) -> str:
+    """Render one checker page: guide chrome around a client-side form.
+
+    The validator runs in the visitor's browser (CHECKSUM_JS, inlined), so the
+    page is fully static and the number typed never reaches a server — which
+    is also what the page says, so keep that true.
+    """
+    chrome = CHROME[lang]
+    other_lang = "en" if lang == "fr" else "fr"
+    esc = html.escape
+    canonical = f"{SITE}{chrome['tools_path']}/{tool.slug}"
+
+    alternates = {lang: canonical}
+    if tool.counterpart:
+        other_canonical = f"{SITE}{CHROME[other_lang]['tools_path']}/{tool.counterpart}"
+        alternates[other_lang] = other_canonical
+        alternates["x-default"] = canonical if lang == "fr" else other_canonical
+        other_url = f"{CHROME[other_lang]['tools_path']}/{tool.counterpart}"
+    else:
+        other_url = CHROME[other_lang]["index_path"]
+
+    app_ld = {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": tool.title,
+        "url": canonical,
+        "description": tool.description,
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": True,
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"},
+        "inLanguage": lang,
+        "publisher": {"@type": "Organization", "name": "TrustyFile", "url": SITE},
+    }
+    breadcrumb_ld = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "TrustyFile", "item": chrome["app_url"]},
+            {"@type": "ListItem", "position": 2, "name": chrome["tools_heading"],
+             "item": f"{SITE}{chrome['index_path']}#outils"},
+            {"@type": "ListItem", "position": 3, "name": tool.title},
+        ],
+    }
+
+    # Messages for the page script. "</" must not appear inside a <script>
+    # block, even a JSON one; json.dumps does not escape it, so do it here.
+    i18n = dict(chrome["tool_i18n"], kind=tool.kind)
+    i18n_json = json.dumps(i18n, ensure_ascii=False).replace("</", "<\\/")
+
+    parts = [
+        _head(
+            lang=lang,
+            title=tool.title,
+            description=tool.description,
+            canonical=canonical,
+            alternates=alternates,
+            json_ld=[app_ld, breadcrumb_ld],
+            og_type="website",
+        ),
+        _nav(lang, other_url),
+        f"    <h1>{esc(tool.heading)}</h1>",
+        f'    <p class="intro">{tool.intro}</p>',
+        '    <form class="tool" id="tf-form" autocomplete="off">',
+        f'        <input id="tf-input" type="text" spellcheck="false" placeholder="{esc(tool.placeholder)}" aria-label="{esc(tool.heading)}">',
+        f'        <button type="submit">{esc(chrome["tool_button"])}</button>',
+        "    </form>",
+        '    <div id="tf-result" class="result" role="status" aria-live="polite"></div>',
+        f'    <p class="privacy">{esc(chrome["tool_privacy"])}</p>',
+    ]
+    for section in tool.sections:
+        anchor = _slugify_heading(section.heading)
+        parts.append(f'    <h2 id="{anchor}">{html.escape(section.heading)}</h2>')
+        for paragraph in section.paragraphs:
+            parts.append(f"    <p>{paragraph}</p>")
+        if section.bullets:
+            parts.append("    <ul>")
+            for bullet in section.bullets:
+                parts.append(f"        <li>{bullet}</li>")
+            parts.append("    </ul>")
+
+    siblings = [t for t in TOOLS[lang] if t.slug != tool.slug]
+    if siblings:
+        parts.append(f"    <h2>{chrome['related_tools']}</h2>")
+        for other in siblings:
+            parts.append(f'    <a class="card" href="{chrome["tools_path"]}/{other.slug}">')
+            parts.append(f"        <h3>{html.escape(other.title)}</h3>")
+            parts.append(f"        <p>{html.escape(other.description)}</p>")
+            parts.append("    </a>")
+
+    parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
+    parts.append(f'    <script type="application/json" id="tf-i18n">{i18n_json}</script>')
+    parts.append("    <script>")
+    parts.append(CHECKSUM_JS.rstrip("\n"))
+    parts.append(TOOL_GLUE_JS.rstrip("\n"))
+    parts.append("    </script>")
+    parts.append(_footer(lang))
+    return "\n".join(parts)
+
+
 @dataclass
 class SitemapEntry:
     """One <url> in sitemap.xml, with its hreflang alternates.
@@ -2130,6 +2936,11 @@ def sitemap_entries() -> list[SitemapEntry]:
                 # No translation yet: the page is its own only alternate.
                 fr_url = en_url = loc
             entries.append(SitemapEntry(loc, fr_url, en_url, "0.7"))
+        for tool in TOOLS[lang]:
+            loc = f"{SITE}{CHROME[lang]['tools_path']}/{tool.slug}"
+            other_loc = f"{SITE}{CHROME[other]['tools_path']}/{tool.counterpart}"
+            fr_url, en_url = (loc, other_loc) if lang == "fr" else (other_loc, loc)
+            entries.append(SitemapEntry(loc, fr_url, en_url, "0.7"))
     return entries
 
 
@@ -2169,6 +2980,11 @@ def build() -> dict[Path, str]:
         for guide in GUIDES[lang]:
             pages[OUTPUT_DIR / lang / f"{guide.slug}.html"] = render_guide(lang, guide)
         pages[ROOT / f"seo-{lang}.html"] = render_landing(lang)
+        for tool in TOOLS[lang]:
+            pages[ROOT / "tools" / lang / f"{tool.slug}.html"] = render_tool(lang, tool)
+    # The same validators the pages inline, as a Node module for the parity
+    # test (tests/test_checksum_vectors.py). Not served by Caddy.
+    pages[ROOT / "tools" / "checksums.js"] = CHECKSUM_JS
     pages[ROOT / "sitemap.xml"] = render_sitemap()
     return pages
 

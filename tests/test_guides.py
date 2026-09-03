@@ -57,6 +57,11 @@ def _all_guides():
     return [(lang, g) for lang, guides in build_guides.GUIDES.items() for g in guides]
 
 
+def _all_tools():
+    """(lang, Tool) for every checker tool in every language."""
+    return [(lang, t) for lang, tools in build_guides.TOOLS.items() for t in tools]
+
+
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_title_and_description_fit_serp_budget(lang, guide):
     """Titles and descriptions stay inside what Google actually displays.
@@ -130,6 +135,60 @@ def test_section_anchors_are_unique(lang, guide):
     assert all(anchors), "a heading produced an empty anchor"
 
 
+# --- Checker tools ----------------------------------------------------------
+
+
+@pytest.mark.parametrize("lang,tool", _all_tools(), ids=lambda v: getattr(v, "slug", v))
+def test_tool_title_description_slug_fit_the_same_budgets(lang, tool):
+    assert len(tool.title) <= 65, f"title too long ({len(tool.title)}): {tool.title}"
+    assert 80 <= len(tool.description) <= 175, (
+        f"description length {len(tool.description)} outside 80-175: {tool.slug}"
+    )
+    assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", tool.slug), tool.slug
+
+
+@pytest.mark.parametrize("lang,tool", _all_tools(), ids=lambda v: getattr(v, "slug", v))
+def test_tool_page_canonical_h1_and_inline_script(lang, tool):
+    """Canonical matches the served path; one h1; the shared validator is inlined verbatim.
+
+    The inline copy and tools/checksums.js are the same string by
+    construction, but the Node test only exercises the file — so pin the
+    pages to it, or a future edit could ship a browser validator nobody tests.
+    """
+    rendered = build_guides.render_tool(lang, tool)
+    path = build_guides.CHROME[lang]["tools_path"]
+    assert f'<link rel="canonical" href="{build_guides.SITE}{path}/{tool.slug}">' in rendered
+    assert rendered.count("<h1>") == 1
+    assert build_guides.CHECKSUM_JS.rstrip("\n") in rendered
+    assert f'"kind": "{tool.kind}"' in rendered
+    assert "</script>" not in json.dumps(build_guides.CHROME[lang]["tool_i18n"])
+
+
+def test_tool_counterparts_are_reciprocal():
+    by_lang = {lang: {t.slug: t for t in tools} for lang, tools in build_guides.TOOLS.items()}
+    for lang, tools in build_guides.TOOLS.items():
+        other = "en" if lang == "fr" else "fr"
+        for tool in tools:
+            assert tool.counterpart in by_lang[other], (lang, tool.slug, tool.counterpart)
+            assert by_lang[other][tool.counterpart].counterpart == tool.slug
+            assert by_lang[other][tool.counterpart].kind == tool.kind
+
+
+def test_tool_messages_exist_in_both_languages():
+    fr, en = build_guides.CHROME["fr"]["tool_i18n"], build_guides.CHROME["en"]["tool_i18n"]
+    assert set(fr) == set(en), set(fr) ^ set(en)
+    for kind in ("iban", "siret", "siren"):
+        for prefix in ("format_", "valid_", "invalid_"):
+            assert prefix + kind in fr
+
+
+@pytest.mark.parametrize("lang", ["fr", "en"])
+def test_guides_index_links_every_tool(lang):
+    page = build_guides.render_index(lang)
+    for tool in build_guides.TOOLS[lang]:
+        assert f'href="{build_guides.CHROME[lang]["tools_path"]}/{tool.slug}"' in page
+
+
 # --- Sitemap ----------------------------------------------------------------
 
 SITEMAP_NS = {
@@ -146,6 +205,9 @@ def test_sitemap_is_well_formed_and_complete():
 
     for lang, guide in _all_guides():
         url = f"{build_guides.SITE}{build_guides.CHROME[lang]['guides_path']}/{guide.slug}"
+        assert url in locs, f"{url} missing from sitemap.xml"
+    for lang, tool in _all_tools():
+        url = f"{build_guides.SITE}{build_guides.CHROME[lang]['tools_path']}/{tool.slug}"
         assert url in locs, f"{url} missing from sitemap.xml"
 
 
@@ -167,6 +229,12 @@ def test_sitemap_urls_all_resolve_to_a_committed_file():
         if path.startswith("/en/guides"):
             rel = path.removeprefix("/en/guides").strip("/")
             base = ROOT / "guides" / "en"
+        elif path.startswith("/en/tools"):
+            rel = path.removeprefix("/en/tools").strip("/")
+            base = ROOT / "tools" / "en"
+        elif path.startswith("/outils"):
+            rel = path.removeprefix("/outils").strip("/")
+            base = ROOT / "tools" / "fr"
         else:
             rel = path.removeprefix("/guides").strip("/")
             base = ROOT / "guides" / "fr"
