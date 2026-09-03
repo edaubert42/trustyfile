@@ -214,9 +214,10 @@ def test_tool_counterparts_are_reciprocal():
 def test_tool_messages_exist_in_both_languages():
     fr, en = build_guides.CHROME["fr"]["tool_i18n"], build_guides.CHROME["en"]["tool_i18n"]
     assert set(fr) == set(en), set(fr) ^ set(en)
-    for kind in ("iban", "siret", "siren"):
+    for kind in ("iban", "siret", "siren", "vat"):
         for prefix in ("format_", "valid_", "invalid_"):
             assert prefix + kind in fr
+    assert {tool.kind for tools in build_guides.TOOLS.values() for tool in tools} == {"iban", "siret", "siren", "vat"}
 
 
 @pytest.mark.parametrize("lang", ["fr", "en"])

@@ -1362,6 +1362,28 @@ def is_valid_iban(text: str) -> bool:
     return validate_iban_checksum(iban)
 
 
+def is_valid_french_vat(text: str) -> bool:
+    """Validate a French VAT number as a user would paste it.
+
+    Strips spaces, dots and dashes, upper-cases, then requires FR + a
+    two-digit key + a nine-digit SIREN (ASCII digits only, see is_valid_iban)
+    before delegating to validate_french_vat(). Keys containing letters exist
+    (a different algorithm) and are reported as a format failure rather than
+    guessed at — the /outils page says so. Contract shared with the browser
+    validator through tests/fixtures/checksum_vectors.json.
+
+    Example:
+        >>> is_valid_french_vat("FR 03 552 081 317")
+        True
+        >>> is_valid_french_vat("FR04552081317")
+        False
+    """
+    vat = _strip_separators(text).upper()
+    if not re.fullmatch(r"FR[0-9]{11}", vat):
+        return False
+    return validate_french_vat(vat)
+
+
 def validate_rib_key(text: str) -> bool | None:
     """Check the RIB key of a French IBAN — the last two digits of its BBAN.
 

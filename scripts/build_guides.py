@@ -128,7 +128,7 @@ class Tool:
     /outils/<slug>, EN at /en/tools/<slug>.
 
     Attributes:
-        kind: "iban" | "siret" | "siren" — selects the JS validator and the
+        kind: "iban" | "siret" | "siren" | "vat" — selects the JS validator and the
             result messages (CHROME[lang]["tool_i18n"]).
         placeholder: example value shown in the empty input.
         sections: the explanatory body under the form: what the check proves,
@@ -220,8 +220,8 @@ CHROME = {
         "tools_heading": "Outils gratuits",
         "tools_intro": (
             "Un numéro à vérifier plutôt qu'un document entier ? Ces outils "
-            "contrôlent la clé d'un IBAN, d'un SIRET ou d'un SIREN directement "
-            "dans votre navigateur."
+            "contrôlent la clé d'un IBAN, d'un SIRET, d'un SIREN ou d'un numéro de "
+            "TVA directement dans votre navigateur."
         ),
         "tool_button": "Vérifier",
         "tool_privacy": (
@@ -249,6 +249,12 @@ CHROME = {
             "valid_siren": "Clé de contrôle valide",
             "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé",
             "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}",
+            "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.",
+            "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN",
+            "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent",
+            "vat_parts": "Clé {key} · SIREN {siren}",
+            "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé",
+            "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}",
             "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.",
         },
         # FAQ shown on the guides index (visible to everyone, hence eligible
@@ -364,8 +370,8 @@ CHROME = {
         "tools_heading": "Free tools",
         "tools_intro": (
             "A single number to check rather than a whole document? These tools "
-            "validate the check digits of an IBAN, a SIRET or a SIREN right in "
-            "your browser."
+            "validate the check digits of an IBAN, a SIRET, a SIREN or a French VAT "
+            "number right in your browser."
         ),
         "tool_button": "Check",
         "tool_privacy": (
@@ -393,6 +399,12 @@ CHROME = {
             "valid_siren": "Check digit valid",
             "invalid_siren": "Check digit invalid: this is not a well-formed SIREN",
             "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}",
+            "format_vat": "Unexpected format: a French VAT number is FR, a two-digit key, then the 9 digits of the SIREN. Keys containing letters (rare) are not checked by this tool.",
+            "valid_vat": "Check key valid: the key matches the SIREN",
+            "invalid_vat": "Check key invalid: this VAT number is not self-consistent",
+            "vat_parts": "Key {key} · SIREN {siren}",
+            "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up",
+            "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}",
             "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.",
         },
         "faq_heading": "Frequently asked questions",
@@ -448,7 +460,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="verifier-une-facture-falsifiee",
             counterpart="how-to-spot-a-tampered-invoice",
-            tools=["verifier-un-siret", "verifier-un-siren"],
+            tools=["verifier-un-siret", "verifier-un-numero-de-tva", "verifier-un-siren"],
             title="Vérifier si une facture a été falsifiée",
             description=(
                 "Montant retouché, date modifiée, IBAN remplacé : les indices "
@@ -1239,7 +1251,7 @@ GUIDES: dict[str, list[Guide]] = {
             counterpart="how-to-verify-a-kbis-extract",
             published="2026-09-03",
             modified="2026-09-03",
-            tools=["verifier-un-siret", "verifier-un-siren"],
+            tools=["verifier-un-siret", "verifier-un-siren", "verifier-un-numero-de-tva"],
             title="Vérifier un extrait Kbis : authenticité et cohérence",
             description=(
                 "Confronter un Kbis au registre (SIREN, dirigeants, siège, état de "
@@ -1531,7 +1543,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="how-to-spot-a-tampered-invoice",
             counterpart="verifier-une-facture-falsifiee",
-            tools=["siret-checker", "siren-checker"],
+            tools=["siret-checker", "vat-number-checker", "siren-checker"],
             title="How to spot a tampered invoice",
             description=(
                 "Edited amounts, altered dates, swapped bank details: the "
@@ -2289,7 +2301,7 @@ GUIDES: dict[str, list[Guide]] = {
             counterpart="verifier-un-extrait-kbis",
             published="2026-09-03",
             modified="2026-09-03",
-            tools=["siret-checker", "siren-checker"],
+            tools=["siret-checker", "siren-checker", "vat-number-checker"],
             title="How to verify a Kbis extract (French company registration)",
             description=(
                 "Check a Kbis against the public registers (SIREN, directors, "
@@ -2786,6 +2798,79 @@ TOOLS: dict[str, list[Tool]] = {
                 ),
             ],
         ),
+        Tool(
+            slug="verifier-un-numero-de-tva",
+            kind="vat",
+            counterpart="vat-number-checker",
+            title="Vérifier un numéro de TVA intracommunautaire français",
+            description=(
+                "Vérifiez la clé d'un numéro de TVA français (FR + clé + SIREN) et sa "
+                "cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; "
+                "pour l'existence du numéro, VIES."
+            ),
+            heading="Vérifier un numéro de TVA intracommunautaire",
+            intro=(
+                "Collez un numéro de TVA français : l'outil vérifie que la clé à deux "
+                "chiffres correspond bien au SIREN qui la suit, et que ce SIREN est "
+                "lui-même bien formé. Tout se calcule dans votre navigateur : le numéro "
+                "n'est envoyé nulle part."
+            ),
+            placeholder="FR03 552 081 317",
+            sections=[
+                Section(
+                    "Ce que ce contrôle prouve",
+                    paragraphs=[
+                        "Qu'un numéro de TVA français est cohérent avec lui-même : la clé "
+                        "se calcule à partir du SIREN — (12 + 3 × (SIREN modulo 97)) "
+                        "modulo 97 — et le SIREN porte sa propre clé de Luhn. Un numéro "
+                        "recopié avec une faute, ou inventé pour habiller une fausse "
+                        "facture, échoue presque toujours.",
+                        "Sur une facture, le numéro de TVA doit correspondre au SIRET "
+                        "imprimé à côté : les neuf premiers chiffres du SIRET sont le "
+                        "SIREN qui suit la clé. Un écart entre les deux est l'une des "
+                        "incohérences les plus parlantes, et l'une de celles que "
+                        "TrustyFile recherche dans un document.",
+                    ],
+                ),
+                Section(
+                    "Ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Que le numéro est attribué, actif et enregistré pour les "
+                        "échanges intracommunautaires. Seule la base "
+                        '<a href="https://ec.europa.eu/taxation_customs/vies/">VIES</a> '
+                        "de la Commission européenne répond à cette question, en "
+                        "interrogeant l'administration fiscale du pays. Une entreprise "
+                        "française en franchise en base de TVA peut n'avoir aucun numéro "
+                        "intracommunautaire tout en étant parfaitement réelle.",
+                        "Certains numéros français ont une clé qui contient des lettres, "
+                        "calculée selon un autre algorithme : cet outil les signale comme "
+                        "hors de son périmètre plutôt que de les valider ou de les "
+                        "rejeter à tort.",
+                    ],
+                ),
+                Section(
+                    "Comment lire le résultat",
+                    bullets=[
+                        "Clé valide : le numéro est cohérent. Comparez-le au SIRET de la "
+                        "facture et, pour un nouveau fournisseur, vérifiez-le dans VIES.",
+                        "Clé invalide, SIREN bien formé : la clé attendue est affichée. "
+                        "Une seule faute de frappe suffit à l'expliquer — un numéro "
+                        "fabriqué aussi.",
+                        "SIREN invalide : le cœur du numéro est faux ; recopiez-le depuis "
+                        "le document original avant de conclure.",
+                    ],
+                ),
+                Section(
+                    "Vérifier toute la facture, pas seulement le numéro de TVA",
+                    paragraphs=[
+                        "TrustyFile fait ce contrôle sur les numéros trouvés dans un PDF, "
+                        "confronte la TVA au SIRET, interroge le registre des entreprises, "
+                        "puis cherche ce qu'un numéro cohérent ne dira jamais : un montant "
+                        "recouvert, une révision ajoutée après coup, un texte masqué.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Tool(
@@ -2992,6 +3077,76 @@ TOOLS: dict[str, list[Tool]] = {
                 ),
             ],
         ),
+        Tool(
+            slug="vat-number-checker",
+            kind="vat",
+            counterpart="verifier-un-numero-de-tva",
+            title="French VAT number checker: key and SIREN consistency",
+            description=(
+                "Free French VAT number checker: validates the two-digit key against "
+                "the SIREN it precedes and the SIREN's own Luhn digit. Runs in your "
+                "browser; use VIES for registration."
+            ),
+            heading="Check a French VAT number",
+            intro=(
+                "Paste a French intra-EU VAT number: the tool checks that its two-digit "
+                "key matches the SIREN that follows, and that the SIREN is itself "
+                "well-formed. Everything runs in your browser: the number is not sent "
+                "anywhere."
+            ),
+            placeholder="FR03 552 081 317",
+            sections=[
+                Section(
+                    "What this check proves",
+                    paragraphs=[
+                        "That a French VAT number is self-consistent: the key is computed "
+                        "from the SIREN — (12 + 3 × (SIREN mod 97)) mod 97 — and the "
+                        "SIREN carries its own Luhn digit. A number copied with a typo, "
+                        "or invented to dress up a fake invoice, almost always fails.",
+                        "On an invoice the VAT number must match the SIRET printed next "
+                        "to it: the first nine digits of the SIRET are the SIREN that "
+                        "follows the key. A gap between the two is one of the most "
+                        "telling inconsistencies, and one TrustyFile looks for in a "
+                        "document.",
+                    ],
+                ),
+                Section(
+                    "What it does not prove",
+                    paragraphs=[
+                        "That the number is assigned, active and registered for intra-EU "
+                        "trade. Only the European Commission's "
+                        '<a href="https://ec.europa.eu/taxation_customs/vies/">VIES</a> '
+                        "database answers that, by querying the country's tax "
+                        "administration. A French business under the VAT exemption "
+                        "threshold may have no intra-EU number at all and still be "
+                        "perfectly real.",
+                        "Some French numbers have a key containing letters, computed with "
+                        "a different algorithm: this tool reports them as out of scope "
+                        "rather than validating or rejecting them wrongly.",
+                    ],
+                ),
+                Section(
+                    "How to read the result",
+                    bullets=[
+                        "Key valid: the number is consistent. Compare it with the SIRET "
+                        "on the invoice and, for a new supplier, look it up in VIES.",
+                        "Key invalid, SIREN well-formed: the expected key is shown. A "
+                        "single typo explains it — so does a fabricated number.",
+                        "SIREN invalid: the core of the number is wrong; copy it again "
+                        "from the original document before concluding.",
+                    ],
+                ),
+                Section(
+                    "Check the whole invoice, not just the VAT number",
+                    paragraphs=[
+                        "TrustyFile runs this check on the numbers found in a PDF, matches "
+                        "the VAT number against the SIRET, queries the company register, "
+                        "then looks for what a consistent number will never reveal: a "
+                        "covered amount, a revision added afterwards, hidden text.",
+                    ],
+                ),
+            ],
+        ),
     ],
 }
 
@@ -3082,7 +3237,22 @@ CHECKSUM_JS = r"""// TrustyFile checksum validators. Generated by scripts/build_
              ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck };
+  // French VAT number: FR + two-digit key + SIREN; key = (12 + 3 x (SIREN mod 97)) mod 97,
+  // as content.py's validate_french_vat computes it. Keys with letters (another
+  // algorithm) are a format failure here, never a guess.
+  function vatCheck(text) {
+    var vat = stripSeparators(text).toUpperCase();
+    if (!/^FR\d{11}$/.test(vat)) { return { ok: false, reason: 'format', value: vat }; }
+    var key = vat.slice(2, 4), siren = vat.slice(4);
+    var sirenOk = luhnOk(siren, false);
+    var expected = (12 + 3 * mod97(siren)) % 97;
+    var expectedKey = (expected < 10 ? '0' : '') + expected;
+    var ok = sirenOk && key === expectedKey;
+    return { ok: ok, reason: ok ? null : 'checksum', value: vat, key: key, siren: siren,
+             sirenOk: sirenOk, expectedKey: expectedKey };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);
@@ -3098,7 +3268,9 @@ TOOL_GLUE_JS = r"""(function () {
   var form = document.getElementById('tf-form');
   var input = document.getElementById('tf-input');
   var out = document.getElementById('tf-result');
-  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck }[kind];
+  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
+                vat: TFChecks.vatCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13 }[kind];
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -3131,6 +3303,11 @@ TOOL_GLUE_JS = r"""(function () {
       if (r.laPoste) { lines.push(M.la_poste); }
     }
     if (kind === 'siren' && r.ok) { lines.push(fmt(M.vat_hint, { key: r.vatKey, siren: r.value })); }
+    if (kind === 'vat' && r.reason !== 'format') {
+      lines.push(fmt(M.vat_parts, { key: r.key, siren: r.siren }));
+      if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
+      else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
+    }
     var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
     out.className = 'result show ' + cls;
     out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
@@ -3140,7 +3317,7 @@ TOOL_GLUE_JS = r"""(function () {
   form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
   input.addEventListener('input', function () {
     var compact = input.value.replace(/[\s.\-]/g, '');
-    if (compact.length >= (kind === 'iban' ? 15 : (kind === 'siret' ? 14 : 9))) { run(); }
+    if (compact.length >= minLength) { run(); }
     else { out.className = 'result'; out.innerHTML = ''; }
   });
 })();

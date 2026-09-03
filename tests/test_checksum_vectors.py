@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from src.modules.content import (
+    is_valid_french_vat,
     is_valid_iban,
     is_valid_siren,
     is_valid_siret,
@@ -39,6 +40,7 @@ PYTHON_VALIDATORS = {
     "iban": is_valid_iban,
     "siret": is_valid_siret,
     "siren": is_valid_siren,
+    "vat": is_valid_french_vat,
 }
 
 
@@ -100,7 +102,7 @@ def test_javascript_validator_agrees_with_the_contract():
     harness = """
         const checks = require(process.argv[1]);
         const vectors = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8')).vectors;
-        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck };
+        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck, vat: checks.vatCheck };
         const out = vectors.map(v => {
           const r = fn[v.kind](v.input);
           return { kind: v.kind, input: v.input, valid: r.ok, rib_ok: r.ribKeyOk === undefined ? 'absent' : r.ribKeyOk };
@@ -134,7 +136,8 @@ def test_javascript_iban_details_are_consistent():
         const a = c.ibanCheck('FR76 3000 6000 0112 3456 7890 189');
         const b = c.ibanCheck('DE89370400440532013000');
         const s = c.sirenCheck('552081317');
-        process.stdout.write(JSON.stringify({a, b, s}));
+        const v = c.vatCheck('FR04 552 081 317');
+        process.stdout.write(JSON.stringify({a, b, s, v}));
     """
     out = json.loads(subprocess.run(
         ["node", "-e", harness, str(CHECKSUMS_JS)], capture_output=True, text=True, timeout=30, check=True,
@@ -144,3 +147,5 @@ def test_javascript_iban_details_are_consistent():
     assert out["b"]["country"] == "DE" and out["b"]["lengthOk"] is True and out["b"]["ribKeyOk"] is None
     # FR VAT key for EDF's SIREN is 03 (FR03552081317), the formula content.py uses
     assert out["s"]["vatKey"] == "03"
+    # The VAT page explains a wrong key by showing the one the SIREN implies.
+    assert out["v"]["ok"] is False and out["v"]["sirenOk"] is True and out["v"]["expectedKey"] == "03"

@@ -35,9 +35,10 @@ except Exception:  # a broken or missing generator must never take the app down
 
 # Which checker page can re-run the check behind a flag. Matched on the flag
 # code (CONTENT_INVALID_IBAN, EXTERNAL_SIRET_NOT_FOUND, ...) rather than on a
-# hand-kept list, so a new identifier flag gets its link for free. VAT flags
-# go to the SIREN checker, which derives the French VAT key from the SIREN.
-_TOOL_KIND_BY_CODE_TOKEN = (("IBAN", "iban"), ("SIRET", "siret"), ("SIREN", "siren"), ("VAT", "siren"))
+# hand-kept list, so a new identifier flag gets its link for free. VAT before
+# SIREN so that CONTENT_SIREN_VAT_MISMATCH lands on the VAT checker, which
+# shows the key the SIREN implies — exactly what that flag is about.
+_TOOL_KIND_BY_CODE_TOKEN = (("IBAN", "iban"), ("SIRET", "siret"), ("VAT", "vat"), ("SIREN", "siren"))
 
 
 def tool_url_for_flag(code: str, lang: str) -> str | None:

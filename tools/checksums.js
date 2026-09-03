@@ -79,7 +79,22 @@
              ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
   }
 
-  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck };
+  // French VAT number: FR + two-digit key + SIREN; key = (12 + 3 x (SIREN mod 97)) mod 97,
+  // as content.py's validate_french_vat computes it. Keys with letters (another
+  // algorithm) are a format failure here, never a guess.
+  function vatCheck(text) {
+    var vat = stripSeparators(text).toUpperCase();
+    if (!/^FR\d{11}$/.test(vat)) { return { ok: false, reason: 'format', value: vat }; }
+    var key = vat.slice(2, 4), siren = vat.slice(4);
+    var sirenOk = luhnOk(siren, false);
+    var expected = (12 + 3 * mod97(siren)) % 97;
+    var expectedKey = (expected < 10 ? '0' : '') + expected;
+    var ok = sirenOk && key === expectedKey;
+    return { ok: ok, reason: ok ? null : 'checksum', value: vat, key: key, siren: siren,
+             sirenOk: sirenOk, expectedKey: expectedKey };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);

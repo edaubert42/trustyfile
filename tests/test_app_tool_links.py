@@ -22,9 +22,10 @@ ROOT = Path(__file__).resolve().parent.parent
         ("CONTENT_INVALID_IBAN", "en", "/en/tools/iban-checker"),
         ("EXTERNAL_SIRET_NOT_FOUND", "fr", "/outils/verifier-un-siret"),
         ("EXTERNAL_SIREN_VERIFICATION_FAILED", "en", "/en/tools/siren-checker"),
-        # VAT flags go to the SIREN checker, which derives the FR VAT key.
-        ("EXTERNAL_VAT_INVALID", "fr", "/outils/verifier-un-siren"),
-        ("CONTENT_SIREN_VAT_MISMATCH", "en", "/en/tools/siren-checker"),
+        # VAT flags — including the SIREN/VAT mismatch — go to the VAT checker,
+        # which shows the key the SIREN implies.
+        ("EXTERNAL_VAT_INVALID", "fr", "/outils/verifier-un-numero-de-tva"),
+        ("CONTENT_SIREN_VAT_MISMATCH", "en", "/en/tools/vat-number-checker"),
         ("ARITH_IBAN_MISMATCH", "fr", "/outils/verifier-un-iban"),
     ],
 )

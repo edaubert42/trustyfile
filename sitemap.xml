@@ -138,6 +138,15 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://www.trustyfile.com/outils/verifier-un-numero-de-tva</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/vat-number-checker" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://www.trustyfile.com/en/guides/</loc>
     <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/" />
@@ -250,6 +259,15 @@
     <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-un-siren" />
     <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/siren-checker" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/verifier-un-siren" />
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://www.trustyfile.com/en/tools/vat-number-checker</loc>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/vat-number-checker" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva" />
     <lastmod>2026-09-03</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
