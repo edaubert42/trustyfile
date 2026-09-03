@@ -21,6 +21,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [Fraude au faux fournisseur : vérifier un changement de RIB](https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib): Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d'alerte dans le message et le RIB, et la procédure à suivre avant de payer.
 - [Vérifier un extrait Kbis : authenticité et cohérence](https://www.trustyfile.com/guides/verifier-un-extrait-kbis): Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d'un faux dans le PDF, et savoir ce qu'un Kbis authentique ne prouve pas.
 - [Vérifier un avis d'imposition : SVAIR, 2D-Doc et cohérence](https://www.trustyfile.com/guides/verifier-un-avis-d-imposition): Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.
+- [Vérifier une attestation de vigilance Urssaf](https://www.trustyfile.com/guides/verifier-une-attestation-de-vigilance-urssaf): Vérifier l'attestation de vigilance d'un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d'ordre.
 
 ## Outils gratuits (français)
 
@@ -41,6 +42,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [Supplier bank-detail change fraud: verifying a new IBAN](https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud): A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.
 - [How to verify a Kbis extract (French company registration)](https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract): Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.
 - [How to verify a French tax notice (avis d'imposition)](https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice): Landlord or agency: verify a tenant's French income-tax notice with the tax office's online service (SVAIR), the signed 2D-Doc code and the other documents in the file.
+- [How to verify an URSSAF vigilance certificate (France)](https://www.trustyfile.com/en/guides/how-to-verify-an-urssaf-vigilance-certificate): Checking a French subcontractor's attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.
 
 ## Free tools (English)
 

@@ -1538,6 +1538,138 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
             ],
         ),
+        Guide(
+            slug="verifier-une-attestation-de-vigilance-urssaf",
+            counterpart="how-to-verify-an-urssaf-vigilance-certificate",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["verifier-un-siret", "verifier-un-siren"],
+            title="Vérifier une attestation de vigilance Urssaf",
+            description=(
+                "Vérifier l'attestation de vigilance d'un sous-traitant : code de "
+                "sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce "
+                "que la loi impose au donneur d'ordre."
+            ),
+            heading="Comment vérifier une attestation de vigilance Urssaf",
+            intro=(
+                "L'attestation de vigilance est le document par lequel l'Urssaf "
+                "certifie qu'une entreprise déclare et paie ses cotisations sociales. "
+                "Tout donneur d'ordre doit l'exiger de ses sous-traitants au-delà d'un "
+                "certain montant, et la faire renouveler : c'est sa protection contre "
+                "la solidarité financière en cas de travail dissimulé. C'est aussi, "
+                "pour cette raison même, un document que l'on falsifie — et l'un des "
+                "plus simples à vérifier, grâce au code de sécurité que l'Urssaf "
+                "imprime dessus."
+            ),
+            sections=[
+                Section(
+                    heading="Ce que l'attestation certifie, et ce qu'elle contient",
+                    paragraphs=[
+                        "L'Urssaf délivre l'attestation de vigilance à une entreprise ou "
+                        "à un travailleur indépendant qui a payé ses cotisations et "
+                        "contributions aux échéances, ou qui a souscrit un plan "
+                        "d'apurement qu'il respecte, ou qui en conteste le montant dans "
+                        "les formes. Elle se télécharge depuis l'espace en ligne de "
+                        "l'entreprise — urssaf.fr, ou autoentrepreneur.urssaf.fr pour "
+                        "un micro-entrepreneur — et vaut six mois.",
+                        "Le document identifie l'entreprise (dénomination, SIRET, "
+                        "adresse), indique sa date de délivrance et sa période de "
+                        "validité et, pour un employeur, le nombre de salariés et le "
+                        "montant total des rémunérations déclarées. Il porte enfin un "
+                        "code de sécurité de quinze caractères : c'est lui qui rend la "
+                        "vérification possible.",
+                    ],
+                ),
+                Section(
+                    heading="Ce que la loi impose au donneur d'ordre",
+                    paragraphs=[
+                        "Pour tout contrat d'au moins 5 000 € hors taxes, le donneur "
+                        "d'ordre doit se faire remettre l'attestation de vigilance à la "
+                        "signature, puis tous les six mois jusqu'à la fin de l'exécution "
+                        "(code du travail, articles L8222-1 et suivants, D8222-5). S'y "
+                        "ajoute un justificatif d'immatriculation : extrait K ou Kbis, "
+                        "justificatif d'inscription au Registre national des "
+                        "entreprises, ou un devis, un document publicitaire ou un "
+                        "courrier professionnel portant le nom, l'adresse et le numéro "
+                        "d'immatriculation.",
+                        "L'enjeu n'est pas administratif. Si le sous-traitant est "
+                        "condamné pour travail dissimulé et que ces vérifications n'ont "
+                        "pas été faites, le donneur d'ordre est tenu solidairement au "
+                        "paiement de ses impôts, taxes, cotisations et rémunérations "
+                        "dues. Une attestation fausse acceptée sans contrôle ne protège "
+                        "de rien.",
+                    ],
+                ),
+                Section(
+                    heading="Le code de sécurité : le contrôle qui compte",
+                    paragraphs=[
+                        "L'Urssaf met à disposition un outil public de <a href=\""
+                        "https://www.urssaf.fr/accueil/outils-documentation/outils/"
+                        "verification-attestation.html\">vérification des "
+                        "attestations</a>. Saisissez le code de sécurité tel qu'il "
+                        "figure sur le document — quinze caractères, sans espace. Si "
+                        "l'Urssaf ne reconnaît pas le code, elle répond qu'il ne "
+                        "correspond à aucune attestation en cours de validité : le code "
+                        "est mal recopié, l'attestation est périmée, ou elle a été "
+                        "modifiée ou fabriquée.",
+                        "Si le code est reconnu, comparez ce que l'Urssaf vous renvoie "
+                        "au document reçu — dénomination, SIRET, période de validité. Un "
+                        "fraudeur peut coller le code authentique d'une autre entreprise "
+                        "sur une attestation fabriquée à son nom : le code passe, la "
+                        "comparaison ne passe pas.",
+                    ],
+                ),
+                Section(
+                    heading="Les indices d'un faux dans le document lui-même",
+                    bullets=[
+                        "Une <strong>période de validité</strong> qui n'est pas de six "
+                        "mois, une date de délivrance postérieure à celle du courrier qui "
+                        "l'accompagne, ou une attestation « à jour » vieille de huit "
+                        "mois.",
+                        "Un <strong>effectif incohérent</strong> : le sous-traitant "
+                        "annonce trente personnes sur le chantier, l'attestation déclare "
+                        "deux salariés.",
+                        "Un <strong>SIRET dont la clé est fausse</strong>, ou qui ne "
+                        "correspond pas au Kbis et aux factures.",
+                        "Un <strong>code de sécurité</strong> qui n'a pas quinze "
+                        "caractères, contient des espaces, ou se retrouve à l'identique "
+                        "sur deux attestations de dates différentes.",
+                        "Des <strong>traces de retouche PDF</strong> : police différente "
+                        "sur une date ou un chiffre, rectangle blanc, révision ajoutée "
+                        "après la création, métadonnées d'éditeur — voir <a href=\""
+                        "/guides/savoir-si-un-pdf-a-ete-modifie\">le guide sur les PDF "
+                        "modifiés</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Recouper avec le reste du dossier",
+                    paragraphs=[
+                        "L'attestation n'arrive jamais seule. Le SIRET doit être celui "
+                        "de <a href=\"/guides/verifier-un-extrait-kbis\">l'extrait "
+                        "Kbis</a> et des factures ; le RIB doit être au nom de la même "
+                        "dénomination — la <a href=\"/guides/fraude-au-faux-fournisseur-"
+                        "changement-de-rib\">fraude au faux fournisseur</a> commence "
+                        "souvent par un dossier de référencement impeccable. Et ne "
+                        "confondez pas l'attestation de vigilance avec l'attestation de "
+                        "régularité fiscale, délivrée par l'administration fiscale : "
+                        "deux documents, deux émetteurs, deux vérifications.",
+                    ],
+                ),
+                Section(
+                    heading="Ce qu'une attestation valide ne prouve pas",
+                    paragraphs=[
+                        "Qu'une entreprise soit à jour de ses cotisations aujourd'hui ne "
+                        "dit rien de sa solvabilité demain, ni de l'identité de la "
+                        "personne qui vous écrit en son nom. L'attestation se périme en "
+                        "six mois : inscrivez le renouvellement dans le suivi du contrat "
+                        "plutôt que de compter sur le sous-traitant pour y penser. "
+                        "TrustyFile examine le fichier — révisions, retouches, clés "
+                        "SIRET et TVA ; le code de sécurité, lui, se vérifie sur "
+                        "urssaf.fr, et rien ne remplace ce geste.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Guide(
@@ -2575,6 +2707,131 @@ GUIDES: dict[str, list[Guide]] = {
                         "applicant's documents must not be kept longer than necessary. "
                         "TrustyFile archives nothing: the file is analysed, then "
                         "deleted.",
+                    ],
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-verify-an-urssaf-vigilance-certificate",
+            counterpart="verifier-une-attestation-de-vigilance-urssaf",
+            published="2026-09-03",
+            modified="2026-09-03",
+            tools=["siret-checker", "siren-checker"],
+            title="How to verify an URSSAF vigilance certificate (France)",
+            description=(
+                "Checking a French subcontractor's attestation de vigilance: the "
+                "15-character security code on urssaf.fr, the six-month validity, and "
+                "what the law requires of the client."
+            ),
+            heading="How to verify an URSSAF vigilance certificate",
+            intro=(
+                "The <em>attestation de vigilance</em> is the document by which URSSAF, "
+                "the French social-security collector, certifies that a business "
+                "declares and pays its social contributions. Any client must demand it "
+                "from subcontractors above a certain contract value, and have it "
+                "renewed: it is the client's protection against joint liability if "
+                "the subcontractor turns out to use undeclared labour. For that very "
+                "reason it gets forged — and it is one of the easiest documents to "
+                "verify, thanks to the security code URSSAF prints on it."
+            ),
+            sections=[
+                Section(
+                    heading="What the certificate certifies, and what it contains",
+                    paragraphs=[
+                        "URSSAF issues the certificate to a business or self-employed "
+                        "person that has paid its contributions when due, or holds and "
+                        "honours a payment plan, or formally disputes the amount. It is "
+                        "downloaded from the business's online account — urssaf.fr, or "
+                        "autoentrepreneur.urssaf.fr for a micro-entrepreneur — and is "
+                        "valid for six months.",
+                        "The document identifies the business (name, SIRET, address), "
+                        "states its issue date and validity period and, for an employer, "
+                        "the number of employees and the total remuneration declared. It "
+                        "carries a fifteen-character security code: that code is what "
+                        "makes verification possible.",
+                    ],
+                ),
+                Section(
+                    heading="What the law requires of the client",
+                    paragraphs=[
+                        "For any contract worth at least €5,000 excluding VAT, the client "
+                        "must obtain the vigilance certificate at signature, then every "
+                        "six months until the work is complete (French labour code, "
+                        "articles L8222-1 and following, D8222-5). A proof of "
+                        "registration comes with it: a K or Kbis extract, proof of entry "
+                        "in the National Business Register, or a quote, advertising "
+                        "document or business letter showing the name, address and "
+                        "registration number.",
+                        "The stakes are not administrative. If the subcontractor is "
+                        "convicted of undeclared labour and these checks were not made, "
+                        "the client is jointly liable for its unpaid taxes, "
+                        "contributions and wages. A forged certificate accepted without "
+                        "checking protects against nothing.",
+                    ],
+                ),
+                Section(
+                    heading="The security code: the check that matters",
+                    paragraphs=[
+                        "URSSAF runs a public <a href=\"https://www.urssaf.fr/accueil/"
+                        "outils-documentation/outils/verification-attestation.html\">"
+                        "certificate verification tool</a>. Enter the security code "
+                        "exactly as printed — fifteen characters, no spaces. If URSSAF "
+                        "does not recognise it, it answers that the code matches no "
+                        "certificate currently in force: the code was miscopied, the "
+                        "certificate has expired, or it was altered or fabricated.",
+                        "If the code is recognised, compare what URSSAF returns with the "
+                        "document you received — company name, SIRET, validity period. A "
+                        "fraudster can paste another company's genuine code onto a "
+                        "certificate fabricated in their own name: the code passes, the "
+                        "comparison does not.",
+                    ],
+                ),
+                Section(
+                    heading="Signs of a forgery in the document itself",
+                    bullets=[
+                        "A <strong>validity period</strong> that is not six months, an "
+                        "issue date later than the letter it came with, or an "
+                        "\"up to date\" certificate that is eight months old.",
+                        "An <strong>inconsistent headcount</strong>: the subcontractor "
+                        "promises thirty people on site, the certificate declares two "
+                        "employees.",
+                        "A <strong>SIRET with a wrong check digit</strong>, or one that "
+                        "does not match the Kbis and the invoices.",
+                        "A <strong>security code</strong> that is not fifteen characters, "
+                        "contains spaces, or appears identically on two certificates "
+                        "with different dates.",
+                        "<strong>Traces of PDF editing</strong>: a different font on a "
+                        "date or figure, a white rectangle, a revision added after "
+                        "creation, editor metadata — see <a href=\"/en/guides/"
+                        "how-to-tell-if-a-pdf-was-modified\">the guide on modified "
+                        "PDFs</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Cross-check with the rest of the file",
+                    paragraphs=[
+                        "The certificate never comes alone. The SIRET must be the one on "
+                        "the <a href=\"/en/guides/how-to-verify-a-kbis-extract\">Kbis "
+                        "extract</a> and the invoices; the bank details must be in the "
+                        "same company name — <a href=\"/en/guides/"
+                        "supplier-bank-detail-change-fraud\">supplier impersonation "
+                        "fraud</a> often starts with a flawless onboarding file. And do "
+                        "not confuse the vigilance certificate with the tax-compliance "
+                        "certificate issued by the tax administration: two documents, "
+                        "two issuers, two checks.",
+                    ],
+                ),
+                Section(
+                    heading="What a valid certificate does not prove",
+                    paragraphs=[
+                        "That a business is up to date with its contributions today says "
+                        "nothing about its solvency tomorrow, nor about who is actually "
+                        "writing to you in its name. The certificate expires in six "
+                        "months: put the renewal in the contract's follow-up rather than "
+                        "relying on the subcontractor to remember. TrustyFile examines "
+                        "the file — revisions, edits, SIRET and VAT check digits; the "
+                        "security code is verified on urssaf.fr, and nothing replaces "
+                        "that step.",
                     ],
                 ),
             ],
