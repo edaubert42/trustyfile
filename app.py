@@ -1112,12 +1112,41 @@ uploaded_file = st.file_uploader(
     label_visibility="collapsed",
 )
 
+
+# "Try with a sample document". A first-time visitor rarely has a PDF at hand,
+# and the landing page shows nothing of what a result looks like. The sample is
+# a fictitious, deliberately tampered invoice shipped with the repo
+# (static/demo/, built by scripts/make_demo_invoice.py — never a real
+# document). It stands in for the upload object: the rest of this page only
+# ever reads .name and .getvalue(), and a real upload always wins over it.
+_DEMO_PDF = Path(__file__).resolve().parent / "static" / "demo" / "facture-exemple.pdf"
+
+
+class _DemoUpload:
+    """Duck-typed stand-in for Streamlit's UploadedFile, backed by the sample PDF."""
+
+    name = "facture-exemple.pdf"
+
+    def getvalue(self) -> bytes:
+        return _DEMO_PDF.read_bytes()
+
+
+if uploaded_file is not None:
+    st.session_state.pop("demo_active", None)
+elif st.session_state.get("demo_active") and _DEMO_PDF.exists():
+    uploaded_file = _DemoUpload()
+
 if uploaded_file is None:
     st.markdown(f"""
     <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:-0.5rem;">
         {t("disclaimer_upload")}
     </p>
     """, unsafe_allow_html=True)
+    if _DEMO_PDF.exists():
+        _demo_l, _demo_c, _demo_r = st.columns([2, 1.6, 2])
+        if _demo_c.button(t("demo_button"), key="demo_button", use_container_width=True):
+            st.session_state["demo_active"] = True
+            st.rerun()
 
 # Landing page content — only rendered when no file is uploaded
 if uploaded_file is None:
@@ -1435,6 +1464,21 @@ if uploaded_file is not None:
     _page_ctx = ExitStack()
     try:
         _page_ctx.enter_context(_page_slot.container())
+
+        # Sample-document banner: say what the reader is looking at, and give
+        # them the way back to analysing their own file (the dropzone is
+        # hidden while a "file" is loaded).
+        if isinstance(uploaded_file, _DemoUpload):
+            _demo_text, _demo_btn = st.columns([4, 1])
+            _demo_text.markdown(
+                f'<div style="background:#1a1a2e; border:1px solid #2563eb; border-radius:8px; '
+                f'padding:8px 14px; color:#cdd6f4; font-size:0.82rem;">{esc(t("demo_banner"))}</div>',
+                unsafe_allow_html=True,
+            )
+            if _demo_btn.button(t("demo_exit"), key="demo_exit", use_container_width=True):
+                st.session_state.pop("demo_active", None)
+                st.session_state.pop("last_file_hash", None)
+                st.rerun()
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)

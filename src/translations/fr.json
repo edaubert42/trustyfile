@@ -191,6 +191,9 @@
     "footer_guides": "Guides",
     "footer_tools": "Outils gratuits",
     "flag_check_tool": "Revérifier ce numéro avec l'outil gratuit",
+    "demo_button": "Essayer avec un document d'exemple",
+    "demo_banner": "Document d'exemple : une facture fictive dont le montant total a été recouvert et retapé après coup, avec un numéro de TVA et un IBAN incohérents. Déposez votre propre PDF pour l'analyser.",
+    "demo_exit": "Analyser mon document",
     "footer_contact": "Questions ou suggestions ?",
 
     "label_date": "Date",

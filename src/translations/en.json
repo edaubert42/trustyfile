@@ -191,6 +191,9 @@
     "footer_guides": "Guides",
     "footer_tools": "Free tools",
     "flag_check_tool": "Re-check this number with the free tool",
+    "demo_button": "Try with a sample document",
+    "demo_banner": "Sample document: a fictitious invoice whose total was covered and retyped after the fact, with an inconsistent VAT number and IBAN. Upload your own PDF to analyse it.",
+    "demo_exit": "Analyse my own document",
     "footer_contact": "Questions or feedback?",
 
     "label_date": "Date",
