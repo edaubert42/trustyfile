@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual runs on any branch (`gh workflow run tests.yml --ref <branch>`):
+  # feature branches are merged locally rather than through PRs here, so
+  # without this nothing could exercise CI before a merge to main deploys.
+  workflow_dispatch:
 
 jobs:
   pytest:
