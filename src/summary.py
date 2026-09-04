@@ -90,6 +90,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     # identity: invalid SIRET/SIREN/VAT, company mismatch
     "CONTENT_INVALID_SIRET": "identity",
     "CONTENT_INVALID_IBAN": "identity",
+    "CONTENT_INVALID_NIR": "identity",
     "CONTENT_INVALID_SIREN": "identity",
     "CONTENT_INVALID_VAT": "identity",
     "CONTENT_SIREN_VAT_MISMATCH": "identity",
@@ -507,6 +508,12 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "check digits — a typo or a fabricated account number."
         if f.details and f.details.get("iban")
         else "An IBAN printed on the document fails its check digits."
+    ),
+    "CONTENT_INVALID_NIR": lambda f: (
+        f"The social security number {f.details['nir']} on the document fails its "
+        "two-digit key — a typo or a fabricated number."
+        if f.details and f.details.get("nir")
+        else "A social security number on the document fails its check key."
     ),
     "EXTERNAL_IBAN_INVALID": lambda f: (
         "A bank account number (IBAN) printed on the document fails its "
@@ -980,6 +987,12 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "contrôle (mod 97) — faute de frappe ou numéro de compte inventé."
         if f.details and f.details.get("iban")
         else "Un IBAN imprimé sur le document échoue à sa clé de contrôle."
+    ),
+    "CONTENT_INVALID_NIR": lambda f: (
+        f"Le numéro de sécurité sociale {f.details['nir']} figurant sur le document "
+        "échoue à sa clé de contrôle — faute de frappe ou numéro inventé."
+        if f.details and f.details.get("nir")
+        else "Un numéro de sécurité sociale figurant sur le document échoue à sa clé de contrôle."
     ),
     "EXTERNAL_IBAN_INVALID": lambda f: (
         "Un IBAN imprimé sur le document échoue à sa somme de contrôle — ce "

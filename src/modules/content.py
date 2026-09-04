@@ -2096,6 +2096,65 @@ SEVERITY_POINTS = {
 }
 
 
+# A NIR is only extracted when a label precedes it: the bare 15-digit shape
+# also matches order numbers, and unlike an IBAN it has no letters to anchor
+# on. Label variants seen on pay slips and certificates: "N° de sécurité
+# sociale", "N° Sécu", "N° SS", "NIR", "Numéro SS".
+_NIR_LABEL = r"(?:s[ée]curit[ée]\s+sociale|n[°o]?\s*s[ée]cu\b|n[°o]\s*ss\b|num[ée]ro\s+ss\b|\bnir\b)"
+_NIR_NUMBER = r"([1-8]\s?\d{2}\s?\d{2}\s?(?:\d{2}|2[AB])\s?\d{3}\s?\d{3}\s?\d{2})"
+
+
+def extract_nir(text: str) -> list[tuple[str, bool, str]]:
+    """Extract labelled French social security numbers (NIR) from text.
+
+    Only numbers preceded (within ~30 non-digit characters) by a label are
+    returned — see _NIR_LABEL. Each is normalised (no spaces, upper case for
+    Corsica's 2A/2B) and checked with is_valid_nir().
+
+    Returns:
+        List of (nir, is_valid, context) tuples, one per distinct number.
+
+    Example:
+        >>> extract_nir("N° de sécurité sociale : 1 85 05 78 006 084 91")[0][:2]
+        ('185057800608491', True)
+    """
+    results: list[tuple[str, bool, str]] = []
+    seen: set[str] = set()
+    pattern = _NIR_LABEL + r"[^0-9\n]{0,30}?" + _NIR_NUMBER
+    for match in re.finditer(pattern, text, re.IGNORECASE):
+        nir = re.sub(r"\s", "", match.group(1)).upper()
+        if nir in seen:
+            continue
+        seen.add(nir)
+        start = max(0, match.start() - 20)
+        end = min(len(text), match.end() + 20)
+        results.append((nir, is_valid_nir(nir), text[start:end].strip()))
+    return results
+
+
+def check_nir_validity(text: str) -> list[Flag]:
+    """Flag a labelled social security number whose two-digit key is wrong.
+
+    LOW severity, for the same reasons as the IBAN check: pay-slip templates
+    carry placeholder numbers, and fake-pay-slip generators compute a correct
+    key — so the check catches typos and sloppy fabrication, and is recorded
+    rather than alarming. Fully local, runs by default.
+    """
+    flags: list[Flag] = []
+    for nir, is_valid, context in extract_nir(text):
+        if is_valid:
+            continue
+        flags.append(Flag(
+            severity="low",
+            code="CONTENT_INVALID_NIR",
+            message=f"Social security number fails its check key: {nir}",
+            details={"nir": nir, "context": context,
+                     "explanation": "The two-digit key does not match the 13 digits — "
+                                    "a typo or a fabricated number."},
+        ))
+    return flags
+
+
 def analyze_content(pdf_data: PDFData) -> ModuleResult:
     """
     Main function: Analyze document content for inconsistencies.
@@ -2151,6 +2210,7 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
 
     # Local IBAN mod-97 validation (default, no network)
     all_flags.extend(check_iban_validity(full_text))
+    all_flags.extend(check_nir_validity(full_text))
 
     # Calculate score
     score = 100

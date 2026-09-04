@@ -27,6 +27,8 @@ ROOT = Path(__file__).resolve().parent.parent
         ("EXTERNAL_VAT_INVALID", "fr", "/outils/verifier-un-numero-de-tva"),
         ("CONTENT_SIREN_VAT_MISMATCH", "en", "/en/tools/vat-number-checker"),
         ("ARITH_IBAN_MISMATCH", "fr", "/outils/verifier-un-iban"),
+        ("CONTENT_INVALID_NIR", "fr", "/outils/verifier-un-numero-de-securite-sociale"),
+        ("CONTENT_INVALID_NIR", "en", "/en/tools/french-social-security-number-checker"),
     ],
 )
 def test_identifier_flags_link_to_the_matching_checker(code, lang, expected):
@@ -53,7 +55,7 @@ def test_every_identifier_flag_code_in_the_modules_resolves():
 
     codes = set()
     for path in (ROOT / "src" / "modules").glob("*.py"):
-        codes |= set(re.findall(r'code="([A-Z_]*(?:IBAN|SIRET|SIREN|VAT)[A-Z_]*)"', path.read_text()))
+        codes |= set(re.findall(r'code="([A-Z_]*(?:IBAN|SIRET|SIREN|VAT|NIR)[A-Z_]*)"', path.read_text()))
     assert len(codes) >= 8, codes
     for code in sorted(codes):
         for lang in ("fr", "en"):

@@ -674,6 +674,43 @@ class TestCheckIbanValidity:
 
 
 # =============================================================================
+# TEST check_nir_validity (French social security number key, DEFAULT check)
+# =============================================================================
+
+class TestCheckNirValidity:
+    """Labelled NIR key check runs by default (no network), LOW like the IBAN one."""
+
+    def test_labelled_invalid_nir_flagged_low(self):
+        from src.modules.content import check_nir_validity
+        flags = check_nir_validity("Salarié : M. Exemple\nN° de sécurité sociale : 1 85 05 78 006 084 92\n")
+        assert len(flags) == 1
+        assert flags[0].code == "CONTENT_INVALID_NIR"
+        assert flags[0].severity == "low"
+        assert flags[0].details["nir"] == "185057800608492"
+
+    def test_labelled_valid_nir_not_flagged(self):
+        from src.modules.content import check_nir_validity
+        assert check_nir_validity("N° SS : 1 85 05 78 006 084 91\n") == []
+
+    def test_corsica_2a_handled(self):
+        from src.modules.content import check_nir_validity, extract_nir
+        assert extract_nir("NIR : 1 80 02 2A 004 030 55")[0][:2] == ("180022A00403055", True)
+        assert check_nir_validity("NIR : 1 80 02 2A 004 030 55") == []
+        assert len(check_nir_validity("NIR : 1 80 02 2A 004 030 56")) == 1
+
+    def test_unlabelled_fifteen_digits_not_flagged(self):
+        """An order or contract number of the same shape must never be flagged."""
+        from src.modules.content import check_nir_validity
+        assert check_nir_validity("Commande : 1 85 05 78 006 084 92\n") == []
+        assert check_nir_validity("Réf. 185057800608492\n") == []
+
+    def test_same_number_reported_once(self):
+        from src.modules.content import check_nir_validity
+        text = "N° Sécu : 1 85 05 78 006 084 92\nNuméro SS 1 85 05 78 006 084 92"
+        assert len(check_nir_validity(text)) == 1
+
+
+# =============================================================================
 # TEST extract_amounts
 # =============================================================================
 
