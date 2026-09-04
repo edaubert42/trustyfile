@@ -88,6 +88,28 @@ ol.steps .n {
 }
 ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
 ol.steps .d { color: #666; font-size: 0.9rem; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -158,7 +180,7 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
     </nav>
 
     <h1>Comment vérifier qu&#x27;une facture n&#x27;a pas été falsifiée</h1>
-    <p class="updated">Mis à jour le 13 août 2026</p>
+    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
     <p class="intro">La fraude à la facture ne demande plus de compétences particulières : un éditeur PDF gratuit suffit pour changer un montant ou un IBAN. En revanche, ces modifications laissent presque toujours des traces dans le fichier — à condition de savoir où regarder.</p>
     <h2>Sommaire</h2>
     <ol class="toc">
@@ -201,6 +223,22 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
     </ul>
     <h2 id="le-reflexe-qui-prime-sur-tous-les-autres">Le réflexe qui prime sur tous les autres</h2>
     <p>En cas de doute sur un RIB, aucune analyse de fichier ne remplace un appel au fournisseur, sur un numéro que vous connaissez déjà — jamais celui inscrit sur la facture suspecte. La fraude au faux RIB fonctionne parce que la victime vérifie l'information avec l'information elle-même.</p>
+    <h2>Outils gratuits</h2>
+    <a class="card" href="/outils/verifier-un-siret">
+        <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-tva">
+        <h3>Vérifier un numéro de TVA intracommunautaire français</h3>
+        <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siren">
+        <h3>Vérifier un SIREN et retrouver le numéro de TVA</h3>
+        <p>Vérifiez la clé de Luhn d&#x27;un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
         <h3>Vérifier un justificatif de domicile</h3>
@@ -221,6 +259,22 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
     <a class="card" href="/guides/detecter-un-faux-rib">
         <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
         <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

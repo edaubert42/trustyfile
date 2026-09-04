@@ -22,14 +22,88 @@ from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
 
-# The landing page lists the verification guides. Their slugs and titles live
-# with the generator (scripts/build_guides.py), which also renders the
-# crawler-facing copy of this landing page — one source, so the two pages list
-# exactly the same links and the crawler never sees a link a human does not.
+# The landing page lists the verification guides and the checker tools. Their
+# slugs and titles live with the generator (scripts/build_guides.py), which
+# also renders the crawler-facing copy of this landing page — one source, so
+# the two pages list exactly the same links and the crawler never sees a link
+# a human does not.
 try:
-    from scripts.build_guides import GUIDES as _GUIDES
+    from scripts.build_guides import GUIDES as _GUIDES, TOOLS as _TOOLS
 except Exception:  # a broken or missing generator must never take the app down
     _GUIDES = {"fr": [], "en": []}
+    _TOOLS = {"fr": [], "en": []}
+
+# Which checker page can re-run the check behind a flag. Matched on the flag
+# code (CONTENT_INVALID_IBAN, EXTERNAL_SIRET_NOT_FOUND, ...) rather than on a
+# hand-kept list, so a new identifier flag gets its link for free. VAT before
+# SIREN so that CONTENT_SIREN_VAT_MISMATCH lands on the VAT checker, which
+# shows the key the SIREN implies — exactly what that flag is about.
+_TOOL_KIND_BY_CODE_TOKEN = (("IBAN", "iban"), ("SIRET", "siret"), ("VAT", "vat"), ("SIREN", "siren"), ("NIR", "nir"))
+
+
+def tool_url_for_flag(code: str, lang: str) -> str | None:
+    """Site-relative URL of the checker page matching a flag code, if any.
+
+    Example:
+        >>> tool_url_for_flag("CONTENT_INVALID_IBAN", "fr")
+        '/outils/verifier-un-iban'
+        >>> tool_url_for_flag("META_ONLINE_CONVERTER", "fr") is None
+        True
+    """
+    prefix = "/outils/" if lang == "fr" else "/en/tools/"
+    for token, kind in _TOOL_KIND_BY_CODE_TOKEN:
+        if token in code:
+            for tool in _TOOLS.get(lang, []):
+                if tool.kind == kind:
+                    return prefix + tool.slug
+    return None
+
+
+# Which guide explains a flag. Two routes: the flag *family* when the signal
+# is about the file itself (a second revision, a covered value, a stripped
+# Producer, a 2D-Doc signature), the *document type* otherwise — a font
+# change means something different on an invoice than on a tax notice, and
+# each of those has its own guide. Slugs are looked up in GUIDES at call time,
+# so a renamed guide yields no link rather than a dead one.
+_GUIDE_BY_FLAG_PREFIX = {
+    "STRUCT_": "pdf", "OVERLAY_": "pdf", "INVISIBLE_": "pdf", "META_": "pdf", "PROVENANCE_": "pdf",
+    "TWOD_": "twod_doc", "MRZ_": "twod_doc",
+}
+_GUIDE_BY_DOCUMENT_TYPE = {
+    "invoice": "invoice", "tax_document": "tax_notice", "attestation": "proof_of_address",
+    "identity": "twod_doc",
+}
+_GUIDE_SLUGS = {
+    "pdf": {"fr": "savoir-si-un-pdf-a-ete-modifie", "en": "how-to-tell-if-a-pdf-was-modified"},
+    "twod_doc": {"fr": "2d-doc-verifier-un-document-officiel", "en": "2d-doc-verifying-official-documents"},
+    "invoice": {"fr": "verifier-une-facture-falsifiee", "en": "how-to-spot-a-tampered-invoice"},
+    "tax_notice": {"fr": "verifier-un-avis-d-imposition", "en": "how-to-verify-a-french-tax-notice"},
+    "proof_of_address": {"fr": "verifier-un-justificatif-de-domicile", "en": "how-to-verify-a-proof-of-address"},
+}
+# Bookkeeping flags about the analysis itself, not about the document.
+_NO_GUIDE_PREFIXES = ("EXTRACTION_", "MODULE_", "COVERAGE_")
+
+
+def guide_url_for_flag(code: str, lang: str, document_type: str) -> str | None:
+    """Site-relative URL of the guide that explains a flag, if there is one.
+
+    Example:
+        >>> guide_url_for_flag("STRUCT_INCREMENTAL_UPDATES", "fr", "invoice")
+        '/guides/savoir-si-un-pdf-a-ete-modifie'
+        >>> guide_url_for_flag("FONTS_MIXED", "en", "invoice")
+        '/en/guides/how-to-spot-a-tampered-invoice'
+        >>> guide_url_for_flag("COVERAGE_GATE", "fr", "invoice") is None
+        True
+    """
+    if not code or code.startswith(_NO_GUIDE_PREFIXES):
+        return None
+    topic = next((topic for prefix, topic in _GUIDE_BY_FLAG_PREFIX.items() if code.startswith(prefix)), None)
+    if topic is None:
+        topic = _GUIDE_BY_DOCUMENT_TYPE.get(document_type, "pdf")
+    slug = _GUIDE_SLUGS[topic][lang]
+    if slug not in {guide.slug for guide in _GUIDES.get(lang, [])}:
+        return None
+    return ("/guides/" if lang == "fr" else "/en/guides/") + slug
 
 
 def esc(s) -> str:
@@ -1085,12 +1159,41 @@ uploaded_file = st.file_uploader(
     label_visibility="collapsed",
 )
 
+
+# "Try with a sample document". A first-time visitor rarely has a PDF at hand,
+# and the landing page shows nothing of what a result looks like. The sample is
+# a fictitious, deliberately tampered invoice shipped with the repo
+# (static/demo/, built by scripts/make_demo_invoice.py — never a real
+# document). It stands in for the upload object: the rest of this page only
+# ever reads .name and .getvalue(), and a real upload always wins over it.
+_DEMO_PDF = Path(__file__).resolve().parent / "static" / "demo" / "facture-exemple.pdf"
+
+
+class _DemoUpload:
+    """Duck-typed stand-in for Streamlit's UploadedFile, backed by the sample PDF."""
+
+    name = "facture-exemple.pdf"
+
+    def getvalue(self) -> bytes:
+        return _DEMO_PDF.read_bytes()
+
+
+if uploaded_file is not None:
+    st.session_state.pop("demo_active", None)
+elif st.session_state.get("demo_active") and _DEMO_PDF.exists():
+    uploaded_file = _DemoUpload()
+
 if uploaded_file is None:
     st.markdown(f"""
     <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:-0.5rem;">
         {t("disclaimer_upload")}
     </p>
     """, unsafe_allow_html=True)
+    if _DEMO_PDF.exists():
+        _demo_l, _demo_c, _demo_r = st.columns([2, 1.6, 2])
+        if _demo_c.button(t("demo_button"), key="demo_button", use_container_width=True):
+            st.session_state["demo_active"] = True
+            st.rerun()
 
 # Landing page content — only rendered when no file is uploaded
 if uploaded_file is None:
@@ -1122,6 +1225,18 @@ if uploaded_file is None:
         'line-height:1.9; max-width:640px;">'
         f'{t("footer_guides")}{" :" if _current_lang == "fr" else ":"} {_guide_links}</p>'
     ) if _guide_links else ""
+    # Checker tools (IBAN / SIRET / SIREN), same treatment: a visitor with a
+    # single number to check should not have to upload a document to find them.
+    _tools_prefix = "/outils/" if _current_lang == "fr" else "/en/tools/"
+    _tool_links = " · ".join(
+        f'<a href="{_tools_prefix}{tool.slug}" style="color:#888; text-decoration:none;">{html.escape(tool.title)}</a>'
+        for tool in _TOOLS.get(_current_lang, [])
+    )
+    _landing_tools_html = (
+        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:0.4rem auto 0 auto; '
+        'line-height:1.9; max-width:640px;">'
+        f'{t("footer_tools")}{" :" if _current_lang == "fr" else ":"} {_tool_links}</p>'
+    ) if _tool_links else ""
 
     # "How it works" steps
     st.markdown(f"""
@@ -1217,6 +1332,7 @@ if uploaded_file is None:
         </div>
     </div>
     {_landing_guides_html}
+    {_landing_tools_html}
     <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
         {t("disclaimer_api")}
     </p>
@@ -1395,6 +1511,21 @@ if uploaded_file is not None:
     _page_ctx = ExitStack()
     try:
         _page_ctx.enter_context(_page_slot.container())
+
+        # Sample-document banner: say what the reader is looking at, and give
+        # them the way back to analysing their own file (the dropzone is
+        # hidden while a "file" is loaded).
+        if isinstance(uploaded_file, _DemoUpload):
+            _demo_text, _demo_btn = st.columns([4, 1])
+            _demo_text.markdown(
+                f'<div style="background:#1a1a2e; border:1px solid #2563eb; border-radius:8px; '
+                f'padding:8px 14px; color:#cdd6f4; font-size:0.82rem;">{esc(t("demo_banner"))}</div>',
+                unsafe_allow_html=True,
+            )
+            if _demo_btn.button(t("demo_exit"), key="demo_exit", use_container_width=True):
+                st.session_state.pop("demo_active", None)
+                st.session_state.pop("last_file_hash", None)
+                st.rerun()
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
@@ -1725,8 +1856,11 @@ if uploaded_file is not None:
                         font-size="14" fill="{gauge_color}" font-weight="bold">
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
-                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:340px; margin:0.2rem auto 0.8rem auto;">
+                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:340px; margin:0.2rem auto 0.4rem auto;">
                     {t("score_caveat")}
+                </p>
+                <p style="color:#c9d1d9; font-size:0.78rem; line-height:1.45; max-width:340px; margin:0 auto 0.9rem auto;">
+                    <strong>{t("next_step_label")}</strong> {t(f"next_step_{result.band}")}
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -2049,6 +2183,28 @@ if uploaded_file is not None:
                         f'{rows_html}</div>'
                     )
 
+                # Identifier flags (IBAN / SIRET / SIREN / VAT) link to the free
+                # checker page: the reader can re-type the number from the
+                # document — or a corrected one — and see the check digit
+                # explained, without uploading anything.
+                tool_url = tool_url_for_flag(flag.code, get_lang())
+                guide_url = guide_url_for_flag(flag.code, get_lang(), result.document_type)
+                if tool_url:
+                    details_content += (
+                        f'<div style="margin-top:8px;"><a href="{tool_url}" target="_blank" rel="noopener" '
+                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
+                        f'{html_mod_flags.escape(t("flag_check_tool"))} &rarr;</a></div>'
+                    )
+                elif guide_url:
+                    # One action per flag: identifier flags get the checker (which
+                    # itself links the guides), every other flag gets the guide
+                    # that explains what was found and what to do next.
+                    details_content += (
+                        f'<div style="margin-top:8px;"><a href="{guide_url}" target="_blank" rel="noopener" '
+                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
+                        f'{html_mod_flags.escape(t("flag_read_guide"))} &rarr;</a></div>'
+                    )
+
                 issues_html += (
                     f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
                     f'border-radius:8px; padding:0; margin-bottom:8px;">'
@@ -2265,9 +2421,13 @@ if uploaded_file is not None:
                 f'<span style="background:{sc_color}; color:white; font-size:0.68rem; font-weight:bold; '
                 f'padding:2px 10px; border-radius:10px;">{mod_score}/100</span>'
                 f'</div>'
+                # module.confidence (0.3-1.0, e.g. metadata 0.3 when a PDF has no
+                # metadata) is deliberately not shown here: the evidence ledger
+                # never reads it (flag_to_evidence pins confidence to 1.0), so a
+                # "Fiabilité : 30 %" next to the module score had no bearing on
+                # the verdict and read as a document-reliability figure it is not.
                 f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
                 f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
-                f'<span>{t("label_confidence")}: {module.confidence:.0%}</span>'
                 f'<span>{t("label_flags")}: {len(module.flags)}</span>'
                 f'</div>'
                 f'{flags_html}'

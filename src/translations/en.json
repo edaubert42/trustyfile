@@ -57,6 +57,11 @@
     "risk_UNVERIFIABLE": "UNVERIFIABLE",
     "score_not_available": "—",
     "score_caveat": "A high score means few signs of manipulation; it does not guarantee the document is authentic. A low score deserves a manual check.",
+    "next_step_label": "What now?",
+    "next_step_GENUINE": "Few signs of tampering. If the stakes are high, still confirm the IBAN or the amount with the issuer through a channel you already had.",
+    "next_step_REVIEW": "Some anomalies need an explanation. Open each issue below, then ask the issuer for the original or a confirmation before paying or signing.",
+    "next_step_SUSPICIOUS": "Do not pay or sign on the basis of this document. Contact the issuer on a number you already had — never one printed in the document — and ask for the original.",
+    "next_step_UNVERIFIABLE": "This file carries too little usable signal (scan, photo, flattened PDF). Ask for the original PDF as produced by the issuer, then run the analysis again.",
     "print_report": "Print / save as PDF",
     "print_report_title": "TrustyFile analysis report",
     "print_file": "File:",
@@ -189,6 +194,12 @@
     "step3_desc": "Detailed result with detected anomalies",
 
     "footer_guides": "Guides",
+    "footer_tools": "Free tools",
+    "flag_check_tool": "Re-check this number with the free tool",
+    "flag_read_guide": "Understand this signal in the guide",
+    "demo_button": "Try with a sample document",
+    "demo_banner": "Sample document: a fictitious invoice whose total was covered and retyped after the fact, with an inconsistent VAT number and IBAN. Upload your own PDF to analyse it.",
+    "demo_exit": "Analyse my own document",
     "footer_contact": "Questions or feedback?",
 
     "label_date": "Date",
@@ -199,7 +210,6 @@
     "label_bank": "Bank",
     "label_branch": "Branch",
     "label_check": "Check",
-    "label_confidence": "Confidence",
     "label_weight": "Weight",
     "label_flags": "Flags",
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guides - Vérifier un document PDF | TrustyFile</title>
-    <meta name="description" content="Guides pratiques pour vérifier un document PDF : facture falsifiée, justificatif de domicile, bulletin de salaire, PDF modifié. Méthode, indices techniques et limites.">
+    <meta name="description" content="Guides pratiques pour vérifier un document : facture, RIB, Kbis, attestation Urssaf, justificatif de domicile, bulletin de salaire, avis d&#x27;imposition, PDF modifié.">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
     <meta name="theme-color" content="#1a1a2e">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -16,7 +16,7 @@
     <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/">
     <meta property="og:type" content="article">
     <meta property="og:title" content="Guides - Vérifier un document PDF | TrustyFile">
-    <meta property="og:description" content="Guides pratiques pour vérifier un document PDF : facture falsifiée, justificatif de domicile, bulletin de salaire, PDF modifié. Méthode, indices techniques et limites.">
+    <meta property="og:description" content="Guides pratiques pour vérifier un document : facture, RIB, Kbis, attestation Urssaf, justificatif de domicile, bulletin de salaire, avis d&#x27;imposition, PDF modifié.">
     <meta property="og:url" content="https://www.trustyfile.com/guides/">
     <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -25,7 +25,7 @@
     <meta property="og:locale" content="fr_FR">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Guides - Vérifier un document PDF | TrustyFile">
-    <meta name="twitter:description" content="Guides pratiques pour vérifier un document PDF : facture falsifiée, justificatif de domicile, bulletin de salaire, PDF modifié. Méthode, indices techniques et limites.">
+    <meta name="twitter:description" content="Guides pratiques pour vérifier un document : facture, RIB, Kbis, attestation Urssaf, justificatif de domicile, bulletin de salaire, avis d&#x27;imposition, PDF modifié.">
     <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
     <style>
 :root { color-scheme: light; }
@@ -88,6 +88,28 @@ ol.steps .n {
 }
 ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
 ol.steps .d { color: #666; font-size: 0.9rem; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -98,7 +120,7 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
         "@context": "https://schema.org",
         "@type": "CollectionPage",
         "name": "Guides de vérification documentaire",
-        "description": "Guides pratiques pour vérifier un document PDF : facture falsifiée, justificatif de domicile, bulletin de salaire, PDF modifié. Méthode, indices techniques et limites.",
+        "description": "Guides pratiques pour vérifier un document : facture, RIB, Kbis, attestation Urssaf, justificatif de domicile, bulletin de salaire, avis d'imposition, PDF modifié.",
         "url": "https://www.trustyfile.com/guides/",
         "inLanguage": "fr",
         "hasPart": [
@@ -137,6 +159,30 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
                         "headline": "Détecter un faux RIB ou un IBAN falsifié",
                         "description": "La fraude au faux RIB détourne les virements vers le compte de l'escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.",
                         "url": "https://www.trustyfile.com/guides/detecter-un-faux-rib"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Fraude au faux fournisseur : vérifier un changement de RIB",
+                        "description": "Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d'alerte dans le message et le RIB, et la procédure à suivre avant de payer.",
+                        "url": "https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Vérifier un extrait Kbis : authenticité et cohérence",
+                        "description": "Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d'un faux dans le PDF, et savoir ce qu'un Kbis authentique ne prouve pas.",
+                        "url": "https://www.trustyfile.com/guides/verifier-un-extrait-kbis"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Vérifier un avis d'imposition : SVAIR, 2D-Doc et cohérence",
+                        "description": "Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.",
+                        "url": "https://www.trustyfile.com/guides/verifier-un-avis-d-imposition"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Vérifier une attestation de vigilance Urssaf",
+                        "description": "Vérifier l'attestation de vigilance d'un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d'ordre.",
+                        "url": "https://www.trustyfile.com/guides/verifier-une-attestation-de-vigilance-urssaf"
                 }
         ]
 }
@@ -208,35 +254,85 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
 
     <h1>Guides de vérification documentaire</h1>
     <p class="intro">Comment reconnaître un document falsifié, quels indices techniques regarder, et ce qu'une vérification automatique peut ou ne peut pas prouver. Chaque guide traite une question précise.</p>
-    <a class="card" href="/guides/verifier-une-facture-falsifiee">
-        <h2>Vérifier si une facture a été falsifiée</h2>
-        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
-        <p class="more">Lire le guide &rarr;</p>
-    </a>
+    <h2 id="individuals">Particuliers et dossiers de location</h2>
     <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
-        <h2>Vérifier un justificatif de domicile</h2>
+        <h3>Vérifier un justificatif de domicile</h3>
         <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
         <p class="more">Lire le guide &rarr;</p>
     </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <h2 id="business">Entreprises et fournisseurs</h2>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <h2 id="method">Méthode et technique</h2>
     <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
-        <h2>Savoir si un PDF a été modifié</h2>
+        <h3>Savoir si un PDF a été modifié</h3>
         <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
         <p class="more">Lire le guide &rarr;</p>
     </a>
     <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
-        <h2>2D-Doc : vérifier un document officiel français</h2>
+        <h3>2D-Doc : vérifier un document officiel français</h3>
         <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
         <p class="more">Lire le guide &rarr;</p>
     </a>
-    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
-        <h2>Vérifier un bulletin de salaire</h2>
-        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
-        <p class="more">Lire le guide &rarr;</p>
+    <h2 id="outils">Outils gratuits</h2>
+    <p>Un numéro à vérifier plutôt qu&#x27;un document entier ? Ces outils contrôlent la clé d&#x27;un IBAN, d&#x27;un SIRET, d&#x27;un SIREN, d&#x27;un numéro de TVA ou d&#x27;un numéro de sécurité sociale directement dans votre navigateur.</p>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
-    <a class="card" href="/guides/detecter-un-faux-rib">
-        <h2>Détecter un faux RIB ou un IBAN falsifié</h2>
-        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
-        <p class="more">Lire le guide &rarr;</p>
+    <a class="card" href="/outils/verifier-un-siret">
+        <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siren">
+        <h3>Vérifier un SIREN et retrouver le numéro de TVA</h3>
+        <p>Vérifiez la clé de Luhn d&#x27;un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-tva">
+        <h3>Vérifier un numéro de TVA intracommunautaire français</h3>
+        <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
+        <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n&#x27;est envoyé.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
     <h2>Questions fréquentes</h2>
     <dl class="faq">

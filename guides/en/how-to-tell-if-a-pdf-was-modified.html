@@ -88,6 +88,28 @@ ol.steps .n {
 }
 ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
 ol.steps .d { color: #666; font-size: 0.9rem; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
 @media (max-width: 480px) {
     body { padding: 1.25rem 1rem 3rem; }
     h1 { font-size: 1.55rem; }
@@ -158,7 +180,7 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
     </nav>
 
     <h1>How to tell whether a PDF has been modified</h1>
-    <p class="updated">Updated 13 August 2026</p>
+    <p class="updated"><time datetime="2026-08-13">Updated 13 August 2026</time></p>
     <p class="intro">A PDF is not a flat image: it is a documented format that retains far more about its own history than the visible page suggests. Here is what it keeps, and what can be inferred from it.</p>
     <h2>Contents</h2>
     <ol class="toc">
@@ -207,6 +229,22 @@ ol.steps .d { color: #666; font-size: 0.9rem; }
     <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
         <h3>How to spot a fake IBAN on an invoice</h3>
         <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
+    </a>
+    <a class="card" href="/en/guides/supplier-bank-detail-change-fraud">
+        <h3>Supplier bank-detail change fraud: verifying a new IBAN</h3>
+        <p>A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-kbis-extract">
+        <h3>How to verify a Kbis extract (French company registration)</h3>
+        <p>Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
+        <h3>How to verify a French tax notice (avis d&#x27;imposition)</h3>
+        <p>Landlord or agency: verify a tenant&#x27;s French income-tax notice with the tax office&#x27;s online service (SVAIR), the signed 2D-Doc code and the other documents in the file.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
+        <h3>How to verify an URSSAF vigilance certificate (France)</h3>
+        <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

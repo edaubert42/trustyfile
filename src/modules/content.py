@@ -1306,6 +1306,145 @@ def check_reference_consistency(text: str) -> list[Flag]:
 # French legal mentions that should be present on invoices
 # These are required by law for French companies
 
+# La Poste's single SIREN; its SIRETs follow a rule of their own, see
+# validate_siret_checksum.
+LA_POSTE_SIREN = "356000000"
+
+
+def _strip_separators(text: str) -> str:
+    """Drop the spaces, dots and hyphens people paste along with a number.
+
+    Example:
+        >>> _strip_separators("552 081 317.66522")
+        '55208131766522'
+    """
+    return re.sub(r"[\s.\-]", "", text or "")
+
+
+def is_valid_siret(text: str) -> bool:
+    """Validate a SIRET as a user would paste it (spaces, dots tolerated).
+
+    This is the contract the /outils/verifier-un-siret page reimplements in
+    JavaScript; tests/test_checksum_vectors.py holds both to the same vectors.
+
+    Example:
+        >>> is_valid_siret("552 081 317 66522")
+        True
+    """
+    return validate_siret_checksum(_strip_separators(text))
+
+
+def is_valid_siren(text: str) -> bool:
+    """Validate a SIREN as a user would paste it. See is_valid_siret."""
+    return validate_siren_checksum(_strip_separators(text))
+
+
+def is_valid_iban(text: str) -> bool:
+    """Validate an IBAN as a user would paste it: normalise, check the shape, then mod 97.
+
+    validate_iban_checksum() assumes a clean, upper-case IBAN because the
+    extraction regex upstream guarantees one; a pasted string does not, so
+    this wrapper does the normalising and rejects anything that is not
+    two letters, two digits and 11-30 alphanumerics before running the sum.
+
+    Example:
+        >>> is_valid_iban("fr76 3000 6000 0112 3456 7890 189")
+        True
+        >>> is_valid_iban("XX00")
+        False
+    """
+    iban = _strip_separators(text).upper()
+    # [0-9] rather than \d: Python's \d (and str.isdigit()) accept full-width
+    # and Arabic-Indic digits, which the browser validator rejects. The two
+    # must give the same answer to the same paste.
+    if not re.fullmatch(r"[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}", iban):
+        return False
+    return validate_iban_checksum(iban)
+
+
+def is_valid_french_vat(text: str) -> bool:
+    """Validate a French VAT number as a user would paste it.
+
+    Strips spaces, dots and dashes, upper-cases, then requires FR + a
+    two-digit key + a nine-digit SIREN (ASCII digits only, see is_valid_iban)
+    before delegating to validate_french_vat(). Keys containing letters exist
+    (a different algorithm) and are reported as a format failure rather than
+    guessed at — the /outils page says so. Contract shared with the browser
+    validator through tests/fixtures/checksum_vectors.json.
+
+    Example:
+        >>> is_valid_french_vat("FR 03 552 081 317")
+        True
+        >>> is_valid_french_vat("FR04552081317")
+        False
+    """
+    vat = _strip_separators(text).upper()
+    if not re.fullmatch(r"FR[0-9]{11}", vat):
+        return False
+    return validate_french_vat(vat)
+
+
+def is_valid_nir(text: str) -> bool:
+    """Validate a French social security number (NIR) as a user would paste it.
+
+    Format: 13 characters (sex, year, month, département, commune, order —
+    the département may read 2A or 2B for Corsica) followed by a two-digit
+    key. Key = 97 - (the 13 digits mod 97), with 2A read as 19 and 2B as 18
+    (INSEE rule). Separators are stripped; ASCII digits only, see
+    is_valid_iban. Contract shared with the browser checker through
+    tests/fixtures/checksum_vectors.json.
+
+    Example:
+        >>> is_valid_nir("1 85 05 78 006 084 91")
+        True
+        >>> is_valid_nir("1 85 05 78 006 084 92")
+        False
+    """
+    nir = _strip_separators(text).upper()
+    if not re.fullmatch(r"[1-8][0-9]{4}(?:[0-9]{2}|2A|2B)[0-9]{8}", nir):
+        return False
+    dept = nir[5:7]
+    digits = nir[:5] + {"2A": "19", "2B": "18"}.get(dept, dept) + nir[7:13]
+    return 97 - int(digits) % 97 == int(nir[13:15])
+
+
+def validate_rib_key(text: str) -> bool | None:
+    """Check the RIB key of a French IBAN — the last two digits of its BBAN.
+
+    A French BBAN is bank (5) + branch (5) + account (11) + key (2). The key
+    is 97 - ((bank branch account) x 100 mod 97), with letters in the account
+    mapped to digits the RIB way (A,J=1 B,K,S=2 C,L,T=3 ... I,R,Z=9). It is a
+    check independent of the IBAN's own mod-97 digits, inherited from the
+    paper RIB, so a French IBAN can pass one and fail the other.
+
+    Returns None when the check does not apply (not a 27-character French
+    IBAN) — the same three-valued answer as `ribKeyOk` in tools/checksums.js,
+    which the IBAN checker page runs in the browser.
+
+    Example:
+        >>> validate_rib_key("FR76 3000 6000 0112 3456 7890 189")
+        True
+        >>> validate_rib_key("FR76 3000 6000 0112 3456 7890 180")
+        False
+        >>> validate_rib_key("DE89 3704 0044 0532 0130 00") is None
+        True
+    """
+    iban = _strip_separators(text).upper()
+    if not (iban.startswith("FR") and len(iban) == 27):
+        return None
+    bban = iban[4:]
+
+    def rib_digit(ch: str) -> str:
+        n = ord(ch) - 64  # A=1 ... Z=26
+        return str(n if n < 10 else n - 9 if n < 19 else n - 17)
+
+    account = "".join(rib_digit(c) if "A" <= c <= "Z" else c for c in bban[10:21])
+    digits = bban[:10] + account
+    if not re.fullmatch(r"[0-9]{21}", digits) or not re.fullmatch(r"[0-9]{2}", bban[21:23]):
+        return False
+    return 97 - (int(digits) * 100) % 97 == int(bban[21:23])
+
+
 def validate_siret_checksum(siret: str) -> bool:
     """
     Validate a SIRET number using the Luhn algorithm.
@@ -1326,7 +1465,8 @@ def validate_siret_checksum(siret: str) -> bool:
         >>> validate_siret_checksum("55208131766522")
         True
     """
-    if len(siret) != 14 or not siret.isdigit():
+    # ASCII digits only — see is_valid_iban for why not str.isdigit().
+    if not re.fullmatch(r"[0-9]{14}", siret):
         return False
 
     total = 0
@@ -1339,7 +1479,18 @@ def validate_siret_checksum(siret: str) -> bool:
                 d -= 9
         total += d
 
-    return total % 10 == 0
+    if total % 10 == 0:
+        return True
+
+    # La Poste (SIREN 356 000 000) has so many establishments that INSEE gave
+    # its SIRETs their own rule: only the head office 35600000000048 follows
+    # Luhn; every other La Poste SIRET is valid when the plain sum of its 14
+    # digits is a multiple of 5. Without this branch every La Poste invoice
+    # would be flagged for an "invalid" SIRET (added 2026-08-28).
+    if siret.startswith(LA_POSTE_SIREN):
+        return sum(int(c) for c in siret) % 5 == 0
+
+    return False
 
 
 def validate_siren_checksum(siren: str) -> bool:
@@ -1354,7 +1505,8 @@ def validate_siren_checksum(siren: str) -> bool:
     Returns:
         True if checksum is valid, False otherwise
     """
-    if len(siren) != 9 or not siren.isdigit():
+    # ASCII digits only — see is_valid_iban for why not str.isdigit().
+    if not re.fullmatch(r"[0-9]{9}", siren):
         return False
 
     total = 0
@@ -1944,6 +2096,65 @@ SEVERITY_POINTS = {
 }
 
 
+# A NIR is only extracted when a label precedes it: the bare 15-digit shape
+# also matches order numbers, and unlike an IBAN it has no letters to anchor
+# on. Label variants seen on pay slips and certificates: "N° de sécurité
+# sociale", "N° Sécu", "N° SS", "NIR", "Numéro SS".
+_NIR_LABEL = r"(?:s[ée]curit[ée]\s+sociale|n[°o]?\s*s[ée]cu\b|n[°o]\s*ss\b|num[ée]ro\s+ss\b|\bnir\b)"
+_NIR_NUMBER = r"([1-8]\s?\d{2}\s?\d{2}\s?(?:\d{2}|2[AB])\s?\d{3}\s?\d{3}\s?\d{2})"
+
+
+def extract_nir(text: str) -> list[tuple[str, bool, str]]:
+    """Extract labelled French social security numbers (NIR) from text.
+
+    Only numbers preceded (within ~30 non-digit characters) by a label are
+    returned — see _NIR_LABEL. Each is normalised (no spaces, upper case for
+    Corsica's 2A/2B) and checked with is_valid_nir().
+
+    Returns:
+        List of (nir, is_valid, context) tuples, one per distinct number.
+
+    Example:
+        >>> extract_nir("N° de sécurité sociale : 1 85 05 78 006 084 91")[0][:2]
+        ('185057800608491', True)
+    """
+    results: list[tuple[str, bool, str]] = []
+    seen: set[str] = set()
+    pattern = _NIR_LABEL + r"[^0-9\n]{0,30}?" + _NIR_NUMBER
+    for match in re.finditer(pattern, text, re.IGNORECASE):
+        nir = re.sub(r"\s", "", match.group(1)).upper()
+        if nir in seen:
+            continue
+        seen.add(nir)
+        start = max(0, match.start() - 20)
+        end = min(len(text), match.end() + 20)
+        results.append((nir, is_valid_nir(nir), text[start:end].strip()))
+    return results
+
+
+def check_nir_validity(text: str) -> list[Flag]:
+    """Flag a labelled social security number whose two-digit key is wrong.
+
+    LOW severity, for the same reasons as the IBAN check: pay-slip templates
+    carry placeholder numbers, and fake-pay-slip generators compute a correct
+    key — so the check catches typos and sloppy fabrication, and is recorded
+    rather than alarming. Fully local, runs by default.
+    """
+    flags: list[Flag] = []
+    for nir, is_valid, context in extract_nir(text):
+        if is_valid:
+            continue
+        flags.append(Flag(
+            severity="low",
+            code="CONTENT_INVALID_NIR",
+            message=f"Social security number fails its check key: {nir}",
+            details={"nir": nir, "context": context,
+                     "explanation": "The two-digit key does not match the 13 digits — "
+                                    "a typo or a fabricated number."},
+        ))
+    return flags
+
+
 def analyze_content(pdf_data: PDFData) -> ModuleResult:
     """
     Main function: Analyze document content for inconsistencies.
@@ -1999,6 +2210,7 @@ def analyze_content(pdf_data: PDFData) -> ModuleResult:
 
     # Local IBAN mod-97 validation (default, no network)
     all_flags.extend(check_iban_validity(full_text))
+    all_flags.extend(check_nir_validity(full_text))
 
     # Calculate score
     score = 100

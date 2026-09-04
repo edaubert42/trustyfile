@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Manual runs on any branch (`gh workflow run tests.yml --ref <branch>`):
+  # feature branches are merged locally rather than through PRs here, so
+  # without this nothing could exercise CI before a merge to main deploys.
+  workflow_dispatch:
 
 jobs:
   pytest:
@@ -49,3 +53,21 @@ jobs:
       # gates therefore still only run locally — green here is not full cover.
       - name: Run test suite
         run: pytest tests/ -q
+
+  # The Caddyfile is the only piece of the deployment nothing else checks:
+  # start.sh downloads Caddy at boot and a Caddyfile that does not parse
+  # takes the whole site down with it (the pytest job never touches it).
+  # Same download URL as start.sh, so this validates with the binary that
+  # will actually run it.
+  caddyfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Caddyfile
+        env:
+          PORT: "8080"
+        run: |
+          curl -sSL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o caddy
+          chmod +x caddy
+          ./caddy validate --config Caddyfile --adapter caddyfile
