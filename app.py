@@ -860,6 +860,17 @@ st.markdown(f"""
        remaps the inline dark-theme colours through [style*=...] attribute
        selectors — blunt, but it leaves every existing inline style alone. */
     .tf-print-only {{ display: none; }}
+
+    /* JSON report download (roadmap #8, tier 2): a native st.download_button
+       restyled to sit beside the HTML print button as a quiet, same-size pair. */
+    .st-key-tf_report_row [data-testid="stDownloadButton"] button {{
+        background: transparent; color: #888; border: 1px solid #2a2a3e;
+        border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; min-height: 0;
+        line-height: 1.2;
+    }}
+    .st-key-tf_report_row [data-testid="stDownloadButton"] button:hover {{
+        color: #ccc; border-color: #4a90e2;
+    }}
     @media print {{
         @page {{ margin: 12mm; }}
         html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -868,7 +879,7 @@ st.markdown(f"""
             color: #000 !important;
         }}
         .tf-print-only {{ display: block; }}
-        .custom-header, .tf-footer, #tf-print-wrap,
+        .custom-header, .tf-footer, #tf-print-wrap, [data-testid="stDownloadButton"],
         [data-testid="stFileUploader"], [data-testid="stSelectbox"],
         [data-testid="stStatusWidget"], [data-testid="stDecoration"],
         [data-testid="stToolbar"], [data-testid="stBottom"],
@@ -1372,6 +1383,7 @@ if uploaded_file is not None:
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity
     from src.summary import generate_rich_summary, get_flag_sentence
+    from src.report import build_report, report_json, report_filename
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
@@ -1771,36 +1783,64 @@ if uploaded_file is not None:
                 <div style="font-size:0.8rem;">SHA-256 <code>{esc(result.file_hash)}</code></div>
                 <div style="font-size:0.8rem;">{t("print_date")} {_analysed_at} &middot; {t("print_generated_by")} https://www.trustyfile.com</div>
             </div>
-            <div id="tf-print-wrap" style="display:flex; justify-content:flex-end; margin:0 0 0.2rem 0;">
-                <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
-                    {t("print_report")}
-                </button>
-            </div>
-            <script>
-            (function() {{
-                const btn = document.getElementById('tf-print');
-                if (btn && !btn.dataset.bound) {{
-                    btn.dataset.bound = '1';
-                    btn.addEventListener('click', function() {{ window.print(); }});
-                }}
-                if (!window.__tfPrintHooks) {{
-                    window.__tfPrintHooks = true;
-                    window.addEventListener('beforeprint', function() {{
-                        document.querySelectorAll('details:not([open])').forEach(function(d) {{
-                            d.dataset.tfAutoOpen = '1';
-                            d.open = true;
+            """)
+
+            # Report actions, right-aligned in one row: the HTML print button
+            # and the JSON download (roadmap #8, tier 2). The download is the
+            # same serializer the API endpoint returns (src/report.py), built
+            # from the cached result + summary so a rerun costs one json.dumps.
+            # `on_click="ignore"` keeps a click from rerunning the whole page.
+            # The <script> stays in the same st.html as its button: it binds by
+            # id when the element mounts, so they must mount together.
+            with st.container(key="tf_report_row"):
+                _row_space, _row_print, _row_dl = st.columns([3, 1.1, 1.1], vertical_alignment="center")
+                _row_print.html(f"""
+                <div id="tf-print-wrap" style="display:flex; justify-content:flex-end;">
+                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
+                        {t("print_report")}
+                    </button>
+                </div>
+                <script>
+                (function() {{
+                    const btn = document.getElementById('tf-print');
+                    if (btn && !btn.dataset.bound) {{
+                        btn.dataset.bound = '1';
+                        btn.addEventListener('click', function() {{ window.print(); }});
+                    }}
+                    if (!window.__tfPrintHooks) {{
+                        window.__tfPrintHooks = true;
+                        window.addEventListener('beforeprint', function() {{
+                            document.querySelectorAll('details:not([open])').forEach(function(d) {{
+                                d.dataset.tfAutoOpen = '1';
+                                d.open = true;
+                            }});
                         }});
-                    }});
-                    window.addEventListener('afterprint', function() {{
-                        document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
-                            d.open = false;
-                            delete d.dataset.tfAutoOpen;
+                        window.addEventListener('afterprint', function() {{
+                            document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
+                                d.open = false;
+                                delete d.dataset.tfAutoOpen;
+                            }});
                         }});
-                    }});
-                }}
-            }})();
-            </script>
-            """, unsafe_allow_javascript=True)
+                    }}
+                }})();
+                </script>
+                """, unsafe_allow_javascript=True)
+                _report_text = report_json(build_report(
+                    result,
+                    filename=uploaded_file.name,
+                    analysed_at=_analysed_at,
+                    lang=get_lang(),
+                    summary=summary,
+                ))
+                _row_dl.download_button(
+                    t("download_report"),
+                    data=_report_text,
+                    file_name=report_filename(result),
+                    mime="application/json",
+                    key="download_report",
+                    on_click="ignore",
+                    use_container_width=True,
+                )
 
             # Main score gauge (circular arc like HubSpot Website Grader)
             score = result.trust_score
