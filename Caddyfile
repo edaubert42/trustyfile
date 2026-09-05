@@ -1,6 +1,17 @@
 # Caddy reverse proxy for SEO
 # - Crawlers (Googlebot, etc.) get a static HTML page with meta tags
 # - Real users get proxied to Streamlit (transparent)
+# - /api/* goes to the FastAPI process (src/api.py)
+
+{
+	# Railway's edge proxy reaches this container over the private network
+	# and sets X-Forwarded-For. Without this Caddy treats it as an untrusted
+	# client and overwrites that header with the edge's own address, so the
+	# API's per-client rate limit would see every caller as one client.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
 
 :{$PORT}
 
@@ -38,6 +49,16 @@ header {
 # HTML: search engines, social/link unfurlers (Open Graph previews), and AI
 # answer engines (a growing referral source).
 @crawler header_regexp User-Agent (?i)(googlebot|google-inspectiontool|googleother|storebot-google|bingbot|bingpreview|slurp|duckduckbot|baiduspider|yandexbot|applebot|petalbot|seznambot|mojeekbot|facebookexternalhit|facebot|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|slackbot|redditbot|pinterest|embedly|skypeuripreview|mastodon|gptbot|oai-searchbot|chatgpt-user|claudebot|anthropic-ai|perplexitybot|perplexity-user|youbot|ccbot|amazonbot|bytespider|meta-externalagent|duckassistbot)
+
+# Programmatic API (roadmap #13): uvicorn serves src/api.py on :8000. The
+# body cap refuses oversized uploads at the edge with a 413; the app enforces
+# the same 10 MB limit itself for the case where it runs without Caddy.
+handle /api/* {
+	request_body {
+		max_size 11MB
+	}
+	reverse_proxy 127.0.0.1:8000
+}
 
 # Guides: real content pages, served to EVERYONE — crawlers and humans alike.
 #

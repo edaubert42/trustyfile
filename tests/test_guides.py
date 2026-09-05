@@ -495,7 +495,13 @@ def test_llms_txt_lists_every_public_page():
         for tool in build_guides.TOOLS[lang]:
             assert f"{build_guides.SITE}{chrome['tools_path']}/{tool.slug}" in linked
     sitemap_locs = {entry.loc for entry in build_guides.sitemap_entries()}
-    assert linked - sitemap_locs == {f"{build_guides.SITE}/sitemap.xml"}
+    # Two public URLs are linked on purpose without a sitemap entry: the
+    # sitemap itself, and the API docs — a Swagger UI app served to everyone
+    # under /api/*, worth a pointer for assistants but not an indexable page.
+    assert linked - sitemap_locs == {
+        f"{build_guides.SITE}/sitemap.xml",
+        f"{build_guides.SITE}/api/docs",
+    }
 
 
 _LINK_ROOTS = {

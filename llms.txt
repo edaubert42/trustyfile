@@ -9,6 +9,10 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [TrustyFile (français)](https://www.trustyfile.com/): analyse gratuite d'un PDF, sans inscription, résultat en quelques secondes.
 - [TrustyFile (English)](https://www.trustyfile.com/en): free PDF analysis, no sign-up, results in seconds.
 
+## API
+
+- [Documentation de l'API / API docs](https://www.trustyfile.com/api/docs): POST /api/v1/analyze — un PDF en entrée, le rapport d'analyse JSON en sortie (le même que le téléchargement de la page de résultats). One PDF in, the JSON analysis report out — same schema as the results-page download.
+
 ## Guides (français)
 
 - [Guides de vérification documentaire](https://www.trustyfile.com/guides/)

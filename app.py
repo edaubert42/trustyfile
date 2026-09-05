@@ -860,6 +860,17 @@ st.markdown(f"""
        remaps the inline dark-theme colours through [style*=...] attribute
        selectors — blunt, but it leaves every existing inline style alone. */
     .tf-print-only {{ display: none; }}
+
+    /* JSON report download (roadmap #8, tier 2): a native st.download_button
+       restyled to sit beside the HTML print button as a quiet, same-size pair. */
+    .st-key-tf_report_row [data-testid="stDownloadButton"] button {{
+        background: transparent; color: #888; border: 1px solid #2a2a3e;
+        border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; min-height: 0;
+        line-height: 1.2;
+    }}
+    .st-key-tf_report_row [data-testid="stDownloadButton"] button:hover {{
+        color: #ccc; border-color: #4a90e2;
+    }}
     @media print {{
         @page {{ margin: 12mm; }}
         html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -868,7 +879,7 @@ st.markdown(f"""
             color: #000 !important;
         }}
         .tf-print-only {{ display: block; }}
-        .custom-header, .tf-footer, #tf-print-wrap,
+        .custom-header, .tf-footer, #tf-print-wrap, [data-testid="stDownloadButton"],
         [data-testid="stFileUploader"], [data-testid="stSelectbox"],
         [data-testid="stStatusWidget"], [data-testid="stDecoration"],
         [data-testid="stToolbar"], [data-testid="stBottom"],
@@ -1152,12 +1163,29 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# File uploader — always rendered at top level (outside landing columns)
-uploaded_file = st.file_uploader(
+# File uploader — always rendered at top level (outside landing columns).
+# Several files at once are accepted (roadmap #14): one file goes straight to
+# the results page as before; two or more open the batch page further down, a
+# table with one row per document, each row opening the full results page.
+MAX_BATCH_FILES = 10
+uploaded_files = st.file_uploader(
     "Choose file",
     type=["pdf"],
     label_visibility="collapsed",
-)
+    accept_multiple_files=True,
+) or []
+_batch_truncated = len(uploaded_files) > MAX_BATCH_FILES
+uploaded_files = uploaded_files[:MAX_BATCH_FILES]
+# `batch_files` is non-empty only in batch mode. `uploaded_file` stays what
+# the rest of this script has always rendered — ONE document: the lone
+# upload, the row the reader opened from the batch table, or None.
+batch_files = uploaded_files if len(uploaded_files) > 1 else []
+if batch_files:
+    _open_id = st.session_state.get("batch_open")
+    uploaded_file = next((f for f in batch_files if f.file_id == _open_id), None)
+else:
+    uploaded_file = uploaded_files[0] if uploaded_files else None
+    st.session_state.pop("batch_open", None)
 
 
 # "Try with a sample document". A first-time visitor rarely has a PDF at hand,
@@ -1178,12 +1206,15 @@ class _DemoUpload:
         return _DEMO_PDF.read_bytes()
 
 
-if uploaded_file is not None:
+if uploaded_files:
     st.session_state.pop("demo_active", None)
 elif st.session_state.get("demo_active") and _DEMO_PDF.exists():
     uploaded_file = _DemoUpload()
 
-if uploaded_file is None:
+# The landing page shows when there is nothing to render: no single document
+# and no batch.
+_landing = uploaded_file is None and not batch_files
+if _landing:
     st.markdown(f"""
     <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:-0.5rem;">
         {t("disclaimer_upload")}
@@ -1196,7 +1227,7 @@ if uploaded_file is None:
             st.rerun()
 
 # Landing page content — only rendered when no file is uploaded
-if uploaded_file is None:
+if _landing:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
         st.markdown(f"""
@@ -1339,7 +1370,7 @@ if uploaded_file is None:
     """, unsafe_allow_html=True)
 
 # Hide landing content and minimize uploader when a file is uploaded
-if uploaded_file is not None:
+if uploaded_file is not None or batch_files:
     st.markdown("""<style>
         /* Hide the dropzone, keep only the filename bar */
         [data-testid="stFileUploaderDropzone"] {
@@ -1367,11 +1398,151 @@ if uploaded_file is not None:
         }
     </style>""", unsafe_allow_html=True)
 
+# =============================================================================
+# BATCH PAGE (roadmap #14) — several files, one row each
+# =============================================================================
+if batch_files and uploaded_file is None:
+    import hashlib
+    from src.analyzer import TrustyFileAnalyzer
+    from src.batch import analyse_document
+    from src.modules.twod_doc import scan_pdf_for_2d_doc, PYLIBDMTX_AVAILABLE
+    from src.report import build_batch_report, batch_report_filename, report_json
+
+    # One analysis per (content, name, language), cached in session_state so
+    # a rerun — opening a row and coming back — costs nothing. The language is
+    # part of the key because the summary is generated in one language; a
+    # toggle re-analyses rather than showing yesterday's French under an
+    # English heading. Entries for files removed from the uploader are dropped.
+    _batch_cache = st.session_state.setdefault("batch_cache", {})
+    _batch_keys = []                      # (upload, content md5, cache key)
+    for _f in batch_files:
+        _md5 = hashlib.md5(_f.getvalue()).hexdigest()
+        _batch_keys.append((_f, _md5, f"{_md5}:{_f.name}:{get_lang()}"))
+    _todo = [(_f, _key) for _f, _md5, _key in _batch_keys if _key not in _batch_cache]
+    if _todo:
+        _bar = st.progress(0.0)
+        for _i, (_f, _key) in enumerate(_todo):
+            _bar.progress(_i / len(_todo), text=t("batch_analysing").format(i=_i + 1, n=len(_todo), name=_f.name))
+            _batch_cache[_key] = analyse_document(
+                _f.name,
+                _f.getvalue(),
+                lang=get_lang(),
+                analyzer_factory=lambda: TrustyFileAnalyzer(
+                    enable_external=enable_external,
+                    enable_qr_scan=enable_qr,
+                    enable_iban_check=enable_iban_check,
+                    iban_api_key=iban_api_key,
+                ),
+                scan_2d_doc=scan_pdf_for_2d_doc if PYLIBDMTX_AVAILABLE else None,
+            )
+        _bar.empty()
+    _current_keys = {_key for _, _, _key in _batch_keys}
+    for _stale in [k for k in _batch_cache if k not in _current_keys]:
+        del _batch_cache[_stale]
+    _batch_rows = [(_f, _md5, _batch_cache[_key]) for _f, _md5, _key in _batch_keys]
+
+    st.markdown('<hr style="margin:0 0 0.3rem 0;">', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="color:white; font-size:1.3rem; font-weight:bold;">'
+        f'{esc(t("batch_title").format(n=len(_batch_rows)))}</div>'
+        f'<div style="color:#888; font-size:0.8rem; margin-bottom:0.6rem;">{esc(t("batch_intro"))}</div>',
+        unsafe_allow_html=True,
+    )
+    if _batch_truncated:
+        st.markdown(
+            f'<div style="color:#ffb627; font-size:0.8rem; margin-bottom:0.4rem;">'
+            f'{esc(t("batch_too_many").format(max=MAX_BATCH_FILES))}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Table as columns rather than HTML: each row needs a real Streamlit
+    # button, and a widget cannot live inside an st.markdown table.
+    _BATCH_COLS = [3, 1.6, 0.8, 4, 1]
+    _head = st.columns(_BATCH_COLS, vertical_alignment="center")
+    for _col, _key in zip(_head, ("batch_col_file", "batch_col_verdict", "batch_col_score", "batch_col_finding")):
+        _col.markdown(
+            f'<div style="color:#888; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px;">'
+            f'{esc(t(_key))}</div>',
+            unsafe_allow_html=True,
+        )
+
+    def _pill(color: str, label: str) -> str:
+        return (
+            f'<span style="background:{color}; color:white; font-size:0.68rem; font-weight:bold; '
+            f'padding:2px 10px; border-radius:10px; white-space:nowrap;">{esc(label)}</span>'
+        )
+
+    for _f, _md5, _item in _batch_rows:
+        _c_name, _c_band, _c_score, _c_finding, _c_open = st.columns(_BATCH_COLS, vertical_alignment="center")
+        _c_name.markdown(
+            f'<div style="color:white; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; '
+            f'white-space:nowrap;" title="{esc(_f.name)}">{esc(_f.name)}</div>',
+            unsafe_allow_html=True,
+        )
+        if _item.ok:
+            _r = _item.result
+            # Same thresholds and colours as the gauge on the results page.
+            if _r.risk_level == "UNVERIFIABLE":
+                _color, _score_txt = "#6c757d", t("score_not_available")
+            elif _r.trust_score >= 80:
+                _color, _score_txt = "#28a745", str(_r.trust_score)
+            elif _r.trust_score >= 50:
+                _color, _score_txt = "#ffb627", str(_r.trust_score)
+            else:
+                _color, _score_txt = "#ef233c", str(_r.trust_score)
+            _c_band.markdown(_pill(_color, t(f"risk_{_r.risk_level}")), unsafe_allow_html=True)
+            _c_score.markdown(
+                f'<span style="color:{_color}; font-weight:bold; font-size:1rem;">{_score_txt}</span>',
+                unsafe_allow_html=True,
+            )
+            _c_finding.markdown(
+                f'<div style="color:#cdd6f4; font-size:0.8rem;">{esc(_item.summary.verdict)}</div>',
+                unsafe_allow_html=True,
+            )
+            if _c_open.button(t("batch_open"), key=f"batch_open_{_f.file_id}", use_container_width=True):
+                # Seed the single-document cache with this row's analysis: the
+                # results page keys its cache on the content md5, so it renders
+                # straight away instead of analysing the file a second time.
+                st.session_state["batch_open"] = _f.file_id
+                st.session_state["last_file_hash"] = _md5
+                st.session_state["cached_result"] = _item.result
+                st.session_state["cached_summary"] = _item.summary
+                st.session_state["cached_twod_doc"] = _item.twod_doc
+                st.session_state["cached_analysed_at"] = _item.analysed_at
+                st.session_state.pop("page_selector", None)
+                st.rerun()
+        else:
+            _c_band.markdown(_pill("#6c757d", t("batch_refused")), unsafe_allow_html=True)
+            _c_score.markdown('<span style="color:#6c757d;">—</span>', unsafe_allow_html=True)
+            _c_finding.markdown(
+                f'<div style="color:#888; font-size:0.8rem;">{esc(t(f"batch_problem_{_item.problem}"))}</div>',
+                unsafe_allow_html=True,
+            )
+
+    # The whole batch as one JSON file: every row, analysed or not.
+    _batch_when = datetime.now()
+    with st.container(key="tf_report_row"):
+        _b_space, _b_dl = st.columns([3, 1.4], vertical_alignment="center")
+        _b_dl.download_button(
+            t("batch_download"),
+            data=report_json(build_batch_report(
+                [_item for _, _, _item in _batch_rows],
+                lang=get_lang(),
+                analysed_at=_batch_when.strftime("%Y-%m-%d %H:%M"),
+            )),
+            file_name=batch_report_filename(_batch_when),
+            mime="application/json",
+            key="batch_download",
+            on_click="ignore",
+            use_container_width=True,
+        )
+
 if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity
     from src.summary import generate_rich_summary, get_flag_sentence
+    from src.report import build_report, report_json, report_filename
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
@@ -1511,6 +1682,11 @@ if uploaded_file is not None:
     _page_ctx = ExitStack()
     try:
         _page_ctx.enter_context(_page_slot.container())
+
+        # Opened from the batch table: one click back to the lot.
+        if batch_files and st.button(t("batch_back"), key="batch_back", type="tertiary"):
+            st.session_state.pop("batch_open", None)
+            st.rerun()
 
         # Sample-document banner: say what the reader is looking at, and give
         # them the way back to analysing their own file (the dropzone is
@@ -1771,36 +1947,64 @@ if uploaded_file is not None:
                 <div style="font-size:0.8rem;">SHA-256 <code>{esc(result.file_hash)}</code></div>
                 <div style="font-size:0.8rem;">{t("print_date")} {_analysed_at} &middot; {t("print_generated_by")} https://www.trustyfile.com</div>
             </div>
-            <div id="tf-print-wrap" style="display:flex; justify-content:flex-end; margin:0 0 0.2rem 0;">
-                <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
-                    {t("print_report")}
-                </button>
-            </div>
-            <script>
-            (function() {{
-                const btn = document.getElementById('tf-print');
-                if (btn && !btn.dataset.bound) {{
-                    btn.dataset.bound = '1';
-                    btn.addEventListener('click', function() {{ window.print(); }});
-                }}
-                if (!window.__tfPrintHooks) {{
-                    window.__tfPrintHooks = true;
-                    window.addEventListener('beforeprint', function() {{
-                        document.querySelectorAll('details:not([open])').forEach(function(d) {{
-                            d.dataset.tfAutoOpen = '1';
-                            d.open = true;
+            """)
+
+            # Report actions, right-aligned in one row: the HTML print button
+            # and the JSON download (roadmap #8, tier 2). The download is the
+            # same serializer the API endpoint returns (src/report.py), built
+            # from the cached result + summary so a rerun costs one json.dumps.
+            # `on_click="ignore"` keeps a click from rerunning the whole page.
+            # The <script> stays in the same st.html as its button: it binds by
+            # id when the element mounts, so they must mount together.
+            with st.container(key="tf_report_row"):
+                _row_space, _row_print, _row_dl = st.columns([3, 1.1, 1.1], vertical_alignment="center")
+                _row_print.html(f"""
+                <div id="tf-print-wrap" style="display:flex; justify-content:flex-end;">
+                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
+                        {t("print_report")}
+                    </button>
+                </div>
+                <script>
+                (function() {{
+                    const btn = document.getElementById('tf-print');
+                    if (btn && !btn.dataset.bound) {{
+                        btn.dataset.bound = '1';
+                        btn.addEventListener('click', function() {{ window.print(); }});
+                    }}
+                    if (!window.__tfPrintHooks) {{
+                        window.__tfPrintHooks = true;
+                        window.addEventListener('beforeprint', function() {{
+                            document.querySelectorAll('details:not([open])').forEach(function(d) {{
+                                d.dataset.tfAutoOpen = '1';
+                                d.open = true;
+                            }});
                         }});
-                    }});
-                    window.addEventListener('afterprint', function() {{
-                        document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
-                            d.open = false;
-                            delete d.dataset.tfAutoOpen;
+                        window.addEventListener('afterprint', function() {{
+                            document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
+                                d.open = false;
+                                delete d.dataset.tfAutoOpen;
+                            }});
                         }});
-                    }});
-                }}
-            }})();
-            </script>
-            """, unsafe_allow_javascript=True)
+                    }}
+                }})();
+                </script>
+                """, unsafe_allow_javascript=True)
+                _report_text = report_json(build_report(
+                    result,
+                    filename=uploaded_file.name,
+                    analysed_at=_analysed_at,
+                    lang=get_lang(),
+                    summary=summary,
+                ))
+                _row_dl.download_button(
+                    t("download_report"),
+                    data=_report_text,
+                    file_name=report_filename(result),
+                    mime="application/json",
+                    key="download_report",
+                    on_click="ignore",
+                    use_container_width=True,
+                )
 
             # Main score gauge (circular arc like HubSpot Website Grader)
             score = result.trust_score
