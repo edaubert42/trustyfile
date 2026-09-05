@@ -220,3 +220,79 @@ def report_filename(result: AnalysisResult) -> str:
     """
     prefix = result.file_hash[:12]
     return f"trustyfile-{prefix}.json" if prefix else "trustyfile-report.json"
+
+
+# --------------------------------------------------------------------------
+# Batch (roadmap #14): several documents in one file
+# --------------------------------------------------------------------------
+
+BATCH_STATUS_ANALYSED = "analysed"
+BATCH_STATUS_REFUSED = "refused"   # an intake limit: too large, not a PDF, too many pages
+BATCH_STATUS_FAILED = "failed"     # the analysis itself raised
+
+
+def build_batch_report(items, *, lang: str, analysed_at: datetime | str) -> dict[str, Any]:
+    """
+    Wrap the reports of a batch of documents in one versioned envelope.
+
+    Each analysed document appears as ``{"status": "analysed", "report": …}``
+    where the report is exactly `build_report`'s output (so a consumer can
+    hand it to the same code that reads a single download). A document the
+    intake refused, or whose analysis failed, appears as
+    ``{"status": "refused" | "failed", "file": {"name"}, "error": {"code", "message"}}``
+    — the batch never loses a row.
+
+    Args:
+        items: `src.batch.BatchItem` records, in upload order.
+        lang: Language of the sentences, verdicts and error messages.
+        analysed_at: When the batch finished (datetime → ISO 8601, or text).
+
+    Example:
+        >>> build_batch_report([item], lang="fr", analysed_at="2026-09-05 15:00")["documents"][0]["status"]
+        'analysed'
+    """
+    # Imported here: batch.py imports the analyzer stack, which the single
+    # report path (and the API) does not need at import time.
+    from src.batch import FAILED
+    from src.i18n import translate
+
+    documents = []
+    for item in items:
+        if item.ok:
+            documents.append({
+                "status": BATCH_STATUS_ANALYSED,
+                "report": build_report(
+                    item.result,
+                    filename=item.name,
+                    analysed_at=item.analysed_at,
+                    lang=lang,
+                    summary=item.summary,
+                ),
+            })
+        else:
+            documents.append({
+                "status": BATCH_STATUS_FAILED if item.problem == FAILED else BATCH_STATUS_REFUSED,
+                "file": {"name": item.name, "size_bytes": item.size_bytes},
+                "error": {
+                    "code": item.problem.upper(),
+                    "message": translate(f"batch_problem_{item.problem}", lang),
+                },
+            })
+
+    return _json_safe({
+        "schema_version": SCHEMA_VERSION,
+        "generator": dict(GENERATOR),
+        "analysed_at": (
+            analysed_at.isoformat(timespec="seconds")
+            if isinstance(analysed_at, datetime)
+            else analysed_at
+        ),
+        "language": lang,
+        "count": len(documents),
+        "documents": documents,
+    })
+
+
+def batch_report_filename(when: datetime) -> str:
+    """``trustyfile-batch-YYYYMMDD-HHMM.json`` — a batch has no single hash."""
+    return f"trustyfile-batch-{when.strftime('%Y%m%d-%H%M')}.json"

@@ -43,6 +43,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 - **External verification** — SIRET/SIREN via INSEE, VAT via VIES; requires internet. On by default in the app (`enable_external = True` in `app.py`); pass `enable_external=False` to the analyzer to run fully offline
 - **JSON report** — Download the analysis as a versioned JSON file (`src/report.py`), or print the results page as a PDF
 - **API** — `POST /api/v1/analyze` returns the same JSON report for a PDF (see [API](#api))
+- **Batch upload** — drop up to 10 PDFs at once: a table with one verdict per document, each row opening the full results page, and one JSON report for the whole batch
 
 ## Quick Start
 
@@ -236,7 +237,7 @@ sent; nothing is retained. Locally: `uvicorn src.api:api --port 8000`.
 - [ ] QR code scanning (pyzbar — verify QR URLs match document sender)
 - [ ] Template matching (compare against known legitimate invoice layouts)
 - [x] API endpoint (FastAPI, `POST /api/v1/analyze`)
-- [ ] Batch upload support
+- [x] Batch upload — several PDFs at once, one row per document, batch JSON report
 - [x] Export analysis report — print/save as PDF, JSON download
 - [ ] Browser extension
 

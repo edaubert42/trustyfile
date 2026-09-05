@@ -118,12 +118,33 @@ def get_lang() -> str:
 _cache: dict[str, dict] = {}
 
 
-def t(key: str) -> str:
+def translate(key: str, lang: str) -> str:
     """
-    Translate a key to the current language.
+    Translate a key in an explicit language — for code that runs outside a
+    Streamlit request (the batch report's messages), where get_lang() has no
+    query string or headers to read.
 
     Loads the translation file on first access, then caches it.
     If the key is not found, returns the key itself as fallback.
+
+    Args:
+        key: Translation key (e.g. "preview", "file_properties")
+        lang: "fr" or "en"; anything else falls back to DEFAULT_LANG.
+
+    Returns:
+        Translated string.
+    """
+    if lang not in SUPPORTED_LANGS:
+        lang = DEFAULT_LANG
+    if lang not in _cache:
+        path = Path(__file__).parent / "translations" / f"{lang}.json"
+        _cache[lang] = json.loads(path.read_text(encoding="utf-8"))
+    return _cache[lang].get(key, key)
+
+
+def t(key: str) -> str:
+    """
+    Translate a key to the current language (see get_lang()).
 
     Args:
         key: Translation key (e.g. "preview", "file_properties")
@@ -131,8 +152,4 @@ def t(key: str) -> str:
     Returns:
         Translated string in the current language.
     """
-    lang = get_lang()
-    if lang not in _cache:
-        path = Path(__file__).parent / "translations" / f"{lang}.json"
-        _cache[lang] = json.loads(path.read_text(encoding="utf-8"))
-    return _cache[lang].get(key, key)
+    return translate(key, get_lang())

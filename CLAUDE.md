@@ -89,6 +89,8 @@ trustyfile/
 │   ├── preview.py            # Page render + evidence-box overlay
 │   ├── report.py             # AnalysisResult -> versioned JSON report (download + API)
 │   ├── api.py                # FastAPI: POST /api/v1/analyze (uvicorn :8000, Caddy /api/*)
+│   ├── intake.py             # Shared limits + PDF checks (batch page, API)
+│   ├── batch.py              # One BatchItem per uploaded file (batch page)
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Flag, ModuleResult, AnalysisResult
 │   ├── render_safety.py      # safe_zoom + page caps — every raster module
@@ -339,7 +341,7 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Module H: image forensics — ELA only; clone/splicing/JPEG-ghost not done
 - [x] PDF export (print / save as PDF), JSON report download (`src/report.py`)
 - [x] FastAPI endpoint (`src/api.py`: `POST /api/v1/analyze`, same JSON as the download)
-- [ ] Batch upload
+- [x] Batch upload (`src/batch.py` + batch page in `app.py`; up to 10 files, batch JSON envelope)
 - [x] Dark mode UI
 
 **Phase 4 - Security**

@@ -39,19 +39,18 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Literal
 
-import fitz
 from fastapi import FastAPI, File, Query, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from src.analyzer import TrustyFileAnalyzer
+from src.intake import MAX_BYTES, MAX_PAGES, looks_like_pdf, page_count
 from src.report import SCHEMA_VERSION, build_report, report_json
 
 logger = logging.getLogger(__name__)
 
-# Same limits as app.py and the disclaimer ("PDF only, up to 10 MB and 20 pages").
-MAX_BYTES = 10 * 1024 * 1024
-MAX_PAGES = 20
+# MAX_BYTES / MAX_PAGES come from src/intake.py — the same numbers the batch
+# page enforces and the disclaimer promises ("PDF only, 10 MB, 20 pages").
 # The upload is read in slices of this size, so a body far over MAX_BYTES is
 # refused after MAX_BYTES plus one slice instead of being buffered whole.
 READ_CHUNK = 1 << 20
@@ -175,15 +174,6 @@ def _client_key(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _page_count(data: bytes) -> int | None:
-    """Pages in the PDF, or None when PyMuPDF cannot open the bytes as one."""
-    try:
-        with fitz.open(stream=data, filetype="pdf") as doc:
-            return len(doc)
-    except Exception:
-        return None
-
-
 def _run_analysis(data: bytes, *, filename: str, lang: str, external: bool) -> str:
     """
     The blocking part, run in the threadpool: temp file → analyzer → report text.
@@ -273,11 +263,9 @@ async def analyze(
         chunks.append(chunk)
     data = b"".join(chunks)
 
-    # A PDF starts with "%PDF" within its first 1024 bytes (the spec allows
-    # leading junk); anything else is not worth handing to the parser.
-    if b"%PDF" not in data[:1024]:
+    if not looks_like_pdf(data):
         return _error(415, "NOT_A_PDF", MSG_NOT_A_PDF)
-    pages = _page_count(data)
+    pages = page_count(data)
     if not pages:  # None (unparsable) or 0 (nothing to analyse)
         return _error(415, "NOT_A_PDF", MSG_NOT_A_PDF)
     if pages > MAX_PAGES:
