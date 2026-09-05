@@ -41,6 +41,8 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 - **2D-DOC data panel** — View the decoded barcode fields (name, amount, dates) side by side with the document; the cross-check itself is scored by the `twod_doc` module above
 - **Modification history** — View what changed between PDF revisions with content diffs
 - **External verification** — SIRET/SIREN via INSEE, VAT via VIES; requires internet. On by default in the app (`enable_external = True` in `app.py`); pass `enable_external=False` to the analyzer to run fully offline
+- **JSON report** — Download the analysis as a versioned JSON file (`src/report.py`), or print the results page as a PDF
+- **API** — `POST /api/v1/analyze` returns the same JSON report for a PDF (see [API](#api))
 
 ## Quick Start
 
@@ -199,6 +201,28 @@ pytest tests/ -v
 pytest tests/ --cov=src --cov-report=html
 ```
 
+## API
+
+The same analysis is available programmatically. One request, one PDF, one
+JSON report — byte-identical to the "Download report (JSON)" file on the
+results page, so scripts and readers share a single schema
+(`schema_version` in the body, defined in `src/report.py`).
+
+```bash
+curl -F file=@invoice.pdf "https://www.trustyfile.com/api/v1/analyze?lang=fr"
+```
+
+| | |
+|---|---|
+| `lang` | `fr` (default) or `en` — language of the sentences and verdict |
+| `external` | `true` (default, as in the web app) verifies SIRET/VAT against INSEE/VIES; `false` analyses the file alone, offline |
+| Limits | PDF only, 10 MB, 20 pages — `415`, `413`, `422` otherwise, with a JSON `error` body |
+| Load | 2 analyses at a time per server (`503` + `Retry-After` when busy), 20 requests/minute per client (`429`) |
+| Docs | interactive OpenAPI at `/api/docs`, schema at `/api/openapi.json`, liveness at `/api/v1/health` |
+
+Documents are analysed on a temporary file that is deleted when the answer is
+sent; nothing is retained. Locally: `uvicorn src.api:api --port 8000`.
+
 ## Roadmap
 
 - [x] MVP with 5 core detection modules (metadata, content, visual, fonts, images)
@@ -211,9 +235,9 @@ pytest tests/ --cov=src --cov-report=html
 - [x] Rich summary with verdict and bullet findings
 - [ ] QR code scanning (pyzbar — verify QR URLs match document sender)
 - [ ] Template matching (compare against known legitimate invoice layouts)
-- [ ] API endpoint (FastAPI)
+- [x] API endpoint (FastAPI, `POST /api/v1/analyze`)
 - [ ] Batch upload support
-- [ ] Export analysis report as PDF
+- [x] Export analysis report — print/save as PDF, JSON download
 - [ ] Browser extension
 
 ## Disclaimer

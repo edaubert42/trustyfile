@@ -15,3 +15,7 @@
 # suite — those tests just disappear, exactly the way the OpenCV 5 break hid.
 pikepdf>=10.0.0,<11      # qpdf bindings — structural rewrite engine (green on 10.11.0)
 pypdfium2>=5.0.0,<6      # PDFium bindings — Chrome's PDF engine (green on 5.12.1)
+
+# fastapi.testclient (tests/test_api.py) drives the API in-process over httpx.
+# Nothing in src/ imports it, so it stays out of the runtime image.
+httpx>=0.28,<1           # green on 0.28.1

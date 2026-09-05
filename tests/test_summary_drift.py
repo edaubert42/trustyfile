@@ -44,6 +44,8 @@ def _emitted_codes() -> set[str]:
     for path in glob.glob(str(SRC / "**" / "*.py"), recursive=True):
         if path.endswith("summary.py"):
             continue  # summary.py QUOTES every code — it is the map, not an emitter
+        if path.endswith("api.py"):
+            continue  # api.py's upper-case strings are HTTP error codes (NOT_A_PDF…), not flags
         for m in _CODE_RE.finditer(open(path, encoding="utf-8").read()):
             codes.add(m.group(1))
     return codes - NOT_FLAG_CODES

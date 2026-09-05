@@ -63,6 +63,7 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 - **Image Processing**: opencv-python-headless (cv2), numpy, Pillow
 - **XML (e-invoice)**: defusedxml — untrusted embedded XML, blocks XXE
 - **Web Interface**: Streamlit, fronted by Caddy for SEO/crawler routing
+- **API**: FastAPI + uvicorn (`src/api.py`), same container, Caddy proxies `/api/*`
 - **Testing**: pytest (+ pikepdf/pypdfium2 in requirements-dev.txt)
 
 ## Project Structure
@@ -86,6 +87,8 @@ trustyfile/
 │   ├── evidence.py           # Ledger primitives
 │   ├── summary.py            # EN/FR verdict + narrative generation
 │   ├── preview.py            # Page render + evidence-box overlay
+│   ├── report.py             # AnalysisResult -> versioned JSON report (download + API)
+│   ├── api.py                # FastAPI: POST /api/v1/analyze (uvicorn :8000, Caddy /api/*)
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Flag, ModuleResult, AnalysisResult
 │   ├── render_safety.py      # safe_zoom + page caps — every raster module
@@ -334,7 +337,9 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Module E: PDF structure analysis (incremental updates, JS, signatures)
 - [x] Module G: External verification (SIREN/SIRET via API, opt-in)
 - [x] Module H: image forensics — ELA only; clone/splicing/JPEG-ghost not done
-- [ ] Batch upload, PDF export, FastAPI endpoint
+- [x] PDF export (print / save as PDF), JSON report download (`src/report.py`)
+- [x] FastAPI endpoint (`src/api.py`: `POST /api/v1/analyze`, same JSON as the download)
+- [ ] Batch upload
 - [x] Dark mode UI
 
 **Phase 4 - Security**
@@ -412,28 +417,45 @@ For testing, create documents with:
 9. **Paint copy-paste** - Copy a number/text in Paint, paste elsewhere (tests paste artifact detection)
 10. **Amount modification** - Change "1025€" to "2025€" using Paint/Photoshop
 
-## API Response Format (Future)
+## API Response Format
+
+Live: `POST /api/v1/analyze` (`src/api.py`) returns the report built by
+`src/report.py:build_report` — the same bytes as the results page's JSON
+download. The schema is pinned by `tests/test_report.py`; bump
+`SCHEMA_VERSION` when a field is renamed, removed or changes meaning.
 
 ```json
 {
-  "file_hash": "sha256:abc123...",
-  "trust_score": 72,
-  "risk_level": "MEDIUM",
+  "schema_version": 1,
+  "generator": {"name": "TrustyFile", "url": "https://www.trustyfile.com"},
+  "file": {"name": "invoice.pdf", "sha256": "abc123..."},
+  "analysed_at": "2026-09-05T12:59:11+00:00",
+  "language": "fr",
+  "band": "SUSPICIOUS",
+  "risk_level": "HIGH",
+  "trust_score": 21,
+  "score_range": {"low": 21, "high": 21},
+  "document_type": "invoice",
   "analysis_time_ms": 1234,
+  "summary": {"verdict": "Ce document a été modifié après sa création.", "bullets": ["..."]},
   "modules": [
     {
       "name": "metadata",
       "score": 65,
-      "confidence": 0.95,
       "flags": [
         {
           "severity": "medium",
           "code": "META_ONLINE_CONVERTER",
-          "message": "Document processed by iLovePDF"
+          "sentence": "Le document a été traité par iLovePDF.",
+          "message": "Document processed by iLovePDF",
+          "details": {"producer": "iLovePDF"}
         }
       ]
     }
-  ],
-  "summary": "Document shows signs of modification. Verify with sender."
+  ]
 }
 ```
+
+`trust_score` and `score_range` are `null` for an UNVERIFIABLE band (the
+on-screen "—"). Not included, on purpose: module `confidence` (decorative),
+the evidence ledger (internal weights), `ModuleResult.details` (working data).
