@@ -831,6 +831,40 @@ def check_future_document_date(dates: list[ExtractedDate], full_text: str = "") 
     return flags
 
 
+def _date_creation_severity(gap_days: int, created_before: bool) -> str:
+    """How suspicious a gap between the written date and the PDF creation date is.
+
+    The two directions are NOT symmetric:
+
+    - Created BEFORE its own date: a file cannot be produced before the day
+      it was written — except a billing run that generates on the 28th an
+      invoice dated the 1st (hence the 7-day grace, handled by the caller).
+      This is the backdating tell: medium > 7 days, high > 30, critical > 180.
+    - Created AFTER its date: the everyday case of a duplicate or an invoice
+      re-downloaded from a customer portal (EDF, Free... generate the PDF on
+      download). Always "low": shown, but it weighs almost nothing. An old
+      invoice edited and re-saved also lands here — it is caught by the
+      edit detectors (revisions, fonts, cover boxes), not by its date.
+
+    Real data: 19 of 25 genuine ZUGFeRD-corpus invoices in REVIEW carried a
+    critical mismatch in the "after" direction (example invoices produced
+    months after their printed date).
+
+    Examples:
+        >>> _date_creation_severity(200, created_before=True)
+        'critical'
+        >>> _date_creation_severity(200, created_before=False)
+        'low'
+    """
+    if not created_before:
+        return "low"
+    if gap_days > 180:
+        return "critical"
+    if gap_days > 30:
+        return "high"
+    return "medium"
+
+
 def check_date_vs_creation(
     dates: list[ExtractedDate],
     creation_date: datetime | None,
@@ -839,8 +873,9 @@ def check_date_vs_creation(
     Compare document/letter dates with the PDF creation date.
 
     A letter dated "PARIS, le 06 janvier 2026" should have a PDF creation
-    date very close to January 6, 2026. If the PDF was created months
-    before or after, the content was likely tampered with.
+    date close to January 6, 2026. Created long BEFORE that date is the
+    backdating tell; created after is usually a duplicate or a re-download
+    (see _date_creation_severity).
 
     We only check dates of type "document" (letter dates) and "invoice",
     because these represent the date the document was supposedly produced.
@@ -876,33 +911,35 @@ def check_date_vs_creation(
         doc_dates.append(first_invoice)
 
     for d in doc_dates:
-        # Calculate the gap between the document date and the PDF creation date
-        gap = abs((d.date - creation_date).days)
+        # Signed gap: positive when the file was created BEFORE the date
+        # written in it, negative when it was created after.
+        days_before = (d.date - creation_date).days
+        gap = abs(days_before)
+        if gap <= 7:
+            continue                    # same week: normal generation delay
 
-        if gap > 180:
-            # More than 6 months gap — very suspicious
-            severity = "critical"
-        elif gap > 30:
-            # More than 1 month gap — suspicious for a letter
-            severity = "high"
-        elif gap > 7:
-            # More than 1 week — worth noting for letters
-            severity = "medium"
+        created_before = days_before > 0
+        severity = _date_creation_severity(gap, created_before)
+
+        if created_before:
+            message = (f"The PDF was created {gap} days BEFORE the date written in "
+                       f"it ({creation_date.strftime('%Y-%m-%d')} vs "
+                       f"{d.date.strftime('%Y-%m-%d')})")
         else:
-            continue
+            message = (f"The PDF was created {gap} days after the date written in "
+                       f"it ({creation_date.strftime('%Y-%m-%d')} vs "
+                       f"{d.date.strftime('%Y-%m-%d')}) — typical of a duplicate "
+                       f"or a re-download")
 
         flags.append(Flag(
             severity=severity,
             code="CONTENT_DATE_CREATION_MISMATCH",
-            message=(
-                f"Document date ({d.date.strftime('%Y-%m-%d')}) is "
-                f"{gap} days away from PDF creation date "
-                f"({creation_date.strftime('%Y-%m-%d')})"
-            ),
+            message=message,
             details={
                 "document_date": d.date.isoformat(),
                 "creation_date": creation_date.isoformat(),
                 "gap_days": gap,
+                "direction": "created_before" if created_before else "created_after",
                 "context": d.context,
             }
         ))
