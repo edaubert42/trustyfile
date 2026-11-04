@@ -29,6 +29,7 @@ Run locally:
 
 from __future__ import annotations
 
+import hmac
 import logging
 import math
 import os
@@ -39,11 +40,13 @@ from collections import deque
 from datetime import datetime, timezone
 from typing import Literal
 
-from fastapi import FastAPI, File, Query, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Query, Request, UploadFile
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from src.analyzer import TrustyFileAnalyzer
+from src.feedback import export_csv
 from src.intake import MAX_BYTES, MAX_PAGES, looks_like_pdf, page_count
 from src.report import SCHEMA_VERSION, build_report, report_json
 
@@ -292,3 +295,42 @@ async def analyze(
 
     logger.info("API analysis done: %d bytes, %d pages, %.1fs", total, pages, time.monotonic() - started)
     return Response(content=text, media_type="application/json")
+
+
+# --- Feedback export (owner only) --------------------------------------------
+# The thumbs-up/down votes from the results page, as a CSV for a spreadsheet.
+# Protected by HTTP Basic auth so the owner can simply open the URL in a
+# browser: it shows its own password prompt (any user name, the password is
+# TRUSTYFILE_ADMIN_TOKEN). With no token configured the route answers 404, as
+# if it did not exist — it is never open by accident.
+ADMIN_TOKEN_ENV = "TRUSTYFILE_ADMIN_TOKEN"
+_basic_auth = HTTPBasic(auto_error=False)
+
+
+@api.get("/api/v1/feedback.csv", include_in_schema=False)
+def feedback_export(
+    request: Request,
+    credentials: HTTPBasicCredentials | None = Depends(_basic_auth),
+) -> Response:
+    """Download every feedback row as CSV (owner only)."""
+    token = os.environ.get(ADMIN_TOKEN_ENV, "")
+    if not token:
+        return _error(404, "NOT_FOUND", "Not found.")
+    # Shares the analysis rate limit: caps password guessing per client.
+    client = _client_key(request)
+    if not _limiter.allow(client):
+        return _error(429, "RATE_LIMITED", MSG_RATE_LIMITED, retry_after=_limiter.retry_after(client))
+    # compare_digest takes the same time whatever the input, so response time
+    # leaks nothing about how many leading characters were right.
+    supplied = credentials.password if credentials else ""
+    if not hmac.compare_digest(supplied.encode(), token.encode()):
+        return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="TrustyFile feedback"'})
+    text = export_csv()
+    if text is None:
+        return _error(404, "NO_FEEDBACK_DB", "No feedback database configured (TRUSTYFILE_FEEDBACK_DB).")
+    return Response(
+        content=text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="trustyfile-feedback.csv"'},
+    )
+
