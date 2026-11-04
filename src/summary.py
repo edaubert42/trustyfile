@@ -510,8 +510,11 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "The document date is in the future."
     ),
     "CONTENT_DATE_CREATION_MISMATCH": lambda f: (
-        "A date mentioned in the document contradicts the file's own creation "
-        "timestamp."),
+        "The file was created after the date written in it — usually a "
+        "duplicate or a document downloaded again later."
+        if f.details and f.details.get("direction") == "created_after"
+        else "The file was created before the date written in it: unusual, "
+             "and the typical sign of a date that was changed."),
     "CONTENT_EXPIRED_DOCUMENT": lambda f: (
         "The document refers to a validity period that has already expired."),
 
@@ -1022,8 +1025,11 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "La date du document est dans le futur."
     ),
     "CONTENT_DATE_CREATION_MISMATCH": lambda f: (
-        "Une date mentionnée dans le document contredit la date de création "
-        "du fichier."),
+        "Le fichier a été créé après la date écrite dedans — en général un "
+        "duplicata ou un document retéléchargé plus tard."
+        if f.details and f.details.get("direction") == "created_after"
+        else "Le fichier a été créé avant la date écrite dedans : c'est "
+             "inhabituel, et typique d'une date modifiée."),
     "CONTENT_EXPIRED_DOCUMENT": lambda f: (
         "Le document fait référence à une période de validité déjà expirée."),
 

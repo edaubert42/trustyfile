@@ -25,6 +25,7 @@ from src.modules.content import (
     # Date validation
     check_impossible_dates,
     check_date_logic,
+    check_date_vs_creation,
     check_future_document_date,
     # Amounts
     extract_amounts,
@@ -511,6 +512,46 @@ class TestCheckDateLogic:
         flags = check_date_logic(dates)
         anachronisms = [f for f in flags if f.code == "CONTENT_ANACHRONISM_SERVICE"]
         assert len(anachronisms) == 0
+
+
+# =============================================================================
+# TEST check_date_vs_creation — asymmetric: created BEFORE its date is the tell
+# =============================================================================
+
+
+class TestDateVsCreation:
+    """A PDF created before the date written in it is backdating; created
+    after is a duplicate / re-download (genuine ZUGFeRD example invoices and
+    portal downloads) and must weigh almost nothing."""
+
+    @staticmethod
+    def _flags(doc_date, creation):
+        dates = [make_extracted_date(doc_date, date_type="invoice",
+                                     context="Date de facture")]
+        return [f for f in check_date_vs_creation(dates, creation)
+                if f.code == "CONTENT_DATE_CREATION_MISMATCH"]
+
+    @pytest.mark.parametrize("days, severity", [
+        (10, "medium"), (60, "high"), (200, "critical"),
+    ])
+    def test_created_before_its_date_keeps_full_weight(self, days, severity):
+        doc_date = datetime(2026, 6, 1)
+        flags = self._flags(doc_date, doc_date - timedelta(days=days))
+        assert [f.severity for f in flags] == [severity]
+        assert flags[0].details["direction"] == "created_before"
+
+    @pytest.mark.parametrize("days", [10, 60, 210, 900])
+    def test_created_after_its_date_is_low(self, days):
+        # e.g. an invoice of 13/11/2017 re-generated on 10/06/2018 (210 days)
+        doc_date = datetime(2017, 11, 13)
+        flags = self._flags(doc_date, doc_date + timedelta(days=days))
+        assert [f.severity for f in flags] == ["low"]
+        assert flags[0].details["direction"] == "created_after"
+
+    @pytest.mark.parametrize("days", [-7, 0, 7])
+    def test_same_week_is_silent(self, days):
+        doc_date = datetime(2026, 6, 1)
+        assert self._flags(doc_date, doc_date + timedelta(days=days)) == []
 
 
 # =============================================================================
