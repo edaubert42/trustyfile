@@ -443,7 +443,7 @@ MIN_STABLE_FRACTION = 0.75
 # into several words by the thousands space ("1 200,00" -> "1", "200,00"), so
 # when only "1" changed we widen the reported change over the neighbouring
 # fragments to show "1 200,00 -> 4 200,00" instead of "1 -> 4".
-_NUMBER_FRAGMENT_RE = re.compile(r"[\d.,  ]+")
+_NUMBER_FRAGMENT_RE = re.compile(r"[\d.,\u202f\u00a0]+")
 
 # A date-shaped run ("19/08/1992", "19/08/ 1998", "2026-10-14"): used to keep
 # dates out of the money-delta computation in _revision_value_flag.
@@ -463,7 +463,7 @@ _VALUE_BEARING_RE = re.compile(
     r"|\d{4}-\d{2}-\d{2}"                         # ISO date: yyyy-mm-dd
     r"|[A-Za-z]{2}\d{2}[A-Za-z0-9]{10,30}"          # IBAN-shaped
     r"|\d{9}(?:\d{5})?"                            # SIREN (9 digits) / SIRET (14 digits)
-    r"|\d[\d\s  .,]*"                 # money / bare number run (most permissive)
+    r"|\d[\d\s\u202f\u00a0.,]*"                 # money / bare number run (most permissive)
 )
 
 
