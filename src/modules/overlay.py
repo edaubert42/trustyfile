@@ -6,6 +6,7 @@ structure (no rendering, no network). See docs/superpowers/specs/2026-07-04-
 phase2-overlay-detector-design.md. Geometry alone is SOFT (heuristic); it
 escalates to HARD only with a tampering-provenance corroborator.
 """
+import difflib
 import logging
 import re
 import statistics
@@ -426,7 +427,30 @@ def _corroboration(pdf_data, raw_bytes: bytes | None) -> dict:
 # by the SAME non-editor tool (e.g. a report engine correcting a value across
 # sessions) must stay SOFT — never a fraud accusation for honest, ambiguous
 # multi-session edits.
-TOKEN_CENTRE_TOL = 3.0  # pt; PyMuPDF word-splitter jitter between independent revisions
+ROW_Y_TOL = 3.0  # pt; how far apart two words' vertical centres may be and still share a row
+
+# Reflow guard (page level). A targeted edit leaves almost every row of the
+# page byte-for-byte identical; a regenerated / re-laid-out revision changes
+# most of them. We only trust a row diff when the page around it is stable.
+#   - MIN_STABLE_ROWS: too few rows => nothing to compare the change against.
+#   - MIN_STABLE_FRACTION: measured on the corpus, a name change leaves 12/14
+#     rows stable (86 %), the real invoice_FRW 32/38 (84 %). 75 % keeps both
+#     while rejecting a page where a quarter of the rows moved.
+MIN_STABLE_ROWS = 3
+MIN_STABLE_FRACTION = 0.75
+
+# A bare number fragment ("1", "200,00", "1.250"). French amounts are split
+# into several words by the thousands space ("1 200,00" -> "1", "200,00"), so
+# when only "1" changed we widen the reported change over the neighbouring
+# fragments to show "1 200,00 -> 4 200,00" instead of "1 -> 4".
+_NUMBER_FRAGMENT_RE = re.compile(r"[\d.,  ]+")
+
+# A date-shaped run ("19/08/1992", "19/08/ 1998", "2026-10-14"): used to keep
+# dates out of the money-delta computation in _revision_value_flag.
+_DATE_RE = re.compile(r"\d{1,2}\s*[/.\-]\s*\d{1,2}\s*[/.\-]\s*\d{2,4}|\d{4}-\d{2}-\d{2}")
+
+# Currency words are allowed inside a "value" change ("200,00 EUR").
+_CURRENCY_WORDS = frozenset({"eur", "euro", "euros", "usd", "gbp", "chf"})
 
 # Value-bearing categories worth flagging when they change across a revision
 # boundary: dates, IBAN, SIREN/SIRET/VAT-shaped digit runs, and (falling
@@ -439,7 +463,7 @@ _VALUE_BEARING_RE = re.compile(
     r"|\d{4}-\d{2}-\d{2}"                         # ISO date: yyyy-mm-dd
     r"|[A-Za-z]{2}\d{2}[A-Za-z0-9]{10,30}"          # IBAN-shaped
     r"|\d{9}(?:\d{5})?"                            # SIREN (9 digits) / SIRET (14 digits)
-    r"|\d[\d\s\u202f\u00a0.,]*"                 # money / bare number run (most permissive)
+    r"|\d[\d\s  .,]*"                 # money / bare number run (most permissive)
 )
 
 
@@ -458,73 +482,158 @@ def _is_value_bearing(text: str) -> bool:
     return bool(text) and bool(_VALUE_BEARING_RE.search(text))
 
 
-def _word_centre(word: tuple) -> tuple[float, float]:
-    x0, y0, x1, y1 = word[0], word[1], word[2], word[3]
-    return ((x0 + x1) / 2.0, (y0 + y1) / 2.0)
+def _is_value_change(old_text: str, new_text: str) -> bool:
+    """True when BOTH sides of a change are values (amount, date, id), not prose.
 
+    Both sides must carry a digit, and neither may contain a real word (3+
+    letters, currency words excepted). That keeps an address rewrite
+    ("11 allée des Peupliers" -> "26 avenue de la Grande Armée") on the TEXT
+    path: it contains digits, but it is not "a value that changed".
 
-def _word_line_key(word: tuple) -> tuple:
-    return (word[5], word[6])  # (block_no, line_no)
-
-
-def _match_revision_words(old_words: list[tuple], new_words: list[tuple],
-                          tol: float = TOKEN_CENTRE_TOL) -> list[tuple]:
-    """Pair each OLD word with its counterpart at (nearly) the same position
-    in the NEW revision, by bbox-centre proximity.
-
-    When several NEW words fall within tolerance of one OLD word — e.g. an
-    incremental save that APPENDS a corrected value on top of an original
-    that is still physically present in the content stream — the candidate
-    with IDENTICAL text is preferred. That "extra layer stacked at the same
-    spot, original still recoverable" pattern is Signal 3's job (paint-order
-    geometry); Signal 4 only needs to speak up when the OLD token has NO
-    surviving twin at all (it was actually deleted, e.g. via redaction). This
-    preference is what keeps the honest multi-session-correction fixture from
-    being mis-paired into a spurious change.
+    Examples:
+        >>> _is_value_change("1 200,00", "4 200,00")
+        True
+        >>> _is_value_change("19/08/1992", "19/08/ 1998")
+        True
+        >>> _is_value_change("92380 Garches", "75017 Paris")   # town names are words
+        False
+        >>> _is_value_change("Louise", "Philippe")              # no digit at all
+        False
     """
-    used_new: set[int] = set()
-    pairs = []
-    for ow in old_words:
-        ocx, ocy = _word_centre(ow)
-        candidates = []
-        for idx, nw in enumerate(new_words):
-            if idx in used_new:
-                continue
-            ncx, ncy = _word_centre(nw)
-            if abs(ocx - ncx) <= tol and abs(ocy - ncy) <= tol:
-                candidates.append((idx, nw))
-        if not candidates:
-            continue
-        exact = [c for c in candidates if norm(c[1][4]) == norm(ow[4])]
-        idx, nw = exact[0] if exact else candidates[0]
-        used_new.add(idx)
-        pairs.append((ow, nw))
-    return pairs
-
-
-def _neighbours_stable(ow: tuple, pairs_by_old_id: dict, old_words_by_line: dict) -> bool:
-    """Bbox-STABILITY guard: true iff every OTHER old word on ow's line has a
-    matched NEW counterpart with IDENTICAL text.
-
-    A genuine isolated tamper changes one value while everything around it
-    (labels, other digits, punctuation) stays exactly the same. A reflowed
-    revision (different layout, unrelated content) instead tends to leave
-    neighbours unmatched (no candidate within tolerance at all) or altered —
-    either of which fails this guard, preventing us from manufacturing a
-    change out of two tokens that only coincidentally landed near each other.
-    """
-    key = _word_line_key(ow)
-    siblings = [w for w in old_words_by_line.get(key, []) if w is not ow]
-    if not siblings:
-        return True  # isolated token on its own line — nothing to corroborate against
-    for sib in siblings:
-        match = pairs_by_old_id.get(id(sib))
-        if match is None:
-            return False  # a neighbour has no surviving counterpart -> unsafe to trust
-        _, nw = match
-        if norm(nw[4]) != norm(sib[4]):
-            return False  # a neighbour also changed -> not an isolated, targeted edit
+    for text in (old_text, new_text):
+        if not _is_value_bearing(text):
+            return False
+        for word in re.findall(r"[^\W\d_]{3,}", text):     # runs of 3+ letters
+            if word.casefold() not in _CURRENCY_WORDS:
+                return False
     return True
+
+
+def _visual_rows(words: list[tuple]) -> list[dict]:
+    """Group a page's words into visual rows by vertical position.
+
+    Why not PyMuPDF's own (block_no, line_no)? Because retyped text is a NEW
+    text object: PyMuPDF puts it in a new block, so "Total TTC : 4 200,00 EUR"
+    is split into an old block ("Total TTC :") and a new one ("4 200,00 EUR")
+    even though a reader sees one line. Grouping by y keeps it one row in both
+    revisions, which is what makes the two revisions comparable.
+
+    Args:
+        words: `page.get_text("words")` tuples (x0, y0, x1, y1, text, ...).
+
+    Returns:
+        Rows top to bottom, each `{"cy": float, "words": [...], "toks": [...]}`;
+        words sorted left to right, `toks` their norm()-ed texts. Rows whose
+        words all normalise to "" (stray punctuation) are dropped.
+
+    Example:
+        Words "Total"(y=290) "TTC"(y=290) "4"(y=289.5) "IBAN"(y=320) give two
+        rows: ["total", "ttc", "4"] and ["iban"].
+    """
+    rows: list[dict] = []
+    for w in sorted(words, key=lambda w: ((w[1] + w[3]) / 2.0, w[0])):
+        cy = (w[1] + w[3]) / 2.0
+        if rows and abs(cy - rows[-1]["cy"]) <= ROW_Y_TOL:
+            rows[-1]["words"].append(w)       # same row (anchored on its first word)
+        else:
+            rows.append({"cy": cy, "words": [w]})
+    for row in rows:
+        row["words"].sort(key=lambda w: w[0])
+        row["toks"] = [norm(w[4]) for w in row["words"]]
+    return [r for r in rows if any(r["toks"])]
+
+
+def _closest_row(row: dict, candidates: list[dict]) -> dict | None:
+    """The candidate row at (nearly) the same height as `row`, or None."""
+    near = [c for c in candidates if abs(c["cy"] - row["cy"]) <= ROW_Y_TOL]
+    if not near:
+        return None
+    return min(near, key=lambda c: abs(c["cy"] - row["cy"]))
+
+
+def _changed_segments(old_row: dict, new_row: dict) -> list[tuple[list, list]]:
+    """Which words of a row were REPLACED or DELETED between two revisions.
+
+    `difflib.SequenceMatcher` aligns the two token lists like `diff` aligns two
+    files, and returns opcodes: "equal", "replace", "delete", "insert". We
+    keep only "replace" and "delete": an "insert" means the old text is still
+    all there, with something added — a stacked correction whose original is
+    still recoverable, which Signal 3 (paint order) owns, not this signal.
+
+    Returns:
+        A list of (old_words, new_words) pairs — the slices that differ,
+        widened over adjacent number fragments (see _NUMBER_FRAGMENT_RE).
+
+    Example:
+        old ["total", "ttc", "1", "200,00", "eur"]
+        new ["total", "ttc", "4", "200,00", "eur"]
+        -> one segment: (["1", "200,00"], ["4", "200,00"])
+    """
+    a, b = old_row["toks"], new_row["toks"]
+    matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
+    segments = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag not in ("replace", "delete"):
+            continue
+        # Widen left, then right, while the neighbour is the SAME number
+        # fragment on both sides ("1" | "200,00" stays together as an amount).
+        while (i1 > 0 and j1 > 0 and a[i1 - 1] == b[j1 - 1]
+               and _NUMBER_FRAGMENT_RE.fullmatch(a[i1 - 1])):
+            i1, j1 = i1 - 1, j1 - 1
+        while (i2 < len(a) and j2 < len(b) and a[i2] == b[j2]
+               and _NUMBER_FRAGMENT_RE.fullmatch(a[i2])):
+            i2, j2 = i2 + 1, j2 + 1
+        segments.append((old_row["words"][i1:i2], new_row["words"][j1:j2]))
+    return segments
+
+
+def _count_runs(toks: list[str], rows: list[dict]) -> int:
+    """How many times the token run `toks` appears, consecutively, in `rows`."""
+    n = len(toks)
+    count = 0
+    for row in rows:
+        r = row["toks"]
+        for start in range(len(r) - n + 1):
+            if r[start:start + n] == toks:
+                count += 1
+    return count
+
+
+def _survives_elsewhere(old_words: list[tuple], old_rows: list[dict],
+                        new_rows: list[dict]) -> bool:
+    """True if every copy of the old text is still somewhere in the NEW revision.
+
+    This is the "moved, not changed" guard. Inserting one line (e.g. a company
+    name under the client's name) pushes every following line down; at a fixed
+    height, the phone number now sits where the town used to be. Row-by-row
+    that looks like "town -> phone", but the town did not disappear — it is one
+    row lower. Only text that lost a copy was really removed.
+
+    We COUNT copies instead of asking "does it exist anywhere?": invoices
+    repeat the total ("Total TTC" and "Net à payer"). A forger who edits only
+    one of them leaves the other — the old text exists 2 times before and 1
+    time after, so a copy was removed and the change is real.
+
+    Examples:
+        "0786460343": 1 copy before, 1 copy after (one row lower) -> True
+        "1 200,00":   2 copies before, 1 copy after               -> False
+    """
+    toks = [t for t in (norm(w[4]) for w in old_words) if t]
+    if not toks:
+        return True                         # nothing meaningful was removed
+    return _count_runs(toks, new_rows) >= _count_runs(toks, old_rows)
+
+
+def _words_text(words: list[tuple]) -> str:
+    """Join words back into display text: ["1", "200,00"] -> "1 200,00"."""
+    return " ".join(w[4] for w in words).strip()
+
+
+def _words_bbox(words: list[tuple], fallback: list[tuple]) -> tuple:
+    """Union bbox of `words` (or of `fallback` when the change was a pure deletion)."""
+    ws = words or fallback
+    return (min(w[0] for w in ws), min(w[1] for w in ws),
+            max(w[2] for w in ws), max(w[3] for w in ws))
 
 
 def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed: bool,
@@ -536,11 +645,16 @@ def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed:
     the value was saved by an interactive editor (C2), else the SOFT
     `OVERLAY_REVISION_VALUE_CHANGED`.
 
-    `nw` is the NEW revision's word tuple from `page.get_text("words")`
-    (x0,y0,x1,y1,text,block_no,line_no,word_no) — its first 4 elements are
-    the bbox of where the changed value now sits, for preview highlighting.
+    `nw` starts with the bbox (x0, y0, x1, y1) of where the changed value now
+    sits, for preview highlighting: a bare 4-tuple (what `_diff_revision_page`
+    passes) or a full `get_text("words")` tuple — only `nw[:4]` is read.
     """
     old_v, new_v = _money_value(old_text), _money_value(new_text)
+    # money_value() reads the DAY of a date as an amount ("19/08/1992" -> 19.0),
+    # which turned a birth-year change into "a change of +0.00". A date has no
+    # money delta, so we skip it there.
+    if _DATE_RE.search(old_text) or _DATE_RE.search(new_text):
+        old_v = new_v = None
     details = {"page": page_num, "old_value": old_text.strip(), "new_value": new_text.strip(),
               "bbox": tuple(nw[:4])}
     if old_v is not None and new_v is not None:
@@ -568,27 +682,102 @@ def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed:
     return Flag(severity="critical", code=code, message=msg, details=details)
 
 
-def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> list[Flag]:
-    """Diff one page's words between two revisions and emit Signal-4 flags."""
-    old_words = old_page.get_text("words")
-    new_words = new_page.get_text("words")
+def _revision_text_flag(changes: list[dict], page_num: int) -> Flag:
+    """One SOFT flag for all non-value text rewritten on a page between revisions.
 
-    pairs = _match_revision_words(old_words, new_words)
-    pairs_by_old_id = {id(ow): (ow, nw) for ow, nw in pairs}
-    old_words_by_line: dict = {}
-    for ow in old_words:
-        old_words_by_line.setdefault(_word_line_key(ow), []).append(ow)
+    Names and addresses are not numbers, but changing the client's name on an
+    invoice is exactly the edit a forger makes (real case: invoice_FRW, the
+    payer's name and address replaced). We emit ONE flag per page, however
+    many rows changed: three rewritten address lines are one edit, not three
+    pieces of evidence (the evidence ledger would otherwise stack them).
+
+    Always SOFT and "high", never `_CONFIRMED`: the module escalates to HARD
+    only for value changes with an interactive-editor corroborator; a text
+    rewrite stays a REVIEW-level finding.
+
+    Args:
+        changes: [{"old": str, "new": str, "bbox": tuple}, ...] in page order.
+        page_num: 0-based page index.
+    """
+    shown = "; ".join(f"\"{c['old']}\" -> \"{c['new'] or '(removed)'}\""
+                      for c in changes[:3])
+    more = f" (and {len(changes) - 3} more)" if len(changes) > 3 else ""
+    msg = (f"Text differs between two saved revisions of this PDF on page "
+           f"{page_num + 1}: {shown}{more}. The earlier text was only "
+           f"recoverable by rolling back to a prior incremental revision.")
+    # "instances" is the multi-region shape src/preview.py understands: one
+    # highlighted box per rewritten row, not only the first.
+    details = {
+        "page": page_num,
+        "old_value": changes[0]["old"],
+        "new_value": changes[0]["new"],
+        "instances": [{"page": page_num, "bbox": c["bbox"], "old": c["old"], "new": c["new"]}
+                      for c in changes],
+    }
+    return Flag(severity="high", code="OVERLAY_REVISION_TEXT_CHANGED",
+                message=msg, details=details)
+
+
+def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> list[Flag]:
+    """Diff one page between two revisions, row by row, and emit Signal-4 flags.
+
+    Steps:
+      1. Group both revisions' words into visual rows (_visual_rows).
+      2. Pair each old row with the new row at the same height.
+         Identical token lists -> a STABLE row.
+      3. Reflow guard: if fewer than MIN_STABLE_ROWS / MIN_STABLE_FRACTION of
+         the old rows are stable, the page was re-laid-out, not edited —
+         return nothing rather than guess.
+      4. In each non-stable row, find the replaced/deleted words
+         (_changed_segments), drop those that merely moved (_survives_elsewhere)
+         or were placeholders ("0,00", "XXX" — template fill, not tampering).
+      5. Value changes (amount, date) -> one critical flag each
+         (_revision_value_flag, HARD with C2). Everything else -> one SOFT
+         OVERLAY_REVISION_TEXT_CHANGED for the page.
+
+    Example (corpus `redact_retype_incr`): 14 rows, 13 stable, row
+    "Total TTC : 1 200,00 EUR" -> "Total TTC : 4 200,00 EUR" yields
+    OVERLAY_REVISION_VALUE_CHANGED "1 200,00" -> "4 200,00" (delta +3,000.00).
+    """
+    old_rows = _visual_rows(old_page.get_text("words"))
+    new_rows = _visual_rows(new_page.get_text("words"))
+    if not old_rows:
+        return []
+
+    stable = 0
+    differing: list[tuple[dict, dict]] = []
+    for row in old_rows:
+        twin = _closest_row(row, new_rows)
+        if twin is None:
+            continue                      # row vanished or moved: not counted as stable
+        if twin["toks"] == row["toks"]:
+            stable += 1
+        else:
+            differing.append((row, twin))
+
+    if not differing:
+        return []
+    if stable < MIN_STABLE_ROWS or stable < MIN_STABLE_FRACTION * len(old_rows):
+        return []                         # reflowed page: a row diff would be noise
 
     flags: list[Flag] = []
-    for ow, nw in pairs:
-        old_text, new_text = ow[4], nw[4]
-        if norm(old_text) == norm(new_text):
-            continue                                          # unchanged
-        if not (_is_value_bearing(old_text) or _is_value_bearing(new_text)):
-            continue                                          # prose, not a value
-        if not _neighbours_stable(ow, pairs_by_old_id, old_words_by_line):
-            continue                                          # unsafe pairing (reflow)
-        flags.append(_revision_value_flag(old_text, new_text, page_num, confirmed, nw))
+    text_changes: list[dict] = []
+    for old_row, new_row in differing:
+        for old_ws, new_ws in _changed_segments(old_row, new_row):
+            old_text, new_text = _words_text(old_ws), _words_text(new_ws)
+            if is_placeholder(old_text):
+                continue                  # "0,00" / "XXX" filled in = template, not tamper
+            if _survives_elsewhere(old_ws, old_rows, new_rows):
+                continue                  # moved down/up a row, not removed
+            bbox = _words_bbox(new_ws, old_ws)
+            if _is_value_change(old_text, new_text):
+                flags.append(_revision_value_flag(
+                    old_text, new_text, page_num, confirmed, bbox))
+            else:
+                text_changes.append({"old": old_text, "new": new_text, "bbox": bbox})
+
+    if text_changes:
+        flags.append(_revision_text_flag(text_changes, page_num))
     return flags
 
 

@@ -46,6 +46,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_CONFLICTING_TEXT": "tampering",
     "OVERLAY_REVISION_VALUE_CHANGED": "tampering",
     "OVERLAY_REVISION_VALUE_CHANGED_CONFIRMED": "tampering",
+    "OVERLAY_REVISION_TEXT_CHANGED": "tampering",
     "OVERLAY_IMAGE_OVER_VALUE": "tampering",
     "OVERLAY_IMAGE_OVER_TEXT": "tampering",
 
@@ -304,6 +305,13 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         else ("A value changed between two saved revisions of this document, "
               "corroborated by the changing revision having been saved by an "
               "interactive editing tool.")
+    ),
+    "OVERLAY_REVISION_TEXT_CHANGED": lambda f: (
+        f"Text was rewritten between two saved revisions of this document: "
+        f"\"{f.details.get('old_value', '')}\" became "
+        f"\"{f.details.get('new_value', '')}\"."
+        if f.details and f.details.get('old_value') is not None
+        else "Text was rewritten between two saved revisions of this document."
     ),
     "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
         f"An image is placed over a still-present value "
@@ -779,6 +787,13 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
               "document, corroboré par le fait que la version ayant introduit "
               "ce changement a été enregistrée par un outil d'édition "
               "interactif.")
+    ),
+    "OVERLAY_REVISION_TEXT_CHANGED": lambda f: (
+        f"Un texte a été réécrit entre deux versions enregistrées de ce "
+        f"document : « {f.details.get('old_value', '')} » est devenu "
+        f"« {f.details.get('new_value', '')} »."
+        if f.details and f.details.get('old_value') is not None
+        else "Un texte a été réécrit entre deux versions enregistrées de ce document."
     ),
     "OVERLAY_IMAGE_OVER_VALUE": lambda f: (
         f"Une image est placée sur une valeur toujours présente "
