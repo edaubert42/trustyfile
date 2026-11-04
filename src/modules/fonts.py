@@ -411,14 +411,25 @@ FAMILY_ALIASES = {
 }
 
 
+# PostScript-name vendor suffixes, not part of the family: Monotype's "MT"
+# and Microsoft's "PS"/"PSMT". The regular face carries them glued to the
+# family ("CourierNewPSMT"), the bold one splits them around the style
+# ("CourierNewPS-BoldMT"): without stripping, one family read as two.
+_PS_SUFFIX_RE = re.compile(r"(?:psmt|ps|mt)$")
+
+
 def _font_family(font_name: str) -> str:
-    """Font family, ignoring style, subset prefix, and aliases.
+    """Font family, ignoring style, subset prefix, vendor suffix and aliases.
 
     Examples:
         >>> _font_family("ABCDEF+Helvetica-Bold")
         'helvetica'
         >>> _font_family("ArialMT")
         'arial'
+        >>> _font_family("CourierNewPSMT") == _font_family("CourierNewPS-BoldMT")
+        True
+        >>> _font_family("TimesNewRomanPS-BoldMT")
+        'times'
         >>> _font_family("CIDFont+F1")      # auto-generated name, not a family
         '_cidfont'
     """
@@ -428,6 +439,9 @@ def _font_family(font_name: str) -> str:
     # represent real font families.
     if family.startswith("cidfont"):
         return "_cidfont"
+    stripped = _PS_SUFFIX_RE.sub("", family).strip()
+    if len(stripped) >= 4:                 # never shrink a short name to nothing
+        family = stripped
     return FAMILY_ALIASES.get(family, family)
 
 

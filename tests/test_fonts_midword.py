@@ -121,3 +121,37 @@ def test_is_lone_accented_letter():
     assert not _is_lone_accented_letter("e")
     assert not _is_lone_accented_letter("4")
     assert not _is_lone_accented_letter("ée")
+
+
+# --- family normalisation: PostScript vendor suffixes are not families -------
+# Real case: 26 of 151 genuine ZUGFeRD invoices got FONTS_MIDLINE_CHANGE for
+# "CourierNewPSMT" (regular) next to "CourierNewPS-BoldMT" (bold): one family
+# read as "couriernewpsmt" vs "couriernewps". Same for every Word export
+# mixing TimesNewRomanPSMT and TimesNewRomanPS-BoldMT.
+from src.modules.fonts import _font_family  # noqa: E402
+
+
+@pytest.mark.parametrize("regular, bold", [
+    ("CourierNewPSMT", "CourierNewPS-BoldMT"),
+    ("TimesNewRomanPSMT", "TimesNewRomanPS-BoldMT"),
+    ("ArialMT", "Arial-BoldMT"),
+    ("ABCDEF+CourierNewPSMT", "GHIJKL+CourierNewPS-BoldItalicMT"),
+])
+def test_regular_and_bold_are_one_family(regular, bold):
+    assert _font_family(regular) == _font_family(bold)
+
+
+def test_times_new_roman_is_times():
+    # A retype in Times-Roman over TimesNewRomanPSMT is the SAME family: font
+    # names alone cannot see it (the old "detection" of such retypes was the
+    # suffix bug, not evidence).
+    assert _font_family("TimesNewRomanPSMT") == _font_family("Times-Roman") == "times"
+
+
+@pytest.mark.parametrize("name, family", [
+    ("Gill Sans MT", "gill sans"),     # suffix after a space, no stray blank
+    ("Helvetica", "helvetica"),
+    ("Calibri-Bold", "calibri"),
+])
+def test_other_names_unaffected(name, family):
+    assert _font_family(name) == family
