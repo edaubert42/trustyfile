@@ -1421,8 +1421,9 @@ def verify_signature_dss(pdf_path: str) -> dict:
 # enough: a change made and later undone falsified nothing visible.
 _COMPARE_DPI = 36          # coarse, but any edited glyph or patch moves pixels
 _COMPARE_MAX_PAGES = 10    # beyond this, we do not try to prove anything
-_VISIBLE_CACHE: dict[str, bool | None] = {}
-_VISIBLE_CACHE_MAX = 16
+_REVISION_CACHE: dict[str, dict] = {}
+_REVISION_CACHE_MAX = 16
+_WHITE = 250               # a pixel channel >= this counts as white paper
 
 
 def _page_fingerprints(doc) -> list[bytes] | None:
@@ -1436,6 +1437,61 @@ def _page_fingerprints(doc) -> list[bytes] | None:
         # Page size + raw pixels: a resized page must not compare equal.
         prints.append(f"{pix.width}x{pix.height}:".encode() + pix.samples)
     return prints
+
+
+def _is_blank(fingerprints: list[bytes]) -> bool:
+    """True if every page is plain white paper (every channel >= _WHITE)."""
+    for fp in fingerprints:
+        pixels = fp.split(b":", 1)[1]
+        if min(pixels, default=255) < _WHITE:
+            return False
+    return True
+
+
+def _revision_comparison(pdf_path: str) -> dict:
+    """Compare the original revision with the final file, once per file.
+
+    Returns {"unchanged": bool | None, "original_blank": bool}:
+      unchanged       True / False / None, see visible_content_unchanged.
+      original_blank  True when the original revision exists and every one
+                      of its pages renders as plain white paper.
+    Cached by SHA-256: the structure checks ask several times per analysis.
+    """
+    unknown = {"unchanged": None, "original_blank": False}
+    try:
+        with open(pdf_path, "rb") as f:
+            raw = f.read()
+    except OSError as exc:
+        logger.warning("revision comparison: cannot read %s: %s", pdf_path, exc)
+        return unknown
+
+    key = hashlib.sha256(raw).hexdigest()
+    if key in _REVISION_CACHE:
+        return _REVISION_CACHE[key]
+
+    result = dict(unknown)
+    try:
+        positions = find_eof_positions(raw)
+        if len(positions) > 1:
+            original = fitz.open(stream=raw[:positions[0]], filetype="pdf")
+            final = fitz.open(stream=raw, filetype="pdf")
+            try:
+                before, after = _page_fingerprints(original), _page_fingerprints(final)
+                if before is not None and after is not None:
+                    result["unchanged"] = before == after
+                if before is not None:
+                    result["original_blank"] = _is_blank(before)
+            finally:
+                original.close()
+                final.close()
+    except Exception as exc:  # malformed revision: say "don't know", never crash
+        logger.warning("revision comparison failed for %s: %s", pdf_path, exc)
+        result = dict(unknown)
+
+    if len(_REVISION_CACHE) >= _REVISION_CACHE_MAX:
+        _REVISION_CACHE.pop(next(iter(_REVISION_CACHE)))   # drop the oldest entry
+    _REVISION_CACHE[key] = result
+    return result
 
 
 def visible_content_unchanged(pdf_path: str) -> bool | None:
@@ -1454,38 +1510,23 @@ def visible_content_unchanged(pdf_path: str) -> bool | None:
         -> True
         A total retyped in an incremental save -> False
     """
-    try:
-        with open(pdf_path, "rb") as f:
-            raw = f.read()
-    except OSError as exc:
-        logger.warning("visible_content_unchanged: cannot read %s: %s", pdf_path, exc)
-        return None
+    return _revision_comparison(pdf_path)["unchanged"]
 
-    key = hashlib.sha256(raw).hexdigest()
-    if key in _VISIBLE_CACHE:
-        return _VISIBLE_CACHE[key]
 
-    result = None
-    try:
-        positions = find_eof_positions(raw)
-        if len(positions) > 1:
-            original = fitz.open(stream=raw[:positions[0]], filetype="pdf")
-            final = fitz.open(stream=raw, filetype="pdf")
-            try:
-                before, after = _page_fingerprints(original), _page_fingerprints(final)
-                if before is not None and after is not None:
-                    result = before == after
-            finally:
-                original.close()
-                final.close()
-    except Exception as exc:  # malformed revision: say "don't know", never crash
-        logger.warning("visible_content_unchanged failed for %s: %s", pdf_path, exc)
-        result = None
+def original_revision_blank(pdf_path: str) -> bool:
+    """Was the original revision a blank page that later saves wrote onto?
 
-    if len(_VISIBLE_CACHE) >= _VISIBLE_CACHE_MAX:
-        _VISIBLE_CACHE.pop(next(iter(_VISIBLE_CACHE)))   # drop the oldest entry
-    _VISIBLE_CACHE[key] = result
-    return result
+    Some pipelines start from an empty page and write the whole document in
+    an incremental update. Nothing pre-existing was altered: the "edit" is
+    the document's creation. Real case: symtrax ZUGFeRD 2.1 sample — macOS
+    Preview blank A4 page (a white image), then iTextSharp writes 2 pages of
+    invoice over it.
+
+    Example:
+        symtrax zugferd_2p1_EN16931_Reisekostenabrechnung.pdf -> True
+        A total retyped in an incremental save -> False (original had text)
+    """
+    return _revision_comparison(pdf_path)["original_blank"]
 
 
 def original_revision_unmodified(pdf_path: str) -> bool:
@@ -1674,12 +1715,21 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
     # attached Factur-X XML...). Still reported, at "low" weight.
     visible_changed = None
     unchanged = visible_content_unchanged(pdf_path)
+    blank_original = original_revision_blank(pdf_path)
     if unchanged is True:
         severity = "low"
         visible_changed = False
         message = (f"PDF was saved {effective_edits} more time(s), but every page "
                    f"renders exactly like the original: only metadata or "
                    f"attachments changed")
+    elif blank_original:
+        # The first version was blank paper: the later save(s) WROTE the
+        # document, they did not alter existing content.
+        severity = "low"
+        visible_changed = True
+        message = (f"PDF was saved {effective_edits} more time(s); its first "
+                   f"version was a blank page, so the content was written then "
+                   f"(the document's creation, not an edit)")
     elif unchanged is False:
         visible_changed = True
 
@@ -1698,6 +1748,7 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
             "excused_by_signatures": excused,
             "effective_edits": effective_edits,
             "visible_content_changed": visible_changed,
+            "original_blank": blank_original,
             "explanation": "Each edit adds a new version to the PDF. "
                           "Each signature field excuses one update (a signing "
                           "pass appends exactly one version)."
@@ -1717,11 +1768,21 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
         raw_creation = meta.get("creationDate", "")
         raw_mod = meta.get("modDate", "")
         if raw_creation and raw_mod and raw_creation == raw_mod:
+            # "Hid its traces" assumes visible content was altered. When the
+            # pages render like the original, or the original was blank paper
+            # the later save wrote onto, nothing pre-existing was modified:
+            # an unchanged ModDate hides nothing. Reported at "low".
+            nothing_altered = unchanged is True or blank_original
             flags.append(Flag(
-                severity="high",
+                severity="low" if nothing_altered else "high",
                 code="STRUCT_HIDDEN_MODIFICATION",
-                message="PDF was modified but modification date was not updated (editor hid its traces)",
+                message=("PDF was saved again without updating its modification "
+                         "date, but no existing content was altered"
+                         if nothing_altered else
+                         "PDF was modified but modification date was not updated "
+                         "(editor hid its traces)"),
                 details={
+                    "nothing_altered": nothing_altered,
                     "creation_date": raw_creation,
                     "mod_date": raw_mod,
                     "incremental_updates": effective_edits,

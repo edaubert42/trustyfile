@@ -113,3 +113,50 @@ def test_modified_flag_kept_when_content_changed(tmp_path):
     _content_updates(pdf)
     [flag] = _metadata_only_modification([MODIFIED], str(pdf))
     assert flag.severity == "high"
+
+
+# --- original revision = blank page, content written by a later save --------
+# Real case: symtrax ZUGFeRD 2.1 sample — macOS Preview blank A4 page, then
+# iTextSharp writes the invoice over it in an incremental update, leaving
+# ModDate == CreationDate.
+
+
+def _blank_then_written(path, same_dates=True):
+    doc = fitz.open()
+    doc.new_page(width=595, height=842)               # blank paper
+    doc.set_metadata({"producer": "Mac OS X Quartz PDFContext", "creator": "Preview",
+                      "creationDate": CREATED, "modDate": CREATED if same_dates else ""})
+    doc.save(str(path))
+    doc.close()
+    for i in range(2):
+        doc = fitz.open(str(path))
+        doc[0].insert_text((60, 100 + 20 * i), f"Reisekostenabrechnung {i}",
+                           fontname="helv", fontsize=12)
+        doc.set_metadata({**doc.metadata, "producer": "iTextSharp 4.1.0"})
+        doc.saveIncr()
+        doc.close()
+    return path
+
+
+def test_content_written_onto_a_blank_original_is_low(tmp_path):
+    from src.modules.structure import original_revision_blank
+    pdf = _blank_then_written(tmp_path / "blank.pdf")
+    assert visible_content_unchanged(str(pdf)) is False     # content did appear
+    assert original_revision_blank(str(pdf)) is True
+    flags = check_incremental_updates(str(pdf), verify_signatures=False)
+    by_code = {f.code: f for f in flags}
+    assert by_code["STRUCT_INCREMENTAL_UPDATES"].severity == "low"
+    assert by_code["STRUCT_INCREMENTAL_UPDATES"].details["original_blank"] is True
+    # ModDate == CreationDate "hides" nothing when nothing pre-existing changed
+    assert by_code["STRUCT_HIDDEN_MODIFICATION"].severity == "low"
+
+
+def test_hidden_modification_stays_high_when_content_was_altered(tmp_path):
+    pdf = _original(tmp_path / "hidden.pdf", mod_date=CREATED)   # ModDate == CreationDate
+    _content_updates(pdf, times=2)
+    doc = fitz.open(str(pdf))
+    assert doc.metadata["modDate"] == doc.metadata["creationDate"]
+    doc.close()
+    flags = {f.code: f for f in check_incremental_updates(str(pdf), verify_signatures=False)}
+    assert flags["STRUCT_HIDDEN_MODIFICATION"].severity == "high"
+    assert flags["STRUCT_INCREMENTAL_UPDATES"].severity == "high"
