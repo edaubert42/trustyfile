@@ -280,7 +280,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
 
     # --- tampering ---
     "STRUCT_INCREMENTAL_UPDATES": lambda f: (
-        f"The PDF has been edited {f.details.get('edit_count', 'multiple')} "
+        "The PDF was saved again after its creation, but its pages look exactly "
+        "like the original: only metadata or attachments changed."
+        if f.details and f.details.get('visible_content_changed') is False
+        else f"The PDF has been edited {f.details.get('edit_count', 'multiple')} "
         f"time(s) after its initial creation."
         if f.details else "The PDF has been edited after its initial creation."
     ),
@@ -473,7 +476,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "for a legitimate document."
     ),
     "META_DOCUMENT_MODIFIED": lambda f: (
-        f"The document was modified "
+        "The file's information was updated after creation, but its pages look "
+        "exactly like the original."
+        if f.details and f.details.get('visible_content_changed') is False
+        else f"The document was modified "
         f"{int(f.details['time_difference_hours'] // 24)} day(s) after creation."
         if f.details and f.details.get('time_difference_hours', 0) >= 24
         else f"The document was modified "
@@ -789,7 +795,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
 
     # --- tampering ---
     "STRUCT_INCREMENTAL_UPDATES": lambda f: (
-        f"Le PDF a été modifié {f.details.get('edit_count', 'plusieurs')} "
+        "Le PDF a été réenregistré après sa création, mais ses pages sont "
+        "identiques à l'original : seules des métadonnées ou pièces jointes ont changé."
+        if f.details and f.details.get('visible_content_changed') is False
+        else f"Le PDF a été modifié {f.details.get('edit_count', 'plusieurs')} "
         f"fois après sa création initiale."
         if f.details else "Le PDF a été modifié après sa création initiale."
     ),
@@ -988,7 +997,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "ce qui est impossible pour un document légitime."
     ),
     "META_DOCUMENT_MODIFIED": lambda f: (
-        f"Le document a été modifié "
+        "Les informations du fichier ont été mises à jour après sa création, "
+        "mais ses pages sont identiques à l'original."
+        if f.details and f.details.get('visible_content_changed') is False
+        else f"Le document a été modifié "
         f"{int(f.details['time_difference_hours'] // 24)} jour(s) après sa création."
         if f.details and f.details.get('time_difference_hours', 0) >= 24
         else f"Le document a été modifié "
