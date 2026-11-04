@@ -24,7 +24,10 @@ Dependencies:
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Literal
+from collections import OrderedDict
+import hashlib
 import logging
+import threading
 
 from src.models import Flag, ModuleResult
 from src.render_safety import safe_zoom
@@ -732,6 +735,63 @@ def scan_datamatrix_from_image(image: "Image.Image") -> list[DataMatrixResult]:
     return results
 
 
+def _datamatrix_candidate_boxes(
+    pil_image: "Image.Image",
+    min_size: int = 60,
+    max_size: int = 300,
+) -> list[tuple[int, int, int, int]]:
+    """
+    Fast visual pre-filter that says WHERE DataMatrix-like squares are.
+
+    Same test as `_has_datamatrix_candidate` (size, squareness, ink density),
+    but it returns every matching box instead of stopping at the first one.
+    Knowing the position is what makes decoding cheap: libdmtx on a ~300 px
+    crop answers in ~20 ms, while on a whole quadrant it runs into its 1.5 s
+    timeout even when it does find the barcode (measured 2026-11-04).
+
+    Args:
+        pil_image: image to search (a whole page rendered at 100 DPI).
+        min_size: minimum width/height of a candidate, in pixels.
+        max_size: maximum width/height of a candidate, in pixels.
+
+    Returns:
+        A list of (x, y, width, height) boxes in `pil_image` pixels, largest
+        first (a real 2D-Doc is usually the biggest dense square on the page).
+
+    Example:
+        >>> _datamatrix_candidate_boxes(page_at_100dpi)
+        [(50, 50, 167, 167)]          # one barcode near the top-left corner
+        >>> _datamatrix_candidate_boxes(text_only_page)
+        []
+    """
+    gray = np.array(pil_image.convert("L"))
+
+    # Threshold: pixels darker than 80 are considered "black"
+    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+
+    # Outer contours only: one contour per blob of ink
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    boxes = []
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        if w < min_size or h < min_size or w > max_size or h > max_size:
+            continue
+        # DataMatrix is roughly square (aspect ratio 0.6 to 1.7)
+        aspect = w / h if h > 0 else 0
+        if not (0.6 < aspect < 1.7):
+            continue
+        # DataMatrix is ~30-60% filled with dark pixels
+        roi = binary[y:y + h, x:x + w]
+        density = np.sum(roi > 0) / (w * h)
+        if 0.25 < density < 0.70:
+            boxes.append((x, y, w, h))
+
+    # Biggest area first: try the most barcode-like blob before small logos.
+    boxes.sort(key=lambda box: box[2] * box[3], reverse=True)
+    return boxes
+
+
 def _has_datamatrix_candidate(pil_image: "Image.Image", min_size: int = 60, max_size: int = 300) -> bool:
     """
     Fast visual pre-filter: check if an image region might contain a DataMatrix barcode.
@@ -753,42 +813,85 @@ def _has_datamatrix_candidate(pil_image: "Image.Image", min_size: int = 60, max_
     Returns:
         True if a DataMatrix candidate was found, False otherwise
     """
-    gray = np.array(pil_image.convert("L"))
+    # Same test, yes/no answer. Kept for callers that only need to know
+    # whether to bother; the box list is what the scanner itself uses.
+    return bool(_datamatrix_candidate_boxes(pil_image, min_size, max_size))
 
-    # Threshold: pixels darker than 80 are considered "black"
-    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
 
-    # Find contours of dark regions
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+# --- Scan tuning --------------------------------------------------------------
+# At most this many candidate squares are decoded per page. Each costs ~20 ms;
+# the cap bounds the worst case on a page full of square logos or photos.
+MAX_DECODE_CANDIDATES = 6
+# Margin added around a candidate box before decoding, in pre-filter (100 DPI)
+# pixels. libdmtx needs the white "quiet zone" around the symbol, and the
+# contour box can clip the outermost row of modules.
+_CROP_MARGIN_PX = 20
 
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-        if w < min_size or h < min_size or w > max_size or h > max_size:
+# --- Scan cache -------------------------------------------------------------
+# The same PDF is scanned more than once per upload: by analyze_twod_doc during
+# the analysis, then again by app.py (and batch.py) to display the decoded
+# fields. Keyed by the file's SHA-256 — the CONTENT, not the path, so a new
+# upload that reuses a temp-file name can never get another file's result.
+# Small LRU (least recently used entries evicted first); the lock makes it safe
+# under Streamlit, which serves each browser session from its own thread.
+_SCAN_CACHE: "OrderedDict[tuple[str, int], list[TwoDocData]]" = OrderedDict()
+_SCAN_CACHE_SIZE = 16
+_SCAN_CACHE_LOCK = threading.Lock()
+
+
+def _file_sha256(path: str) -> str | None:
+    """SHA-256 of a file's bytes, or None if it cannot be read.
+
+    Example:
+        >>> _file_sha256("facture.pdf")
+        '9f86d081884c7d65...'
+    """
+    try:
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            # 1 MiB chunks: never loads a large upload into memory at once.
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def _decode_2d_docs(image: "Image.Image", where: str) -> list[TwoDocData]:
+    """Decode DataMatrix codes in `image` and keep only valid 2D-Docs.
+
+    A DataMatrix is not necessarily a 2D-Doc (shipping labels use them too),
+    so anything that does not start with the "DC" header or fails to parse
+    is dropped silently.
+
+    Args:
+        image: the region to decode (ideally a tight crop around one symbol).
+        where: human-readable location, for the log line only.
+
+    Returns:
+        The parsed 2D-Docs found in the region (usually zero or one).
+    """
+    found = []
+    for barcode in scan_datamatrix_from_image(image):
+        if not barcode.data.startswith(HEADER_MARKER):
             continue
-        # DataMatrix is roughly square (aspect ratio 0.6 to 1.7)
-        aspect = w / h if h > 0 else 0
-        if not (0.6 < aspect < 1.7):
-            continue
-        # DataMatrix is ~30-60% filled with dark pixels
-        roi = binary[y:y + h, x:x + w]
-        density = np.sum(roi > 0) / (w * h)
-        if 0.25 < density < 0.70:
-            return True
-
-    return False
+        parsed = parse_twod_doc(barcode.data)
+        if parsed:
+            found.append(parsed)
+            logger.info(
+                f"Found 2D-DOC ({where}) on page 1: "
+                f"type={parsed.header.document_type}, "
+                f"name={parsed.beneficiary_name}"
+            )
+    return found
 
 
 def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
     """
     Scan a PDF file for 2D-DOC barcodes and parse them.
 
-    Uses a two-phase strategy for speed:
-    1. Pre-filter (fast, ~10ms): render page 1 at low DPI and check each
-       quadrant for DataMatrix-like visual patterns using OpenCV.
-    2. Decode (slower, ~1.5s): only run pylibdmtx on quadrants that passed
-       the pre-filter.
-
-    This avoids wasting ~1.5s per quadrant on PDFs without any barcode.
+    Cached by file content: a second call on the same bytes returns at once
+    (see _SCAN_CACHE). The scan itself is `_scan_pdf_for_2d_doc_uncached`.
 
     Args:
         pdf_path: Path to the PDF file
@@ -817,69 +920,117 @@ def scan_pdf_for_2d_doc(pdf_path: str, dpi: int = 200) -> list[TwoDocData]:
         logger.warning("PIL not available — cannot scan DataMatrix barcodes")
         return []
 
-    results = []
+    digest = _file_sha256(pdf_path)
+    key = (digest, dpi) if digest else None
+
+    if key is not None:
+        with _SCAN_CACHE_LOCK:
+            if key in _SCAN_CACHE:
+                _SCAN_CACHE.move_to_end(key)  # mark as recently used
+                # A new list each time, so a caller appending to its result
+                # cannot change what the next caller gets.
+                return list(_SCAN_CACHE[key])
+
+    results = _scan_pdf_for_2d_doc_uncached(pdf_path, dpi)
+
+    if key is not None:
+        with _SCAN_CACHE_LOCK:
+            _SCAN_CACHE[key] = results
+            _SCAN_CACHE.move_to_end(key)
+            while len(_SCAN_CACHE) > _SCAN_CACHE_SIZE:
+                _SCAN_CACHE.popitem(last=False)  # evict the oldest entry
+    return list(results)
+
+
+def _scan_pdf_for_2d_doc_uncached(pdf_path: str, dpi: int) -> list[TwoDocData]:
+    """
+    The actual scan of page 1. Three steps, cheapest first:
+
+    1. Pre-filter (~15 ms): render the WHOLE page at 100 DPI and let OpenCV
+       list the squares that look like a DataMatrix (size, shape, ink density).
+       No candidate -> stop here; that is the case for most documents.
+    2. Tight decode (~20 ms per candidate): render at `dpi`, crop a small
+       window around each candidate and hand only that to libdmtx.
+    3. Fallback (~1.5 s per quadrant, rare): if no crop decoded, decode the
+       top quadrants that hold a candidate, exactly as the scanner did before
+       2026-11-04. It guarantees nothing found by the old scanner is lost,
+       e.g. if a contour box ever clips a symbol too much for the crop.
+
+    Before 2026-11-04 the scanner only looked at the two TOP quadrants and
+    always decoded a whole quadrant: ~1.5 s whenever a candidate existed, and
+    a 2D-Doc in the bottom half of the page was never found.
+
+    Args:
+        pdf_path: Path to the PDF file.
+        dpi: Resolution for the decode phase.
+
+    Returns:
+        The parsed 2D-Docs found on page 1 (empty list if none).
+    """
+    results: list[TwoDocData] = []
 
     try:
         doc = fitz.open(pdf_path)
         try:
-
             # Only scan page 1 — 2D-DOC barcodes are always on the first page
             page = doc[0]
 
-            # ---- Phase 1: Pre-filter at low DPI (~10ms) ----
-            # Render at 100 DPI just for the visual check. safe_zoom caps the
-            # pixel count so a spec-maximum page cannot exhaust memory.
+            # ---- Step 1: pre-filter the whole page at low DPI ----
+            # safe_zoom caps the pixel count so a spec-maximum page cannot
+            # exhaust memory.
             pf_zoom = safe_zoom(page, dpi=100)
             pf_pixmap = page.get_pixmap(matrix=fitz.Matrix(pf_zoom, pf_zoom))
             pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
             pf_w, pf_h = pf_img.size
 
-            # Check each quadrant for DataMatrix-like patterns
-            quadrant_defs = [
-                ("top-left", (0, 0, pf_w // 2, pf_h // 2)),
-                ("top-right", (pf_w // 2, 0, pf_w, pf_h // 2)),
-            ]
-
-            candidate_quadrants = []
-            for quad_name, box in quadrant_defs:
-                if _has_datamatrix_candidate(pf_img.crop(box)):
-                    candidate_quadrants.append(quad_name)
-
-            if not candidate_quadrants:
+            boxes = _datamatrix_candidate_boxes(pf_img)[:MAX_DECODE_CANDIDATES]
+            if not boxes:
                 logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
                 return []
+            logger.debug(f"DataMatrix candidates on page 1: {boxes}")
 
-            logger.debug(f"DataMatrix candidates in: {candidate_quadrants}")
-
-            # ---- Phase 2: Decode only candidate quadrants at full DPI (~1.5s each) ----
+            # ---- Step 2: decode a tight crop around each candidate ----
             zoom = safe_zoom(page, dpi=dpi)
             pixmap = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
             full_img = Image.frombytes("RGB", [pixmap.width, pixmap.height], pixmap.samples)
             img_w, img_h = full_img.size
 
-            quad_boxes = {
-                "top-left": (0, 0, img_w // 2, img_h // 2),
-                "top-right": (img_w // 2, 0, img_w, img_h // 2),
+            # Pre-filter pixels -> decode pixels. Computed from the real image
+            # sizes, not from `dpi / 100`, because safe_zoom may have clamped
+            # either render differently on a huge page.
+            sx = img_w / pf_w
+            sy = img_h / pf_h
+
+            for index, (x, y, w, h) in enumerate(boxes):
+                m = _CROP_MARGIN_PX
+                # Clamp to the image so a candidate near an edge stays valid.
+                left = max(0, int((x - m) * sx))
+                top = max(0, int((y - m) * sy))
+                right = min(img_w, int((x + w + m) * sx))
+                bottom = min(img_h, int((y + h + m) * sy))
+                crop = full_img.crop((left, top, right, bottom))
+                results.extend(_decode_2d_docs(crop, f"candidate {index + 1}"))
+                if results:
+                    return results  # one 2D-Doc per page is the norm: stop early
+
+            # ---- Step 3: fallback to the old whole-quadrant decode ----
+            # Only for top quadrants that actually contain a candidate (a box
+            # overlapping the quadrant), which is what the old scanner decoded.
+            quadrants = {
+                "top-left": ((0, 0, pf_w // 2, pf_h // 2),
+                             (0, 0, img_w // 2, img_h // 2)),
+                "top-right": ((pf_w // 2, 0, pf_w, pf_h // 2),
+                              (img_w // 2, 0, img_w, img_h // 2)),
             }
-
-            for quad_name in candidate_quadrants:
-                crop = full_img.crop(quad_boxes[quad_name])
-                barcodes = scan_datamatrix_from_image(crop)
-
-                for barcode in barcodes:
-                    if not barcode.data.startswith(HEADER_MARKER):
-                        continue
-
-                    parsed = parse_twod_doc(barcode.data)
-                    if parsed:
-                        results.append(parsed)
-                        logger.info(
-                            f"Found 2D-DOC in {quad_name} of page 1: "
-                            f"type={parsed.header.document_type}, "
-                            f"name={parsed.beneficiary_name}"
-                        )
-
-                # Stop if we found a 2D-DOC
+            for quad_name, (pf_box, full_box) in quadrants.items():
+                qx0, qy0, qx1, qy1 = pf_box
+                overlaps = any(
+                    x < qx1 and x + w > qx0 and y < qy1 and y + h > qy0
+                    for (x, y, w, h) in boxes
+                )
+                if not overlaps:
+                    continue
+                results.extend(_decode_2d_docs(full_img.crop(full_box), quad_name))
                 if results:
                     break
 
