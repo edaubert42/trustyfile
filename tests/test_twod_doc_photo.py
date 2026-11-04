@@ -26,10 +26,15 @@ def _jpeg(width: int, height: int, orientation: int | None = None) -> bytes:
 
 # --- load_photo ---------------------------------------------------------------
 
-def test_phone_sized_jpeg_is_shrunk_to_the_decode_size_in_grayscale():
+def test_phone_sized_jpeg_is_kept_up_to_the_photo_cap_in_grayscale():
     img = load_photo(_jpeg(4000, 3000))
-    assert img.size == (2000, 1500)   # aspect ratio kept
+    assert img.size == (4000, 3000)   # 12 Mpx: within MAX_PHOTO_SIDE
     assert img.mode == "L"
+
+
+def test_bigger_photo_is_shrunk_keeping_its_aspect_ratio():
+    img = load_photo(_jpeg(4000, 3000), max_side=2000)
+    assert img.size == (2000, 1500)
 
 
 def test_small_image_is_never_enlarged():
@@ -51,7 +56,7 @@ def test_exif_orientation_is_applied():
 def test_png_is_accepted():
     buf = io.BytesIO()
     Image.new("RGB", (3000, 1000), "white").save(buf, format="PNG")
-    img = load_photo(buf.getvalue())
+    img = load_photo(buf.getvalue(), max_side=2000)
     assert img.size == (2000, 667)
     assert img.mode == "L"
 
@@ -88,7 +93,19 @@ from PIL import ImageFilter
 
 from src.modules.twod_doc import GS, US, PYLIBDMTX_AVAILABLE
 from src.modules.twod_doc_photo import (
-    BINARY, CROP, DEFAULT_ATTEMPTS, GUARD_ATTEMPTS, RAW, RAW_CROP, binarize, decode_photo,
+    BINARY, CROP, CROP_RECTIFIED, DEFAULT_ATTEMPTS, RAW,
+    _order_corners, _rectify, binarize, decode_photo, guard_attempts,
+)
+
+_CROPS = (CROP, CROP_RECTIFIED)
+
+# As dense as a real tax-notice 2D-Doc (~80+ modules a side): ten long fields.
+# The short PAYLOAD above is ~30 modules a side and forgives too much.
+DENSE_PAYLOAD = (
+    "DC04FR0000011E5F1E5F2401FR"
+    + "".join(f"4{c}{'X' * 20}{GS}" for c in "ABCDEFGHJK")
+    + "47" + "1234567890123" + GS
+    + US + "A" * 103
 )
 
 needs_libdmtx = pytest.mark.skipif(
@@ -122,7 +139,10 @@ def _photo(
     paper=225,
     ink=0,
     perspective=False,
+    keystone=0.06,
     shadow=False,
+    frame=0,
+    at=(0.55, 0.2),
     seed=0,
 ) -> Image.Image:
     """A grayscale 'photo' of paper with one DataMatrix (or none if text=None)."""
@@ -134,17 +154,22 @@ def _photo(
         # Dim light: black modules come out as `ink` gray, paper as `paper`.
         sym = sym.point(lambda v: ink if v < 128 else paper)
         sym = sym.rotate(angle, expand=True, resample=Image.BICUBIC, fillcolor=paper)
-        page.paste(sym, (int(w * 0.55), int(h * 0.2)))
+        page.paste(sym, (int(w * at[0]), int(h * at[1])))
     if perspective:
         # Phone not parallel to the paper: the far edge looks narrower.
         src = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-        dst = np.float32([[w * 0.06, h * 0.04], [w * 0.94, 0], [w, h], [0, h * 0.97]])
+        dst = np.float32([[w * keystone, h * 0.04], [w * (1 - keystone), 0], [w, h], [0, h * 0.97]])
         m = cv2.getPerspectiveTransform(src, dst)
         page = Image.fromarray(cv2.warpPerspective(
             np.asarray(page), m, size, borderValue=paper))
     if blur:
         page = page.filter(ImageFilter.GaussianBlur(blur))
     arr = np.asarray(page, dtype=np.float32)
+    if frame:
+        # The dark table around the sheet: a band of `frame` px on every edge.
+        arr = arr.copy()
+        arr[:frame, :] = arr[-frame:, :] = 60
+        arr[:, :frame] = arr[:, -frame:] = 60
     if shadow:
         # Lamp on the right: the left of the page gets 45 % of the light.
         arr = arr * np.linspace(0.45, 1.0, w)[None, :]
@@ -189,13 +214,85 @@ def test_datamatrix_that_is_not_a_2d_doc_is_ignored():
 
 
 @needs_libdmtx
-def test_guard_attempts_reread_the_code_from_untouched_gray_pixels():
+def test_guard_rereads_through_a_different_preprocessing():
     img = _photo(angle=6, blur=1.0)
     first = decode_photo(img)
-    second = decode_photo(img, attempts=GUARD_ATTEMPTS)
-    assert first[1] == CROP
-    assert second[1] == RAW_CROP      # same square, gray pixels this time
+    second = decode_photo(img, attempts=guard_attempts(first[1]))
+    assert second[1] != first[1]
     assert second[0] == first[0] == PAYLOAD
+
+
+def test_guard_attempts_are_all_defaults_but_the_first():
+    for first in DEFAULT_ATTEMPTS:
+        rest = guard_attempts(first)
+        assert first not in rest
+        assert set(rest) | {first} == set(DEFAULT_ATTEMPTS)
+
+
+# Regressions found on a REAL tax notice photographed (simulated) whole-page,
+# 2026-11-04: each of these read nothing before its fix.
+
+@needs_libdmtx
+def test_dark_table_around_the_sheet_does_not_hide_the_code():
+    # The table binarises into a black ring around the page; an
+    # outermost-contours-only search sees one object (the page), not the code.
+    found = decode_photo(_photo(frame=60))
+    assert found is not None and found[1] in _CROPS
+
+
+@needs_libdmtx
+def test_crops_are_cut_from_the_full_resolution_photo():
+    # The code is LOOKED FOR on the 2000 px copy but CUT from the full photo.
+    # On 90 simulated photos of a real tax notice this is 71 reads instead of
+    # 55 (2026-11-04): a dense code at ~2.5 px per module on the reduced copy
+    # is ~5 px per module at full size. Synthetic codes (perfect square
+    # modules) survive the reduction, so the property is pinned directly:
+    # a 3000x4000 photo with a 420 px code yields a ~550 px crop, not ~275.
+    from src.modules.twod_doc_photo import _attempts
+    img = _photo(DENSE_PAYLOAD, size=(3000, 4000), code_px=420, at=(0.15, 0.08))
+    name, crop, _ = next(_attempts(img, (CROP,)))
+    assert name == CROP
+    assert 480 <= crop.width <= 620 and 480 <= crop.height <= 620
+    found = decode_photo(img)
+    assert found is not None and found[0] == DENSE_PAYLOAD
+
+
+@needs_libdmtx
+def test_dense_code_under_strong_keystone_is_straightened():
+    # Phone well off-parallel: no plain crop reads the trapezoid.
+    img = _photo(DENSE_PAYLOAD, code_px=300, perspective=True, keystone=0.14)
+    assert decode_photo(img, attempts=(CROP,)) is None
+    found = decode_photo(img)
+    assert found is not None and found == (DENSE_PAYLOAD, CROP_RECTIFIED)
+
+
+def test_corners_are_ordered_clockwise_from_top_left():
+    pts = np.float32([[90, 95], [10, 12], [12, 88], [95, 8]])
+    tl, tr, br, bl = _order_corners(pts)
+    assert tuple(tl) == (10, 12) and tuple(tr) == (95, 8)
+    assert tuple(br) == (90, 95) and tuple(bl) == (12, 88)
+
+
+@needs_libdmtx
+def test_rectify_turns_a_trapezoid_back_into_a_readable_square():
+    from pylibdmtx.pylibdmtx import decode
+    sym = _symbol(PAYLOAD).resize((300, 300), Image.NEAREST)
+    canvas = Image.new("L", (420, 420), 230)
+    canvas.paste(sym, (60, 60))
+    a = np.asarray(canvas, dtype=np.float32)
+    src = np.float32([[0, 0], [420, 0], [420, 420], [0, 420]])
+    dst = np.float32([[70, 20], [350, 0], [420, 420], [0, 400]])
+    warped = Image.fromarray(cv2.warpPerspective(
+        a, cv2.getPerspectiveTransform(src, dst), (420, 420), borderValue=230).astype("uint8"))
+    straight = _rectify(warped)
+    assert straight is not None
+    assert abs(straight.width - straight.height) <= 1        # a square again
+    r = decode(straight, timeout=1000, max_count=1)
+    assert r and r[0].data.decode("latin-1") == PAYLOAD
+
+
+def test_rectify_gives_up_cleanly_on_a_blank_crop():
+    assert _rectify(Image.new("L", (300, 300), 230)) is None
 
 
 @needs_libdmtx
@@ -324,11 +421,11 @@ def test_failed_crops_cost_a_short_timeout_each(monkeypatch):
     clock, calls = _FakeClock(), []
     monkeypatch.setattr(twod_doc_photo.time, "monotonic", clock)
     # The photo has DataMatrix-like squares, but this decoder reads nothing:
-    # every crop gets the short cap, whole-image attempts the long one, and
+    # every crop variant gets the short cap, whole-image attempts the long one, and
     # the last attempt only what is left of the 3 s.
     decode_photo(_photo(), decoder=_slow_decoder(clock, calls))
     crop_part, whole_part = calls[:-2], calls[-2:]
-    assert crop_part and all(t == 300 for t in crop_part)
+    assert crop_part and all(t == 200 for t in crop_part)
     assert whole_part[0] == 1500
     assert whole_part[1] == pytest.approx(3000 - sum(crop_part) - 1500, abs=1)
     assert clock.now == pytest.approx(3.0, abs=0.002)
@@ -446,10 +543,10 @@ def test_photo_of_an_altered_code_is_a_confirmed_alert(keypair, store):
     result = scan_photo(_jpeg_bytes(_photo(forged)), store=store)
     assert result.signature.status == "invalid"
     assert result.invalid_confirmed is True
-    # The confirming read looked at the gray pixels, not the binarised ones
-    # the first read came from: an independent read, not the same one twice.
-    assert result.attempt == CROP
-    assert result.guard_attempt in (RAW_CROP, RAW)
+    # The confirming read came from another preprocessing than the first one:
+    # an independent read, not the same one twice.
+    assert result.guard_attempt is not None
+    assert result.guard_attempt != result.attempt
     assert photo_verdict(result) == ("alert", "photo_sig_invalid")
 
 
@@ -548,3 +645,20 @@ def test_only_a_confirmed_invalid_signature_can_alert():
                 status="decoded", signature=SignatureCheck(status), invalid_confirmed=confirmed))
             if level == "alert":
                 assert (status, confirmed) == ("invalid", True)
+
+
+def test_scan_budget_includes_loading_the_photo(monkeypatch):
+    # The load "takes" 1 s of a 2 s budget: the decode gets only the 1 s left.
+    clock = _FakeClock()
+    monkeypatch.setattr(twod_doc_photo.time, "monotonic", clock)
+    real_load = twod_doc_photo.load_photo
+
+    def slow_load(data):
+        clock.now += 1.0
+        return real_load(data)
+
+    monkeypatch.setattr(twod_doc_photo, "load_photo", slow_load)
+    calls = []
+    scan_photo(_jpeg_bytes(Image.new("RGB", (800, 600), "white")),
+               deadline_s=2.0, decoder=_slow_decoder(clock, calls))
+    assert sum(calls) == pytest.approx(1000, abs=1)

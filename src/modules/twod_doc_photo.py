@@ -36,7 +36,6 @@ from src.modules.twod_doc import (
     HEADER_MARKER,
     PYLIBDMTX_AVAILABLE,
     TwoDocData,
-    _datamatrix_candidate_boxes,
     decode_datamatrix,
     parse_twod_doc,
 )
@@ -48,11 +47,16 @@ from src.modules.twod_doc_crypto import (
 
 logger = logging.getLogger(__name__)
 
-# Longest side, in pixels, of the image handed to the decoder.
-# 2000 px keeps a 2D-Doc readable when the whole A4 page is in the frame
-# (the code is ~2 cm wide on a 21 cm page -> ~190 px, 3-4 px per module),
-# while decoding stays fast.
-MAX_DECODE_SIDE = 2000
+# Longest side, in pixels, of the photo kept in memory (load_photo output).
+# Crops around the code are cut from THIS image: with the whole A4 page in
+# the frame, a 2D-Doc of ~2 cm is ~400 px here (~9 px per module), but only
+# ~130 px (3 px per module, unreadable once slightly blurred) at 2000 px —
+# measured on a real tax notice, 2026-11-04.
+MAX_PHOTO_SIDE = 4000
+
+# Longest side of the reduced copy used to LOOK for the code (binarisation,
+# candidate squares) and for the whole-image attempts. Small = fast.
+DETECT_SIDE = 2000
 
 # Refuse anything bigger than this BEFORE decoding its pixels. A 48 Mpx phone
 # photo passes; a hostile "decompression bomb" (tiny file, gigantic declared
@@ -60,8 +64,8 @@ MAX_DECODE_SIDE = 2000
 MAX_PHOTO_PIXELS = 60_000_000
 
 
-def load_photo(data: bytes, max_side: int = MAX_DECODE_SIDE) -> Image.Image | None:
-    """Turn the bytes of a phone photo into a small, upright, grayscale image.
+def load_photo(data: bytes, max_side: int = MAX_PHOTO_SIDE) -> Image.Image | None:
+    """Turn the bytes of a phone photo into an upright, grayscale image.
 
     Steps:
         1. Read the declared size from the header only (no pixel decoding yet)
@@ -82,9 +86,9 @@ def load_photo(data: bytes, max_side: int = MAX_DECODE_SIDE) -> Image.Image | No
         or are too large. Never raises.
 
     Example:
-        >>> img = load_photo(open("avis.jpg", "rb").read())   # 4000x3000 JPEG
+        >>> img = load_photo(open("avis.jpg", "rb").read())   # 8000x6000 JPEG
         >>> img.size, img.mode
-        ((2000, 1500), 'L')
+        ((4000, 3000), 'L')
         >>> load_photo(b"not an image") is None
         True
     """
@@ -122,19 +126,24 @@ def load_photo(data: bytes, max_side: int = MAX_DECODE_SIDE) -> Image.Image | No
 # DECODING
 # =============================================================================
 
-# Whole budget for decoding one photo, in seconds. No new attempt starts after
-# it, and the last attempt's libdmtx timeout is cut to what is left, so the
-# worst case (a photo with no code at all) stays around this value.
+# Whole budget for scanning one photo (loading included), in seconds. No new
+# attempt starts after it, and the last attempt's libdmtx timeout is cut to
+# what is left, so the worst case (a photo with no code at all) stays around
+# this value.
 DECODE_DEADLINE_S = 3.0
+
+# Extra budget for the double-read guard's second read. It only runs after an
+# "invalid" signature, which should be rare.
+GUARD_DEADLINE_S = 1.5
 
 # libdmtx timeout for one WHOLE-IMAGE attempt, in milliseconds (same value as
 # the PDF path).
 ATTEMPT_TIMEOUT_MS = 1500
 
 # libdmtx timeout for one CROP attempt. A crop that holds the code decodes in
-# ~10 ms; one that does not would otherwise burn the full 1.5 s (measured
-# 2026-11-04 on a noisy crop), eating the budget of the attempts after it.
-CROP_TIMEOUT_MS = 300
+# 0.01-0.04 s (measured on real photos); one that does not would otherwise
+# burn the full 1.5 s, eating the budget of the attempts after it.
+CROP_TIMEOUT_MS = 200
 
 # Below this many seconds left, starting another attempt is pointless.
 _MIN_ATTEMPT_S = 0.05
@@ -142,9 +151,8 @@ _MIN_ATTEMPT_S = 0.05
 # How many candidate boxes to try as crops (largest first).
 MAX_CROPS = 2
 
-# On a photo the code is often bigger than on a 100 DPI page render: the person
-# holds the phone close to it. Accept squares up to this size (in pixels of the
-# image returned by load_photo).
+# Size bounds of a candidate square, in pixels of the reduced (DETECT_SIDE)
+# copy. Larger than the PDF path's: the person may hold the phone close.
 _CROP_MIN_SIDE = 60
 _CROP_MAX_SIDE = 1400
 
@@ -158,14 +166,32 @@ _CROP_PADDING = 0.15
 _ADAPTIVE_C = 15
 
 # Attempt names, so a caller can choose which ones run.
-#   CROP    candidate square cut from the BINARISED photo (fast, usually wins)
-#   BINARY  the whole binarised photo (the pre-filter missed the code)
-#   RAW     the whole gray photo (binarisation lost detail, e.g. heavy blur)
-#   RAW_CROP candidate square cut from the GRAY photo — only for the
-#           double-read guard, which wants pixels the binarisation never touched
-CROP, BINARY, RAW, RAW_CROP = "crop", "binary", "raw", "raw_crop"
-DEFAULT_ATTEMPTS = (CROP, BINARY, RAW)
-GUARD_ATTEMPTS = (RAW_CROP, RAW)
+#   CROP           candidate square cut from the full-resolution photo, Otsu
+#   CROP_RECTIFIED the same square with the perspective undone (phone not
+#                  parallel to the paper: libdmtx fails on the trapezoid
+#                  even when sharp — measured on a real tax notice)
+#   BINARY         the whole reduced photo, adaptive threshold
+#   RAW            the whole reduced photo in gray
+# Plain-gray and median-filtered crops were tried too: on 90 simulated photos
+# of a real tax notice they added 1 read between them, once rectification
+# existed (72/90 with, 71/90 without), so they were dropped.
+CROP, CROP_RECTIFIED = "crop", "crop_rectified"
+BINARY, RAW = "binary", "raw"
+DEFAULT_ATTEMPTS = (CROP, CROP_RECTIFIED, BINARY, RAW)
+_CROP_VARIANTS = (CROP, CROP_RECTIFIED)
+
+
+def guard_attempts(first: str) -> tuple[str, ...]:
+    """Attempts for the double-read guard: every default one except `first`.
+
+    The second read must come from a different preprocessing than the read
+    being checked, so one variant's artefact cannot confirm itself.
+
+    Example:
+        >>> guard_attempts("crop")
+        ('crop_rectified', 'binary', 'raw')
+    """
+    return tuple(name for name in DEFAULT_ATTEMPTS if name != first)
 
 # (image, timeout_ms) -> objects with a `.data` bytes attribute (pylibdmtx API).
 Decoder = Callable[[Image.Image, int], list]
@@ -197,7 +223,7 @@ def binarize(img: Image.Image) -> Image.Image:
     neighbours" and turn white: 1/8 of the shorter side, odd, at least 31 px.
 
     Args:
-        img: grayscale photo (output of load_photo).
+        img: grayscale photo (the reduced DETECT_SIDE copy).
 
     Returns:
         A grayscale image holding only 0 (ink) and 255 (paper).
@@ -211,47 +237,167 @@ def binarize(img: Image.Image) -> Image.Image:
     return Image.fromarray(binary)
 
 
-def _candidate_crops(binary: Image.Image) -> list[tuple[int, int, int, int]]:
-    """Padded (left, top, right, bottom) boxes around DataMatrix-like squares.
+def _otsu(img: Image.Image) -> Image.Image:
+    """Black-and-white version of a CROP, threshold chosen by Otsu's method.
 
-    Uses the PDF path's visual pre-filter (_datamatrix_candidate_boxes: size,
-    squareness, ink density) on the BINARISED photo, where ink is exactly 0,
-    so its fixed "darker than 80" test works whatever the lighting was.
+    Otsu picks the gray level that best separates paper from ink in the
+    histogram. Fine on a crop around the code, where ink and paper are
+    balanced (on a whole photo the code is ~1 % of the pixels: see binarize).
     """
-    boxes = _datamatrix_candidate_boxes(binary, min_size=_CROP_MIN_SIDE, max_size=_CROP_MAX_SIDE)
+    gray = np.asarray(img.convert("L"))
+    _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return Image.fromarray(binary)
+
+
+def _candidate_boxes(binary: Image.Image) -> list[tuple[int, int, int, int]]:
+    """(x, y, w, h) of DataMatrix-like squares in a binarised photo, largest first.
+
+    Same three tests as the PDF path's pre-filter (size, squareness, ink
+    density 25-70 %), with one difference that matters on photos: it looks
+    at ALL contours (RETR_LIST), not only the outermost ones (RETR_EXTERNAL).
+    In a photo, the dark table around the sheet binarises into one black ring
+    enclosing the whole page, and RETR_EXTERNAL then sees a single object,
+    the page, and never the code inside it (measured on a real tax notice).
+    The same would happen to a code printed inside a frame.
+
+    Nested contours (the holes of one blob) yield boxes inside a box already
+    kept; those are skipped.
+    """
+    ink = (np.asarray(binary) == 0).astype(np.uint8) * 255
+    contours, _ = cv2.findContours(ink, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    boxes = []
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        if not (_CROP_MIN_SIDE <= w <= _CROP_MAX_SIDE and _CROP_MIN_SIDE <= h <= _CROP_MAX_SIDE):
+            continue
+        if not 0.6 < w / h < 1.7:                       # roughly square
+            continue
+        density = (ink[y:y + h, x:x + w] > 0).mean()    # share of ink pixels
+        if 0.25 < density < 0.70:
+            boxes.append((x, y, w, h))
+
+    boxes.sort(key=lambda b: b[2] * b[3], reverse=True)
+    kept: list[tuple[int, int, int, int]] = []
+    for x, y, w, h in boxes:
+        cx, cy = x + w / 2, y + h / 2
+        if any(kx <= cx <= kx + kw and ky <= cy <= ky + kh for kx, ky, kw, kh in kept):
+            continue                                    # inside a kept box
+        kept.append((x, y, w, h))
+    return kept
+
+
+def _scaled_crop_boxes(
+    boxes: list[tuple[int, int, int, int]], scale: float, width: int, height: int,
+) -> list[tuple[int, int, int, int]]:
+    """Map (x, y, w, h) boxes found on the reduced copy to padded
+    (left, top, right, bottom) boxes on the full-resolution photo.
+
+    Example:
+        >>> _scaled_crop_boxes([(100, 100, 200, 200)], 2.0, 4000, 3000)
+        [(140, 140, 660, 660)]      # x2, plus 15 % padding on each side
+    """
     crops = []
     for x, y, w, h in boxes[:MAX_CROPS]:
-        pad = int(max(w, h) * _CROP_PADDING)
+        pad = max(w, h) * _CROP_PADDING
         # Clamp to the image: PIL would otherwise fill outside pixels with
         # black, which looks like ink to the decoder.
         crops.append((
-            max(0, x - pad), max(0, y - pad),
-            min(binary.width, x + w + pad), min(binary.height, y + h + pad),
+            max(0, int((x - pad) * scale)), max(0, int((y - pad) * scale)),
+            min(width, int((x + w + pad) * scale)), min(height, int((y + h + pad) * scale)),
         ))
     return crops
 
 
-def _attempts(img: Image.Image, names: tuple[str, ...]) -> Iterator[tuple[str, Image.Image, int]]:
-    """Yield (name, image, timeout_cap_ms) for the requested attempts, in order.
+def _order_corners(points: np.ndarray) -> np.ndarray:
+    """Order 4 (x, y) points as top-left, top-right, bottom-right, bottom-left.
 
-    A generator: the binarisation and the candidate search only run when an
-    attempt that needs them is reached (a lucky first attempt skips the rest).
+    Top-left has the smallest x + y, bottom-right the largest; top-right has
+    the smallest y - x, bottom-left the largest.
     """
-    binary = crops = None
-    for name in names:
-        if name in (CROP, BINARY, RAW_CROP) and binary is None:
-            binary = binarize(img)
-            crops = _candidate_crops(binary)
-        if name == CROP:
-            for box in crops:
-                yield CROP, binary.crop(box), CROP_TIMEOUT_MS
-        elif name == RAW_CROP:
-            for box in crops:
-                yield RAW_CROP, img.crop(box), CROP_TIMEOUT_MS
-        elif name == BINARY:
-            yield BINARY, binary, ATTEMPT_TIMEOUT_MS
-        elif name == RAW:
-            yield RAW, img, ATTEMPT_TIMEOUT_MS
+    sums = points.sum(axis=1)
+    diffs = np.diff(points, axis=1).ravel()     # y - x
+    return np.float32([
+        points[sums.argmin()], points[diffs.argmin()],
+        points[sums.argmax()], points[diffs.argmax()],
+    ])
+
+
+def _rectify(crop: Image.Image) -> Image.Image | None:
+    """Undo the perspective of a code photographed at an angle.
+
+    1. Otsu threshold, then a morphological CLOSE that fills the gaps between
+       modules, so the whole code becomes one solid blob.
+    2. Its convex hull, simplified to a quadrilateral (approxPolyDP with a
+       growing tolerance until exactly 4 corners remain).
+    3. A perspective transform maps those 4 corners to a square, with a white
+       margin (libdmtx needs a quiet zone).
+
+    Returns:
+        The straightened gray square, or None when no clean quadrilateral is
+        found (then this attempt is simply skipped).
+    """
+    gray = np.asarray(crop.convert("L"))
+    _, ink = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    k = max(3, min(gray.shape) // 40)
+    ink = cv2.morphologyEx(ink, cv2.MORPH_CLOSE, np.ones((k, k), np.uint8))
+
+    contours, _ = cv2.findContours(ink, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    hull = cv2.convexHull(max(contours, key=cv2.contourArea))
+    perimeter = cv2.arcLength(hull, True)
+    for tolerance in (0.02, 0.04, 0.06, 0.08):
+        approx = cv2.approxPolyDP(hull, tolerance * perimeter, True)
+        if len(approx) == 4:
+            break
+    else:
+        return None
+
+    corners = _order_corners(approx.reshape(4, 2).astype(np.float32))
+    side = int(max(np.linalg.norm(corners[i] - corners[(i + 1) % 4]) for i in range(4)))
+    if side < _CROP_MIN_SIDE:
+        return None
+    pad = side // 8
+    target = np.float32([[pad, pad], [pad + side, pad],
+                         [pad + side, pad + side], [pad, pad + side]])
+    matrix = cv2.getPerspectiveTransform(corners, target)
+    paper = int(np.percentile(gray, 90))        # fill the margin with paper tone
+    out = cv2.warpPerspective(gray, matrix, (side + 2 * pad, side + 2 * pad), borderValue=paper)
+    return Image.fromarray(out)
+
+
+def _attempts(img: Image.Image, names: tuple[str, ...]) -> Iterator[tuple[str, Image.Image, int]]:
+    """Yield (name, image, timeout_cap_ms) for the requested attempts.
+
+    Order: every requested crop variant of the first candidate square, then
+    of the next one, then the whole-image attempts. Looks for the code on a
+    reduced copy (fast) but cuts the crops from the full-resolution photo
+    (sharp). A generator: the reduction, binarisation and candidate search
+    only run when an attempt that needs them is reached.
+    """
+    small = img.copy()
+    small.thumbnail((DETECT_SIDE, DETECT_SIDE), Image.LANCZOS)
+    binary = None
+
+    crop_names = [n for n in names if n in _CROP_VARIANTS]
+    if crop_names or BINARY in names:
+        binary = binarize(small)
+    if crop_names:
+        scale = img.width / small.width
+        for box in _scaled_crop_boxes(_candidate_boxes(binary), scale, img.width, img.height):
+            crop = img.crop(box)
+            for name in crop_names:
+                if name == CROP:
+                    yield CROP, _otsu(crop), CROP_TIMEOUT_MS
+                else:
+                    straight = _rectify(crop)
+                    if straight is not None:
+                        yield CROP_RECTIFIED, straight, CROP_TIMEOUT_MS
+    if BINARY in names:
+        yield BINARY, binary, ATTEMPT_TIMEOUT_MS
+    if RAW in names:
+        yield RAW, small, ATTEMPT_TIMEOUT_MS
 
 
 def decode_photo(
@@ -264,9 +410,9 @@ def decode_photo(
     """Find the first 2D-Doc DataMatrix in a prepared photo, within a time budget.
 
     Args:
-        img: Output of load_photo (grayscale, at most MAX_DECODE_SIDE px).
-        attempts: Which attempts to run, in order (see the names above).
-            The double-read guard passes GUARD_ATTEMPTS.
+        img: Output of load_photo (grayscale, at most MAX_PHOTO_SIDE px).
+        attempts: Which attempts to run (see the names above). The
+            double-read guard passes guard_attempts(first_attempt).
         deadline_s: Total time budget in seconds.
         decoder: Injectable for tests; defaults to libdmtx with max_count=1.
 
@@ -355,14 +501,13 @@ def scan_photo(
 
     Double-read guard (anti false positive): the only verdict that accuses a
     document is an "invalid" signature. Before trusting it, the photo is read
-    a second time through attempts that look at DIFFERENT pixels (gray if the
-    first read came from the binarised photo, binarised otherwise). The
+    a second time through every OTHER preprocessing (guard_attempts). The
     accusation stands only if both reads give the same bytes. It costs
     nothing on the normal path: it only runs for an "invalid" signature.
 
     Args:
         data: Raw bytes of the uploaded photo.
-        deadline_s: Time budget of the first decode.
+        deadline_s: Time budget of the scan, loading included.
         decoder: Injectable for tests (see decode_photo).
         store: Certificate store, injectable for tests (default: committed).
 
@@ -383,7 +528,9 @@ def scan_photo(
     if img is None:
         return done(status="unreadable_image")
 
-    found = decode_photo(img, deadline_s=deadline_s, decoder=decoder)
+    # The load already used part of the budget: the decode gets what is left.
+    remaining = deadline_s - (time.monotonic() - started)
+    found = decode_photo(img, deadline_s=remaining, decoder=decoder)
     if found is None:
         return done(status="no_code")
     text, attempt = found
@@ -400,8 +547,8 @@ def scan_photo(
     confirmed = False
     guard_attempt = None
     if signature.status == "invalid":
-        second_attempts = GUARD_ATTEMPTS if attempt in (CROP, BINARY) else (CROP, BINARY)
-        second = decode_photo(img, attempts=second_attempts, decoder=decoder)
+        second = decode_photo(img, attempts=guard_attempts(attempt),
+                              deadline_s=GUARD_DEADLINE_S, decoder=decoder)
         confirmed = second is not None and second[0] == text
         guard_attempt = second[1] if second else None
         logger.info("Photo decode: invalid signature, second read %s",
