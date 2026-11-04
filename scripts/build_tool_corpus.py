@@ -312,6 +312,17 @@ def t_font_midline_year(src: Path, dst: Path) -> bool:
     return _incremental_edit(src, dst, [(YEAR_OLD, YEAR_NEW)], fontname="tiro")
 
 
+def t_font_midline_year_full(src: Path, dst: Path) -> bool:
+    """Same serif retype of the birth year, but a FULL save: no earlier
+    revision is left to diff, so only the font evidence on the page remains."""
+    doc = fitz.open(src)
+    ok = _replace_text(doc[0], YEAR_OLD, YEAR_NEW, fontname="tiro")
+    if ok:
+        doc.save(dst, garbage=3, deflate=True)
+    doc.close()
+    return ok
+
+
 def t_stream_edit(src: Path, dst: Path) -> bool:
     """Edit the amount where it is written in the content stream itself — no
     new object, no new font. Only works where text is stored as plain strings
@@ -348,6 +359,7 @@ TAMPERS = {
     "name_change_incr": t_name_change_incr,
     "linearized_then_edited": t_linearized_then_edited,
     "font_midline_year": t_font_midline_year,
+    "font_midline_year_full": t_font_midline_year_full,
     "stream_edit": t_stream_edit,
     "info_backdate": t_info_backdate,
 }
