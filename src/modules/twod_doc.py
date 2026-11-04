@@ -27,6 +27,7 @@ from typing import Literal
 from collections import OrderedDict
 import hashlib
 import logging
+import re
 import threading
 
 from src.models import Flag, ModuleResult
@@ -1566,6 +1567,26 @@ def find_text_in_pdf(pdf_text: str, search_value: str, normalize: bool = True) -
     return None
 
 
+# One amount as it is printed, never two amounts glued together.
+#
+#   -?[ ]*            optional minus, possibly followed by spaces ("-     10608")
+#   \d{1,3}(?:[ ]\d{3})+   digits grouped by thousands with ONE space ("67 901")
+#   | \d+                  or a plain run of digits ("67901")
+#   (?:[.,]\d+)?      optional decimals ("3 078,00")
+#
+# "Space" here is a horizontal space only: regular, non-breaking (U+00A0) or
+# narrow non-breaking (U+202F). The previous pattern used \s, which also
+# matches a NEWLINE: on a tax notice the calculation column
+#     "-      3078\n       3078\n      67901\n      13702"
+# was read as ONE number, 307830786790113702, so the revenu fiscal de
+# référence of a genuine notice was "not found" (three false
+# TWOD_DOC_FIELD_MISMATCH flags on a real Avis d'impôt 2023).
+_H_SPACE = "[ \u00a0\u202f]"  # space, no-break space, narrow no-break space
+_AMOUNT_RE = re.compile(
+    rf"-?{_H_SPACE}*(?:\d{{1,3}}(?:{_H_SPACE}\d{{3}})+|\d+)(?:[.,]\d+)?"
+)
+
+
 def find_amount_in_pdf(pdf_text: str, amount: float, tolerance: float = 0.01) -> str | None:
     """
     Search for an amount in PDF text.
@@ -1584,21 +1605,19 @@ def find_amount_in_pdf(pdf_text: str, amount: float, tolerance: float = 0.01) ->
     Returns:
         The matching text found, or None if not found
     """
-    import re
-
-    # Pattern to find numbers with various formats:
-    # - Optional minus sign followed by optional spaces
-    # - Digits with optional space/non-breaking space separators
-    # - Optional decimal part (comma or dot)
-    # \u00a0 is non-breaking space, common in French formatting
-    number_pattern = r'-[\s\u00a0]*\d[\d\s\u00a0]*(?:[.,]\d+)?|\d[\d\s\u00a0]*(?:[.,]\d+)?'
-
-    for match in re.finditer(number_pattern, pdf_text):
-        found_str = match.group()
+    for match in _AMOUNT_RE.finditer(pdf_text):
+        found_str = match.group().strip()
         found_amount = normalize_amount(found_str)
-        if found_amount is not None:
-            if abs(found_amount - amount) <= tolerance:
-                return found_str
+        if found_amount is None:
+            continue
+        # Compare MAGNITUDES. On a tax notice the sign is carried by the
+        # layout, not by the number: the withholding is printed
+        # "-     10608" (the minus is the subtraction in the calculation
+        # column), and a negative balance of -3078 appears as
+        # "Somme qui vous est remboursée : 3 078,00 €". Every digit must
+        # still match.
+        if abs(abs(found_amount) - abs(amount)) <= tolerance:
+            return found_str
 
     return None
 
