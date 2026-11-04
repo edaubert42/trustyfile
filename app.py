@@ -2143,6 +2143,118 @@ if uploaded_file is not None:
                     f'</div>'
                 )
 
+            # Modification history — the most concrete evidence on the page:
+            # it shows WHAT changed between saves ("+ 2 200,00 EUR"). It sits
+            # right under the verdict, as a highlighted card, so the reader
+            # sees the proof before the list of findings. Only rendered when
+            # the PDF has several versions with a diff to show. (It used to
+            # come after the export buttons, below everything else.)
+            _history_html = ""
+            if history["version_count"] > 1 and history.get("diffs"):
+                import html as html_mod  # for escaping user content
+
+                row_style = "display:flex; align-items:flex-start; padding:6px 0; border-bottom:1px solid #2a2a2a;"
+                label_style = "color:#888; font-size:0.8rem; width:90px; flex-shrink:0;"
+                value_style = "color:#eee; font-size:0.8rem;"
+                max_lines = 5  # Max diff lines to show per version
+
+                history_rows = ""
+
+                # Version 1: original creation
+                # Get the software used for version 1 from the first diff's from_tool
+                first_software = ""
+                if history["diffs"]:
+                    first_software = history["diffs"][0].get("from_tool", "")
+
+                # Version 1 is always listed, dated when the PDF says when it
+                # was created: without it a lone "Version 2" had nothing to be
+                # compared against.
+                _v1_when = (pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M") + " — "
+                            if pdf_data.metadata.creation_date else "")
+                software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
+                history_rows += (
+                    f'<div style="{row_style}">'
+                    f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
+                    f'<div style="{value_style}">'
+                    f'<div>{_v1_when}{t("original_document")}</div>'
+                    f'{software_html}'
+                    f'</div></div>'
+                )
+
+                # Each subsequent version
+                for diff in history["diffs"]:
+                    version_num = diff["to_version"]
+
+                    # Software used for this version
+                    version_software = diff.get("to_tool", "")
+
+                    # Time info
+                    time_info = ""
+                    if pdf_data.metadata.creation_date and pdf_data.metadata.mod_date:
+                        if version_num == history["version_count"]:
+                            time_info = pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")
+                            delta = pdf_data.metadata.mod_date - pdf_data.metadata.creation_date
+                            hours = delta.total_seconds() / 3600
+                            _ac = t("after_creation")
+                            if hours >= 24:
+                                time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h {_ac}"
+                            elif hours >= 1:
+                                time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min {_ac}"
+                            elif int(hours * 60) > 0:
+                                time_info += f" — +{int(hours * 60)}min {_ac}"
+                            else:
+                                time_info += f" — +{int(delta.total_seconds())}s {_ac}"
+
+                    # Build change lines (limited to max_lines)
+                    changes_html = ""
+                    line_count = 0
+                    total_lines = 0
+                    if diff["changes"]:
+                        for change in diff["changes"]:
+                            for line in change.get("removed", []):
+                                if line.strip():
+                                    total_lines += 1
+                                    if line_count < max_lines:
+                                        safe = html_mod.escape(line[:80])
+                                        changes_html += f'<div style="color:#e06060; font-size:0.75rem;">- {safe}</div>'
+                                        line_count += 1
+                            for line in change.get("added", []):
+                                if line.strip():
+                                    total_lines += 1
+                                    if line_count < max_lines:
+                                        safe = html_mod.escape(line[:80])
+                                        changes_html += f'<div style="color:#60c060; font-size:0.75rem;">+ {safe}</div>'
+                                        line_count += 1
+
+                        if total_lines > max_lines:
+                            remaining = total_lines - max_lines
+                            changes_html += f'<div style="color:#888; font-size:0.7rem; font-style:italic;">{t("and_n_more_lines").format(n=remaining)}</div>'
+                    else:
+                        changes_html = f'<div style="color:#888; font-size:0.75rem;">{t("non_text_changes")}</div>'
+
+                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_editor")}: {html_mod.escape(version_software)}</div>' if version_software else ""
+                    history_rows += (
+                        f'<div style="{row_style}">'
+                        f'<span style="{label_style}">{t("version_n").format(n=version_num)}</span>'
+                        f'<div style="{value_style}">'
+                        f'{f"<div>{time_info}</div>" if time_info else ""}'
+                        f'{software_html}'
+                        f'{changes_html}'
+                        f'</div></div>'
+                    )
+
+                _history_html = (
+                    '<div style="margin:0.6rem auto 0 auto; max-width:440px; background:#1a1a2e;'
+                    ' border:1px solid #2a2a3e; border-left:3px solid #ff6b35; border-radius:8px;'
+                    ' padding:10px 14px;">'
+                    f'<span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;'
+                    f' letter-spacing:0.5px;">{t("full_modification_history")}</span>'
+                    f'<p style="color:#c9d1d9; font-size:0.82rem; margin:4px 0 6px 0;">'
+                    f'{t("history_intro").format(n=history["version_count"] - 1)}</p>'
+                    f'{history_rows}'
+                    '</div>'
+                )
+
             # Findings first (the verdict itself now sits under the gauge),
             # then where the evidence comes from, then one discreet line of
             # context. Same section-title style as "Preview" on the right.
@@ -2152,6 +2264,7 @@ if uploaded_file is not None:
             _no_findings_html = (f'<p style="color:#28a745; font-size:0.9rem; margin:0;">{t("no_issues")}</p>'
                                  if not all_flags else "")
             _summary_html = (
+                _history_html +
                 '<div style="margin-top:1rem; max-width:440px; margin-left:auto; margin-right:auto;">'
                 + _section_title.format(t("summary")) +
                 f'{_banner_html}'
@@ -2237,107 +2350,6 @@ if uploaded_file is not None:
                 )
 
 
-
-        # Modification history (only shown if PDF has multiple versions)
-        if history["version_count"] > 1 and history.get("diffs"):
-            import html as html_mod  # for escaping user content
-
-            with results_col:
-                row_style = "display:flex; align-items:flex-start; padding:6px 0; border-bottom:1px solid #2a2a2a;"
-                label_style = "color:#888; font-size:0.8rem; width:90px; flex-shrink:0;"
-                value_style = "color:#eee; font-size:0.8rem;"
-                max_lines = 5  # Max diff lines to show per version
-
-                history_rows = ""
-
-                # Version 1: original creation
-                # Get the software used for version 1 from the first diff's from_tool
-                first_software = ""
-                if history["diffs"]:
-                    first_software = history["diffs"][0].get("from_tool", "")
-
-                if pdf_data.metadata.creation_date:
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
-                    history_rows += (
-                        f'<div style="{row_style}">'
-                        f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
-                        f'<div style="{value_style}">'
-                        f'<div>{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")} — {t("original_document")}</div>'
-                        f'{software_html}'
-                        f'</div></div>'
-                    )
-
-                # Each subsequent version
-                for diff in history["diffs"]:
-                    version_num = diff["to_version"]
-
-                    # Software used for this version
-                    version_software = diff.get("to_tool", "")
-
-                    # Time info
-                    time_info = ""
-                    if pdf_data.metadata.creation_date and pdf_data.metadata.mod_date:
-                        if version_num == history["version_count"]:
-                            time_info = pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")
-                            delta = pdf_data.metadata.mod_date - pdf_data.metadata.creation_date
-                            hours = delta.total_seconds() / 3600
-                            _ac = t("after_creation")
-                            if hours >= 24:
-                                time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h {_ac}"
-                            elif hours >= 1:
-                                time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min {_ac}"
-                            elif int(hours * 60) > 0:
-                                time_info += f" — +{int(hours * 60)}min {_ac}"
-                            else:
-                                time_info += f" — +{int(delta.total_seconds())}s {_ac}"
-
-                    # Build change lines (limited to max_lines)
-                    changes_html = ""
-                    line_count = 0
-                    total_lines = 0
-                    if diff["changes"]:
-                        for change in diff["changes"]:
-                            for line in change.get("removed", []):
-                                if line.strip():
-                                    total_lines += 1
-                                    if line_count < max_lines:
-                                        safe = html_mod.escape(line[:80])
-                                        changes_html += f'<div style="color:#e06060; font-size:0.75rem;">- {safe}</div>'
-                                        line_count += 1
-                            for line in change.get("added", []):
-                                if line.strip():
-                                    total_lines += 1
-                                    if line_count < max_lines:
-                                        safe = html_mod.escape(line[:80])
-                                        changes_html += f'<div style="color:#60c060; font-size:0.75rem;">+ {safe}</div>'
-                                        line_count += 1
-
-                        if total_lines > max_lines:
-                            remaining = total_lines - max_lines
-                            changes_html += f'<div style="color:#888; font-size:0.7rem; font-style:italic;">{t("and_n_more_lines").format(n=remaining)}</div>'
-                    else:
-                        changes_html = f'<div style="color:#888; font-size:0.75rem;">{t("non_text_changes")}</div>'
-
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_editor")}: {html_mod.escape(version_software)}</div>' if version_software else ""
-                    history_rows += (
-                        f'<div style="{row_style}">'
-                        f'<span style="{label_style}">{t("version_n").format(n=version_num)}</span>'
-                        f'<div style="{value_style}">'
-                        f'<div>{time_info if time_info else t("unknown_time")}</div>'
-                        f'{software_html}'
-                        f'{changes_html}'
-                        f'</div></div>'
-                    )
-
-                st.markdown(
-                    f'<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">'
-                    f'<span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;'
-                    f' letter-spacing:0.5px;">{t("full_modification_history")}</span>'
-                    f'<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">'
-                    f'{history_rows}'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
 
         # Detected issues
         if all_flags:

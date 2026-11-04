@@ -110,6 +110,7 @@
     "more_details": "More Details",
 
     "full_modification_history": "Modification History",
+    "history_intro": "The file was saved again {n} time(s) after it was created. Here is what changed:",
     "detailed_modification_history": "Detailed Modification History",
     "n_versions": "{n} versions",
     "version_n": "Version {n}",

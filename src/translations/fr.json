@@ -110,6 +110,7 @@
     "more_details": "Plus de détails",
 
     "full_modification_history": "Historique des modifications",
+    "history_intro": "Le fichier a été réenregistré {n} fois après sa création. Voici ce qui a changé :",
     "detailed_modification_history": "Historique détaillé des modifications",
     "n_versions": "{n} versions",
     "version_n": "Version {n}",
