@@ -477,9 +477,33 @@ def _junction_splits_number(left: str, right: str) -> bool:
     """
     # No stripping: a space at the junction means two words, not a split one
     # ("Total : " + "1998" is a label followed by a value).
-    if not left or not right or not right[0].isdigit():
+    if not left or not right:
         return False
-    return left[-1].isdigit() or left[-1] in "/.,-"
+    if right[0].isdigit():
+        return left[-1].isdigit() or left[-1] in "/.,-"
+    # "17" + ".01": the cut falls just before the decimal separator.
+    return _is_number_separator_junction(left, right)
+
+
+def _is_number_separator_junction(left: str, right: str) -> bool:
+    """True for "17" + ".01" / "260" + ",01": a digit, then a separator + digit.
+
+    The most realistic partial retype changes only the cents, so the new
+    span starts with the decimal separator. Seen on every real invoice
+    retyped this way (ZUGFeRD corpus); the year-only synthetic retype never
+    produced it.
+    """
+    return (len(right) >= 2 and right[0] in ".," and right[1].isdigit()
+            and bool(left) and left[-1].isdigit())
+
+
+def _continues_word(left: str, right: str) -> bool:
+    """Does `right` continue the word `left` ends with (no break between them)?
+
+    Yes when `right` starts with a letter or digit ("19/08/" + "1998"), or
+    with a decimal separator between digits ("17" + ".01").
+    """
+    return right[0].isalnum() or _is_number_separator_junction(left, right)
 
 
 def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
@@ -552,7 +576,7 @@ def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
         if not (-0.5 <= gap <= MIDWORD_MAX_GAP_FRAC * size):
             continue                                  # not touching
         l_text, r_text = ls["text"], rs["text"]
-        if l_text[-1].isspace() or not r_text[0].isalnum():
+        if l_text[-1].isspace() or not _continues_word(l_text, r_text):
             continue                                  # a space = two words
         if _is_glyph_fallback(l_text) or _is_glyph_fallback(r_text):
             continue

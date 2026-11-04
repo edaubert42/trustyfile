@@ -54,6 +54,16 @@ def test_retyped_year_in_other_font_is_critical(tmp_path):
     assert set(hit["families"]) == {"helvetica", "times"}
 
 
+def test_cents_retyped_in_other_font_is_critical(tmp_path):
+    # The most realistic partial retype: only the cents. The new span starts
+    # with the decimal separator ("17" + ".01"). Seen on every real invoice
+    # of the ZUGFeRD corpus retyped this way; the old rule required the right
+    # half to start with a letter or digit and missed all of them.
+    flags = _midword(_two_part_line(tmp_path, "Total TTC 17", ".01"))
+    assert [f.severity for f in flags] == ["critical"]
+    assert flags[0].details["suspicious_lines"][0]["text"] == "Total TTC 17.01"
+
+
 def test_letters_split_is_high_not_critical(tmp_path):
     flags = _midword(_two_part_line(tmp_path, "- EASY", "MONNERET"))
     assert [f.severity for f in flags] == ["high"]
@@ -97,6 +107,9 @@ def test_lone_accented_letter_fallback_is_not_flagged(tmp_path):
     ("19/08/", "1998", True),
     ("1 2", "50,00", True),
     ("Total : ", "1998", False),     # a space before: a new word, not a split
+    ("17", ".01", True),             # cents retyped: cut before the decimal separator
+    ("260", ",01", True),
+    ("Total", ".01", False),         # a separator after a letter is not inside a number
     ("EASY", "MONNERET", False),
 ])
 def test_junction_splits_number(left, right, expected):
