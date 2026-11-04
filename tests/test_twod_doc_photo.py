@@ -339,3 +339,212 @@ def test_decoder_crash_is_reported_as_no_code():
         raise RuntimeError("libdmtx exploded")
 
     assert decode_photo(_photo(None), decoder=broken) is None
+
+
+# --- scan_photo + photo_verdict -----------------------------------------------
+#
+# Real ECDSA end to end: our own P-256 key and self-signed certificate, a store
+# shaped like scripts/fetch_twod_doc_certs.py's output (same approach as
+# tests/test_twod_doc_signature.py), a signed 2D-Doc encoded as a DataMatrix,
+# photographed (degraded, JPEG-compressed) and scanned.
+
+import base64
+import datetime
+import json
+
+from src.modules.twod_doc_crypto import CertificateStore, SignatureCheck
+from src.modules.twod_doc_photo import PhotoScanResult, photo_verdict, scan_photo
+
+cryptography = pytest.importorskip("cryptography")
+from cryptography import x509  # noqa: E402
+from cryptography.hazmat.primitives import hashes, serialization  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature  # noqa: E402
+from cryptography.x509.oid import NameOID  # noqa: E402
+
+_SIGNED_HEADER = "DC03FR000001234523450101"   # CA FR00, cert 0001
+_SIGNED_MESSAGE = "10" + "JEAN DUPONT" + GS + "24" + "75001" + "25" + "PARIS" + GS
+
+
+@pytest.fixture(scope="module")
+def keypair():
+    key = ec.generate_private_key(ec.SECP256R1())
+    subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "FR00-0001")])
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject).issuer_name(subject)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        # Wide window: the header's emission date decodes to ~2048.
+        .not_valid_before(datetime.datetime(2000, 1, 1, tzinfo=datetime.timezone.utc))
+        .not_valid_after(datetime.datetime(2080, 1, 1, tzinfo=datetime.timezone.utc))
+        .sign(key, hashes.SHA256())
+    )
+    return key, cert
+
+
+@pytest.fixture()
+def store(tmp_path, keypair) -> CertificateStore:
+    _, cert = keypair
+    (tmp_path / "FR00_0.pem").write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    index = {
+        "meta": {"source": "test", "certificate_count": 1},
+        "cas": {"FR00": [{"file": "FR00_0.pem", "subject": "CN=FR00-0001",
+                          "candidate_ids": ["0001", "FR00-0001"]}]},
+    }
+    (tmp_path / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    return CertificateStore(store_dir=tmp_path)
+
+
+def _signed(key, message: str = _SIGNED_MESSAGE) -> str:
+    """A 2D-Doc string signed like the real thing: raw r||s, Base32, no padding."""
+    payload = _SIGNED_HEADER + message
+    r, s = decode_dss_signature(key.sign(payload.encode("latin-1"), ec.ECDSA(hashes.SHA256())))
+    raw = r.to_bytes(32, "big") + s.to_bytes(32, "big")
+    return payload + US + base64.b32encode(raw).decode("ascii").rstrip("=")
+
+
+def _jpeg_bytes(img: Image.Image, quality: int = 85) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    return buf.getvalue()
+
+
+@needs_libdmtx
+def test_photo_of_a_genuine_signed_code_is_valid(keypair, store):
+    key, _ = keypair
+    photo = _photo(_signed(key), angle=7, blur=1.0, perspective=True)
+    result = scan_photo(_jpeg_bytes(photo), store=store)
+    assert result.status == "decoded"
+    assert result.signature.status == "valid"
+    assert result.twod_doc.beneficiary_name == "JEAN DUPONT"
+    assert photo_verdict(result) == ("ok", "photo_sig_valid")
+
+
+@needs_libdmtx
+def test_genuine_codes_are_never_reported_invalid_across_degradations(keypair, store):
+    # The PR gate: whatever the photo quality, a genuine code is "valid" or
+    # "not read", never an accusation.
+    key, _ = keypair
+    code = _signed(key)
+    for i, deg in enumerate([{}, {"angle": 12}, {"blur": 2.0}, {"noise": 18},
+                             {"paper": 140, "ink": 85}, {"shadow": True},
+                             {"code_px": 180}, {"code_px": 800}, {"blur": 4.0}]):
+        result = scan_photo(_jpeg_bytes(_photo(code, seed=i, **deg), quality=70), store=store)
+        level, _ = photo_verdict(result)
+        assert level in ("ok", "neutral"), deg
+        if result.status == "decoded":
+            assert result.signature.status == "valid", deg
+
+
+@needs_libdmtx
+def test_photo_of_an_altered_code_is_a_confirmed_alert(keypair, store):
+    key, _ = keypair
+    # Signed for PARIS, then the city edited to LYON: the signature no longer
+    # matches the data.
+    forged = _signed(key).replace("PARIS", "LYON ")
+    result = scan_photo(_jpeg_bytes(_photo(forged)), store=store)
+    assert result.signature.status == "invalid"
+    assert result.invalid_confirmed is True
+    # The confirming read looked at the gray pixels, not the binarised ones
+    # the first read came from: an independent read, not the same one twice.
+    assert result.attempt == CROP
+    assert result.guard_attempt in (RAW_CROP, RAW)
+    assert photo_verdict(result) == ("alert", "photo_sig_invalid")
+
+
+@needs_libdmtx
+def test_unknown_issuer_is_neutral_not_an_alert(keypair):
+    key, _ = keypair
+    # Default (committed ANTS) store: our test CA "FR00" is not in it.
+    result = scan_photo(_jpeg_bytes(_photo(_signed(key))))
+    assert result.status == "decoded"
+    assert result.signature.status == "cert_not_found"
+    assert photo_verdict(result) == ("neutral", "photo_sig_unverifiable")
+
+
+def test_invalid_signature_not_confirmed_by_the_second_read_stays_neutral(keypair, store):
+    key, _ = keypair
+    forged = _signed(key).replace("PARIS", "LYON ")
+    calls = []
+
+    class _Sym:
+        def __init__(self, text):
+            self.data = text.encode("latin-1")
+
+    def first_read_only(image, timeout_ms):
+        calls.append(timeout_ms)
+        return [_Sym(forged)] if len(calls) == 1 else []
+
+    blank = Image.new("RGB", (800, 600), "white")
+    result = scan_photo(_jpeg_bytes(blank), decoder=first_read_only, store=store)
+    assert result.signature.status == "invalid"
+    assert len(calls) > 1                       # the guard did read again
+    assert result.invalid_confirmed is False
+    assert photo_verdict(result) == ("neutral", "photo_sig_unconfirmed")
+
+
+@needs_libdmtx
+def test_guard_does_not_run_for_a_valid_signature(keypair, store):
+    key, _ = keypair
+    calls = []
+
+    def counting(image, timeout_ms):
+        calls.append(timeout_ms)
+        return twod_doc_photo._libdmtx_decoder(image, timeout_ms)
+
+    result = scan_photo(_jpeg_bytes(_photo(_signed(key))), decoder=counting, store=store)
+    assert result.signature.status == "valid"
+    assert len(calls) == 1          # first crop read it; no second read
+
+
+def test_unreadable_bytes():
+    result = scan_photo(b"%PDF-1.7 this is not a photo")
+    assert result.status == "unreadable_image"
+    assert photo_verdict(result) == ("neutral", "photo_unreadable")
+
+
+@needs_libdmtx
+def test_photo_without_code():
+    result = scan_photo(_jpeg_bytes(_photo(None)))
+    assert result.status == "no_code"
+    assert photo_verdict(result) == ("neutral", "photo_no_code")
+
+
+def test_dc_symbol_that_does_not_parse_counts_as_no_code():
+    class _Sym:
+        data = b"DC??garbage"
+
+    result = scan_photo(_jpeg_bytes(Image.new("RGB", (400, 300), "white")),
+                        decoder=lambda image, timeout_ms: [_Sym()])
+    assert result.status == "no_code"
+    assert result.twod_doc is None
+
+
+@pytest.mark.parametrize("status,confirmed,expected", [
+    ("valid", False, ("ok", "photo_sig_valid")),
+    ("invalid", True, ("alert", "photo_sig_invalid")),
+    ("invalid", False, ("neutral", "photo_sig_unconfirmed")),
+    ("test_cert", False, ("neutral", "photo_sig_test_cert")),
+    ("cert_not_found", False, ("neutral", "photo_sig_unverifiable")),
+    ("cert_window_mismatch", False, ("neutral", "photo_sig_unverifiable")),
+    ("no_signature", False, ("neutral", "photo_sig_unverifiable")),
+    ("malformed", False, ("neutral", "photo_sig_unverifiable")),
+    ("unavailable", False, ("neutral", "photo_sig_unverifiable")),
+    ("error", False, ("neutral", "photo_sig_unverifiable")),
+])
+def test_every_signature_status_has_a_verdict(status, confirmed, expected):
+    result = PhotoScanResult(status="decoded", signature=SignatureCheck(status),
+                             invalid_confirmed=confirmed)
+    assert photo_verdict(result) == expected
+
+
+def test_only_a_confirmed_invalid_signature_can_alert():
+    from typing import get_args
+    from src.modules.twod_doc_crypto import SignatureStatus
+    for status in get_args(SignatureStatus):
+        for confirmed in (False, True):
+            level, _ = photo_verdict(PhotoScanResult(
+                status="decoded", signature=SignatureCheck(status), invalid_confirmed=confirmed))
+            if level == "alert":
+                assert (status, confirmed) == ("invalid", True)

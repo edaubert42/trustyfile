@@ -25,7 +25,8 @@ from __future__ import annotations
 import io
 import logging
 import time
-from typing import Callable, Iterator
+from dataclasses import dataclass
+from typing import Callable, Iterator, Literal
 
 import cv2
 import numpy as np
@@ -34,8 +35,15 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from src.modules.twod_doc import (
     HEADER_MARKER,
     PYLIBDMTX_AVAILABLE,
+    TwoDocData,
     _datamatrix_candidate_boxes,
     decode_datamatrix,
+    parse_twod_doc,
+)
+from src.modules.twod_doc_crypto import (
+    CertificateStore,
+    SignatureCheck,
+    verify_twod_doc_signature,
 )
 
 logger = logging.getLogger(__name__)
@@ -297,3 +305,144 @@ def decode_photo(
     except Exception as exc:  # libdmtx/OpenCV failure: "no code", not a crash
         logger.warning("Photo decode failed: %s", type(exc).__name__)
     return None
+
+
+# =============================================================================
+# FULL SCAN + VERDICT
+# =============================================================================
+
+ScanStatus = Literal["unreadable_image", "no_code", "decoded"]
+
+
+@dataclass
+class PhotoScanResult:
+    """Everything the photo view needs to show, and nothing it must not keep.
+
+    Attributes:
+        status: "unreadable_image" (not an image / too big), "no_code"
+            (no readable 2D-Doc in time) or "decoded".
+        twod_doc: The parsed barcode when decoded.
+        signature: Outcome of the ECDSA check when decoded.
+        invalid_confirmed: For an "invalid" signature only: True when a second,
+            independent read of the photo gave the very same bytes. An
+            unconfirmed "invalid" is shown as neutral, never as an alert.
+        attempt: Name of the decode attempt that succeeded (diagnostics).
+        guard_attempt: Name of the attempt that produced the second read of
+            the double-read guard, None when the guard did not run or read
+            nothing.
+        elapsed_s: Wall time of the whole scan (diagnostics, benchmarks).
+    """
+    status: ScanStatus
+    twod_doc: TwoDocData | None = None
+    signature: SignatureCheck | None = None
+    invalid_confirmed: bool = False
+    attempt: str | None = None
+    guard_attempt: str | None = None
+    elapsed_s: float = 0.0
+
+
+def scan_photo(
+    data: bytes,
+    *,
+    deadline_s: float = DECODE_DEADLINE_S,
+    decoder: Decoder | None = None,
+    store: CertificateStore | None = None,
+) -> PhotoScanResult:
+    """Read and verify the 2D-Doc on a phone photo.
+
+    Steps: load_photo -> decode_photo -> parse_twod_doc ->
+    verify_twod_doc_signature, plus the double-read guard.
+
+    Double-read guard (anti false positive): the only verdict that accuses a
+    document is an "invalid" signature. Before trusting it, the photo is read
+    a second time through attempts that look at DIFFERENT pixels (gray if the
+    first read came from the binarised photo, binarised otherwise). The
+    accusation stands only if both reads give the same bytes. It costs
+    nothing on the normal path: it only runs for an "invalid" signature.
+
+    Args:
+        data: Raw bytes of the uploaded photo.
+        deadline_s: Time budget of the first decode.
+        decoder: Injectable for tests (see decode_photo).
+        store: Certificate store, injectable for tests (default: committed).
+
+    Returns:
+        A PhotoScanResult. Never raises.
+
+    Example:
+        >>> r = scan_photo(open("avis.jpg", "rb").read())
+        >>> r.status, r.signature.status
+        ('decoded', 'valid')
+    """
+    started = time.monotonic()
+
+    def done(**kwargs) -> PhotoScanResult:
+        return PhotoScanResult(elapsed_s=time.monotonic() - started, **kwargs)
+
+    img = load_photo(data)
+    if img is None:
+        return done(status="unreadable_image")
+
+    found = decode_photo(img, deadline_s=deadline_s, decoder=decoder)
+    if found is None:
+        return done(status="no_code")
+    text, attempt = found
+
+    twod_doc = parse_twod_doc(text)
+    if twod_doc is None:
+        # A "DC..." DataMatrix whose header does not parse: nothing we can
+        # show or verify. Same advice as no code at all: retake the photo.
+        logger.info("Photo decode: DC header found but not parsable")
+        return done(status="no_code", attempt=attempt)
+
+    signature = verify_twod_doc_signature(twod_doc, store=store)
+
+    confirmed = False
+    guard_attempt = None
+    if signature.status == "invalid":
+        second_attempts = GUARD_ATTEMPTS if attempt in (CROP, BINARY) else (CROP, BINARY)
+        second = decode_photo(img, attempts=second_attempts, decoder=decoder)
+        confirmed = second is not None and second[0] == text
+        guard_attempt = second[1] if second else None
+        logger.info("Photo decode: invalid signature, second read %s",
+                    "confirms" if confirmed else "does not confirm")
+
+    return done(status="decoded", twod_doc=twod_doc, signature=signature,
+                invalid_confirmed=confirmed, attempt=attempt,
+                guard_attempt=guard_attempt)
+
+
+# Verdict levels: "ok" (green), "alert" (red), "neutral" (gray). Only ONE
+# outcome can be "alert": a confirmed invalid signature.
+VerdictLevel = Literal["ok", "alert", "neutral"]
+
+
+def photo_verdict(result: PhotoScanResult) -> tuple[VerdictLevel, str]:
+    """Map a scan result to (level, translation key) for the photo view.
+
+    Pure function, the single place that decides what the person is told.
+    Neutral wording for everything that is not proof either way: an issuer
+    missing from our certificate snapshot, a test certificate, a blurry photo
+    are NOT evidence about the document.
+
+    Example:
+        >>> photo_verdict(PhotoScanResult(status="no_code"))
+        ('neutral', 'photo_no_code')
+    """
+    if result.status == "unreadable_image":
+        return "neutral", "photo_unreadable"
+    if result.status == "no_code" or result.signature is None:
+        return "neutral", "photo_no_code"
+
+    status = result.signature.status
+    if status == "valid":
+        return "ok", "photo_sig_valid"
+    if status == "invalid":
+        if result.invalid_confirmed:
+            return "alert", "photo_sig_invalid"
+        return "neutral", "photo_sig_unconfirmed"
+    if status == "test_cert":
+        return "neutral", "photo_sig_test_cert"
+    # cert_not_found, cert_window_mismatch, no_signature, malformed,
+    # unavailable, error: we could not check, which proves nothing.
+    return "neutral", "photo_sig_unverifiable"
