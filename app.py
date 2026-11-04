@@ -865,7 +865,7 @@ st.markdown(f"""
        restyled to sit beside the HTML print button as a quiet, same-size pair. */
     .st-key-tf_report_row [data-testid="stDownloadButton"] button {{
         background: transparent; color: #888; border: 1px solid #2a2a3e;
-        border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; min-height: 0;
+        border-radius: 6px; padding: 7px 14px; font-size: 0.85rem; min-height: 0;
         line-height: 1.2;
     }}
     .st-key-tf_report_row [data-testid="stDownloadButton"] button:hover {{
@@ -879,7 +879,7 @@ st.markdown(f"""
             color: #000 !important;
         }}
         .tf-print-only {{ display: block; }}
-        .custom-header, .tf-footer, #tf-print-wrap, [data-testid="stDownloadButton"],
+        .custom-header, .tf-footer, #tf-print-wrap, #tf-new-analysis, [data-testid="stDownloadButton"],
         [data-testid="stFileUploader"], [data-testid="stSelectbox"],
         [data-testid="stStatusWidget"], [data-testid="stDecoration"],
         [data-testid="stToolbar"], [data-testid="stBottom"],
@@ -1397,6 +1397,14 @@ if uploaded_file is not None or batch_files:
             gap: 0.5rem !important;
         }
     </style>""", unsafe_allow_html=True)
+    if not (batch_files and uploaded_file is None):
+        # Single-result page: every top-level child but the results container
+        # is invisible (scripts, styles, the hidden uploader), yet each still
+        # costs one flex gap — ~50 px of blank band under the logo. The page
+        # content lives in one container, which keeps its own inner spacing.
+        st.markdown("""<style>
+            .block-container > [data-testid="stVerticalBlock"] { gap: 0 !important; }
+        </style>""", unsafe_allow_html=True)
 
 # =============================================================================
 # BATCH PAGE (roadmap #14) — several files, one row each
@@ -1541,7 +1549,7 @@ if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity
-    from src.summary import generate_rich_summary, get_flag_sentence
+    from src.summary import generate_rich_summary, get_flag_sentence, next_step_key
     from src.report import build_report, report_json, report_filename
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
@@ -1705,9 +1713,6 @@ if uploaded_file is not None:
 
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
-
-        # Display results with PDF preview
-        st.markdown('<hr style="margin:0 0 0.3rem 0;">', unsafe_allow_html=True)
 
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
@@ -1949,63 +1954,6 @@ if uploaded_file is not None:
             </div>
             """)
 
-            # Report actions, right-aligned in one row: the HTML print button
-            # and the JSON download (roadmap #8, tier 2). The download is the
-            # same serializer the API endpoint returns (src/report.py), built
-            # from the cached result + summary so a rerun costs one json.dumps.
-            # `on_click="ignore"` keeps a click from rerunning the whole page.
-            # The <script> stays in the same st.html as its button: it binds by
-            # id when the element mounts, so they must mount together.
-            with st.container(key="tf_report_row"):
-                _row_space, _row_print, _row_dl = st.columns([3, 1.1, 1.1], vertical_alignment="center")
-                _row_print.html(f"""
-                <div id="tf-print-wrap" style="display:flex; justify-content:flex-end;">
-                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:4px 10px; font-size:0.75rem; cursor:pointer;">
-                        {t("print_report")}
-                    </button>
-                </div>
-                <script>
-                (function() {{
-                    const btn = document.getElementById('tf-print');
-                    if (btn && !btn.dataset.bound) {{
-                        btn.dataset.bound = '1';
-                        btn.addEventListener('click', function() {{ window.print(); }});
-                    }}
-                    if (!window.__tfPrintHooks) {{
-                        window.__tfPrintHooks = true;
-                        window.addEventListener('beforeprint', function() {{
-                            document.querySelectorAll('details:not([open])').forEach(function(d) {{
-                                d.dataset.tfAutoOpen = '1';
-                                d.open = true;
-                            }});
-                        }});
-                        window.addEventListener('afterprint', function() {{
-                            document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
-                                d.open = false;
-                                delete d.dataset.tfAutoOpen;
-                            }});
-                        }});
-                    }}
-                }})();
-                </script>
-                """, unsafe_allow_javascript=True)
-                _report_text = report_json(build_report(
-                    result,
-                    filename=uploaded_file.name,
-                    analysed_at=_analysed_at,
-                    lang=get_lang(),
-                    summary=summary,
-                ))
-                _row_dl.download_button(
-                    t("download_report"),
-                    data=_report_text,
-                    file_name=report_filename(result),
-                    mime="application/json",
-                    key="download_report",
-                    on_click="ignore",
-                    use_container_width=True,
-                )
-
             # Main score gauge (circular arc like HubSpot Website Grader)
             score = result.trust_score
             risk_level = result.risk_level
@@ -2060,11 +2008,14 @@ if uploaded_file is not None:
                         font-size="14" fill="{gauge_color}" font-weight="bold">
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
-                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:340px; margin:0.2rem auto 0.4rem auto;">
-                    {t("score_caveat")}
+                <p style="color:white; font-size:1.15rem; font-weight:bold; line-height:1.35; max-width:420px; margin:0.1rem auto 0.6rem auto;">
+                    {summary.verdict}
                 </p>
-                <p style="color:#c9d1d9; font-size:0.78rem; line-height:1.45; max-width:340px; margin:0 auto 0.9rem auto;">
-                    <strong>{t("next_step_label")}</strong> {t(f"next_step_{result.band}")}
+                <p style="color:#c9d1d9; font-size:0.88rem; line-height:1.5; max-width:420px; margin:0 auto 0.5rem auto;">
+                    <strong>{t("next_step_label")}</strong> {t(next_step_key(result.band, result.document_type))}
+                </p>
+                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:420px; margin:0 auto 0.4rem auto;">
+                    {t("score_caveat")}
                 </p>
             </div>
             """, unsafe_allow_html=True)
@@ -2123,16 +2074,19 @@ if uploaded_file is not None:
                 net = _group_net(member_names)
                 hard = any(contrib.get(n, {}).get("hard_tamper") for n in member_names)
 
+                # No number next to the bar: the values are log-odds "nats",
+                # an internal unit that means nothing to a reader ("+3.7").
+                # Bar length and colour carry the comparison on their own.
                 if hard:
-                    width, bar_color, value_label = 100, "#ef233c", "veto"
+                    width, bar_color, value_label = 100, "#ef233c", ""
                 elif net > 0:
                     width = round(100 * net / total_pressure) if total_pressure else 0
                     bar_color = "#ef233c" if net >= 1.5 else "#ffb627"
-                    value_label = f"+{net:.1f}"
+                    value_label = ""
                 elif net < 0:
-                    width, bar_color, value_label = 25, "#28a745", f"{net:.1f}"
+                    width, bar_color, value_label = 25, "#28a745", ""
                 else:
-                    width, bar_color, value_label = 0, "#28a745", "0"
+                    width, bar_color, value_label = 0, "#28a745", ""
 
                 bars_html += f'''
                 <div style="display:flex; align-items:center; margin-bottom:6px;">
@@ -2153,36 +2107,7 @@ if uploaded_file is not None:
             all_flags = collect_all_flags(result.modules)
             counts = count_flags_by_severity(all_flags)
 
-            # Issues pills (right below the circle)
-            pills_html = ""
-            if counts["critical"]:
-                pills_html += f'<span style="background:#ef233c; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["critical"]} {t("severity_critical")}</span> '
-            if counts["high"]:
-                pills_html += f'<span style="background:#ff6b35; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["high"]} {t("severity_high")}</span> '
-            if counts["medium"]:
-                pills_html += f'<span style="background:#ffb627; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["medium"]} {t("severity_medium")}</span> '
-            if counts["low"]:
-                pills_html += f'<span style="background:#555; color:#ccc; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{counts["low"]} {t("severity_low")}</span> '
-
-            if not any(counts.values()):
-                pills_html = f'<span style="background:#28a745; color:white; padding:4px 10px; border-radius:12px; font-size:0.8rem; font-weight:bold;">{t("no_issues")}</span>'
-
             _dt_label = t(f"doctype_{_dt}")
-            st.markdown(
-                f'<div style="display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:0.3rem;">{pills_html}</div>'
-                f'<p style="text-align:center; font-size:0.7rem; color:#888; margin-top:0.4rem;">{t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
-                f'<div style="text-align:center; margin-top:8px;">'
-                f'<span style="background:#1e1e1e; border:1px solid #333; border-radius:20px;'
-                f' padding:4px 14px; font-size:0.8rem; color:#aaa;">'
-                f'{t("doctype_label")}&nbsp;:&nbsp;'
-                f'<strong style="color:#e0e0e0;">{_dt_label}</strong>'
-                f'</span></div>',
-                unsafe_allow_html=True,
-            )
-
-            # Module score bars
-            st.markdown(f'<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">{bars_html}</div>',
-                        unsafe_allow_html=True)
 
             # Summary block — verdict + flag list + document type
             _sev_colors = {
@@ -2218,26 +2143,16 @@ if uploaded_file is not None:
                     f'</div>'
                 )
 
-            _summary_html = (
-                '<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">'
-                f'<span style="color:white; font-size:1.3rem; font-weight:bold; text-transform:uppercase;'
-                f' letter-spacing:0.5px; display:block; text-align:center;">{t("summary")}</span>'
-                '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">'
-                f'<p style="color:white; font-size:1.03rem; font-weight:bold; margin:0 0 0.8rem 0;">{summary.verdict}</p>'
-                f'{_banner_html}'
-                '<hr style="border:none; border-top:1px solid #2a2a2a; margin:0 0 0.8rem 0;">'
-                f'{flags_list_html}'
-                '</div>'
-                '<div style="margin-bottom:0.5rem;"></div>'
-            )
-            st.markdown(_summary_html, unsafe_allow_html=True)
+            # Modification history — the most concrete evidence on the page:
+            # it shows WHAT changed between saves ("+ 2 200,00 EUR"). It sits
+            # right under the verdict, as a highlighted card, so the reader
+            # sees the proof before the list of findings. Only rendered when
+            # the PDF has several versions with a diff to show. (It used to
+            # come after the export buttons, below everything else.)
+            _history_html = ""
+            if history["version_count"] > 1 and history.get("diffs"):
+                import html as html_mod  # for escaping user content
 
-
-        # Modification history (only shown if PDF has multiple versions)
-        if history["version_count"] > 1 and history.get("diffs"):
-            import html as html_mod  # for escaping user content
-
-            with results_col:
                 row_style = "display:flex; align-items:flex-start; padding:6px 0; border-bottom:1px solid #2a2a2a;"
                 label_style = "color:#888; font-size:0.8rem; width:90px; flex-shrink:0;"
                 value_style = "color:#eee; font-size:0.8rem;"
@@ -2251,16 +2166,20 @@ if uploaded_file is not None:
                 if history["diffs"]:
                     first_software = history["diffs"][0].get("from_tool", "")
 
-                if pdf_data.metadata.creation_date:
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
-                    history_rows += (
-                        f'<div style="{row_style}">'
-                        f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
-                        f'<div style="{value_style}">'
-                        f'<div>{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")} — {t("original_document")}</div>'
-                        f'{software_html}'
-                        f'</div></div>'
-                    )
+                # Version 1 is always listed, dated when the PDF says when it
+                # was created: without it a lone "Version 2" had nothing to be
+                # compared against.
+                _v1_when = (pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M") + " — "
+                            if pdf_data.metadata.creation_date else "")
+                software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
+                history_rows += (
+                    f'<div style="{row_style}">'
+                    f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
+                    f'<div style="{value_style}">'
+                    f'<div>{_v1_when}{t("original_document")}</div>'
+                    f'{software_html}'
+                    f'</div></div>'
+                )
 
                 # Each subsequent version
                 for diff in history["diffs"]:
@@ -2318,21 +2237,119 @@ if uploaded_file is not None:
                         f'<div style="{row_style}">'
                         f'<span style="{label_style}">{t("version_n").format(n=version_num)}</span>'
                         f'<div style="{value_style}">'
-                        f'<div>{time_info if time_info else t("unknown_time")}</div>'
+                        f'{f"<div>{time_info}</div>" if time_info else ""}'
                         f'{software_html}'
                         f'{changes_html}'
                         f'</div></div>'
                     )
 
-                st.markdown(
-                    f'<div style="margin-top:1.5rem; max-width:440px; margin-left:auto; margin-right:auto;">'
+                _history_html = (
+                    '<div style="margin:0.6rem auto 0 auto; max-width:440px; background:#1a1a2e;'
+                    ' border:1px solid #2a2a3e; border-left:3px solid #ff6b35; border-radius:8px;'
+                    ' padding:10px 14px;">'
                     f'<span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;'
                     f' letter-spacing:0.5px;">{t("full_modification_history")}</span>'
-                    f'<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">'
+                    f'<p style="color:#c9d1d9; font-size:0.82rem; margin:4px 0 6px 0;">'
+                    f'{t("history_intro").format(n=history["version_count"] - 1)}</p>'
                     f'{history_rows}'
-                    f'</div>',
-                    unsafe_allow_html=True,
+                    '</div>'
                 )
+
+            # Findings first (the verdict itself now sits under the gauge),
+            # then where the evidence comes from, then one discreet line of
+            # context. Same section-title style as "Preview" on the right.
+            _section_title = ('<span style="color:white; font-size:0.95rem; font-weight:bold; '
+                              'text-transform:uppercase; letter-spacing:0.5px;">{}</span>'
+                              '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 8px 0;">')
+            _no_findings_html = (f'<p style="color:#28a745; font-size:0.9rem; margin:0;">{t("no_issues")}</p>'
+                                 if not all_flags else "")
+            _summary_html = (
+                _history_html +
+                '<div style="margin-top:1rem; max-width:440px; margin-left:auto; margin-right:auto;">'
+                + _section_title.format(t("summary")) +
+                f'{_banner_html}'
+                f'{flags_list_html}{_no_findings_html}'
+                '</div>'
+                '<div style="margin-top:1.4rem; max-width:440px; margin-left:auto; margin-right:auto;">'
+                + _section_title.format(t("evidence_breakdown")) +
+                f'{bars_html}'
+                '</div>'
+                f'<p style="text-align:center; font-size:0.72rem; color:#888; margin:0.8rem 0 0.6rem 0;">'
+                f'{t("doctype_label")}&nbsp;: <strong style="color:#bbb;">{_dt_label}</strong>'
+                f' &middot; {t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
+            )
+            st.markdown(_summary_html, unsafe_allow_html=True)
+
+            # Report actions at the END of the column: exporting is the last
+            # thing a reader does, so it no longer sits above the verdict. One
+            # horizontal container that wraps on a phone, instead of three
+            # columns whose empty spacer stacked into a blank row on mobile.
+            # Print button + JSON download (roadmap #8, tier 2) + a link back
+            # to the upload page (the dropzone is hidden on the results page). The download is the
+            # same serializer the API endpoint returns (src/report.py), built
+            # from the cached result + summary so a rerun costs one json.dumps.
+            # `on_click="ignore"` keeps a click from rerunning the whole page.
+            # The <script> stays in the same st.html as its button: it binds by
+            # id when the element mounts, so they must mount together.
+            with st.container(key="tf_report_row", horizontal=True,
+                              horizontal_alignment="center", vertical_alignment="center", gap="small"):
+                # width="content": each action is as wide as its label, so the
+                # container can centre the three as one group (and wrap them
+                # on a phone) instead of stretching each into a third.
+                st.html(f"""
+                <a id="tf-new-analysis" href="?lang={get_lang()}" target="_parent" style="display:inline-block; background:#2563eb; color:white; text-decoration:none; border:1px solid #2563eb; border-radius:6px; padding:7px 14px; font-size:0.85rem; font-weight:600; line-height:1.2;">
+                    {t("analyze_another")}
+                </a>
+                """, width="content")
+                st.html(f"""
+                <div id="tf-print-wrap" style="display:flex; justify-content:center;">
+                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:7px 14px; font-size:0.85rem; line-height:1.2; cursor:pointer;">
+                        {t("print_report")}
+                    </button>
+                </div>
+                <script>
+                (function() {{
+                    const btn = document.getElementById('tf-print');
+                    if (btn && !btn.dataset.bound) {{
+                        btn.dataset.bound = '1';
+                        btn.addEventListener('click', function() {{ window.print(); }});
+                    }}
+                    if (!window.__tfPrintHooks) {{
+                        window.__tfPrintHooks = true;
+                        window.addEventListener('beforeprint', function() {{
+                            document.querySelectorAll('details:not([open])').forEach(function(d) {{
+                                d.dataset.tfAutoOpen = '1';
+                                d.open = true;
+                            }});
+                        }});
+                        window.addEventListener('afterprint', function() {{
+                            document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
+                                d.open = false;
+                                delete d.dataset.tfAutoOpen;
+                            }});
+                        }});
+                    }}
+                }})();
+                </script>
+                """, unsafe_allow_javascript=True, width="content")
+                _report_text = report_json(build_report(
+                    result,
+                    filename=uploaded_file.name,
+                    analysed_at=_analysed_at,
+                    lang=get_lang(),
+                    summary=summary,
+                ))
+                st.download_button(
+                    t("download_report"),
+                    data=_report_text,
+                    file_name=report_filename(result),
+                    mime="application/json",
+                    key="download_report",
+                    on_click="ignore",
+                    width="content",
+                )
+
+
 
         # Detected issues
         if all_flags:
