@@ -358,12 +358,36 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
             a, b = live[i], live[j]
             if iou(fitz.Rect(a["bbox"]), fitz.Rect(b["bbox"])) < CONFLICT_IOU_MIN:
                 continue
+            if _is_layered_icon(a, b):
+                continue
             if _pair_is_conflict(a, b, page_angle):
                 under = a if a.get("seqno", 0) <= b.get("seqno", 0) else b
                 if is_placeholder(span_text(under)):
                     continue
                 hits.append({"a": a, "b": b})
     return hits
+
+
+def _is_layered_icon(a: dict, b: dict) -> bool:
+    """True when two stacked spans are single non-digit glyphs: a layered icon.
+
+    Icon fonts draw a multi-colour pictogram by stacking glyphs at the same
+    spot, one per colour. Real case: a genuine EDF invoice's logo is "b" then
+    "a" in the PictosSIMM font, 80 pt, same position — which Signal 2 read as
+    two conflicting values and flagged critical.
+
+    Digits are NOT excused: a single digit retyped over another is exactly
+    the edit this signal exists for, and icon fonts map pictograms to letters
+    and symbols, not to the digits of an amount.
+
+    Examples:
+        "b" over "a"   -> True   (icon layers)
+        "4" over "1"   -> False  (a retyped digit)
+        "AB" over "CD" -> False  (real text)
+    """
+    ta, tb = span_text(a).strip(), span_text(b).strip()
+    return (len(ta) == 1 and len(tb) == 1
+            and not ta.isdigit() and not tb.isdigit())
 
 
 # =============================================================================
