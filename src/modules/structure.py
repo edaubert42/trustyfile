@@ -30,6 +30,7 @@ This means we can detect:
 """
 
 import re
+import hashlib
 import logging
 import difflib
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ from datetime import datetime, timedelta, timezone
 import fitz  # PyMuPDF
 
 from src.models import Flag, ModuleResult
+from src.render_safety import safe_zoom
 from src.extractors.pdf_extractor import PDFData
 from src.modules.metadata import check_dates
 
@@ -1405,6 +1407,161 @@ def verify_signature_dss(pdf_path: str) -> dict:
     }
 
 
+# =============================================================================
+# DID THE INCREMENTAL UPDATES CHANGE WHAT THE READER SEES?
+# =============================================================================
+# Counting revisions says a file was saved again, not that its CONTENT moved.
+# Real case: the ZUGFeRD sample invoices from Intarsys carry 4 incremental
+# updates — three rewrite only the Info dictionary and the XMP packet, the
+# last attaches the Factur-X XML — and every revision renders pixel-identical
+# to the final file. They scored REVIEW for "edited 4 times".
+#
+# So we render the ORIGINAL revision (the bytes up to the first %%EOF) and the
+# FINAL file at low resolution and compare pixels. Comparing only these two is
+# enough: a change made and later undone falsified nothing visible.
+_COMPARE_DPI = 36          # coarse, but any edited glyph or patch moves pixels
+_COMPARE_MAX_PAGES = 10    # beyond this, we do not try to prove anything
+_REVISION_CACHE: dict[str, dict] = {}
+_REVISION_CACHE_MAX = 16
+_WHITE = 250               # a pixel channel >= this counts as white paper
+
+
+def _page_fingerprints(doc) -> list[bytes] | None:
+    """Low-resolution render of every page, or None if too many pages."""
+    if doc.page_count == 0 or doc.page_count > _COMPARE_MAX_PAGES:
+        return None
+    prints = []
+    for page in doc:
+        zoom = safe_zoom(page, _COMPARE_DPI)
+        pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False)
+        # Page size + raw pixels: a resized page must not compare equal.
+        prints.append(f"{pix.width}x{pix.height}:".encode() + pix.samples)
+    return prints
+
+
+def _is_blank(fingerprints: list[bytes]) -> bool:
+    """True if every page is plain white paper (every channel >= _WHITE)."""
+    for fp in fingerprints:
+        pixels = fp.split(b":", 1)[1]
+        if min(pixels, default=255) < _WHITE:
+            return False
+    return True
+
+
+def _revision_comparison(pdf_path: str) -> dict:
+    """Compare the original revision with the final file, once per file.
+
+    Returns {"unchanged": bool | None, "original_blank": bool}:
+      unchanged       True / False / None, see visible_content_unchanged.
+      original_blank  True when the original revision exists and every one
+                      of its pages renders as plain white paper.
+    Cached by SHA-256: the structure checks ask several times per analysis.
+    """
+    unknown = {"unchanged": None, "original_blank": False}
+    try:
+        with open(pdf_path, "rb") as f:
+            raw = f.read()
+    except OSError as exc:
+        logger.warning("revision comparison: cannot read %s: %s", pdf_path, exc)
+        return unknown
+
+    key = hashlib.sha256(raw).hexdigest()
+    if key in _REVISION_CACHE:
+        return _REVISION_CACHE[key]
+
+    result = dict(unknown)
+    try:
+        positions = find_eof_positions(raw)
+        if len(positions) > 1:
+            original = fitz.open(stream=raw[:positions[0]], filetype="pdf")
+            final = fitz.open(stream=raw, filetype="pdf")
+            try:
+                before, after = _page_fingerprints(original), _page_fingerprints(final)
+                if before is not None and after is not None:
+                    result["unchanged"] = before == after
+                if before is not None:
+                    result["original_blank"] = _is_blank(before)
+            finally:
+                original.close()
+                final.close()
+    except Exception as exc:  # malformed revision: say "don't know", never crash
+        logger.warning("revision comparison failed for %s: %s", pdf_path, exc)
+        result = dict(unknown)
+
+    if len(_REVISION_CACHE) >= _REVISION_CACHE_MAX:
+        _REVISION_CACHE.pop(next(iter(_REVISION_CACHE)))   # drop the oldest entry
+    _REVISION_CACHE[key] = result
+    return result
+
+
+def visible_content_unchanged(pdf_path: str) -> bool | None:
+    """Do all pages of the final file render exactly like the original revision?
+
+    Returns:
+        True  — the file has incremental updates and none changed a pixel of
+                any page (only metadata, attachments, invisible structure).
+        False — at least one page renders differently: the content was edited.
+        None  — cannot tell: no incremental update, more than
+                _COMPARE_MAX_PAGES pages, or a revision that will not open.
+                Callers must then keep their cautious behaviour.
+
+    Example:
+        Intarsys ZUGFeRD_1p0_BASIC_Einfach.pdf (5 revisions, metadata-only)
+        -> True
+        A total retyped in an incremental save -> False
+    """
+    return _revision_comparison(pdf_path)["unchanged"]
+
+
+def original_revision_blank(pdf_path: str) -> bool:
+    """Was the original revision a blank page that later saves wrote onto?
+
+    Some pipelines start from an empty page and write the whole document in
+    an incremental update. Nothing pre-existing was altered: the "edit" is
+    the document's creation. Real case: symtrax ZUGFeRD 2.1 sample — macOS
+    Preview blank A4 page (a white image), then iTextSharp writes 2 pages of
+    invoice over it.
+
+    Example:
+        symtrax zugferd_2p1_EN16931_Reisekostenabrechnung.pdf -> True
+        A total retyped in an incremental save -> False (original had text)
+    """
+    return _revision_comparison(pdf_path)["original_blank"]
+
+
+def original_revision_unmodified(pdf_path: str) -> bool:
+    """True if the revision before the first incremental update was never modified.
+
+    "Never modified" = its Info ModDate is absent, or within 2 seconds of its
+    CreationDate (the same tolerance as check_dates). Then every later
+    modification lives in the incremental updates, which
+    visible_content_unchanged can inspect.
+
+    Example:
+        Intarsys ZUGFeRD sample: original revision has no ModDate -> True
+    """
+    from src.extractors.pdf_extractor import parse_pdf_date
+    try:
+        with open(pdf_path, "rb") as f:
+            raw = f.read()
+        positions = find_eof_positions(raw)
+        if len(positions) <= 1:
+            return False
+        original = fitz.open(stream=raw[:positions[0]], filetype="pdf")
+        try:
+            meta = original.metadata or {}
+        finally:
+            original.close()
+    except Exception as exc:
+        logger.warning("original_revision_unmodified failed for %s: %s", pdf_path, exc)
+        return False
+    created = parse_pdf_date(meta.get("creationDate"))
+    modified = parse_pdf_date(meta.get("modDate"))
+    if modified is None:
+        return True
+    return created is not None and abs((modified - created).total_seconds()) <= 2
+
+
 def count_incremental_updates(pdf_path: str) -> int:
     """
     Count the number of incremental updates (revisions) in a PDF.
@@ -1553,6 +1710,29 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
         severity = "medium"
         message = f"PDF has {effective_edits} incremental update(s)"
 
+    # Saved again, but nothing the reader sees changed: every page of the
+    # final file renders exactly like the original revision (metadata, XMP,
+    # attached Factur-X XML...). Still reported, at "low" weight.
+    visible_changed = None
+    unchanged = visible_content_unchanged(pdf_path)
+    blank_original = original_revision_blank(pdf_path)
+    if unchanged is True:
+        severity = "low"
+        visible_changed = False
+        message = (f"PDF was saved {effective_edits} more time(s), but every page "
+                   f"renders exactly like the original: only metadata or "
+                   f"attachments changed")
+    elif blank_original:
+        # The first version was blank paper: the later save(s) WROTE the
+        # document, they did not alter existing content.
+        severity = "low"
+        visible_changed = True
+        message = (f"PDF was saved {effective_edits} more time(s); its first "
+                   f"version was a blank page, so the content was written then "
+                   f"(the document's creation, not an edit)")
+    elif unchanged is False:
+        visible_changed = True
+
     # Add context when edits exceed what the signature(s) can explain
     if has_signature:
         message += f" (beyond the {excused} explained by signing passes)"
@@ -1567,6 +1747,8 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
             "has_signature": has_signature,
             "excused_by_signatures": excused,
             "effective_edits": effective_edits,
+            "visible_content_changed": visible_changed,
+            "original_blank": blank_original,
             "explanation": "Each edit adds a new version to the PDF. "
                           "Each signature field excuses one update (a signing "
                           "pass appends exactly one version)."
@@ -1586,11 +1768,21 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
         raw_creation = meta.get("creationDate", "")
         raw_mod = meta.get("modDate", "")
         if raw_creation and raw_mod and raw_creation == raw_mod:
+            # "Hid its traces" assumes visible content was altered. When the
+            # pages render like the original, or the original was blank paper
+            # the later save wrote onto, nothing pre-existing was modified:
+            # an unchanged ModDate hides nothing. Reported at "low".
+            nothing_altered = unchanged is True or blank_original
             flags.append(Flag(
-                severity="high",
+                severity="low" if nothing_altered else "high",
                 code="STRUCT_HIDDEN_MODIFICATION",
-                message="PDF was modified but modification date was not updated (editor hid its traces)",
+                message=("PDF was saved again without updating its modification "
+                         "date, but no existing content was altered"
+                         if nothing_altered else
+                         "PDF was modified but modification date was not updated "
+                         "(editor hid its traces)"),
                 details={
+                    "nothing_altered": nothing_altered,
                     "creation_date": raw_creation,
                     "mod_date": raw_mod,
                     "incremental_updates": effective_edits,
@@ -2081,6 +2273,35 @@ SEVERITY_POINTS = {
 # MAIN ANALYSIS FUNCTION
 # =============================================================================
 
+def _metadata_only_modification(flags: list[Flag], pdf_path: str) -> list[Flag]:
+    """Downgrade META_DOCUMENT_MODIFIED to "low" when the modification is provably invisible.
+
+    "Modified 104 days after creation" is suspicious when it means the pages
+    were edited. When the original revision was itself unmodified
+    (original_revision_unmodified) and every later revision renders exactly
+    like it (visible_content_unchanged), the modification only touched
+    metadata or attachments. A NEW Flag is built: module results are shown
+    verbatim in the per-module breakdown.
+
+    Example:
+        Intarsys ZUGFeRD sample, ModDate 104 days after CreationDate, Factur-X
+        XML attached in an incremental update -> severity "low".
+    """
+    out = []
+    for f in flags:
+        if (f.code == "META_DOCUMENT_MODIFIED" and f.severity != "low"
+                and original_revision_unmodified(pdf_path)
+                and visible_content_unchanged(pdf_path) is True):
+            details = dict(f.details or {})
+            details["visible_content_changed"] = False
+            f = Flag(severity="low", code=f.code,
+                     message=f.message + " (metadata or attachments only: every "
+                                         "page renders exactly like the original)",
+                     details=details)
+        out.append(f)
+    return out
+
+
 def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> ModuleResult:
     """
     Analyze PDF internal structure for signs of manipulation.
@@ -2111,9 +2332,9 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
 
     # Check creation vs modification time gap
     # A legitimate document is generated once — any modification is suspicious
-    all_flags.extend(check_dates(
-        pdf_data.metadata.creation_date,
-        pdf_data.metadata.mod_date
+    all_flags.extend(_metadata_only_modification(
+        check_dates(pdf_data.metadata.creation_date, pdf_data.metadata.mod_date),
+        pdf_data.file_path,
     ))
 
     # Check if XMP toolkit reveals a hidden editor
