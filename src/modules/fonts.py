@@ -398,6 +398,179 @@ def _is_glyph_fallback(text: str) -> bool:
     return len(stripped) == 1 and not stripped.isalnum()
 
 
+# Font family = base name without style suffix (-Bold, -Italic, etc.) and
+# without subset prefix (ABCDEF+). Common aliases are normalised
+# (ArialMT = Arial, etc.) so that one family under two names is not a "change".
+FAMILY_ALIASES = {
+    "arialmt": "arial",
+    "timesnewroman": "times",
+    "times": "times",
+    "couriernew": "courier",
+    "couriermt": "courier",
+    "helveticaneue": "helvetica",
+}
+
+
+def _font_family(font_name: str) -> str:
+    """Font family, ignoring style, subset prefix, and aliases.
+
+    Examples:
+        >>> _font_family("ABCDEF+Helvetica-Bold")
+        'helvetica'
+        >>> _font_family("ArialMT")
+        'arial'
+        >>> _font_family("CIDFont+F1")      # auto-generated name, not a family
+        '_cidfont'
+    """
+    base, _ = extract_base_font_name(font_name)            # drop "ABCDEF+"
+    family = re.split(r"[-,]", base)[0].strip().lower()     # drop "-Bold", ",Italic"
+    # Generic CID font names (CIDFont+F1, ...) are auto-generated and don't
+    # represent real font families.
+    if family.startswith("cidfont"):
+        return "_cidfont"
+    return FAMILY_ALIASES.get(family, family)
+
+
+# Two spans share a baseline when their origins' y differ by less than this
+# fraction of the font size. Measured on the real-tool corpus: a year retyped
+# by an editor sits 0.04-0.37 pt off the original baseline (fonts 10-12 pt),
+# while a superscript ("1er", "m²") sits 2-4 pt higher.
+MIDWORD_BASELINE_TOL_FRAC = 0.12
+
+# Maximum horizontal gap between the two halves of one "word", as a fraction
+# of the font size. A normal space is ~0.25-0.30 em wide: anything below
+# 0.10 em means the glyphs touch — the two spans are one word on screen.
+MIDWORD_MAX_GAP_FRAC = 0.10
+
+
+def _is_lone_accented_letter(text: str) -> bool:
+    """True for a single non-ASCII letter ("é", "ç", "ü").
+
+    A generator whose font lacks an accented glyph draws that one letter in a
+    fallback font: "Factur" + "é" is then a mid-word font change with nothing
+    edited. Same reasoning as _is_glyph_fallback, for letters.
+
+    Examples:
+        >>> _is_lone_accented_letter("é")
+        True
+        >>> _is_lone_accented_letter("4")      # a retyped digit is NOT excused
+        False
+    """
+    stripped = text.strip()
+    return len(stripped) == 1 and stripped.isalpha() and not stripped.isascii()
+
+
+def _junction_splits_number(left: str, right: str) -> bool:
+    """True when the font change cuts through a number or a date.
+
+    Every font has the ten digits, so a digit drawn in another font is never
+    a glyph fallback: it was put there by someone. That is why such a split
+    weighs more than a letter split (see check_midline_font_changes).
+
+    Examples:
+        >>> _junction_splits_number("19/08/", "1998")   # retyped birth year
+        True
+        >>> _junction_splits_number("1 2", "50,00")
+        True
+        >>> _junction_splits_number("EASY", "MONNERET")  # letters: no
+        False
+    """
+    # No stripping: a space at the junction means two words, not a split one
+    # ("Total : " + "1998" is a label followed by a value).
+    if not left or not right or not right[0].isdigit():
+        return False
+    return left[-1].isdigit() or left[-1] in "/.,-"
+
+
+def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
+    """Font family changes INSIDE a word, across PyMuPDF blocks.
+
+    Why a separate pass: when an editor retypes "1992" as "1998", the new
+    digits are a new text object, which PyMuPDF puts in its own block. The
+    per-line check only compares spans of one line of one block, so it never
+    sees "Date de naissance : 19/08/" (block 3) next to "1998" (block 8).
+
+    Why only INSIDE a word, not anywhere on the line: a form filled by
+    software legitimately prints the label in one font and the value in
+    another ("Nom : " + "Jean Dupont") — but always with a space between
+    them. A font change with NO space, between two characters of the same
+    token, is how a partial retype looks; honest generators don't do it.
+
+    A pair of spans is reported when ALL of these hold:
+      - they are in different blocks or lines (same line = per-line check's job);
+      - same baseline (|Δ origin y| ≤ MIDWORD_BASELINE_TOL_FRAC × size);
+      - the right one starts where the left one ends
+        (0 - small overlap ≤ gap ≤ MIDWORD_MAX_GAP_FRAC × size);
+      - no whitespace at the junction, and the right one starts with a letter
+        or digit (the left may end with "/", "." etc.: "19/08/" + "1998");
+      - different real families (no CID names, no lone fallback glyphs).
+
+    Args:
+        text_dict: `page.get_text("dict")` of one page.
+        page_label: 1-based page number for the report.
+
+    Returns:
+        Entries shaped like the per-line check's `suspicious_lines` items.
+
+    Example:
+        "Date de naissance : 19/08/" (Helvetica-Bold, x1=196.3)
+        + "1998" (Times-Roman, x0=196.3, baseline 0.04 pt off)
+        -> [{"page": 1, "text": "Date de naissance : 19/08/1998", ...}]
+    """
+    spans = []
+    for block in text_dict.get("blocks", []):
+        for line_no, line in enumerate(block.get("lines", [])):
+            for span in line.get("spans", []):
+                if not span.get("text", "").strip():
+                    continue
+                spans.append({"key": (block.get("number"), line_no), "span": span})
+
+    # Sort by baseline so each span is only compared with the few spans whose
+    # baseline is close — not with every span of the page (a dense page has
+    # thousands; all pairs would be millions of comparisons).
+    spans.sort(key=lambda s: s["span"]["origin"][1])
+    max_size = max((s["span"].get("size", 0) for s in spans), default=0)
+    window = MIDWORD_BASELINE_TOL_FRAC * max(max_size, 1.0)
+
+    candidate_pairs = []
+    for i, a in enumerate(spans):
+        for b in spans[i + 1:]:
+            if b["span"]["origin"][1] - a["span"]["origin"][1] > window:
+                break                                     # sorted: the rest are lower
+            candidate_pairs.append((a, b))
+            candidate_pairs.append((b, a))                # either may be on the left
+
+    found = []
+    for left, right in candidate_pairs:
+        ls, rs = left["span"], right["span"]
+        if right["key"] == left["key"]:
+            continue                                      # same line: other check
+        size = max(ls.get("size", 0), rs.get("size", 0), 1.0)
+        if abs(ls["origin"][1] - rs["origin"][1]) > MIDWORD_BASELINE_TOL_FRAC * size:
+            continue                                      # not the same baseline
+        gap = rs["bbox"][0] - ls["bbox"][2]
+        if not (-0.5 <= gap <= MIDWORD_MAX_GAP_FRAC * size):
+            continue                                  # not touching
+        l_text, r_text = ls["text"], rs["text"]
+        if l_text[-1].isspace() or not r_text[0].isalnum():
+            continue                                  # a space = two words
+        if _is_glyph_fallback(l_text) or _is_glyph_fallback(r_text):
+            continue
+        if _is_lone_accented_letter(l_text) or _is_lone_accented_letter(r_text):
+            continue                                  # "Factur" + "é": accent fallback
+        l_fam, r_fam = _font_family(ls.get("font", "")), _font_family(rs.get("font", ""))
+        if "_cidfont" in (l_fam, r_fam) or l_fam == r_fam:
+            continue
+        found.append({
+            "page": page_label,
+            "text": (l_text.strip() + r_text.strip())[:100],
+            "fonts": sorted({ls.get("font", ""), rs.get("font", "")}),
+            "families": sorted({l_fam, r_fam}),
+            "splits_number": _junction_splits_number(l_text, r_text),
+        })
+    return found
+
+
 def check_midline_font_changes(pdf_path: str) -> list[Flag]:
     """
     Detect font changes within the same line of text.
@@ -432,6 +605,7 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
         return []
 
     suspicious_lines = []
+    midword_hits = []
 
     try:
         for page_num in range(len(doc)):
@@ -447,32 +621,6 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
                     if len(spans) < 2:
                         continue  # Need at least 2 spans to compare
 
-                    # Extract font family for each span
-                    # Font family = base name without style suffix (-Bold, -Italic, etc.)
-                    # and without subset prefix (ABCDEF+)
-                    # We also normalize common aliases (ArialMT = Arial, etc.)
-                    FAMILY_ALIASES = {
-                        "arialmt": "arial",
-                        "timesnewroman": "times",
-                        "times": "times",
-                        "couriernew": "courier",
-                        "couriermt": "courier",
-                        "helveticaneue": "helvetica",
-                    }
-
-                    def get_family(font_name: str) -> str:
-                        """Extract font family, ignoring style, subset prefix, and aliases."""
-                        # Remove subset prefix
-                        base, _ = extract_base_font_name(font_name)
-                        # Remove common style suffixes
-                        family = re.split(r"[-,]", base)[0].strip().lower()
-                        # Skip generic CID font names (CIDFont+F1, etc.)
-                        # These are auto-generated and don't represent real font families
-                        if family.startswith("cidfont"):
-                            return "_cidfont"
-                        # Normalize known aliases
-                        return FAMILY_ALIASES.get(family, family)
-
                     # Get families for all spans that have actual text
                     span_families = []
                     for span in spans:
@@ -480,7 +628,7 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
                         if not text:
                             continue
                         font = span.get("font", "")
-                        family = get_family(font)
+                        family = _font_family(font)
                         span_families.append({
                             "text": text,
                             "font": font,
@@ -511,6 +659,11 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
                             "fonts": fonts_used,
                             "families": list(families_on_line),
                         })
+
+            # Second pass: a font change in the middle of a word whose two
+            # halves PyMuPDF put in different blocks (retyped text is a new
+            # text object, so the per-line loop above never sees both halves).
+            midword_hits.extend(_midword_font_changes(text_dict, page_num + 1))
     finally:
         # Ensure the doc is closed even if an exception occurs mid-loop
         doc.close()
@@ -538,6 +691,32 @@ def check_midline_font_changes(pdf_path: str) -> list[Flag]:
                 "total_suspicious_lines": len(suspicious_lines),
                 "explanation": "Different font families on the same line suggest "
                               "text was edited after the document was created.",
+            }
+        ))
+
+    if midword_hits:
+        # Its own code, and at least "high" from the first hit: a font change between
+        # two characters of ONE word, across two text objects, is how a partial
+        # retype looks — far more specific than "two fonts somewhere on a line"
+        # (which a label/value layout produces honestly). Still SOFT: never a
+        # HARD veto on its own.
+        # "critical" when the cut goes through a number/date: digits exist in
+        # every font, so no fallback excuse exists (_junction_splits_number).
+        numeric = [h for h in midword_hits if h["splits_number"]]
+        first = (numeric or midword_hits)[0]
+        flags.append(Flag(
+            severity="critical" if numeric else "high",
+            code="FONTS_MIDWORD_CHANGE",
+            message=(
+                f"Font changes in the middle of a word on page {first['page']}: "
+                f"'{first['text'][:60]}' mixes {' and '.join(first['families'])}"
+            ),
+            details={
+                "suspicious_lines": midword_hits[:5],
+                "total_suspicious_lines": len(midword_hits),
+                "explanation": "Part of a word is drawn in another font, as a "
+                               "separate text object: the typical trace of "
+                               "characters retyped over the original.",
             }
         ))
 

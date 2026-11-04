@@ -37,6 +37,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "FONTS_HIGH_DIVERSITY": "tampering",
     "FONTS_MIXED_SUBSETS": "tampering",
     "FONTS_MIDLINE_CHANGE": "tampering",
+    "FONTS_MIDWORD_CHANGE": "tampering",
     "IMAGES_PASTE_NOISE_ANOMALY": "tampering",
 
     # tampering: opaque-box cover-and-retype / edit-trace overlays (Phase 2)
@@ -254,6 +255,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "FONTS_MIDLINE_CHANGE": lambda f: (
         f"A font change was detected mid-line, suggesting text was edited after creation."
+    ),
+    "FONTS_MIDWORD_CHANGE": lambda f: (
+        "Part of a word is written in a different font, as if those characters "
+        "had been retyped over the original."
     ),
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "A region of the document shows abnormal noise patterns consistent "
@@ -728,6 +733,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "FONTS_MIDLINE_CHANGE": lambda f: (
         "Un changement de police a été détecté en milieu de ligne, "
         "suggérant que le texte a été modifié après sa création."
+    ),
+    "FONTS_MIDWORD_CHANGE": lambda f: (
+        "Une partie d'un mot est écrite dans une autre police, comme si ces "
+        "caractères avaient été retapés par-dessus l'original."
     ),
     "IMAGES_PASTE_NOISE_ANOMALY": lambda f: (
         "Une zone du document présente des patterns de bruit anormaux "
