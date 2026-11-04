@@ -33,6 +33,15 @@ LINE_HEIGHT_LO, LINE_HEIGHT_HI = 0.5, 2.5
 MAX_FILL_ASPECT = 25.0
 FULL_WIDTH_BAND_FRAC = 0.85  # image width >= this * page width => header/logo band, not a patch
 
+# Font-size tolerance for Signal 3 (cover-and-retype) only. Two texts that
+# merely overlap must match within SIZE_MATCH_FRAC (10 %) to count as the same
+# field. Signal 3 has stronger evidence binding them — a box painted AFTER the
+# original and BEFORE the new text, on the same row — and a forger typing with
+# an editor's "add text" tool gets its default size (10 or 12 pt over an 11 pt
+# original: 9-17 % off). Measured on the real-tool corpus: retypes over
+# LibreOffice / Chromium bases were 13-14 % smaller and slipped through.
+COVER_SIZE_MATCH_FRAC = 0.20
+
 
 def iou(r1: fitz.Rect, r2: fitz.Rect) -> float:
     inter = r1 & r2
@@ -230,7 +239,7 @@ def _find_cover_pair(under: list, over: list, page_angle: float):
         if is_placeholder(span_text(a)):
             continue                       # covered a placeholder -> benign template fill
         for b in over:
-            if _pair_is_conflict(a, b, page_angle):
+            if _pair_is_conflict(a, b, page_angle, size_frac=COVER_SIZE_MATCH_FRAC):
                 return (a, b)
     return None
 
@@ -248,7 +257,7 @@ def _find_embedded_cover_pair(f, frect, over: list, spans: list, page_angle: flo
         if not _box_on_span_row(frect, fitz.Rect(a["bbox"])):
             continue                       # the box must sit on A's row, within its width
         for b in over_amt:
-            if _amounts_conflict(a, b, page_angle):
+            if _amounts_conflict(a, b, page_angle, size_frac=COVER_SIZE_MATCH_FRAC):
                 return (a, b)
     return None
 
@@ -269,7 +278,8 @@ def _box_on_span_row(frect: fitz.Rect, sbbox: fitz.Rect) -> bool:
     return frect.width > 0 and x_inside / frect.width >= CONTAINMENT_MIN
 
 
-def _amounts_conflict(a: dict, b: dict, page_angle: float) -> bool:
+def _amounts_conflict(a: dict, b: dict, page_angle: float,
+                      size_frac: float = SIZE_MATCH_FRAC) -> bool:
     """Conflict test on the AMOUNT portion of two spans (for the embedded path).
 
     True when both spans carry a horizontal, same-size monetary amount, the
@@ -293,7 +303,7 @@ def _amounts_conflict(a: dict, b: dict, page_angle: float) -> bool:
     if not (is_horizontal(da, page_angle) and is_horizontal(db, page_angle)):
         return False
     sa, sb = a.get("size", 0.0), b.get("size", 0.0)
-    if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > SIZE_MATCH_FRAC:
+    if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > size_frac:
         return False                       # different font size = different field
     return True
 
