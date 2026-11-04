@@ -521,6 +521,20 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "checksum — it cannot be a real account."),
     "EXTERNAL_IBAN_VERIFICATION_FAILED": lambda f: (
         "The bank account number (IBAN) could not be verified."),
+    # The raw API error (proxy, timeout, HTTP status) stays in the server log:
+    # it is meaningless to the reader and leaks internals.
+    "EXTERNAL_SIRET_VERIFICATION_FAILED": lambda f: (
+        f"The official company register could not be reached to check SIRET "
+        f"{(f.details or {}).get('siret', '')} — this says nothing about the "
+        f"document; try again later."),
+    "EXTERNAL_SIREN_VERIFICATION_FAILED": lambda f: (
+        f"The official company register could not be reached to check SIREN "
+        f"{(f.details or {}).get('siren', '')} — this says nothing about the "
+        f"document; try again later."),
+    "EXTERNAL_VAT_VERIFICATION_FAILED": lambda f: (
+        f"The EU VAT service (VIES) could not be reached to check "
+        f"{(f.details or {}).get('vat', '')} — this says nothing about the "
+        f"document; try again later."),
 
     # --- identity (MRZ family — identity.py messages are hardcoded French;
     # these EN templates are what English users see) ---
@@ -1008,6 +1022,20 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "ne peut pas être un compte réel."),
     "EXTERNAL_IBAN_VERIFICATION_FAILED": lambda f: (
         "L'IBAN n'a pas pu être vérifié."),
+    # L'erreur brute de l'API (proxy, délai, statut HTTP) reste dans les logs
+    # serveur : illisible pour le lecteur, et elle expose des détails internes.
+    "EXTERNAL_SIRET_VERIFICATION_FAILED": lambda f: (
+        f"Le registre officiel des entreprises n'a pas pu être consulté pour "
+        f"vérifier le SIRET {(f.details or {}).get('siret', '')} — cela ne dit "
+        f"rien du document ; réessayez plus tard."),
+    "EXTERNAL_SIREN_VERIFICATION_FAILED": lambda f: (
+        f"Le registre officiel des entreprises n'a pas pu être consulté pour "
+        f"vérifier le SIREN {(f.details or {}).get('siren', '')} — cela ne dit "
+        f"rien du document ; réessayez plus tard."),
+    "EXTERNAL_VAT_VERIFICATION_FAILED": lambda f: (
+        f"Le service européen de la TVA (VIES) n'a pas pu être consulté pour "
+        f"vérifier le numéro {(f.details or {}).get('vat', '')} — cela ne dit "
+        f"rien du document ; réessayez plus tard."),
 
     # --- identity (famille MRZ — formulations dédiées pour la parité EN/FR ;
     # le texte anglais correspondant existe car identity.py ne construit ses
