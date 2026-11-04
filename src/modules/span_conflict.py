@@ -22,9 +22,36 @@ SIZE_MATCH_FRAC = 0.10
 # never has, so the geometry gate filters legit authoring before provenance is
 # ever consulted.
 INTERACTIVE_EDITOR_PRODUCERS = (
-    "acrobat", "foxit", "pdf-xchange", "pdfxchange", "libreoffice",
+    "acrobat", "foxit", "pdf-xchange", "pdfxchange",
     "nitro", "sejda", "pdfescape", "master pdf",
 )
+
+
+def is_interactive_editor(haystack: str) -> bool:
+    """Was this file last saved by a tool that EDITS existing PDFs? (C2)
+
+    `haystack` is the Producer and Creator joined ("LibreOffice 24.2 Writer").
+    This is the corroborator that lets a geometry finding become HARD, so it
+    must name editing tools, not authoring tools.
+
+    LibreOffice is the subtle one: Writer, Calc and Impress CREATE documents
+    and export them to PDF — a genuine invoice typed in Writer says
+    "LibreOffice ... Writer". Only Draw opens an existing PDF to modify it.
+    Listing plain "libreoffice" made every Writer export look "edited", so a
+    single heuristic geometry hit on such a file became a HARD accusation.
+
+    Examples:
+        >>> is_interactive_editor("adobe acrobat pro dc 23.1")
+        True
+        >>> is_interactive_editor("libreoffice 24.2 draw")
+        True
+        >>> is_interactive_editor("libreoffice 24.2 writer")   # authoring
+        False
+    """
+    h = haystack.casefold()
+    if any(p in h for p in INTERACTIVE_EDITOR_PRODUCERS):
+        return True
+    return "libreoffice" in h and "draw" in h
 
 
 def span_text(span: dict) -> str:

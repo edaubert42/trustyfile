@@ -37,7 +37,7 @@ _MONEY = re.compile(r"(?<!\d)\d[\d\s.,]*[.,]\d{2}(?!\d)")
 # ("10.01.20") but must never be tampered as a total (the Teilrechnung bug).
 _DATE = re.compile(r"^\d{1,2}[./]\d{1,2}[./]\d{2,4}$")
 # An interactive PDF editor Producer — the C2 corroborator that makes a
-# geometry finding HARD (mirrors overlay.INTERACTIVE_EDITOR_PRODUCERS).
+# geometry finding HARD (see span_conflict.is_interactive_editor).
 EDITOR_PRODUCER = "Adobe Acrobat Pro DC"
 NON_EDITOR_PRODUCER = "ReportLab PDF Library"
 CONVERTER_PRODUCER = "iLovePDF"

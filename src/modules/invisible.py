@@ -14,7 +14,7 @@ import fitz
 from src.models import Flag, ModuleResult
 from src.modules.span_conflict import (
     span_text, amount_token, is_placeholder, pair_is_conflict, page_angle,
-    money_value, INTERACTIVE_EDITOR_PRODUCERS,
+    money_value, is_interactive_editor,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ def analyze_invisible(pdf_data) -> ModuleResult:
     injection_instances: list[dict] = []
 
     haystack = _producer_haystack(pdf_data)
-    producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
+    producer_is_editor = is_interactive_editor(haystack)
     producer_is_ocr = any(p in haystack for p in OCR_TOOL_PRODUCERS)
 
     doc = None

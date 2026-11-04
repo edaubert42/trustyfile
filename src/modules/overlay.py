@@ -14,7 +14,7 @@ import fitz
 from src.models import Flag, ModuleResult
 from src.modules.structure import find_eof_positions
 from src.modules.span_conflict import (
-    HORIZONTAL_TOL_DEG, SIZE_MATCH_FRAC, INTERACTIVE_EDITOR_PRODUCERS,
+    HORIZONTAL_TOL_DEG, SIZE_MATCH_FRAC, is_interactive_editor,
     span_text, char_class, norm, amount_token, is_horizontal,
     is_placeholder, page_angle as _page_angle,
     pair_is_conflict as _pair_is_conflict,
@@ -386,7 +386,7 @@ def _corroboration(pdf_data, raw_bytes: bytes | None) -> dict:
         try:
             meta = doc.metadata or {}
             haystack = f"{meta.get('producer') or ''} {meta.get('creator') or ''}".casefold()
-            producer_is_editor = any(p in haystack for p in INTERACTIVE_EDITOR_PRODUCERS)
+            producer_is_editor = is_interactive_editor(haystack)
         finally:
             doc.close()
     except Exception as exc:
@@ -640,8 +640,7 @@ def _signal_revision_value_changed(pdf_data, raw_bytes: bytes | None) -> list[Fl
             new_producer = f"{new_meta.get('producer') or ''} {new_meta.get('creator') or ''}".casefold()
             # C2 ONLY, exactly like `_analyze_page`'s escalation: a same-producer
             # (or non-editor) resave must never be reported as HARD.
-            confirmed = (new_producer != old_producer) and any(
-                p in new_producer for p in INTERACTIVE_EDITOR_PRODUCERS)
+            confirmed = (new_producer != old_producer) and is_interactive_editor(new_producer)
 
             for page_num in range(min(old_doc.page_count, new_doc.page_count)):
                 try:
