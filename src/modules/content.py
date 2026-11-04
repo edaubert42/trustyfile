@@ -660,6 +660,35 @@ def check_impossible_dates(dates: list[ExtractedDate]) -> list[Flag]:
     return flags
 
 
+# "du 01/03/2024 au 31/03/2024", "from 1 March 2024 to 31 March 2024": the
+# START of a period whose END is the date being classified. Anchored on the
+# last line of the context, which ends with that end date.
+_PERIOD_RE = re.compile(r"\b(?:du|from)\s+(?P<start>.+?)\s+(?:au|to)\s+\S[^\n]*$",
+                        re.IGNORECASE)
+_NUMERIC_DATE_FORMATS = ("%d/%m/%Y", "%d.%m.%Y", "%d-%m-%Y", "%d/%m/%y")
+
+
+def _period_start(d: ExtractedDate) -> datetime | None:
+    """Start of the "du X au Y" period this date ends, or None.
+
+    Example:
+        context "Abonnement\ndu 01/03/2024 au 31/03/2024" (date = 31/03)
+        -> datetime(2024, 3, 1)
+        context "Livré le 31/03/2024" -> None (not the end of a period)
+    """
+    last_line = d.context.strip().split("\n")[-1]
+    m = _PERIOD_RE.search(last_line)
+    if not m:
+        return None
+    start = m.group("start").strip()
+    for fmt in _NUMERIC_DATE_FORMATS:
+        try:
+            return datetime.strptime(start, fmt)
+        except ValueError:
+            pass
+    return parse_french_date(start.lower())
+
+
 def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     """
     Check if dates are logically consistent with each other.
@@ -719,9 +748,18 @@ def check_date_logic(dates: list[ExtractedDate]) -> list[Flag]:
     # Check: Service date vs Invoice date
     # A service/delivery date materially AFTER the invoice date is an anachronism
     # (you cannot invoice for a service not yet rendered). 1-day tolerance.
+    #
+    # Except the END of a period that has already STARTED: French utilities
+    # bill the subscription for the current month in advance ("à terme à
+    # échoir"). Real case: an EDF invoice dated 07/03/2024 with "Abonnement
+    # du 01/03/2024 au 31/03/2024" was flagged for its 31/03. A period that
+    # starts AFTER the invoice is still flagged.
     if invoice_dates and service_dates:
         invoice_date = invoice_dates[0].date
         for sd in service_dates:
+            start = _period_start(sd)
+            if start is not None and start <= invoice_date + timedelta(days=1):
+                continue                  # period in progress: billed in advance
             if sd.date > invoice_date + timedelta(days=1):
                 flags.append(Flag(
                     severity="high",
