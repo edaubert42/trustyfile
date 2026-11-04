@@ -108,6 +108,7 @@
     "photo_unreadable": "This file could not be opened as a photo (JPEG or PNG, 10 MB max).",
     "photo_compare_warning": "A valid signature proves this data comes from the issuer, not that the paper belongs to the applicant: check that the name and amounts match the document and the ID.",
     "photo_fields_error": "The code was read, but some fields could not be displayed.",
+    "photo_unsigned_fields": "Data read from the code, not guaranteed: the signature could not be validated.",
 
     "group_modifications": "Modifications",
     "group_consistency": "Consistency",

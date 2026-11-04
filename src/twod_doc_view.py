@@ -178,8 +178,9 @@ def photo_result_html(result, level: str, key: str) -> str:
 
     Returns:
         One HTML fragment (rendered with st.markdown(unsafe_allow_html=True)).
-        The fields of the code are shown only when it was decoded, and the
-        "compare with the paper" warning only next to them.
+        The fields of the code are shown only when it was decoded; the
+        "compare with the paper" warning only under a valid signature, a
+        "not guaranteed" caption otherwise.
     """
     style = _LEVEL_STYLE[level]
     parts = [
@@ -205,11 +206,15 @@ def photo_result_html(result, level: str, key: str) -> str:
         except Exception:  # a malformed signed field must not break the page
             rows = (f'<div style="color:#888; font-size:0.75rem;">'
                     f'{html.escape(t("photo_fields_error"))}</div>')
+        # Under a valid signature: "authentic data, now check it is THIS
+        # applicant's". Under anything else the same rows are only what the
+        # code claims, and must not read as vouched for.
+        caption = "photo_compare_warning" if level == "ok" else "photo_unsigned_fields"
         parts += [
             f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
             f'padding:12px 16px; margin-top:1rem;">{rows}</div>',
             f'<div style="color:#999; font-size:0.78rem; line-height:1.45; margin-top:0.8rem;">'
-            f'{html.escape(t("photo_compare_warning"))}</div>',
+            f'{html.escape(t(caption))}</div>',
         ]
 
     parts += [

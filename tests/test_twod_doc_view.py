@@ -70,3 +70,17 @@ def test_a_field_that_breaks_extraction_does_not_break_the_page(monkeypatch):
     out = _render(_decoded("valid"))
     assert t("photo_sig_valid_title") in out          # banner still there
     assert t("photo_fields_error") in out.replace("&#x27;", "'")
+
+
+def test_the_compare_warning_only_appears_under_a_valid_signature():
+    # It says "a valid signature proves...": under an invalid or unchecked
+    # signature that sentence would be false, and the rows are only claims.
+    warning = t("photo_compare_warning")[:25]
+    unsigned = t("photo_unsigned_fields")[:25]
+    valid = _render(_decoded("valid")).replace("&#x27;", "'")
+    assert warning in valid and unsigned not in valid
+    for status, confirmed in (("invalid", True), ("invalid", False), ("cert_not_found", False),
+                              ("test_cert", False)):
+        out = _render(_decoded(status, confirmed)).replace("&#x27;", "'")
+        assert warning not in out, status
+        assert unsigned in out, status

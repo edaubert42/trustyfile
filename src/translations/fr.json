@@ -108,6 +108,7 @@
     "photo_unreadable": "Ce fichier n'a pas pu être ouvert comme une photo (JPEG ou PNG, 10 Mo maximum).",
     "photo_compare_warning": "Une signature valide prouve que ces données viennent de l'émetteur, pas que le papier appartient au candidat : vérifiez que le nom et les montants correspondent au document et à la pièce d'identité.",
     "photo_fields_error": "Le code a été lu, mais certains champs n'ont pas pu être affichés.",
+    "photo_unsigned_fields": "Données lues dans le code, non garanties : la signature n'a pas pu être validée.",
 
     "group_modifications": "Modifications",
     "group_consistency": "Cohérence",
