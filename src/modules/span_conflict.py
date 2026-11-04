@@ -208,13 +208,19 @@ def page_angle(page) -> float:
     return 90.0 if rot in (90, 270) else 0.0
 
 
-def pair_is_conflict(a: dict, b: dict, page_angle: float) -> bool:
+def pair_is_conflict(a: dict, b: dict, page_angle: float,
+                     size_frac: float = SIZE_MATCH_FRAC) -> bool:
     """Do two spans hold conflicting versions of the SAME field?
 
     Shared predicate for Signals 2 and 3: different text, but the same *kind* of
     content (both numeric / both alpha, never punctuation-only), both horizontal,
     and matching size — i.e. one plausibly replaced the other. char_class returns
     "excluded" for accented / combining text so French prose never conflicts.
+
+    `size_frac` is the largest relative font-size difference still read as
+    "the same field". The default (SIZE_MATCH_FRAC) is for two texts that
+    merely overlap; a caller with stronger geometric evidence tying the two
+    texts together (Signal 3: a cover box painted between them) may widen it.
     """
     ta, tb = span_text(a), span_text(b)
     if norm(ta) == norm(tb):
@@ -226,6 +232,6 @@ def pair_is_conflict(a: dict, b: dict, page_angle: float) -> bool:
     if not (is_horizontal(da, page_angle) and is_horizontal(db, page_angle)):
         return False
     sa, sb = a.get("size", 0.0), b.get("size", 0.0)
-    if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > SIZE_MATCH_FRAC:
+    if max(sa, sb) <= 0 or abs(sa - sb) / max(sa, sb) > size_frac:
         return False                       # different font sizes = different fields
     return True
