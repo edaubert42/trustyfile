@@ -64,6 +64,32 @@ def test_intake_refuses_non_pdf_bytes():
     assert intake.check_pdf(b"") == (intake.NOT_A_PDF, 0)
 
 
+def test_photos_are_recognised_by_their_bytes_not_their_name():
+    import io
+    from PIL import Image
+    for fmt in ("JPEG", "PNG"):
+        buf = io.BytesIO()
+        Image.new("RGB", (40, 30), "white").save(buf, format=fmt)
+        assert intake.looks_like_photo(buf.getvalue()), fmt
+        assert intake.check_pdf(buf.getvalue()) == (intake.PHOTO, 0), fmt
+    assert not intake.looks_like_photo(DEMO_BYTES)
+    assert not intake.looks_like_photo(b"GIF89a....")
+    assert not intake.looks_like_photo(b"")
+
+
+def test_photo_in_a_batch_is_reported_not_analysed():
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), "white").save(buf, format="JPEG")
+
+    def must_not_run():
+        raise AssertionError("a photo must never reach the PDF analyzer")
+
+    item = analyse_document("avis.jpg", buf.getvalue(), lang="fr", analyzer_factory=must_not_run)
+    assert item.problem == intake.PHOTO
+
+
 def test_intake_allows_leading_junk_before_the_header():
     """The spec tolerates bytes before %PDF; some generators emit them."""
     assert intake.looks_like_pdf(b"\r\n\r\n" + DEMO_BYTES)

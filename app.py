@@ -1175,7 +1175,10 @@ st.markdown(f"""
 MAX_BATCH_FILES = 10
 uploaded_files = st.file_uploader(
     "Choose file",
-    type=["pdf"],
+    # Photos too: a single JPEG/PNG opens the 2D-Doc photo scan (a landlord
+    # photographing a paper tax notice). On a phone this button then offers
+    # the camera directly, at full resolution.
+    type=["pdf", "jpg", "jpeg", "png"],
     label_visibility="collapsed",
     accept_multiple_files=True,
 ) or []
@@ -1559,6 +1562,7 @@ if uploaded_file is not None:
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+    from src.twod_doc_view import twod_rows_html
     import hashlib
 
     # Compute a hash of the file bytes to detect if it's a new file
@@ -1587,6 +1591,32 @@ if uploaded_file is not None:
             </a>
         </div>
         """, unsafe_allow_html=True)
+        mark_page_ready()
+        st.stop()
+
+    # A photo (JPEG/PNG, recognised by its bytes, not its name) never enters
+    # the PDF pipeline: it only gets the 2D-Doc photo scan, and never a trust
+    # score. The 10 MB check above applies to it too.
+    from src.intake import looks_like_photo
+    if looks_like_photo(file_bytes):
+        from src.modules.twod_doc_photo import scan_photo, photo_verdict
+        from src.twod_doc_view import photo_result_html
+
+        # Cache by content: Streamlit reruns the script on every click or
+        # language switch, and the scan must not run again each time.
+        _photo_key = hashlib.sha256(file_bytes).hexdigest()
+        if st.session_state.get("photo_scan_key") != _photo_key:
+            st.session_state["photo_scan_result"] = scan_photo(file_bytes)
+            st.session_state["photo_scan_key"] = _photo_key
+        _photo_result = st.session_state["photo_scan_result"]
+        _photo_level, _photo_msg = photo_verdict(_photo_result)
+        # No personal data in the log: verdict key, attempt name, timing.
+        logging.getLogger(__name__).info("Photo scan: %s (%s) in %.2fs", _photo_msg,
+                    _photo_result.attempt or "-", _photo_result.elapsed_s)
+
+        st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
+        st.markdown(photo_result_html(_photo_result, _photo_level, _photo_msg),
+                    unsafe_allow_html=True)
         mark_page_ready()
         st.stop()
 
@@ -3046,137 +3076,9 @@ if uploaded_file is not None:
 
         # 2D-DOC Verified Data panel
         if twod_doc_results:
-            import html as html_mod_2d
-
             twod_content = ""
             for twod_doc_data in twod_doc_results:
-                verified = extract_verified_data(twod_doc_data)
-
-                _2d_row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-                _2d_key = "color:#888; font-size:0.75rem; width:160px; flex-shrink:0;"
-                _2d_val = "color:#ccc; font-size:0.75rem;"
-                _2d_val_bold = "color:white; font-size:0.75rem; font-weight:bold;"
-
-                rows_2d = ""
-                rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_doc_type")}</span>'
-                            f'<span style="{_2d_val}">{html_mod_2d.escape(verified.document_type)} '
-                            f'({html_mod_2d.escape(verified.document_type_name)})</span></div>')
-
-                # Track which DIs we display so we can show remaining as raw
-                shown_dis = set()
-
-                # --- Identity fields (shared across document types) ---
-                if verified.name:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_name")}</span>'
-                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.name)}</span></div>')
-                    shown_dis.update({"10", "12", "13", "44", "6G", "60"})
-
-                # --- Driving license fields (type AB) ---
-                if verified.civility:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_civility")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.civility)}</span></div>')
-                    shown_dis.add("6H")
-
-                if verified.sex:
-                    sex_label = {"M": t("twod_sex_male"), "F": t("twod_sex_female")}.get(verified.sex, verified.sex)
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_sex")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(sex_label)}</span></div>')
-                    shown_dis.add("68")
-
-                if verified.nationality:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_nationality")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.nationality)}</span></div>')
-                    shown_dis.update({"67", "6C"})
-
-                if verified.birth_date:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_birth_date")}</span>'
-                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.birth_date)}</span></div>')
-                    shown_dis.add("69")
-
-                if verified.birth_place:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_birth_place")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.birth_place)}</span></div>')
-                    shown_dis.add("6A")
-
-                if verified.document_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_document_number")}</span>'
-                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.document_number)}</span></div>')
-                    shown_dis.add("65")
-
-                if verified.permit_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_permit_number")}</span>'
-                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(verified.permit_number)}</span></div>')
-                    shown_dis.add("AC")
-
-                if verified.permit_categories:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_permit_categories")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.permit_categories)}</span></div>')
-                    shown_dis.add("E4")
-
-                # --- Tax fields ---
-                if verified.fiscal_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_tax_id")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.fiscal_number)}</span></div>')
-                    shown_dis.add("47")
-
-                if verified.address or verified.postal_code or verified.city:
-                    addr_parts = []
-                    if verified.address:
-                        addr_parts.append(verified.address)
-                    if verified.postal_code or verified.city:
-                        addr_parts.append(f"{verified.postal_code or ''} {verified.city or ''}".strip())
-                    addr = ", ".join(addr_parts)
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_address")}</span>'
-                                f'<span style="{_2d_val_bold}">{html_mod_2d.escape(addr)}</span></div>')
-                    shown_dis.update({"22", "24", "25"})
-
-                if verified.reference_income is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_reference_income")}</span>'
-                                f'<span style="{_2d_val_bold}">{verified.reference_income:,.0f} &euro;</span></div>')
-                    shown_dis.add("41")
-
-                if verified.tax_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_income_tax")}</span>'
-                                f'<span style="{_2d_val_bold}">{verified.tax_amount:,.0f} &euro;</span></div>')
-                    shown_dis.add("4V")
-
-                if verified.withheld_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_withholding_tax")}</span>'
-                                f'<span style="{_2d_val}">{verified.withheld_amount:,.0f} &euro;</span></div>')
-                    shown_dis.add("4X")
-
-                if verified.calculated_balance is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_calculated_balance")}</span>'
-                                f'<span style="{_2d_val_bold}">{verified.calculated_balance:,.0f} &euro;</span></div>')
-
-                if verified.household_parts and verified.household_parts != 1.0:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_household_parts")}</span>'
-                                f'<span style="{_2d_val}">{verified.household_parts}</span></div>')
-                    shown_dis.add("43")
-
-                # --- Invoice fields ---
-                if verified.invoice_number:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_invoice_number")}</span>'
-                                f'<span style="{_2d_val}">{html_mod_2d.escape(verified.invoice_number)}</span></div>')
-
-                if verified.invoice_amount is not None:
-                    rows_2d += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_invoice_amount")}</span>'
-                                f'<span style="{_2d_val_bold}">{verified.invoice_amount:,.2f} &euro;</span></div>')
-
-                # Show remaining unmapped fields as raw
-                extra_fields = ""
-                for field in twod_doc_data.fields:
-                    if field.di in shown_dis:
-                        continue
-                    field_val = html_mod_2d.escape(str(field.value))
-                    extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_field").format(di=field.di)}</span>'
-                                     f'<span style="{_2d_val}">{field_val}</span></div>')
-
-                if extra_fields:
-                    rows_2d += (f'<div style="margin-top:8px; padding-top:6px; border-top:1px solid #2a2a2a;">'
-                                f'<span style="color:#888; font-size:0.7rem; font-weight:bold;">{t("twod_raw_fields")}</span>'
-                                f'</div>{extra_fields}')
-
+                rows_2d = twod_rows_html(twod_doc_data)
                 twod_content += (
                     f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
                     f'padding:12px 16px; margin-bottom:8px;">'
