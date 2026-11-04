@@ -685,6 +685,12 @@ def _signal_revision_value_changed(pdf_data, raw_bytes: bytes | None) -> list[Fl
 # the text occupy the same rectangle, not which one a viewer would render on
 # top. Treating that as HARD would be a fraud accusation the geometry can't
 # back up, so it stays a heuristic finding (REVIEW), never a HARD veto.
+#
+# Paint order IS used in one direction, as a false-positive guard: when
+# page.get_bboxlog() shows the text painted AFTER the image, the image is a
+# background and the text is visible (_text_painted_over_image). It is not
+# used to escalate: the bbox log matches text by position, which is good
+# enough to excuse a label but not to accuse anyone.
 def _localized_image_placements(page) -> list[dict]:
     """Image placements small enough to plausibly be a value-covering patch.
 
@@ -792,6 +798,57 @@ def _find_embedded_image_cover(irect: fitz.Rect, spans: list[dict]):
     return None
 
 
+# Two rectangles are "the same placement" in the bbox log when every edge
+# agrees within this many points (get_image_info and get_bboxlog compute the
+# same transform, so in practice they agree exactly; 1 pt absorbs rounding).
+_SAME_RECT_TOL = 1.0
+
+
+def _paint_log(page) -> list | None:
+    """The page's drawing operations IN PAINT ORDER, or None if unavailable.
+
+    `page.get_bboxlog()` returns one (kind, rect) entry per operation, in the
+    order the content stream paints them: "fill-image", "fill-text",
+    "fill-path", "ignore-text" (invisible text), ... That order is what tells
+    a cover from a background: whatever is painted LATER is on top.
+    """
+    try:
+        return page.get_bboxlog()
+    except Exception as exc:
+        logger.warning("overlay: get_bboxlog failed: %s", exc)
+        return None
+
+
+def _text_painted_over_image(log: list | None, irect: fitz.Rect, span: dict) -> bool:
+    """True if `span` is painted AFTER every drawing of the image at `irect`.
+
+    Then the image is a background (a shaded box, a frame) and the text sits
+    on top of it, fully visible — not hidden under a patch. Real case: a
+    genuine Avis d'impôt 2023 draws each information box as an opaque image
+    (op 27) and then writes "Numéro fiscal" inside it (op 28); Signal 5 used
+    to report the label as "covered".
+
+    Returns False whenever the order cannot be established (no log, image or
+    text not found in it): the caller then keeps the cautious behaviour.
+
+    Example:
+        log = [("fill-image", box), ("fill-text", label)]  -> True  (background)
+        log = [("fill-text", label), ("fill-image", box)]  -> False (covered)
+    """
+    if not log:
+        return False
+    image_ops = [i for i, (kind, r) in enumerate(log)
+                 if kind == "fill-image"
+                 and all(abs(a - b) <= _SAME_RECT_TOL for a, b in zip(r, irect))]
+    sbox = fitz.Rect(span["bbox"])
+    centre = fitz.Point((sbox.x0 + sbox.x1) / 2, (sbox.y0 + sbox.y1) / 2)
+    text_ops = [i for i, (kind, r) in enumerate(log)
+                if kind in ("fill-text", "stroke-text") and fitz.Rect(r).contains(centre)]
+    if not image_ops or not text_ops:
+        return False
+    return min(text_ops) > max(image_ops)
+
+
 def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
     """Signal 5 — a localized IMAGE placement covers still-present live text.
 
@@ -809,10 +866,16 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
     were this shape.
     """
     hits = []
+    log = None
     for info in _localized_image_placements(page):
         irect = fitz.Rect(info["bbox"])
+        if log is None:
+            log = _paint_log(page) or []          # computed once, only if needed
+        # Text painted ON TOP of the image is visible, not covered: drop it
+        # before looking for a hidden span (see _text_painted_over_image).
+        under = [t for t in spans if not _text_painted_over_image(log, irect, t)]
         covered = None
-        for t in spans:
+        for t in under:
             if containment(fitz.Rect(t["bbox"]), irect) < CONTAINMENT_MIN:
                 continue
             if is_placeholder(span_text(t)):
@@ -820,7 +883,7 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
             covered = t
             break                          # one report per image is enough
         if covered is None:
-            covered = _find_embedded_image_cover(irect, spans)
+            covered = _find_embedded_image_cover(irect, under)
         if covered is not None:
             hits.append({"image": info, "covered": covered})
     return hits
@@ -828,7 +891,7 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
 
 def _image_over_text_flag(hit: dict, page_num: int) -> Flag:
     """Build the Signal-5 flag. NEVER HARD — see the module comment above
-    `_localized_image_placements` for why image paint order isn't provable.
+    `_localized_image_placements` for why image paint order can't back a HARD code.
 
     `OVERLAY_IMAGE_OVER_VALUE` (critical) when the covered text is value-bearing
     (money/date/IBAN/SIRET/SIREN/VAT/bare number, via the same `_is_value_bearing`
