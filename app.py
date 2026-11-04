@@ -1783,7 +1783,7 @@ if uploaded_file is not None:
             row_style = "display:flex; align-items:center; padding:6px 0; border-bottom:1px solid #2a2a2a;"
 
             producer = meta.producer or meta.creator or '—'
-            sig = signature_info or 'None'
+            sig = signature_info or "—"  # same placeholder as the empty dates above
 
             # Detect editor from XMP toolkit (if different from producer)
             # The XMP toolkit reveals if a different software modified the PDF

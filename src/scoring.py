@@ -64,6 +64,13 @@ NON_EVIDENCE_CODES: frozenset[str] = frozenset({
     # Pipeline status
     "COVERAGE_NO_TEXT_LAYER",  # scoring role is the coverage_blind band override
     "MODULE_ERROR",            # a module crashed; see hard_detector_blinded
+    # A registry lookup that did not happen (API down, rate-limited, timeout)
+    # says nothing about the document. Scored, these made the trust score of a
+    # genuine invoice depend on api.gouv.fr's uptime. Still shown to the reader.
+    "EXTERNAL_SIRET_VERIFICATION_FAILED",
+    "EXTERNAL_SIREN_VERIFICATION_FAILED",
+    "EXTERNAL_VAT_VERIFICATION_FAILED",
+    "EXTERNAL_IBAN_VERIFICATION_FAILED",
     # Document descriptions
     "META_NO_PRODUCER",   # 9/30 known-good vs 0/58 known-bad — anti-correlated
     "IMAGES_NO_IMAGES",   # images.py's own comment: "many legitimate invoices are text-only"
