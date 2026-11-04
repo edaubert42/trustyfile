@@ -468,6 +468,40 @@ class TestCheckDateLogic:
         flags = check_date_logic(dates)
         assert len(flags) == 0
 
+    def test_period_in_progress_billed_in_advance_ok(self):
+        """End of a period that already started → billed in advance, not an anachronism.
+
+        Real case: EDF invoice of 07/03/2024, "Abonnement du 01/03/2024 au
+        31/03/2024" (subscription billed for the current month).
+        """
+        dates = [
+            make_extracted_date(datetime(2024, 3, 7), date_type="invoice",
+                                context="Facture du 07/03/2024"),
+            make_extracted_date(datetime(2024, 3, 31), date_type="service",
+                                context="Abonnement\ndu 01/03/2024 au 31/03/2024"),
+        ]
+        flags = check_date_logic(dates)
+        assert [f for f in flags if f.code == "CONTENT_ANACHRONISM_SERVICE"] == []
+
+    def test_period_starting_after_invoice_still_flagged(self):
+        """A period that STARTS after the invoice date is still an anachronism."""
+        dates = [
+            make_extracted_date(datetime(2024, 3, 7), date_type="invoice"),
+            make_extracted_date(datetime(2024, 4, 30), date_type="service",
+                                context="Prestation\ndu 01/04/2024 au 30/04/2024"),
+        ]
+        flags = check_date_logic(dates)
+        assert len([f for f in flags if f.code == "CONTENT_ANACHRONISM_SERVICE"]) == 1
+
+    def test_period_with_french_month_names(self):
+        dates = [
+            make_extracted_date(datetime(2024, 3, 7), date_type="invoice"),
+            make_extracted_date(datetime(2024, 3, 31), date_type="service",
+                                context="Période du 1 mars 2024 au 31 mars 2024"),
+        ]
+        flags = check_date_logic(dates)
+        assert [f for f in flags if f.code == "CONTENT_ANACHRONISM_SERVICE"] == []
+
     def test_one_day_tolerance(self):
         """Service date 1 day after invoice → tolerated (same business day edge case)."""
         dates = [
