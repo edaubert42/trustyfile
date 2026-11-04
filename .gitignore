@@ -26,3 +26,6 @@ samples/
 .DS_Store
 Thumbs.db
 .claude/scheduled_tasks.lock
+
+# Local feedback database (src/feedback.py) — holds reader comments, never commit it
+*.db

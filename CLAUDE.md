@@ -91,6 +91,8 @@ trustyfile/
 │   ├── api.py                # FastAPI: POST /api/v1/analyze (uvicorn :8000, Caddy /api/*)
 │   ├── intake.py             # Shared limits + PDF checks (batch page, API)
 │   ├── batch.py              # One BatchItem per uploaded file (batch page)
+│   ├── feedback.py           # Thumbs up/down: log line + SQLite (TRUSTYFILE_FEEDBACK_DB);
+│   │                         # owner CSV export at /api/v1/feedback.csv (TRUSTYFILE_ADMIN_TOKEN)
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Flag, ModuleResult, AnalysisResult
 │   ├── render_safety.py      # safe_zoom + page caps — every raster module

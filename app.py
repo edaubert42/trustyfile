@@ -871,6 +871,11 @@ st.markdown(f"""
     .st-key-tf_report_row [data-testid="stDownloadButton"] button:hover {{
         color: #ccc; border-color: #4a90e2;
     }}
+    /* Feedback comment form: same centred 440 px column as the findings above,
+       instead of the full width of the results column. */
+    .st-key-tf_feedback [data-testid="stForm"] {{
+        max-width: 440px; margin: 0 auto;
+    }}
     @media print {{
         @page {{ margin: 12mm; }}
         html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"],
@@ -879,7 +884,7 @@ st.markdown(f"""
             color: #000 !important;
         }}
         .tf-print-only {{ display: block; }}
-        .custom-header, .tf-footer, #tf-print-wrap, #tf-new-analysis, [data-testid="stDownloadButton"],
+        .custom-header, .tf-footer, #tf-print-wrap, #tf-new-analysis, .st-key-tf_feedback, [data-testid="stDownloadButton"],
         [data-testid="stFileUploader"], [data-testid="stSelectbox"],
         [data-testid="stStatusWidget"], [data-testid="stDecoration"],
         [data-testid="stToolbar"], [data-testid="stBottom"],
@@ -2279,6 +2284,60 @@ if uploaded_file is not None:
                 f' &middot; {t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
             )
             st.markdown(_summary_html, unsafe_allow_html=True)
+
+            # --- Feedback: was this result useful? (thumbs up / down) -------
+            # Stored by src/feedback.py: always a log line, plus a SQLite row
+            # when TRUSTYFILE_FEEDBACK_DB is set (a Railway Volume). Never the
+            # document. Widget keys carry the file hash so a new upload starts
+            # with a blank vote instead of inheriting the previous file's.
+            from src.feedback import FeedbackRecord, add_comment, save_feedback
+            _fb_suffix = result.file_hash[:16]
+            _fb_vote_key = f"fb_vote_{_fb_suffix}"   # st.feedback value: 1 = up, 0 = down
+            _fb_id_key = f"fb_id_{_fb_suffix}"       # database row of this vote
+            _fb_sent_key = f"fb_sent_{_fb_suffix}"   # comment already sent
+
+            def _record_vote() -> None:
+                """on_change of the thumbs: store the vote, or update it if the
+                reader changes their mind (one opinion = one row)."""
+                vote = st.session_state.get(_fb_vote_key)
+                if vote is None:  # same thumb clicked again: selection cleared, keep the stored vote
+                    return
+                st.session_state[_fb_id_key] = save_feedback(
+                    FeedbackRecord(
+                        rating="up" if vote == 1 else "down",
+                        band=result.band,
+                        score=None if result.band == "UNVERIFIABLE" else result.trust_score,
+                        document_type=result.document_type,
+                        flag_codes=[f.code for f in all_flags],
+                        lang=get_lang(),
+                    ),
+                    feedback_id=st.session_state.get(_fb_id_key),
+                )
+
+            with st.container(key="tf_feedback"):
+                with st.container(horizontal=True, horizontal_alignment="center",
+                                  vertical_alignment="center", gap="small"):
+                    st.html(f'<span style="color:#c9d1d9; font-size:0.9rem;">{t("feedback_question")}</span>',
+                            width="content")
+                    st.feedback("thumbs", key=_fb_vote_key, on_change=_record_vote)
+                _vote = st.session_state.get(_fb_vote_key)
+                if _vote == 0 and not st.session_state.get(_fb_sent_key):
+                    with st.form(key=f"fb_form_{_fb_suffix}", border=False):
+                        _comment = st.text_area(
+                            t("feedback_comment_label"),
+                            placeholder=t("feedback_comment_placeholder"),
+                            max_chars=1000,
+                            height=80,
+                        )
+                        if st.form_submit_button(t("feedback_send")):
+                            add_comment(st.session_state.get(_fb_id_key), _comment)
+                            st.session_state[_fb_sent_key] = True
+                            st.rerun()
+                if _vote is not None and (_vote == 1 or st.session_state.get(_fb_sent_key)):
+                    st.html(f'<p style="text-align:center; color:#28a745; font-size:0.85rem; margin:0;">'
+                            f'{t("feedback_thanks")}</p>')
+                st.html(f'<p style="text-align:center; color:#666; font-size:0.7rem; margin:0.2rem 0 0.6rem 0;">'
+                        f'{t("feedback_privacy")}</p>')
 
             # Report actions at the END of the column: exporting is the last
             # thing a reader does, so it no longer sits above the verdict. One

@@ -106,6 +106,12 @@
     "summary": "Résumé",
     "analyze_another": "Analyser un autre document",
     "evidence_breakdown": "D'où viennent les indices",
+    "feedback_question": "Ce résultat vous a-t-il été utile ?",
+    "feedback_thanks": "Merci pour votre retour !",
+    "feedback_comment_label": "Qu'est-ce qui n'allait pas ? (facultatif)",
+    "feedback_comment_placeholder": "Ex. : le document est authentique, le résultat est difficile à comprendre…",
+    "feedback_send": "Envoyer",
+    "feedback_privacy": "Nous enregistrons votre avis et le résultat de l'analyse, jamais votre document.",
     "detected_issues": "Problèmes détectés",
     "more_details": "Plus de détails",
 
