@@ -155,6 +155,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "STRUCT_EMBEDDED_FILES": "security",
     "STRUCT_ACROFORM_DETECTED": "security",
     "STRUCT_XMP_EDITOR_MISMATCH": "tampering",
+    "STRUCT_XMP_DATE_MISMATCH": "tampering",
 
     # fonts (standalone, not tampering-level)
     "FONTS_SYSTEM_FONTS": "fonts",
@@ -635,6 +636,14 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
         "The document was modified by a different tool than its creator."
+    ),
+    "STRUCT_XMP_DATE_MISMATCH": lambda f: (
+        f"The visible creation date is "
+        f"{f.details['difference_days']} days earlier than the one stored in "
+        f"the file's XMP metadata — a sign the date was moved back."
+        if f.details and f.details.get("difference_days")
+        else "The visible creation date disagrees with the one stored in the "
+        "file's XMP metadata."
     ),
     # --- signature (negative findings only; positive codes never bullet) ---
     "STRUCT_SIGNATURE_INVALID": lambda f: (
@@ -1120,6 +1129,14 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
         "Le document a été modifié par un outil différent de son créateur."
+    ),
+    "STRUCT_XMP_DATE_MISMATCH": lambda f: (
+        f"La date de création affichée est antérieure de "
+        f"{f.details['difference_days']} jours à celle enregistrée dans les "
+        f"métadonnées XMP du fichier — signe d'une date antidatée."
+        if f.details and f.details.get("difference_days")
+        else "La date de création affichée ne correspond pas à celle "
+        "enregistrée dans les métadonnées XMP du fichier."
     ),
     # --- signature (constats négatifs uniquement ; les codes positifs ne
     # produisent jamais de puce) ---

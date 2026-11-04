@@ -39,6 +39,8 @@ item 1), ③ evidence highlighting (Theme 3 item 1).
 5. **New signal — XMP ↔ Info date cross-check** (S): `STRUCT_XMP_EDITOR_MISMATCH`
    compares tool identity only; nobody compares `xmp:CreateDate` vs Info
    `CreationDate` (classic backdating tell). Needs timezone tolerance.
+   **Done 2026-11-04** — `STRUCT_XMP_DATE_MISMATCH` (structure.py), Info-earlier
+   direction only, 2-day tolerance, catalog XMP only.
 
 ## Theme 2 — Scoring integrity (→ build 1 spec covers items 1–2)
 

@@ -33,6 +33,7 @@ import re
 import logging
 import difflib
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 import fitz  # PyMuPDF
 
 from src.models import Flag, ModuleResult
@@ -67,12 +68,40 @@ def _is_einvoice_attachment(name: str) -> bool:
 # PDF MODIFICATION HISTORY FUNCTIONS
 # =============================================================================
 
+# A linearized ("Fast Web View") PDF starts with a linearization dictionary,
+# e.g. "<< /Linearized 1 /L 38090 /H [...] /O 5 /E 31000 /N 1 /T 37800 >>".
+# The spec puts it in the very first object, so the first 2 KB always hold it.
+_LINEARIZED_RE = re.compile(rb"/Linearized\s+[\d.]+")
+
+
+def is_linearized(raw_bytes: bytes) -> bool:
+    """True when the file is linearized ("Fast Web View").
+
+    Example:
+        >>> is_linearized(b"%PDF-1.7\n1 0 obj\n<< /Linearized 1 /L 38090 >>")
+        True
+        >>> is_linearized(b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>")
+        False
+    """
+    return bool(_LINEARIZED_RE.search(raw_bytes[:2048]))
+
+
 def find_eof_positions(raw_bytes: bytes) -> list[int]:
     """
-    Find the byte position of every %%EOF marker in a PDF file.
+    Find the byte position of every %%EOF marker that closes a PDF version.
 
     Each %%EOF marks the end of a PDF version. A clean PDF has 1 %%EOF.
     Each incremental update (edit) adds another %%EOF.
+
+    Linearized files are the exception: they carry an extra %%EOF near the
+    START of the file, closing the first-page section that lets a browser
+    show page 1 before the download ends. That marker is not a version —
+    truncating there gives a fragment, not a prior document — so it is
+    dropped. Before 2026-11-04 it was counted, and every genuine linearized
+    PDF (Acrobat "Fast Web View", many bank and utility documents) was
+    reported as "modified once after creation", with a phantom version in
+    the history. A linearized file edited afterwards still shows its real
+    revisions: linearize + one incremental save = 2 positions.
 
     We return the position AFTER the %%EOF + newline, so that:
         raw_bytes[:positions[0]] = version 1 (original)
@@ -118,6 +147,9 @@ def find_eof_positions(raw_bytes: bytes) -> list[int]:
 
         # Continue searching after this marker
         start = end_pos
+
+    if len(positions) >= 2 and is_linearized(raw_bytes):
+        positions = positions[1:]  # the first-page section's marker, not a version
 
     return positions
 
@@ -1051,6 +1083,194 @@ def check_xmp_toolkit_mismatch(pdf_path: str, producer: str | None, creator: str
 
 
 # =============================================================================
+# XMP <-> INFO CREATION DATE CROSS-CHECK (backdating tell)
+# =============================================================================
+#
+# A PDF records its creation date TWICE:
+#   1. the Info dictionary:  /CreationDate (D:20240115143052+01'00')
+#   2. the XMP packet:       xmp:CreateDate="2024-01-15T14:30:52+01:00"
+# A generator writes both at the same moment, so they agree. Most metadata
+# editors (online "PDF metadata" tools, exiftool's PDF group, PyPDF scripts)
+# only rewrite the Info copy — the one every viewer displays. A forger who
+# backdates a document that way leaves the original date behind in the XMP.
+
+# How far apart the two dates may be before we call it a disagreement.
+# Two days absorbs every honest source of drift at once:
+#   - time zones: one copy written in local time without an offset, the other
+#     in UTC, is up to 14 hours apart (UTC+14 is the extreme);
+#   - precision: XMP allows a date with no time ("2024-01-15" = midnight), so
+#     a document created at 23:59 differs by almost 24 hours.
+# 14 h + 24 h < 48 h. Backdating that matters (an invoice moved to last month,
+# a pay slip moved to last year) is far larger than two days.
+XMP_INFO_DATE_TOLERANCE = timedelta(days=2)
+
+# xmp:CreateDate appears in one of two equivalent XML spellings:
+#   attribute form:  <rdf:Description xmp:CreateDate="2024-01-15T10:00:00Z" .../>
+#   element form:    <xmp:CreateDate>2024-01-15T10:00:00Z</xmp:CreateDate>
+# "xap:" is the namespace prefix Adobe used before 2004; old files still carry it.
+# A regex rather than an XML parser on purpose: XMP packets in the wild are
+# often slightly malformed, and we only need one value out of them.
+_XMP_CREATE_DATE_RE = re.compile(
+    r"(?:xmp|xap):CreateDate\s*=\s*[\"']([^\"']+)[\"']"            # attribute form
+    r"|<(?:xmp|xap):CreateDate>\s*([^<]+?)\s*</(?:xmp|xap):CreateDate>"  # element form
+)
+
+
+def parse_xmp_date(value: str | None) -> datetime | None:
+    """Parse an XMP date (ISO 8601) into a timezone-aware UTC datetime.
+
+    XMP dates are ISO 8601, which Python's `datetime.fromisoformat` reads
+    directly (Python 3.11+ accepts every form we need, "Z" included). The
+    only work left is the time zone: a date without an offset is treated as
+    UTC — the same convention `parse_pdf_date` uses for the Info copy, so the
+    two sides of the comparison are read the same way.
+
+    Args:
+        value: the raw text of xmp:CreateDate, or None.
+
+    Returns:
+        An aware UTC datetime, or None when the value is missing or is a
+        reduced-precision form we cannot compare safely ("2024" or "2024-01").
+        None means "skip the check" — an unparseable date is never a flag here.
+
+    Examples:
+        >>> parse_xmp_date("2024-01-15T10:00:00+01:00")
+        datetime(2024, 1, 15, 9, 0, tzinfo=timezone.utc)
+        >>> parse_xmp_date("2024-01-15")          # date only -> midnight UTC
+        datetime(2024, 1, 15, 0, 0, tzinfo=timezone.utc)
+        >>> parse_xmp_date("2024-01") is None     # month precision: not comparable
+        True
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip())
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def extract_xmp_create_date(xmp_text: str | None) -> str | None:
+    """Return the raw xmp:CreateDate value from an XMP packet, or None.
+
+    Args:
+        xmp_text: the document-level XMP packet as a string.
+
+    Returns:
+        The date text exactly as written (not parsed yet), or None if absent.
+
+    Examples:
+        >>> extract_xmp_create_date('<x xmp:CreateDate="2024-01-15T10:00:00Z"/>')
+        '2024-01-15T10:00:00Z'
+        >>> extract_xmp_create_date('<xmp:CreateDate>2024-01-15</xmp:CreateDate>')
+        '2024-01-15'
+        >>> extract_xmp_create_date('<x xmp:ModifyDate="2024-01-15"/>') is None
+        True
+    """
+    if not xmp_text:
+        return None
+    match = _XMP_CREATE_DATE_RE.search(xmp_text)
+    if not match:
+        return None
+    # Exactly one of the two alternatives matched; the other group is None.
+    return match.group(1) or match.group(2)
+
+
+def check_xmp_info_date_mismatch(
+    pdf_path: str,
+    info_creation_date: datetime | None,
+) -> list[Flag]:
+    """Flag a document whose Info creation date is earlier than its XMP one.
+
+    Only ONE direction is flagged, deliberately:
+
+    - Info EARLIER than XMP (flagged, medium): the visible creation date
+      claims the file existed before the date its own XMP recorded. That is
+      what backdating with an Info-only editor produces.
+    - Info LATER than XMP (ignored): template-based generators often embed a
+      static XMP packet taken from the template — with the template's old
+      CreateDate — and write a fresh Info date on every export. That pattern
+      is common on genuine invoices, so flagging it would mean false positives.
+
+    Medium, not high: both dates are unauthenticated fields, and a buggy
+    re-save tool that regenerates the XMP with the current time would also
+    trip this. It is a reason to look closer, never proof on its own.
+
+    Args:
+        pdf_path: path to the PDF.
+        info_creation_date: the Info /CreationDate, already parsed by the
+            extractor (aware UTC, see parse_pdf_date), or None.
+
+    Returns:
+        A list with one STRUCT_XMP_DATE_MISMATCH flag, or an empty list.
+
+    Example:
+        Info says 2024-01-15, XMP says 2024-03-20 -> one medium flag with
+        details["difference_days"] == 65. Info says 2024-03-20 and XMP
+        2024-01-15 -> no flag (template pattern).
+    """
+    if info_creation_date is None:
+        return []  # nothing to compare against
+
+    # Read the DOCUMENT-level XMP only. get_xml_metadata() follows the
+    # catalog's /Metadata entry. Scanning every XML stream instead (as the
+    # toolkit check above does) would also pick up the XMP embedded in images:
+    # a logo made in Photoshop in 2015 carries CreateDate 2015, which says
+    # nothing about when the document itself was created.
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            xmp_text = doc.get_xml_metadata()
+        finally:
+            doc.close()
+    except Exception as e:
+        # Never crash on a malformed PDF: no XMP read means no flag.
+        logger.error(f"Error reading XMP metadata: {e}")
+        return []
+
+    xmp_raw = extract_xmp_create_date(xmp_text)
+    xmp_date = parse_xmp_date(xmp_raw)
+    if xmp_date is None:
+        return []  # no XMP date, or one we cannot compare safely
+
+    # The extractor already returns aware UTC, but normalise anyway so a naive
+    # datetime from another caller (tests, scripts) cannot raise a TypeError
+    # on the subtraction below.
+    if info_creation_date.tzinfo is None:
+        info_creation_date = info_creation_date.replace(tzinfo=timezone.utc)
+
+    # Positive gap = Info claims an EARLIER creation than XMP (backdating).
+    gap = xmp_date - info_creation_date
+    if gap <= XMP_INFO_DATE_TOLERANCE:
+        return []
+
+    return [Flag(
+        severity="medium",
+        code="STRUCT_XMP_DATE_MISMATCH",
+        message=(
+            f"Creation date in the document info ({info_creation_date.date()}) is "
+            f"{gap.days} days earlier than the one recorded in its XMP metadata "
+            f"({xmp_date.date()})"
+        ),
+        details={
+            "info_creation_date": info_creation_date.isoformat(),
+            "xmp_create_date": xmp_date.isoformat(),
+            "xmp_create_date_raw": xmp_raw,
+            "difference_days": gap.days,
+            "explanation": (
+                "A PDF stores its creation date twice, and generators write both "
+                "at once. Here the date shown by viewers is earlier than the copy "
+                "in the XMP metadata: the visible date was likely changed after "
+                "the fact (backdating), or the file was re-processed by a tool "
+                "that rewrote its XMP."
+            ),
+        },
+    )]
+
+
+# =============================================================================
 # STRUCTURE ANALYSIS FUNCTIONS
 # =============================================================================
 
@@ -1202,11 +1422,9 @@ def count_incremental_updates(pdf_path: str) -> int:
         with open(pdf_path, 'rb') as f:
             content = f.read()
 
-        # Count %%EOF markers
-        # Each incremental update ends with %%EOF
-        eof_count = content.count(b'%%EOF')
-
-        return eof_count
+        # One version per real %%EOF (find_eof_positions skips the extra
+        # marker of a linearized file, which is not an edit).
+        return len(find_eof_positions(content))
     except Exception as e:
         logger.error(f"Error counting incremental updates: {e}")
         return 1  # Assume clean if we can't read
@@ -1903,6 +2121,12 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
         pdf_data.file_path,
         pdf_data.metadata.producer,
         pdf_data.metadata.creator,
+    ))
+
+    # Check if the visible creation date was moved earlier than the XMP copy
+    all_flags.extend(check_xmp_info_date_mismatch(
+        pdf_data.file_path,
+        pdf_data.metadata.creation_date,
     ))
 
     # Calculate score
