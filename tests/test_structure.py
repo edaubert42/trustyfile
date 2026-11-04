@@ -530,3 +530,54 @@ class TestCheckXmpInfoDateMismatch:
         path = create_pdf_with_dates("D:20240115100000Z", "2024-03-20T10:00:00Z")
         result = analyze_structure(extract_pdf_data(path), verify_signatures=False)
         assert "STRUCT_XMP_DATE_MISMATCH" in [f.code for f in result.flags]
+
+
+# =============================================================================
+# LINEARIZED ("Fast Web View") FILES ARE NOT EDITED FILES
+# =============================================================================
+# Regression (2026-11-04): 4 of 5 real documents sent by the owner were
+# linearized and all were reported "modified once after creation", with a
+# phantom version in the history card. A linearized file carries a second
+# %%EOF near its start, by construction.
+
+pikepdf = pytest.importorskip("pikepdf")
+
+
+def _linearized_copy(filename: str) -> str:
+    src = create_clean_pdf("lin_src.pdf")
+    dst = os.path.join(TEST_DIR, filename)
+    with pikepdf.open(src) as pdf:
+        pdf.save(dst, linearize=True)
+    return dst
+
+
+class TestLinearizedFiles:
+    def test_detects_linearization(self):
+        from src.modules.structure import is_linearized
+        raw = open(_linearized_copy("lin.pdf"), "rb").read()
+        assert is_linearized(raw)
+        assert raw.count(b"%%EOF") == 2  # the trap: two markers, one version
+        assert not is_linearized(open(create_clean_pdf(), "rb").read())
+
+    def test_linearized_file_is_one_version(self):
+        from src.modules.structure import find_eof_positions, get_modification_history
+        path = _linearized_copy("lin.pdf")
+        assert len(find_eof_positions(open(path, "rb").read())) == 1
+        assert count_incremental_updates(path) == 1
+        assert get_modification_history(path)["version_count"] == 1
+
+    def test_linearized_file_raises_no_incremental_update_flag(self):
+        path = _linearized_copy("lin.pdf")
+        codes = [f.code for f in check_incremental_updates(path, verify_signatures=False)]
+        assert "STRUCT_INCREMENTAL_UPDATES" not in codes
+
+    def test_edit_after_linearization_is_still_one_revision(self):
+        """Linearize, then an incremental save: exactly one real edit."""
+        path = _linearized_copy("lin_edited.pdf")
+        doc = fitz.open(path)
+        doc[0].insert_text((100, 200), "ajout")
+        doc.saveIncr()
+        doc.close()
+        assert count_incremental_updates(path) == 2
+        codes = [f.code for f in check_incremental_updates(path, verify_signatures=False)]
+        assert "STRUCT_INCREMENTAL_UPDATES" in codes

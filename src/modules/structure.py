@@ -68,12 +68,40 @@ def _is_einvoice_attachment(name: str) -> bool:
 # PDF MODIFICATION HISTORY FUNCTIONS
 # =============================================================================
 
+# A linearized ("Fast Web View") PDF starts with a linearization dictionary,
+# e.g. "<< /Linearized 1 /L 38090 /H [...] /O 5 /E 31000 /N 1 /T 37800 >>".
+# The spec puts it in the very first object, so the first 2 KB always hold it.
+_LINEARIZED_RE = re.compile(rb"/Linearized\s+[\d.]+")
+
+
+def is_linearized(raw_bytes: bytes) -> bool:
+    """True when the file is linearized ("Fast Web View").
+
+    Example:
+        >>> is_linearized(b"%PDF-1.7\n1 0 obj\n<< /Linearized 1 /L 38090 >>")
+        True
+        >>> is_linearized(b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>")
+        False
+    """
+    return bool(_LINEARIZED_RE.search(raw_bytes[:2048]))
+
+
 def find_eof_positions(raw_bytes: bytes) -> list[int]:
     """
-    Find the byte position of every %%EOF marker in a PDF file.
+    Find the byte position of every %%EOF marker that closes a PDF version.
 
     Each %%EOF marks the end of a PDF version. A clean PDF has 1 %%EOF.
     Each incremental update (edit) adds another %%EOF.
+
+    Linearized files are the exception: they carry an extra %%EOF near the
+    START of the file, closing the first-page section that lets a browser
+    show page 1 before the download ends. That marker is not a version —
+    truncating there gives a fragment, not a prior document — so it is
+    dropped. Before 2026-11-04 it was counted, and every genuine linearized
+    PDF (Acrobat "Fast Web View", many bank and utility documents) was
+    reported as "modified once after creation", with a phantom version in
+    the history. A linearized file edited afterwards still shows its real
+    revisions: linearize + one incremental save = 2 positions.
 
     We return the position AFTER the %%EOF + newline, so that:
         raw_bytes[:positions[0]] = version 1 (original)
@@ -119,6 +147,9 @@ def find_eof_positions(raw_bytes: bytes) -> list[int]:
 
         # Continue searching after this marker
         start = end_pos
+
+    if len(positions) >= 2 and is_linearized(raw_bytes):
+        positions = positions[1:]  # the first-page section's marker, not a version
 
     return positions
 
@@ -1391,11 +1422,9 @@ def count_incremental_updates(pdf_path: str) -> int:
         with open(pdf_path, 'rb') as f:
             content = f.read()
 
-        # Count %%EOF markers
-        # Each incremental update ends with %%EOF
-        eof_count = content.count(b'%%EOF')
-
-        return eof_count
+        # One version per real %%EOF (find_eof_positions skips the extra
+        # marker of a linearized file, which is not an edit).
+        return len(find_eof_positions(content))
     except Exception as e:
         logger.error(f"Error counting incremental updates: {e}")
         return 1  # Assume clean if we can't read
