@@ -98,6 +98,8 @@
     "analysis_completed": "Analysis completed in {ms}ms",
 
     "summary": "Summary",
+    "analyze_another": "Analyse another document",
+    "evidence_breakdown": "Where the evidence comes from",
     "detected_issues": "Detected Issues",
     "more_details": "More Details",
 

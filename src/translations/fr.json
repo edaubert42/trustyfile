@@ -98,6 +98,8 @@
     "analysis_completed": "Analyse terminée en {ms}ms",
 
     "summary": "Résumé",
+    "analyze_another": "Analyser un autre document",
+    "evidence_breakdown": "D'où viennent les indices",
     "detected_issues": "Problèmes détectés",
     "more_details": "Plus de détails",
 
