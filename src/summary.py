@@ -12,6 +12,58 @@ from src.scoring import collect_all_flags
 
 
 # =============================================================================
+# "WHAT NOW?" ADVICE — depends on the band AND on what kind of document it is
+# =============================================================================
+# The original copy was written for invoices: "do not pay or sign". Under an
+# employer attestation, a tax notice or an ID card that advice is off-topic —
+# nobody pays them; they are ACCEPTED into a rental, hiring or loan file, and
+# the right check is with the organisation that issued them.
+#
+#   payment -> invoice                        : don't pay / don't sign
+#   proof   -> attestation, certificate,
+#              tax_document, identity         : don't accept it; check with the issuer
+#   generic -> everything else, incl. unknown : don't rely on it
+#
+# "unknown" is generic, not payment, on purpose: a neutral sentence under a
+# misclassified invoice is mildly vague; "do not pay" under a CV is absurd.
+NEXT_STEP_FAMILY: dict[str, str] = {
+    "invoice": "payment",
+    "attestation": "proof",
+    "certificate": "proof",
+    "tax_document": "proof",
+    "identity": "proof",
+}
+
+
+def next_step_key(band: str, document_type: str) -> str:
+    """Translation key of the "What now?" sentence for a result.
+
+    Args:
+        band: GENUINE | REVIEW | SUSPICIOUS | UNVERIFIABLE.
+        document_type: the classifier's label (src/models.py DocumentType).
+
+    Returns:
+        A key present in both translation files.
+
+    Examples:
+        >>> next_step_key("SUSPICIOUS", "invoice")
+        'next_step_SUSPICIOUS'                 # the original invoice copy
+        >>> next_step_key("SUSPICIOUS", "attestation")
+        'next_step_SUSPICIOUS_proof'
+        >>> next_step_key("REVIEW", "scientific")
+        'next_step_REVIEW_generic'
+        >>> next_step_key("UNVERIFIABLE", "attestation")
+        'next_step_UNVERIFIABLE'               # "ask for the original PDF" fits every type
+    """
+    if band == "UNVERIFIABLE":
+        return "next_step_UNVERIFIABLE"
+    family = NEXT_STEP_FAMILY.get(document_type, "generic")
+    if family == "payment":
+        return f"next_step_{band}"  # keys predate the families; kept as-is
+    return f"next_step_{band}_{family}"
+
+
+# =============================================================================
 # THEME DEFINITIONS
 # =============================================================================
 

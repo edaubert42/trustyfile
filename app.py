@@ -1549,7 +1549,7 @@ if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity
-    from src.summary import generate_rich_summary, get_flag_sentence
+    from src.summary import generate_rich_summary, get_flag_sentence, next_step_key
     from src.report import build_report, report_json, report_filename
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
@@ -2012,7 +2012,7 @@ if uploaded_file is not None:
                     {summary.verdict}
                 </p>
                 <p style="color:#c9d1d9; font-size:0.88rem; line-height:1.5; max-width:420px; margin:0 auto 0.5rem auto;">
-                    <strong>{t("next_step_label")}</strong> {t(f"next_step_{result.band}")}
+                    <strong>{t("next_step_label")}</strong> {t(next_step_key(result.band, result.document_type))}
                 </p>
                 <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:420px; margin:0 auto 0.4rem auto;">
                     {t("score_caveat")}
