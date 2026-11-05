@@ -1562,7 +1562,7 @@ if uploaded_file is not None:
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
-    from src.twod_doc_view import twod_rows_html
+    from src.twod_doc_view import twod_pdf_panel_html
     import hashlib
 
     # Compute a hash of the file bytes to detect if it's a new file
@@ -1688,6 +1688,18 @@ if uploaded_file is not None:
             if PYLIBDMTX_AVAILABLE and not _is_passport:
                 twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
 
+            # Signature status of EACH code, in the same order, for the panel
+            # badge. Recomputed here rather than read from the twod_doc
+            # module's details: that list skips a code whose field check
+            # failed, so its indexes are not guaranteed to match ours.
+            # Offline ECDSA, a few ms per code; done once, then cached.
+            twod_doc_signatures = []
+            if twod_doc_results:
+                from src.modules.twod_doc_crypto import verify_twod_doc_signature
+                twod_doc_signatures = [
+                    verify_twod_doc_signature(td).status for td in twod_doc_results
+                ]
+
             # Cache everything in session_state so page navigation doesn't re-trigger analysis
             st.session_state["last_file_hash"] = file_hash
             st.session_state["cached_result"] = result
@@ -1697,6 +1709,7 @@ if uploaded_file is not None:
             st.session_state["cached_analysed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
             st.session_state["cached_summary"] = summary
             st.session_state["cached_twod_doc"] = twod_doc_results
+            st.session_state["cached_twod_doc_signatures"] = twod_doc_signatures
             # A stale manual page selection from a PREVIOUS file must not
             # suppress this file's auto-nav-to-first-flagged-page default —
             # st.selectbox only honors `index=` when its session_state key is
@@ -1715,6 +1728,7 @@ if uploaded_file is not None:
         result = st.session_state["cached_result"]
         summary = st.session_state["cached_summary"]
         twod_doc_results = st.session_state["cached_twod_doc"]
+        twod_doc_signatures = st.session_state.get("cached_twod_doc_signatures", [])
 
     # Everything below renders inside one placeholder. If anything in the
     # ~1,500 lines of results rendering raises, the except clause empties the
@@ -3074,31 +3088,9 @@ if uploaded_file is not None:
                     f'</div></details>'
                 )
 
-        # 2D-DOC Verified Data panel
-        if twod_doc_results:
-            twod_content = ""
-            for twod_doc_data in twod_doc_results:
-                rows_2d = twod_rows_html(twod_doc_data)
-                twod_content += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:8px;">'
-                    f'{rows_2d}</div>'
-                )
-
-            more_details_html += (
-                f'<details open style="background:#0a2e1a; border:1px solid #28a745; '
-                f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">{t("twod_doc")}</span>'
-                f'<span style="background:#28a745; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{t("twod_verified")}</span>'
-                f'<span style="color:#888; font-size:0.72rem;">{t("twod_compare")}</span>'
-                f'</summary>'
-                f'<div style="padding:14px; border-top:1px solid #28a745;">'
-                f'{twod_content}'
-                f'</div></details>'
-            )
+        # 2D-DOC panel: badge and colour follow the signature status
+        # (src/twod_doc_view.py:pdf_signature_badge).
+        more_details_html += twod_pdf_panel_html(twod_doc_results, twod_doc_signatures)
 
         # MRZ Zone panel (identity documents)
         identity_mod = next((m for m in result.modules if m.module == "identity"), None)
