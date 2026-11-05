@@ -178,7 +178,10 @@
     "severity_low": "Faible",
 
     "twod_doc": "2D-DOC",
-    "twod_verified": "Vérifié",
+    "twod_sig_valid": "Signature vérifiée",
+    "twod_sig_invalid": "Signature non conforme",
+    "twod_sig_test_cert": "Certificat de test",
+    "twod_sig_unverifiable": "Signature non vérifiable",
     "twod_compare": "Comparer avec le contenu visible du PDF",
     "twod_doc_type": "Type de document",
     "twod_name": "Nom",

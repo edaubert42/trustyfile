@@ -225,3 +225,93 @@ def photo_result_html(result, level: str, key: str) -> str:
         '</div>',
     ]
     return "".join(parts)
+
+
+def pdf_signature_badge(statuses: list[str]) -> tuple[str, str]:
+    """Badge of the PDF 2D-Doc panel, from the signature status of each code.
+
+    Pure function, the single place that decides what the PDF panel claims.
+    Before 2026-11-05 the panel always said "Verified" in green, even for a
+    code whose signature had been checked and found INVALID: the green badge
+    contradicted the critical flag shown a few lines above it.
+
+    Same posture as twod_doc_photo.photo_verdict:
+    - green ("ok") only if EVERY code on the page has a valid signature —
+      one unchecked code must not ride on another one's proof;
+    - red ("alert") as soon as one code is "invalid" (certificate resolved,
+      maths failed). Cautious wording ("does not match"), because certificate
+      resolution is candidate matching (see twod_doc._signature_flags);
+    - neutral ("neutral") for everything else: test certificate, issuer
+      missing from our snapshot, no signature... We could not check, which
+      proves nothing either way.
+
+    Args:
+        statuses: SignatureCheck.status of each decoded code, any order.
+
+    Returns:
+        (level, translation key). level is a key of _LEVEL_STYLE.
+
+    Example:
+        >>> pdf_signature_badge(["valid"])
+        ('ok', 'twod_sig_valid')
+        >>> pdf_signature_badge(["valid", "invalid"])
+        ('alert', 'twod_sig_invalid')
+        >>> pdf_signature_badge(["cert_not_found"])
+        ('neutral', 'twod_sig_unverifiable')
+    """
+    if not statuses:
+        # No status at all (crypto check crashed): no claim.
+        return "neutral", "twod_sig_unverifiable"
+    if "invalid" in statuses:
+        return "alert", "twod_sig_invalid"
+    if all(status == "valid" for status in statuses):
+        return "ok", "twod_sig_valid"
+    if "test_cert" in statuses:
+        return "neutral", "twod_sig_test_cert"
+    return "neutral", "twod_sig_unverifiable"
+
+
+def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str]) -> str:
+    """The 2D-Doc panel of the PDF results page (one card per decoded code).
+
+    The panel colour and its badge follow pdf_signature_badge: a forged code
+    no longer sits in a green "Verified" frame.
+
+    Args:
+        twod_docs: parsed 2D-Docs found on the page (scan_pdf_for_2d_doc).
+        statuses: signature status of each of them (same order).
+
+    Returns:
+        A <details> HTML fragment, or "" when there is no code.
+    """
+    if not twod_docs:
+        return ""
+
+    level, key = pdf_signature_badge(statuses)
+    style = _LEVEL_STYLE[level]
+
+    cards = ""
+    for twod_doc_data in twod_docs:
+        try:
+            rows = twod_rows_html(twod_doc_data)
+        except Exception:  # a malformed signed field must not break the page
+            rows = (f'<div style="color:#888; font-size:0.75rem;">'
+                    f'{html.escape(t("photo_fields_error"))}</div>')
+        cards += (
+            f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
+            f'padding:12px 16px; margin-bottom:8px;">{rows}</div>'
+        )
+
+    return (
+        f'<details open data-level="{level}" style="background:{style["bg"]}; '
+        f'border:1px solid {style["border"]}; border-radius:8px; padding:0; margin-bottom:8px;">'
+        f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
+        f'display:flex; flex-wrap:wrap; align-items:center; gap:10px;">'
+        f'<span style="color:#eee; font-size:0.85rem;">{html.escape(t("twod_doc"))}</span>'
+        f'<span style="background:{style["border"]}; color:white; font-size:0.68rem; '
+        f'font-weight:bold; padding:2px 10px; border-radius:10px;">{html.escape(t(key))}</span>'
+        f'<span style="color:#888; font-size:0.72rem;">{html.escape(t("twod_compare"))}</span>'
+        f'</summary>'
+        f'<div style="padding:14px; border-top:1px solid {style["border"]};">{cards}</div>'
+        f'</details>'
+    )
