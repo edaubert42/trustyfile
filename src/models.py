@@ -22,6 +22,7 @@ DocumentType = Literal[
     "certificate",   # Certificat (médical, de conformité, etc.)
     "attestation",   # Attestation (domicile, employeur, etc.)
     "tax_document",  # Avis d'imposition, déclaration fiscale
+    "payslip",       # Bulletin de salaire (bulletin de paie)
     "technical",     # Protocole technique, spécification, documentation API
     "scientific",    # Article scientifique, revue, thèse
     "legal_notice",  # Notice, CGV, mentions légales

@@ -10,7 +10,7 @@
 
 ## What is TrustyFile?
 
-TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **13 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
+TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **14 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
 
 **Use cases:**
 - Accounting teams verifying supplier invoices
@@ -34,6 +34,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 | arithmetic | e-invoice XML vs visible totals & IBAN — CII (Factur-X) **and** UBL (Peppol) |
 | forensics | Error-level analysis (ELA) of page renders |
 | identity | MRZ check digits on ID documents (conditional) |
+| payslip | Net paid = net before tax − withholding tax, tax = base × rate, payment date vs pay period (conditional: payslips) |
 | twod_doc | French 2D-Doc barcodes vs visible text (needs libdmtx) |
 
 **Bonus features:**
@@ -164,7 +165,7 @@ trustyfile/
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Data structures (Flag, ModuleResult)
 │   ├── i18n.py, translations/  # EN/FR summary theme strings
-│   ├── modules/              # 13 detection modules (see table above)
+│   ├── modules/              # 14 detection modules (see table above)
 │   │   ├── metadata.py
 │   │   ├── content.py
 │   │   ├── visual.py
@@ -176,6 +177,7 @@ trustyfile/
 │   │   ├── provenance.py     # producer structural fingerprints
 │   │   ├── span_conflict.py  # shared span helper (overlay + invisible)
 │   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
+│   │   ├── payslip.py        # Payslip arithmetic (conditional: payslips only)
 │   │   ├── forensics.py      # ELA
 │   │   ├── identity.py       # MRZ checksums
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes

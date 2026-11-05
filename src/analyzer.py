@@ -30,6 +30,7 @@ from src.modules.overlay import analyze_overlay
 from src.modules.invisible import analyze_invisible
 from src.modules.provenance import analyze_provenance
 from src.modules.arithmetic import analyze_arithmetic
+from src.modules.payslip import analyze_payslip
 from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
 from src.modules.identity import analyze_identity, is_likely_identity_doc
@@ -237,6 +238,11 @@ class TrustyFileAnalyzer:
         _run("arithmetic", lambda: analyze_arithmetic(pdf_data))                  # totals + e-invoice XML
         _run("forensics", lambda: analyze_forensics(file_path))                   # Module H (ELA)
         _run("twod_doc", lambda: analyze_twod_doc(pdf_data))                      # 2D-Doc cross-check
+        # Payslip arithmetic (net paid = net before tax - withholding tax...).
+        # Only on documents classified as payslips: its labels ("net à payer")
+        # also appear on invoices, where the payslip identities mean nothing.
+        if doc_type == "payslip":
+            _run("payslip", lambda: analyze_payslip(pdf_data))
 
         # Module Identity: MRZ analysis (passports, ID cards).
         # Triggered if:
