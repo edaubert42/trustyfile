@@ -46,6 +46,18 @@ cryptography>=43,<50     # 2D-Doc ECDSA signature verification (twod_doc_crypto)
 # prove a later minor in a browser (fresh load AND a rerun) before raising.
 streamlit>=1.58,<1.59    # MVP frontend
 
+# Starlette is Streamlit's web server since 1.58 (Streamlit only asks for
+# starlette>=0.40). Starlette 1.8.0 changed GZipMiddleware: for content it does
+# not compress (images), the response headers are now sent from the
+# "http.response.start" branch, the very branch Streamlit 1.58's
+# SelectiveGZipMiddleware overrides. The body then goes out with no headers,
+# uvicorn raises "Expected ASGI message 'http.response.start'", and every
+# st.image (the document preview) is a 500 / broken image. That reached
+# production on 2026-11-05. Raise this cap only together with a Streamlit
+# release whose gzip middleware handles the new behaviour, and only once
+# tests/test_streamlit_media.py passes on it.
+starlette>=0.46,<1.8     # green on 1.7.0; 1.8.0+ breaks Streamlit 1.58 images
+
 # Testing
 pytest>=8.0.0,<10        # Test framework (green on 9.1.1)
 pytest-cov>=4.1.0,<8     # Coverage reports (green on 7.1.0)
