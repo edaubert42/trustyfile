@@ -31,6 +31,7 @@ NEXT_STEP_FAMILY: dict[str, str] = {
     "attestation": "proof",
     "certificate": "proof",
     "tax_document": "proof",
+    "payslip": "proof",
     "identity": "proof",
 }
 
@@ -114,6 +115,11 @@ FLAG_THEME_MAP: dict[str, str] = {
     "ARITH_XML_VISIBLE_MISMATCH": "tampering",
     "ARITH_IBAN_MISMATCH": "tampering",
     "ARITH_XML_CONSISTENT": "tampering",       # genuine-direction; bullets skip it
+
+    # tampering: payslip figures that contradict each other
+    "PAYSLIP_NET_MISMATCH": "tampering",
+    "PAYSLIP_PAS_RATE_MISMATCH": "tampering",
+    "PAYSLIP_PAID_BEFORE_PERIOD": "tampering",
 
     # tampering: signed 2D-Doc barcode vs visible text consistency
     "TWOD_DOC_FIELD_MISMATCH": "tampering",
@@ -452,6 +458,23 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         if f.details else ("The printed total does not match the embedded "
                             "e-invoice data.")
     ),
+    "PAYSLIP_NET_MISMATCH": lambda f: (
+        f"The payslip does not add up: net before tax {f.details['net_before_tax']:,.2f} "
+        f"minus withholding tax {f.details['pas_amount']:,.2f} gives "
+        f"{f.details['expected']:,.2f}, but the net paid shown is {f.details['net_paid']:,.2f}."
+        if f.details else "The payslip's net paid does not match its other amounts."
+    ),
+    "PAYSLIP_PAS_RATE_MISMATCH": lambda f: (
+        f"The withholding tax shown ({f.details['amount']:,.2f}) does not match its base "
+        f"{f.details['base']:,.2f} at the rate shown ({f.details['rate']:g} %), which gives "
+        f"{f.details['expected']:,.2f}."
+        if f.details else "The withholding tax does not match its base and rate."
+    ),
+    "PAYSLIP_PAID_BEFORE_PERIOD": lambda f: (
+        f"The salary is dated as paid on {f.details['payment_date']}, before the pay "
+        f"period even started ({f.details['period_start']})."
+        if f.details else "The payment date is before the pay period."
+    ),
     "TWOD_DOC_FIELD_MISMATCH": lambda f: (
         f"The signed 2D-Doc barcode says {f.details.get('field', 'a field')} "
         f"= \"{f.details.get('expected', '')}\", but the visible text shows "
@@ -766,6 +789,22 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
 }
 
 
+def _eur_fr(value: float) -> str:
+    """French money format: thin-space thousands, comma decimals.
+
+    Example:
+        >>> _eur_fr(2400)
+        '2 400,00'
+    """
+    return f"{value:,.2f}".replace(",", "\u202f").replace(".", ",")
+
+
+def _date_fr(iso: str) -> str:
+    """ISO date to French order ("2024-02-28" -> "28/02/2024")."""
+    year, month, day = iso.split("-")
+    return f"{day}/{month}/{year}"
+
+
 SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     # --- origin ---
     "META_AI_GENERATED": lambda f: (
@@ -975,6 +1014,23 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"Les montants visibles et lisibles par machine divergent."
         if f.details else ("Le total imprimé ne correspond pas aux données de "
                            "facture électronique intégrées.")
+    ),
+    "PAYSLIP_NET_MISMATCH": lambda f: (
+        f"Le bulletin ne tombe pas juste : net avant impôt {_eur_fr(f.details['net_before_tax'])} "
+        f"moins prélèvement à la source {_eur_fr(f.details['pas_amount'])} donne "
+        f"{_eur_fr(f.details['expected'])}, mais le net payé affiché est {_eur_fr(f.details['net_paid'])}."
+        if f.details else "Le net payé du bulletin ne correspond pas à ses autres montants."
+    ),
+    "PAYSLIP_PAS_RATE_MISMATCH": lambda f: (
+        f"Le prélèvement à la source affiché ({_eur_fr(f.details['amount'])}) ne correspond pas "
+        f"à sa base {_eur_fr(f.details['base'])} au taux affiché ({_eur_fr(f.details['rate']).rstrip('0').rstrip(',')} %), "
+        f"qui donne {_eur_fr(f.details['expected'])}."
+        if f.details else "Le prélèvement à la source ne correspond pas à sa base et à son taux."
+    ),
+    "PAYSLIP_PAID_BEFORE_PERIOD": lambda f: (
+        f"Le salaire est indiqué payé le {_date_fr(f.details['payment_date'])}, avant même "
+        f"le début de la période de paie ({_date_fr(f.details['period_start'])})."
+        if f.details else "La date de paiement précède la période de paie."
     ),
     "TWOD_DOC_FIELD_MISMATCH": lambda f: (
         f"Le code 2D-Doc signé indique {f.details.get('field', 'un champ')} "

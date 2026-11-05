@@ -2078,7 +2078,7 @@ if uploaded_file is not None:
             # Define the 4 groups: (label, list of module names, tooltip)
             groups = [
                 (t("group_modifications"), ["structure", "overlay"], t("tip_modifications")),
-                (t("group_consistency"), ["content", "arithmetic"], t("tip_consistency")),
+                (t("group_consistency"), ["content", "arithmetic", "payslip"], t("tip_consistency")),
                 (t("group_tampering"), ["images", "fonts", "visual", "metadata", "forensics"], t("tip_tampering")),
                 (t("group_authenticity"), ["external", "identity", "twod_doc"], t("tip_authenticity")),
             ]

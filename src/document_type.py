@@ -78,6 +78,20 @@ KEYWORDS: dict[str, list[str]] = {
         "tax return", "tax assessment", "income tax", "fiscal year",
         "tax authority", "taxable income",
     ],
+    "payslip": [
+        # Wording of the French model payslip (bulletin de paie). Kept to
+        # terms a tax notice or an invoice does not print: "impôt sur le
+        # revenu" and "prélèvement à la source" also appear on a tax notice,
+        # so they are deliberately NOT listed here.
+        # French
+        "bulletin de paie", "bulletin de salaire", "net à payer avant impôt",
+        "net payé", "salaire de base", "salaire brut", "net imposable",
+        "net social", "cotisations salariales", "part salariale",
+        "part patronale", "convention collective", "congés payés",
+        "date d'entrée", "matricule", "urssaf", "taux personnalisé",
+        # English
+        "payslip", "pay slip", "gross pay", "net pay",
+    ],
     "technical": [
         # French — protocoles, specs, documentations techniques
         "protocole technique", "spécification technique", "cahier des charges",

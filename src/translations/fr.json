@@ -273,6 +273,7 @@
     "doctype_certificate": "Certificat",
     "doctype_attestation": "Attestation",
     "doctype_tax_document": "Document fiscal",
+    "doctype_payslip": "Bulletin de salaire",
     "doctype_technical": "Document technique",
     "doctype_scientific": "Article scientifique",
     "doctype_legal_notice": "Notice / CGV",

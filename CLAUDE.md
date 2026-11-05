@@ -82,7 +82,7 @@ trustyfile/
 ├── nixpacks.toml             # Railway build: system deps, python pin, test gate
 ├── .github/workflows/        # CI: pytest on 3.12/3.13/3.14
 ├── src/
-│   ├── analyzer.py           # Main orchestrator — wires all 13 modules
+│   ├── analyzer.py           # Main orchestrator — wires all 14 modules
 │   ├── scoring.py            # Evidence ledger -> trust score
 │   ├── evidence.py           # Ledger primitives
 │   ├── summary.py            # EN/FR verdict + narrative generation
@@ -99,7 +99,7 @@ trustyfile/
 │   │                         # clamps renders so hostile page geometry
 │   │                         # cannot exhaust memory
 │   ├── i18n.py, translations/  # EN/FR strings
-│   ├── modules/              # 13 detection modules (see Analysis Modules)
+│   ├── modules/              # 14 detection modules (see Analysis Modules)
 │   │   ├── metadata.py       # Module A
 │   │   ├── content.py        # Module B
 │   │   ├── visual.py         # Module C
@@ -112,6 +112,7 @@ trustyfile/
 │   │   ├── invisible.py      # Invisible / hidden text mismatch
 │   │   ├── provenance.py     # Producer structural fingerprints
 │   │   ├── arithmetic.py     # e-invoice XML vs visible totals (CII + UBL)
+│   │   ├── payslip.py        # Payslip arithmetic (conditional: payslips only)
 │   │   ├── identity.py       # MRZ checksums (conditional)
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes
 │   │   ├── twod_doc_crypto.py # 2D-Doc ECDSA verification (offline, certs
@@ -320,7 +321,7 @@ pytest tests/ --cov=src --cov-report=html
 ## Current Phase
 
 Phases 1-5 are largely shipped. The MVP is deployed (Railway, behind Caddy),
-13 modules are wired into `analyzer.py`, and ~888 tests run in CI on every
+14 modules are wired into `analyzer.py`, and ~888 tests run in CI on every
 push. Phase 8 (detection depth) is where active work sits.
 
 **Phase 1 - MVP** — done
