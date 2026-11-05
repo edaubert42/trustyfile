@@ -129,9 +129,9 @@ def test_decoder_only_sees_a_small_crop(tmp_path, monkeypatch):
     seen_sizes = []
     real = twod_doc.scan_datamatrix_from_image
 
-    def spy(image):
+    def spy(image, max_count=None):
         seen_sizes.append(image.size)
-        return real(image)
+        return real(image, max_count=max_count)
 
     monkeypatch.setattr(twod_doc, "scan_datamatrix_from_image", spy)
     path = _pdf_with_datamatrix_at(tmp_path, (36, 36, 156, 156))
@@ -149,9 +149,9 @@ def test_falls_back_to_the_quadrant_when_the_crop_decodes_nothing(tmp_path, monk
     tried = []
     real = twod_doc._decode_2d_docs
 
-    def crops_fail(image, where):
+    def crops_fail(image, where, max_count=None):
         tried.append(where)
-        return [] if where.startswith("candidate") else real(image, where)
+        return [] if where.startswith("candidate") else real(image, where, max_count)
 
     monkeypatch.setattr(twod_doc, "_decode_2d_docs", crops_fail)
     path = _pdf_with_datamatrix_at(tmp_path, (36, 36, 156, 156))
@@ -193,3 +193,75 @@ def test_cache_is_keyed_by_content_not_by_path(tmp_path):
     doc.close()
     shutil.copyfile(plain, with_code)  # same path, new bytes
     assert scan_pdf_for_2d_doc(with_code) == []
+
+
+# --- QR codes are not decoded as DataMatrix candidates (2026-11-05) ----------
+
+def _qr_png(text: str = "https://www.edf.fr/payer?ref=10194772319&montant=123.45") -> bytes:
+    """A QR code as PNG bytes (OpenCV encoder, no extra dependency)."""
+    import cv2
+    from PIL import Image
+
+    qr = cv2.QRCodeEncoder.create().encode(text)
+    qr = cv2.resize(qr, (qr.shape[1] * 8, qr.shape[0] * 8), interpolation=cv2.INTER_NEAREST)
+    buf = io.BytesIO()
+    Image.fromarray(qr).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _add_qr(path: str, rect) -> None:
+    """Stamp a QR code at `rect` (points) on page 1 of the PDF at `path`."""
+    import fitz
+    doc = fitz.open(path)
+    doc[0].insert_image(fitz.Rect(*rect), stream=_qr_png())
+    doc.saveIncr()
+    doc.close()
+
+
+def test_a_qr_code_alone_is_never_handed_to_libdmtx(tmp_path, monkeypatch):
+    """A payment QR passes the square/density pre-filter. Decoding it cost
+    two full libdmtx timeouts (crop + quadrant fallback): ~3 s per invoice
+    for nothing. It must now be dropped before any decode."""
+    import fitz
+    from src.modules import twod_doc
+    decodes = []
+    monkeypatch.setattr(twod_doc, "scan_datamatrix_from_image",
+                        lambda image, max_count=None: decodes.append(image.size) or [])
+
+    path = tmp_path / "qr_invoice.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((36, 300), "FACTURE 2024-001  Total 123,45 EUR", fontsize=12)
+    page.insert_image(fitz.Rect(440, 40, 560, 160), stream=_qr_png())
+    doc.save(str(path))
+    doc.close()
+
+    assert twod_doc.scan_pdf_for_2d_doc(str(path)) == []
+    assert decodes == []
+
+
+def test_a_2d_doc_next_to_a_qr_code_is_still_found(tmp_path):
+    """Dropping QR pieces must not drop the real DataMatrix on the same page."""
+    from src.modules.twod_doc import scan_pdf_for_2d_doc
+    path = _pdf_with_datamatrix_at(tmp_path, (36, 36, 156, 156))
+    _add_qr(path, (440, 40, 560, 160))
+    docs = scan_pdf_for_2d_doc(path)
+    assert [d.beneficiary_name for d in docs] == ["JEAN DUPONT"]
+
+
+def test_only_tight_crops_stop_at_the_first_symbol(tmp_path, monkeypatch):
+    """max_count=1 on a one-symbol crop; never on a whole quadrant, which can
+    hold a shipping-label DataMatrix next to the 2D-Doc."""
+    from src.modules import twod_doc
+    calls = []
+    real = twod_doc._decode_2d_docs
+
+    def spy(image, where, max_count=None):
+        calls.append((where, max_count))
+        return [] if where.startswith("candidate") else real(image, where, max_count)
+
+    monkeypatch.setattr(twod_doc, "_decode_2d_docs", spy)
+    path = _pdf_with_datamatrix_at(tmp_path, (36, 36, 156, 156))
+    assert twod_doc.scan_pdf_for_2d_doc(path)
+    assert calls[0] == ("candidate 1", 1)
+    assert calls[-1] == ("top-left", None)

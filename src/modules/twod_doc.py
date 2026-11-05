@@ -688,12 +688,20 @@ class DataMatrixResult:
     rect: tuple[int, int, int, int] | None = None
 
 
-def scan_datamatrix_from_image(image: "Image.Image") -> list[DataMatrixResult]:
+def scan_datamatrix_from_image(
+    image: "Image.Image", max_count: int | None = None,
+) -> list[DataMatrixResult]:
     """
     Scan a PIL Image for DataMatrix barcodes.
 
     Args:
         image: PIL Image object (should be grayscale or RGB)
+        max_count: stop after this many symbols (None = search the whole
+            image until the timeout). On a tight crop holding ONE symbol,
+            max_count=1 returns as soon as it is read instead of searching
+            the rest of the crop. Not used on whole quadrants: a quadrant can
+            hold a shipping-label DataMatrix next to the 2D-Doc, and stopping
+            at the first symbol could miss the 2D-Doc.
 
     Returns:
         List of DataMatrixResult objects for each barcode found
@@ -715,7 +723,7 @@ def scan_datamatrix_from_image(image: "Image.Image") -> list[DataMatrixResult]:
     try:
         # pylibdmtx.decode returns a list of Decoded namedtuples
         # Each has: data, rect (left, top, width, height)
-        decoded = decode_datamatrix(image, timeout=1500)
+        decoded = decode_datamatrix(image, timeout=1500, max_count=max_count)
 
         for barcode in decoded:
             # Decode bytes to string (2D-DOC uses ASCII/Latin-1)
@@ -793,6 +801,68 @@ def _datamatrix_candidate_boxes(
     return boxes
 
 
+def _drop_qr_code_boxes(
+    pil_image: "Image.Image",
+    boxes: list[tuple[int, int, int, int]],
+) -> list[tuple[int, int, int, int]]:
+    """
+    Remove the candidate boxes that are pieces of a QR code.
+
+    Why: the pre-filter (size, squareness, ink density) cannot tell a QR code
+    from a DataMatrix, and QR codes are common on invoices (payment links).
+    libdmtx then searches each QR candidate until its 1.5 s timeout, crop and
+    quadrant fallback alike: an invoice with a QR code paid ~3 s for nothing
+    (measured 2026-11-05). The candidates are not tested one by one: a QR is
+    not one blob of ink, so a candidate box only holds a piece of it, too
+    little for the detector. Instead, OpenCV looks for QR codes on the whole
+    page once (~40 ms at 100 DPI, only when there is at least one candidate),
+    and every candidate whose centre falls inside a QR code is dropped.
+
+    OpenCV's QRCodeDetector looks for the three square finder patterns in
+    the corners of a QR code. A DataMatrix has none (its finder is an L-shaped
+    solid border), so a real 2D-Doc is not removed: checked on the real 2023
+    tax notice and on synthetic codes, never detected as a QR.
+
+    Args:
+        pil_image: the page the boxes were found on (pre-filter render).
+        boxes: (x, y, width, height) candidates in `pil_image` pixels.
+
+    Returns:
+        The boxes that are not inside a QR code, in the same order.
+
+    Example:
+        >>> _drop_qr_code_boxes(page_with_qr_and_2d_doc, [qr_piece, datamatrix])
+        [datamatrix]
+    """
+    if not boxes:
+        return boxes
+    try:
+        gray = np.array(pil_image.convert("L"))
+        found, quads = cv2.QRCodeDetector().detectMulti(gray)
+    except Exception as exc:  # detector failure = keep every candidate
+        logger.debug("QR pre-check failed: %s", exc)
+        return boxes
+    if not found or quads is None:
+        return boxes
+
+    # Each detected QR is a quadrilateral (4 corner points); its axis-aligned
+    # bounding rectangle is enough to test "is this centre inside a QR".
+    qr_rects = []
+    for quad in quads:
+        xs = [point[0] for point in quad]
+        ys = [point[1] for point in quad]
+        qr_rects.append((min(xs), min(ys), max(xs), max(ys)))
+
+    kept = []
+    for (x, y, w, h) in boxes:
+        cx = x + w / 2
+        cy = y + h / 2
+        inside_qr = any(x0 <= cx <= x1 and y0 <= cy <= y1 for (x0, y0, x1, y1) in qr_rects)
+        if not inside_qr:
+            kept.append((x, y, w, h))
+    return kept
+
+
 def _has_datamatrix_candidate(pil_image: "Image.Image", min_size: int = 60, max_size: int = 300) -> bool:
     """
     Fast visual pre-filter: check if an image region might contain a DataMatrix barcode.
@@ -858,7 +928,9 @@ def _file_sha256(path: str) -> str | None:
         return None
 
 
-def _decode_2d_docs(image: "Image.Image", where: str) -> list[TwoDocData]:
+def _decode_2d_docs(
+    image: "Image.Image", where: str, max_count: int | None = None,
+) -> list[TwoDocData]:
     """Decode DataMatrix codes in `image` and keep only valid 2D-Docs.
 
     A DataMatrix is not necessarily a 2D-Doc (shipping labels use them too),
@@ -868,12 +940,13 @@ def _decode_2d_docs(image: "Image.Image", where: str) -> list[TwoDocData]:
     Args:
         image: the region to decode (ideally a tight crop around one symbol).
         where: human-readable location, for the log line only.
+        max_count: passed to scan_datamatrix_from_image (1 on a tight crop).
 
     Returns:
         The parsed 2D-Docs found in the region (usually zero or one).
     """
     found = []
-    for barcode in scan_datamatrix_from_image(image):
+    for barcode in scan_datamatrix_from_image(image, max_count=max_count):
         if not barcode.data.startswith(HEADER_MARKER):
             continue
         parsed = parse_twod_doc(barcode.data)
@@ -984,7 +1057,10 @@ def _scan_pdf_for_2d_doc_uncached(pdf_path: str, dpi: int) -> list[TwoDocData]:
             pf_img = Image.frombytes("RGB", [pf_pixmap.width, pf_pixmap.height], pf_pixmap.samples)
             pf_w, pf_h = pf_img.size
 
-            boxes = _datamatrix_candidate_boxes(pf_img)[:MAX_DECODE_CANDIDATES]
+            boxes = _datamatrix_candidate_boxes(pf_img)
+            # A QR code passes the pre-filter too; drop its pieces before
+            # paying libdmtx's timeout on them (see _drop_qr_code_boxes).
+            boxes = _drop_qr_code_boxes(pf_img, boxes)[:MAX_DECODE_CANDIDATES]
             if not boxes:
                 logger.debug("No DataMatrix candidates found in page 1 — skipping decode")
                 return []
@@ -1010,7 +1086,7 @@ def _scan_pdf_for_2d_doc_uncached(pdf_path: str, dpi: int) -> list[TwoDocData]:
                 right = min(img_w, int((x + w + m) * sx))
                 bottom = min(img_h, int((y + h + m) * sy))
                 crop = full_img.crop((left, top, right, bottom))
-                results.extend(_decode_2d_docs(crop, f"candidate {index + 1}"))
+                results.extend(_decode_2d_docs(crop, f"candidate {index + 1}", max_count=1))
                 if results:
                     return results  # one 2D-Doc per page is the norm: stop early
 
