@@ -2225,41 +2225,57 @@ if uploaded_file is not None:
             # the verdict (src/summary.py:top_reasons picks them). The full
             # list, with severities and raw details, is in the "see all
             # details" block at the bottom of the page.
-            for flag, _number in zip(_reasons, _reason_numbers):
-                fc = _sev_colors.get(flag.severity, "#555")
+            from src.evidence import GENUINE_CODES
+
+            def _finding_row(flag, number: int | None) -> str:
+                """One line of the findings list, as HTML.
+
+                Left: a numbered red disc when the finding points at a region
+                of the document — the SAME number drawn on the preview
+                (src/preview.py:_draw_number_badge) — otherwise a plain dot
+                whose colour ranks the finding (green = reassuring signal).
+                Right: the finding as one sentence.
+                """
                 safe_sentence = _html_esc.escape(get_flag_sentence(flag, get_lang()))
-                if _number is not None:
-                    # This reason points at a region of the document: show
-                    # the SAME numbered red disc that is drawn on the preview
-                    # (src/preview.py:_draw_number_badge), so the two match.
-                    _marker = (
+                if number is not None:
+                    marker = (
                         '<span style="background:#ef233c; color:white; width:20px; height:20px; '
                         'border-radius:50%; flex-shrink:0; font-size:0.72rem; font-weight:bold; '
-                        f'display:inline-flex; align-items:center; justify-content:center;">{_number}</span>'
+                        f'display:inline-flex; align-items:center; justify-content:center;">{number}</span>'
                     )
                 else:
-                    # No region to point at (metadata, registry lookup...): a
-                    # plain dot, whose colour still ranks the reason.
-                    _marker = (
-                        f'<span style="background:{fc}; width:9px; height:9px; border-radius:50%; '
+                    dot_color = ("#28a745" if flag.code in GENUINE_CODES
+                                 else _sev_colors.get(flag.severity, "#555"))
+                    marker = (
+                        f'<span style="background:{dot_color}; width:9px; height:9px; border-radius:50%; '
                         'flex-shrink:0; margin:6px 5.5px 0 5.5px;"></span>'
                     )
-                flags_list_html += (
-                    f'<div style="display:flex; align-items:flex-start; gap:10px; padding:7px 0; '
-                    f'border-bottom:1px solid #2a2a2a;">'
-                    f'{_marker}'
+                return (
+                    '<div style="display:flex; align-items:flex-start; gap:10px; padding:7px 0; '
+                    'border-bottom:1px solid #2a2a2a;">'
+                    f'{marker}'
                     f'<span style="color:#ddd; font-size:0.9rem; line-height:1.4;">{safe_sentence}</span>'
-                    f'</div>'
+                    '</div>'
                 )
 
-            # Say how many findings are NOT shown, so a short list never
-            # reads as "that is all there is".
-            _hidden_count = len(all_flags) - len(_reasons)
-            if _hidden_count > 0:
-                _more_key = "more_findings_one" if _hidden_count == 1 else "more_findings_many"
+            for flag, _number in zip(_reasons, _reason_numbers):
+                flags_list_html += _finding_row(flag, _number)
+
+            # "Show more": the other findings unfold right here, in the same
+            # list, instead of sending the reader to the bottom of the page.
+            # The link says how many there are, so a short list never reads
+            # as "that is all there is". `is` comparison: two different flags
+            # can be equal field by field, identity is what "already shown"
+            # means. (Opened automatically when the page is printed.)
+            _other_flags = [f for f in all_flags if not any(f is r for r in _reasons)]
+            if _other_flags:
+                _more_key = "more_findings_one" if len(_other_flags) == 1 else "more_findings_many"
                 flags_list_html += (
-                    f'<p style="color:#888; font-size:0.8rem; margin:8px 0 0 0;">'
-                    f'{esc(t(_more_key).format(n=_hidden_count))}</p>'
+                    '<details>'
+                    '<summary style="cursor:pointer; color:#8ab4f8; font-size:0.85rem; padding:8px 0 0 0;">'
+                    f'{esc(t(_more_key).format(n=len(_other_flags)))}</summary>'
+                    + "".join(_finding_row(f, None) for f in _other_flags) +
+                    '</details>'
                 )
 
             _secondary_types = {"scientific", "legal_notice", "technical", "unknown"}

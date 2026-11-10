@@ -242,6 +242,7 @@ sent; nothing is retained. Locally: `uvicorn src.api:api --port 8000`.
 - [x] Batch upload — several PDFs at once, one row per document, batch JSON report
 - [x] Export analysis report — print/save as PDF, JSON download
 - [ ] Browser extension
+- [ ] Paid access to the extra information (full details, report download) through a payment module such as Stripe — idea, not started; first measure how often the details are opened
 
 ## Disclaimer
 
