@@ -53,6 +53,128 @@ def _iter_geometry(result: AnalysisResult) -> Iterator[tuple[int, BBox]]:
             yield from _flag_geometry(flag)
 
 
+# Detail keys that hold an identifier printed on the document. A finding about
+# one of them can be pointed at on the page, once the text has been found.
+IDENTIFIER_KEYS = ("vat", "iban", "siret", "siren")
+MAX_LOCATE_PAGES = 20  # same cap as the upload limit: never scan a huge file
+
+
+def _normalize(text: str) -> str:
+    """Keep letters and digits only, upper-cased.
+
+    Example: "FR40 732 829 320" -> "FR40732829320"
+    """
+    return "".join(ch for ch in text if ch.isalnum()).upper()
+
+
+def _find_words_matching(words: list[tuple], target: str) -> BBox | None:
+    """Find consecutive words that, glued together, spell `target`.
+
+    A document prints "FR40 732 829 320" as FOUR words, while the finding
+    stores "FR40732829320". So from every word, we glue the following words
+    one by one and compare; the first exact match wins and its region is the
+    union of the words' rectangles.
+
+    Args:
+        words: PyMuPDF `page.get_text("words")` rows:
+            (x0, y0, x1, y1, text, block_no, line_no, word_no).
+        target: The value to find, already normalized (see _normalize).
+
+    Returns:
+        (x0, y0, x1, y1) around the matching words, or None.
+
+    Example:
+        words "TVA", ":", "FR40", "732", "829", "320" and target
+        "FR40732829320" -> the box around the last four words.
+    """
+    for start in range(len(words)):
+        glued = ""
+        x0 = y0 = float("inf")
+        x1 = y1 = float("-inf")
+        for word in words[start:]:
+            piece = _normalize(word[4])
+            if not piece:
+                break  # punctuation only (":"): cannot be inside an identifier
+            glued += piece
+            x0, y0 = min(x0, word[0]), min(y0, word[1])
+            x1, y1 = max(x1, word[2]), max(y1, word[3])
+            if glued == target:
+                return (x0, y0, x1, y1)
+            if not target.startswith(glued):
+                break  # this start cannot lead to the target any more
+    return None
+
+
+def with_located_regions(flags: list[Flag], pdf_path: str) -> list[Flag]:
+    """Give text findings (VAT, IBAN, SIRET...) a region on the page.
+
+    Only the geometry modules (overlay, invisible) know WHERE their finding
+    is. A content finding such as "the VAT number is invalid" knows the value
+    but not its position, so the results page could not point at it. This
+    looks the value up in the page text and returns a COPY of the flag whose
+    details carry the region, in the same "instances" shape the geometry
+    modules use — so numbering and drawing need no special case.
+
+    Display only: the input flags (and therefore the score and the JSON
+    report) are left untouched. Never raises: an unreadable PDF or a value
+    that is not found simply leaves the flag as it was.
+
+    Args:
+        flags: Flags to display.
+        pdf_path: The analysed PDF.
+
+    Returns:
+        Same flags, same order; those that could be located are copies with
+        details["instances"] = [{"page": int, "bbox": (x0, y0, x1, y1)}].
+
+    Example:
+        Flag(code="CONTENT_INVALID_VAT", details={"vat": "FR40732829320"})
+        -> same flag + details["instances"] = [{"page": 0, "bbox": (190.9,
+           141.2, 273.8, 154.9)}]
+    """
+    import dataclasses
+
+    import fitz
+
+    # Which flags need a lookup: no region yet, and an identifier to find.
+    targets: dict[int, str] = {}  # position in `flags` -> normalized value
+    for index, flag in enumerate(flags):
+        if any(True for _ in _flag_geometry(flag)):
+            continue
+        details = flag.details or {}
+        for key in IDENTIFIER_KEYS:
+            value = details.get(key)
+            if isinstance(value, str) and _normalize(value):
+                targets[index] = _normalize(value)
+                break
+    if not targets:
+        return list(flags)
+
+    found: dict[int, list[dict]] = {}
+    try:
+        doc = fitz.open(pdf_path)
+        try:
+            for page_index in range(min(len(doc), MAX_LOCATE_PAGES)):
+                words = doc[page_index].get_text("words")
+                for index, target in targets.items():
+                    bbox = _find_words_matching(words, target)
+                    if bbox is not None:
+                        found.setdefault(index, []).append({"page": page_index, "bbox": bbox})
+        finally:
+            doc.close()
+    except Exception:
+        return list(flags)  # decoration only: keep the page working
+
+    located: list[Flag] = []
+    for index, flag in enumerate(flags):
+        if index in found:
+            details = dict(flag.details or {})
+            details["instances"] = found[index]
+            flag = dataclasses.replace(flag, details=details)
+        located.append(flag)
+    return located
+
+
 def reason_numbers(reasons: list[Flag]) -> list[int | None]:
     """Give each reason the number that links it to the preview, if it has one.
 

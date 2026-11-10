@@ -22,7 +22,7 @@ from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import (
     render_pdf_page, collect_evidence_boxes, collect_numbered_boxes,
-    first_flagged_page, reason_numbers,
+    first_flagged_page, reason_numbers, with_located_regions,
 )
 
 # The landing page lists the verification guides and the checker tools. Their
@@ -1785,7 +1785,10 @@ if uploaded_file is not None:
         # each one to its region on the preview (None when a reason has no
         # region). Computed BEFORE the two columns because both need them:
         # the preview draws the numbers, the results list prints them.
-        all_flags = collect_all_flags(result.modules)
+        # Display copies: text findings (VAT, IBAN, SIRET...) get the region
+        # of their value on the page, so they can carry a numbered badge too.
+        # `result` itself is untouched (score and JSON report unchanged).
+        all_flags = with_located_regions(collect_all_flags(result.modules), tmp_path)
         _reasons = top_reasons(all_flags)
         _reason_numbers = reason_numbers(_reasons)
 
@@ -1823,6 +1826,9 @@ if uploaded_file is not None:
             try:
                 boxes = collect_evidence_boxes(result, page_index)
                 numbered = collect_numbered_boxes(_reasons, page_index)
+                # Located text findings are not in `result`: highlight them
+                # too, so a badge never floats next to plain text.
+                boxes += [bbox for bbox, _n in numbered if bbox not in boxes]
                 img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0,
                                             boxes=boxes, numbered=numbered)
                 st.image(img_bytes, width="stretch")
