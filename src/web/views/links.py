@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 # The landing page lists the verification guides and the checker tools. Their
-# slugs and titles live with the generator (scripts/build_guides.py), which
-# also renders the crawler-facing copy of this landing page — one source, so
+# slugs and titles live in the site's content (src/site/content.py), which
+# also feeds the crawler-facing copy of this landing page — one source, so
 # the two pages list exactly the same links and the crawler never sees a link
 # a human does not.
 try:
-    from scripts.build_guides import GUIDES as _GUIDES, TOOLS as _TOOLS
-except Exception:  # a broken or missing generator must never take the app down
+    from src.site.content import GUIDES as _GUIDES, TOOLS as _TOOLS
+except Exception:  # broken site content must never take the app down
     _GUIDES = {"fr": [], "en": []}
     _TOOLS = {"fr": [], "en": []}
 

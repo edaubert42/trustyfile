@@ -2,7 +2,7 @@
 
 The guides are static HTML committed to the repo (Caddy serves files, it never
 runs Python). That means the committed output can silently drift from the
-generator: someone edits `scripts/build_guides.py`, forgets to rebuild, and the
+generator: someone edits `src/site/`, forgets to rebuild, and the
 live site keeps serving the old text. These tests make that failure loud.
 
 They also cover the SEO invariants that are easy to break by hand and
@@ -15,7 +15,6 @@ from __future__ import annotations
 import html
 import json
 import re
-import sys
 from datetime import date
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
@@ -24,9 +23,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
-
-import build_guides  # noqa: E402  (needs the sys.path tweak above)
+from src.site import assets, content, render
 
 
 # --- Drift ------------------------------------------------------------------
@@ -38,7 +35,7 @@ def test_committed_output_matches_generator():
     Failure means: run `python scripts/build_guides.py` and commit the result.
     """
     stale = []
-    for path, expected in build_guides.build().items():
+    for path, expected in render.build().items():
         if not path.exists():
             stale.append(f"{path.relative_to(ROOT)} (missing)")
         elif path.read_text(encoding="utf-8") != expected:
@@ -55,12 +52,12 @@ def test_committed_output_matches_generator():
 
 def _all_guides():
     """(lang, Guide) for every guide in every language."""
-    return [(lang, g) for lang, guides in build_guides.GUIDES.items() for g in guides]
+    return [(lang, g) for lang, guides in content.GUIDES.items() for g in guides]
 
 
 def _all_tools():
     """(lang, Tool) for every checker tool in every language."""
-    return [(lang, t) for lang, tools in build_guides.TOOLS.items() for t in tools]
+    return [(lang, t) for lang, tools in content.TOOLS.items() for t in tools]
 
 
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
@@ -86,12 +83,12 @@ def test_landing_descriptions_fit_their_budgets_and_reach_the_head(lang):
     unnoticed. The OG / Twitter variants exist because link previews truncate
     harder than a results page; check they are the ones actually emitted.
     """
-    chrome = build_guides.CHROME[lang]
+    chrome = content.CHROME[lang]
     assert 80 <= len(chrome["landing_description"]) <= 175
     assert len(chrome["landing_og_description"]) <= 175
     assert len(chrome["landing_twitter_description"]) <= 175
     assert len(chrome["landing_title"]) <= 65
-    rendered = build_guides.render_landing(lang)
+    rendered = render.render_landing(lang)
     esc = html.escape
     assert f'<meta name="description" content="{esc(chrome["landing_description"])}">' in rendered
     assert f'<meta property="og:description" content="{esc(chrome["landing_og_description"])}">' in rendered
@@ -116,9 +113,9 @@ def test_counterparts_are_reciprocal():
     """
     by_lang = {
         lang: {g.slug: g for g in guides}
-        for lang, guides in build_guides.GUIDES.items()
+        for lang, guides in content.GUIDES.items()
     }
-    for lang, guides in build_guides.GUIDES.items():
+    for lang, guides in content.GUIDES.items():
         other = "en" if lang == "fr" else "fr"
         for guide in guides:
             if guide.counterpart is None:
@@ -136,23 +133,23 @@ def test_counterparts_are_reciprocal():
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_page_declares_its_own_canonical(lang, guide):
     """The canonical URL matches where the page is actually served."""
-    rendered = build_guides.render_guide(lang, guide)
-    path = build_guides.CHROME[lang]["guides_path"]
-    expected = f'<link rel="canonical" href="{build_guides.SITE}{path}/{guide.slug}">'
+    rendered = render.render_guide(lang, guide)
+    path = content.CHROME[lang]["guides_path"]
+    expected = f'<link rel="canonical" href="{content.SITE}{path}/{guide.slug}">'
     assert expected in rendered
 
 
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_page_has_exactly_one_h1(lang, guide):
     """One <h1> per page: more than one muddies what the page is about."""
-    rendered = build_guides.render_guide(lang, guide)
+    rendered = render.render_guide(lang, guide)
     assert rendered.count("<h1>") == 1
 
 
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_section_anchors_are_unique(lang, guide):
     """Duplicate anchors would make table-of-contents links ambiguous."""
-    anchors = [build_guides._slugify_heading(s.heading) for s in guide.sections]
+    anchors = [render._slugify_heading(s.heading) for s in guide.sections]
     assert len(anchors) == len(set(anchors)), anchors
     assert all(anchors), "a heading produced an empty anchor"
 
@@ -177,11 +174,11 @@ def test_tool_page_canonical_h1_and_inline_script(lang, tool):
     construction, but the Node test only exercises the file — so pin the
     pages to it, or a future edit could ship a browser validator nobody tests.
     """
-    rendered = build_guides.render_tool(lang, tool)
-    path = build_guides.CHROME[lang]["tools_path"]
-    assert f'<link rel="canonical" href="{build_guides.SITE}{path}/{tool.slug}">' in rendered
+    rendered = render.render_tool(lang, tool)
+    path = content.CHROME[lang]["tools_path"]
+    assert f'<link rel="canonical" href="{content.SITE}{path}/{tool.slug}">' in rendered
     assert rendered.count("<h1>") == 1
-    assert build_guides.CHECKSUM_JS.rstrip("\n") in rendered
+    assert assets.CHECKSUM_JS.rstrip("\n") in rendered
     assert f'"kind": "{tool.kind}"' in rendered
 
 
@@ -193,17 +190,17 @@ def test_tool_i18n_json_cannot_close_its_own_script_tag(monkeypatch):
     still ends at the real closing tag and parses back to the same string.
     """
     hostile = "</script><img src=x onerror=alert(1)>"
-    i18n = dict(build_guides.CHROME["fr"]["tool_i18n"], reminder=hostile)
-    monkeypatch.setitem(build_guides.CHROME["fr"], "tool_i18n", i18n)
-    rendered = build_guides.render_tool("fr", build_guides.TOOLS["fr"][0])
+    i18n = dict(content.CHROME["fr"]["tool_i18n"], reminder=hostile)
+    monkeypatch.setitem(content.CHROME["fr"], "tool_i18n", i18n)
+    rendered = render.render_tool("fr", content.TOOLS["fr"][0])
     block = re.search(r'<script type="application/json" id="tf-i18n">(.*?)</script>', rendered, re.S).group(1)
     assert "</script" not in block
     assert json.loads(block)["reminder"] == hostile
 
 
 def test_tool_counterparts_are_reciprocal():
-    by_lang = {lang: {t.slug: t for t in tools} for lang, tools in build_guides.TOOLS.items()}
-    for lang, tools in build_guides.TOOLS.items():
+    by_lang = {lang: {t.slug: t for t in tools} for lang, tools in content.TOOLS.items()}
+    for lang, tools in content.TOOLS.items():
         other = "en" if lang == "fr" else "fr"
         for tool in tools:
             assert tool.counterpart in by_lang[other], (lang, tool.slug, tool.counterpart)
@@ -212,19 +209,19 @@ def test_tool_counterparts_are_reciprocal():
 
 
 def test_tool_messages_exist_in_both_languages():
-    fr, en = build_guides.CHROME["fr"]["tool_i18n"], build_guides.CHROME["en"]["tool_i18n"]
+    fr, en = content.CHROME["fr"]["tool_i18n"], content.CHROME["en"]["tool_i18n"]
     assert set(fr) == set(en), set(fr) ^ set(en)
     for kind in ("iban", "siret", "siren", "vat", "nir"):
         for prefix in ("format_", "valid_", "invalid_"):
             assert prefix + kind in fr
-    assert {tool.kind for tools in build_guides.TOOLS.values() for tool in tools} == {"iban", "siret", "siren", "vat", "nir"}
+    assert {tool.kind for tools in content.TOOLS.values() for tool in tools} == {"iban", "siret", "siren", "vat", "nir"}
 
 
 @pytest.mark.parametrize("lang", ["fr", "en"])
 def test_guides_index_links_every_tool(lang):
-    page = build_guides.render_index(lang)
-    for tool in build_guides.TOOLS[lang]:
-        assert f'href="{build_guides.CHROME[lang]["tools_path"]}/{tool.slug}"' in page
+    page = render.render_index(lang)
+    for tool in content.TOOLS[lang]:
+        assert f'href="{content.CHROME[lang]["tools_path"]}/{tool.slug}"' in page
 
 
 # --- Sitemap ----------------------------------------------------------------
@@ -242,10 +239,10 @@ def test_sitemap_is_well_formed_and_complete():
     assert len(locs) == len(set(locs)), "duplicate <loc> in sitemap"
 
     for lang, guide in _all_guides():
-        url = f"{build_guides.SITE}{build_guides.CHROME[lang]['guides_path']}/{guide.slug}"
+        url = f"{content.SITE}{content.CHROME[lang]['guides_path']}/{guide.slug}"
         assert url in locs, f"{url} missing from sitemap.xml"
     for lang, tool in _all_tools():
-        url = f"{build_guides.SITE}{build_guides.CHROME[lang]['tools_path']}/{tool.slug}"
+        url = f"{content.SITE}{content.CHROME[lang]['tools_path']}/{tool.slug}"
         assert url in locs, f"{url} missing from sitemap.xml"
 
 
@@ -257,13 +254,13 @@ def test_sitemap_urls_all_resolve_to_a_committed_file():
     rather than from a file, so they are skipped.
     """
     root = ET.fromstring((ROOT / "sitemap.xml").read_text(encoding="utf-8"))
-    app_pages = {build_guides.SITE + "/", build_guides.SITE + "/en"}
+    app_pages = {content.SITE + "/", content.SITE + "/en"}
 
     for el in root.findall("sm:url/sm:loc", SITEMAP_NS):
         url = el.text
         if url in app_pages:
             continue
-        path = url.removeprefix(build_guides.SITE)
+        path = url.removeprefix(content.SITE)
         if path.startswith("/en/guides"):
             rel = path.removeprefix("/en/guides").strip("/")
             base = ROOT / "guides" / "en"
@@ -307,9 +304,9 @@ def test_seo_landing_pages_link_to_the_guides():
     assert 'href="/en/guides/' in en
     # Same for the checker tools: a page only the hub links to is one hop
     # further from the home page than it needs to be.
-    for tool in build_guides.TOOLS["fr"]:
+    for tool in content.TOOLS["fr"]:
         assert f'href="/outils/{tool.slug}"' in fr
-    for tool in build_guides.TOOLS["en"]:
+    for tool in content.TOOLS["en"]:
         assert f'href="/en/tools/{tool.slug}"' in en
 
 
@@ -350,7 +347,7 @@ def test_landing_page_says_nothing_the_app_does_not(lang):
     switch). Anything else is prose a human never sees: the cloaking bug this
     generator exists to prevent (fixed 2026-08-27).
     """
-    t = build_guides._translations(lang)
+    t = content.load_translations(lang)
     colon = " :" if lang == "fr" else ":"
     allowed = {
         t[key]
@@ -362,15 +359,15 @@ def test_landing_page_says_nothing_the_app_does_not(lang):
         )
     }
     allowed |= {t["footer_guides"] + colon, t["footer_tools"] + colon}
-    allowed |= {guide.title for guide in build_guides.GUIDES[lang]}
-    allowed |= {tool.title for tool in build_guides.TOOLS[lang]}
+    allowed |= {guide.title for guide in content.GUIDES[lang]}
+    allowed |= {tool.title for tool in content.TOOLS[lang]}
     allowed |= {
         "TrustyFile", "1", "2", "3", "contact@trustyfile.com",
-        build_guides.CHROME[lang]["lang_switch"],
+        content.CHROME[lang]["lang_switch"],
     }
 
     parser = _VisibleText()
-    parser.feed(build_guides.render_landing(lang))
+    parser.feed(render.render_landing(lang))
     stray = [text for text in parser.texts if text not in allowed]
     assert not stray, f"crawler page carries text the app landing does not: {stray}"
 
@@ -383,7 +380,7 @@ def test_faq_structured_data_matches_visible_faq(lang):
     violation in its own right; the two are generated from one list today,
     but nothing else would notice if a refactor let them diverge.
     """
-    page = build_guides.render_index(lang)
+    page = render.render_index(lang)
     blocks = [
         json.loads(block)
         for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S)
@@ -427,7 +424,7 @@ def test_guide_dates_are_real_and_rendered(lang, guide):
     published = date.fromisoformat(guide.published)
     modified = date.fromisoformat(guide.modified)
     assert published <= modified <= date.today()
-    rendered = build_guides.render_guide(lang, guide)
+    rendered = render.render_guide(lang, guide)
     assert f'<time datetime="{guide.modified}">' in rendered
     assert rendered.count("<time ") == 1
     article = next(
@@ -448,16 +445,16 @@ def test_sitemap_lastmod_comes_from_each_page():
         for url in tree.getroot().findall("sm:url", ns)
     }
     for lang in ("fr", "en"):
-        chrome = build_guides.CHROME[lang]
-        for guide in build_guides.GUIDES[lang]:
-            loc = f"{build_guides.SITE}{chrome['guides_path']}/{guide.slug}"
+        chrome = content.CHROME[lang]
+        for guide in content.GUIDES[lang]:
+            loc = f"{content.SITE}{chrome['guides_path']}/{guide.slug}"
             assert lastmod[loc] == guide.modified, loc
-        for tool in build_guides.TOOLS[lang]:
-            loc = f"{build_guides.SITE}{chrome['tools_path']}/{tool.slug}"
+        for tool in content.TOOLS[lang]:
+            loc = f"{content.SITE}{chrome['tools_path']}/{tool.slug}"
             assert lastmod[loc] == tool.modified, loc
     # Hubs and landings list everything, so they moved when the newest page did.
-    newest = build_guides.latest_content_date()
-    for loc in (f"{build_guides.SITE}/", f"{build_guides.SITE}/en"):
+    newest = render.latest_content_date()
+    for loc in (f"{content.SITE}/", f"{content.SITE}/en"):
         assert lastmod[loc] == newest
     for value in lastmod.values():
         date.fromisoformat(value)
@@ -466,14 +463,14 @@ def test_sitemap_lastmod_comes_from_each_page():
 @pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
 def test_guide_tool_callouts_point_at_real_tools(lang, guide):
     """A guide may offer checker tools; each slug must exist and be linked."""
-    known = {tool.slug for tool in build_guides.TOOLS[lang]}
+    known = {tool.slug for tool in content.TOOLS[lang]}
     # Check the slugs before rendering: render_guide() would raise KeyError
     # on an unknown one, which is a worse failure message than this assert.
     for slug in guide.tools:
         assert slug in known, f"{guide.slug} offers unknown tool {slug!r}"
     assert len(guide.tools) == len(set(guide.tools))
-    rendered = build_guides.render_guide(lang, guide)
-    path = build_guides.CHROME[lang]["tools_path"]
+    rendered = render.render_guide(lang, guide)
+    path = content.CHROME[lang]["tools_path"]
     for slug in guide.tools:
         assert f'href="{path}/{slug}"' in rendered
 
@@ -484,23 +481,23 @@ def test_llms_txt_lists_every_public_page():
     Committed-output parity with the generator is covered by
     test_committed_output_matches_generator, since build() emits it.
     """
-    text = build_guides.render_llms_txt()
+    text = render.render_llms_txt()
     assert text.startswith("# TrustyFile\n\n> ")
     linked = set(re.findall(r"\]\((https://[^)]+)\)", text))
     for lang in ("fr", "en"):
-        chrome = build_guides.CHROME[lang]
-        assert f"{build_guides.SITE}{chrome['index_path']}" in linked
-        for guide in build_guides.GUIDES[lang]:
-            assert f"{build_guides.SITE}{chrome['guides_path']}/{guide.slug}" in linked
-        for tool in build_guides.TOOLS[lang]:
-            assert f"{build_guides.SITE}{chrome['tools_path']}/{tool.slug}" in linked
-    sitemap_locs = {entry.loc for entry in build_guides.sitemap_entries()}
+        chrome = content.CHROME[lang]
+        assert f"{content.SITE}{chrome['index_path']}" in linked
+        for guide in content.GUIDES[lang]:
+            assert f"{content.SITE}{chrome['guides_path']}/{guide.slug}" in linked
+        for tool in content.TOOLS[lang]:
+            assert f"{content.SITE}{chrome['tools_path']}/{tool.slug}" in linked
+    sitemap_locs = {entry.loc for entry in render.sitemap_entries()}
     # Two public URLs are linked on purpose without a sitemap entry: the
     # sitemap itself, and the API docs — a Swagger UI app served to everyone
     # under /api/*, worth a pointer for assistants but not an indexable page.
     assert linked - sitemap_locs == {
-        f"{build_guides.SITE}/sitemap.xml",
-        f"{build_guides.SITE}/api/docs",
+        f"{content.SITE}/sitemap.xml",
+        f"{content.SITE}/api/docs",
     }
 
 
@@ -519,10 +516,10 @@ def test_internal_links_resolve_to_generated_files():
     there renders fine and 404s in production, which nothing else catches.
     """
     broken = []
-    for path, content in build_guides.build().items():
+    for path, page in render.build().items():
         if path.suffix != ".html":
             continue
-        for href in re.findall(r'href="(/[^"#]*)', content):
+        for href in re.findall(r'href="(/[^"#]*)', page):
             for prefix, root in _LINK_ROOTS.items():
                 if href.startswith(prefix):
                     slug = href[len(prefix):]
@@ -538,26 +535,26 @@ def test_internal_links_resolve_to_generated_files():
 
 @pytest.mark.parametrize("lang", ["fr", "en"])
 def test_hub_groups_every_guide_under_exactly_one_audience(lang):
-    for guide in build_guides.GUIDES[lang]:
-        assert guide.audience in build_guides.AUDIENCES, (guide.slug, guide.audience)
-    page = build_guides.render_index(lang)
-    headings = build_guides.CHROME[lang]["audience_headings"]
-    for audience in build_guides.AUDIENCES:
+    for guide in content.GUIDES[lang]:
+        assert guide.audience in content.AUDIENCES, (guide.slug, guide.audience)
+    page = render.render_index(lang)
+    headings = content.CHROME[lang]["audience_headings"]
+    for audience in content.AUDIENCES:
         assert f'<h2 id="{audience}">{html.escape(headings[audience])}</h2>' in page
-    for guide in build_guides.GUIDES[lang]:
-        assert page.count(f'href="{build_guides.CHROME[lang]["guides_path"]}/{guide.slug}"') == 1
-    assert len(build_guides.CHROME[lang]["index_description"]) <= 175
+    for guide in content.GUIDES[lang]:
+        assert page.count(f'href="{content.CHROME[lang]["guides_path"]}/{guide.slug}"') == 1
+    assert len(content.CHROME[lang]["index_description"]) <= 175
 
 
 @pytest.mark.parametrize("lang,tool", _all_tools(), ids=lambda v: getattr(v, "slug", v))
 def test_tool_related_guides_exist_and_are_linked(lang, tool):
-    known = {guide.slug for guide in build_guides.GUIDES[lang]}
+    known = {guide.slug for guide in content.GUIDES[lang]}
     assert tool.guides, f"{tool.slug} offers no guide"
     for slug in tool.guides:
         assert slug in known, (tool.slug, slug)
-    rendered = build_guides.render_tool(lang, tool)
+    rendered = render.render_tool(lang, tool)
     for slug in tool.guides:
-        assert f'href="{build_guides.CHROME[lang]["guides_path"]}/{slug}"' in rendered
+        assert f'href="{content.CHROME[lang]["guides_path"]}/{slug}"' in rendered
 
 
 @pytest.mark.parametrize(
@@ -570,4 +567,4 @@ def test_tool_related_guides_exist_and_are_linked(lang, tool):
     ],
 )
 def test_format_date(lang, iso, expected):
-    assert build_guides._format_date(lang, iso) == expected
+    assert render._format_date(lang, iso) == expected

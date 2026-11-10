@@ -1103,7 +1103,7 @@ if _landing:
 
     # "How it works" cards, then the guide and tool links. A human gets the
     # same link rows as the crawler-facing copy of this page (see
-    # scripts/build_guides.py render_landing), so the two stay equivalent.
+    # render_landing in src/site/render.py), so the two stay equivalent.
     st.markdown(
         landing.steps_html(_GUIDES.get(_current_lang, []), _TOOLS.get(_current_lang, []), _current_lang),
         unsafe_allow_html=True,

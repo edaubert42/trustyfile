@@ -106,6 +106,8 @@ trustyfile/
 │   │   └── views/            # Pure functions (data, lang) -> HTML string:
 │   │                         # landing, batch, verdict, findings, properties,
 │   │                         # details, actions, errors, links, common
+│   ├── site/                 # Static site generator (guides, tools, sitemap):
+│   │                         # content.py (data), assets.py (CSS/JS), render.py
 │   ├── modules/              # 14 detection modules (see Analysis Modules)
 │   │   ├── metadata.py       # Module A
 │   │   ├── content.py        # Module B
@@ -129,9 +131,10 @@ trustyfile/
 │       ├── pdf_extractor.py  # PDF text/image extraction
 │       └── ocr.py            # OCR fallback for flattened PDFs
 ├── guides/                   # GENERATED SEO content pages (fr/, en/) — do not
-│                             # hand-edit; see scripts/build_guides.py
+│                             # hand-edit; edit src/site/, then run
+│                             # python scripts/build_guides.py
 ├── scripts/                  # build_corpus, generate_tampered, eval_harness,
-│                             # build_guides (renders guides/ + sitemap.xml)
+│                             # build_guides (writes what src/site renders)
 ├── docs/superpowers/         # Specs, plans, research (design history)
 ├── tests/                    # 43 files, ~888 tests
 └── samples/                  # Corpus — gitignored, holds real documents
