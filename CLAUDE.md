@@ -115,7 +115,8 @@ trustyfile/
 │   │   └── views/            # Pure functions (data, lang) -> HTML string,
 │   │                         # free of any web framework: landing, batch,
 │   │                         # verdict, findings, properties, details,
-│   │                         # actions, errors, links, common
+│   │                         # actions, errors, links, common, twod_doc,
+│   │                         # history
 │   ├── site/                 # Static site generator (guides, tools, sitemap):
 │   │                         # content.py (data), assets.py (CSS/JS), render.py
 │   ├── modules/              # 14 detection modules (see Analysis Modules)

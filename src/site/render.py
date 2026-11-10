@@ -492,7 +492,6 @@ def landing_head_args(lang: str) -> dict:
                 "url": canonical,
                 "description": chrome["landing_webapp_description"],
                 "applicationCategory": "SecurityApplication",
-                "browserRequirements": "Requires JavaScript",
                 "operatingSystem": "Any",
                 "inLanguage": lang,
                 "featureList": chrome["landing_feature_list"],

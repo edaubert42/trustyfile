@@ -35,7 +35,7 @@ def test_every_app_translation_key_exists_in_both_languages():
     """
     # The pages: the routes, the Jinja templates and the HTML views.
     web = ROOT / "src" / "web"
-    files = [web / "app.py", ROOT / "src" / "twod_doc_view.py",
+    files = [web / "app.py",
              *sorted((web / "views").glob("*.py")),
              *sorted((web / "templates").glob("*.html"))]
     source = "\n".join(path.read_text(encoding="utf-8") for path in files)

@@ -1,4 +1,4 @@
-"""Tests for src/twod_doc_view.py — HTML of the 2D-Doc data and photo view."""
+"""Tests for src/web/views/twod_doc.py — HTML of the 2D-Doc data and photo view."""
 
 import pytest
 
@@ -6,7 +6,7 @@ from src.i18n import translator
 from src.modules.twod_doc import GS, US, parse_twod_doc
 from src.modules.twod_doc_crypto import SignatureCheck
 from src.modules.twod_doc_photo import PhotoScanResult, photo_verdict
-from src.twod_doc_view import (
+from src.web.views.twod_doc import (
     pdf_signature_badge, photo_result_html, twod_pdf_panel_html, twod_rows_html,
 )
 
@@ -68,7 +68,7 @@ def test_unreadable_image_has_its_own_message():
 
 
 def test_a_field_that_breaks_extraction_does_not_break_the_page(monkeypatch):
-    import src.twod_doc_view as view
+    import src.web.views.twod_doc as view
 
     def boom(_):
         raise ValueError("could not convert string to float")

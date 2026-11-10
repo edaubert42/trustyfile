@@ -21,9 +21,7 @@ import pytest
 from src.models import Flag, ModuleResult, AnalysisResult
 from src.scoring import (
     collect_all_flags,
-    count_flags_by_severity,
     create_analysis_result,
-    generate_summary,
 )
 
 
@@ -92,36 +90,6 @@ class TestCollectAllFlags:
         flags = collect_all_flags(results)
         severities = [f.severity for f in flags]
         assert severities == ["critical", "high", "medium", "low"]
-
-
-# =============================================================================
-# TEST count_flags_by_severity
-# =============================================================================
-
-class TestCountFlagsBySeverity:
-    """Tests for flag counting."""
-
-    def test_empty_list(self):
-        assert count_flags_by_severity([]) == {
-            "critical": 0, "high": 0, "medium": 0, "low": 0
-        }
-
-    def test_counts_each_severity(self):
-        flags = [
-            make_flag("low"), make_flag("low"), make_flag("low"),
-            make_flag("medium"), make_flag("medium"),
-            make_flag("high"),
-            make_flag("critical"),
-        ]
-        counts = count_flags_by_severity(flags)
-        assert counts == {"critical": 1, "high": 1, "medium": 2, "low": 3}
-
-    def test_unknown_severity_ignored(self):
-        """A flag with an unexpected severity should not crash, just be ignored."""
-        flags = [make_flag("unknown_severity")]
-        counts = count_flags_by_severity(flags)
-        # All counts should be 0 — unknown severity is not counted
-        assert counts == {"critical": 0, "high": 0, "medium": 0, "low": 0}
 
 
 # =============================================================================
@@ -221,82 +189,6 @@ class TestEvidenceLedgerScoring:
         r = create_analysis_result("h", results)
         assert len(r.evidence_ledger) == 1
         assert r.score_low <= r.trust_score <= r.score_high
-
-
-# =============================================================================
-# TEST generate_summary
-# =============================================================================
-
-class TestGenerateSummary:
-    """Tests for the human-readable summary."""
-
-    def test_low_risk_summary(self):
-        result = create_analysis_result("abc", [
-            make_result(score=100),
-        ])
-        summary = generate_summary(result)
-        assert "legitimate" in summary.lower()
-
-    def test_medium_risk_summary(self):
-        # Under the ledger, a bare score=65 with no flags contributes no
-        # evidence (abstains) and would land GENUINE. To reach MEDIUM/REVIEW,
-        # give it a single soft critical-weight flag: -4.0 + 3.0 = -1.0 logit
-        # -> score ~73 (REVIEW/MEDIUM).
-        result = create_analysis_result("abc", [
-            make_result(score=0, flags=[make_flag("critical", "TEST_FLAG")]),
-        ])
-        summary = generate_summary(result)
-        assert "verification" in summary.lower() or "concerns" in summary.lower()
-
-    def test_critical_risk_summary(self):
-        # Two criticals in ONE module would be group-capped (largest + 0.5*rest
-        # = 4.5 nats -> score ~38, HIGH not CRITICAL). Put them in TWO SEPARATE
-        # modules instead so each contributes its full 3.0 nats uncapped:
-        # -4.0 + 3.0 + 3.0 = 2.0 logit -> score ~12 (CRITICAL/SUSPICIOUS).
-        result = create_analysis_result("abc", [
-            make_result(module="metadata", score=0, flags=[make_flag("critical", "CRIT_1")]),
-            make_result(module="content", score=0, flags=[make_flag("critical", "CRIT_2")]),
-        ])
-        summary = generate_summary(result)
-        assert "not trust" in summary.lower() or "fraud" in summary.lower()
-
-    def test_unverifiable_summary_is_not_mislabeled_medium(self):
-        # An extraction failure (encrypted/unreadable PDF) fails closed to
-        # score=0, band/risk_level="UNVERIFIABLE". This is a SEPARATE state
-        # from fraud: the summary must say "could not be verified", not fall
-        # through to the MEDIUM ("some concerns") verdict.
-        result = create_analysis_result("h", [
-            make_result(module="extraction", score=0, confidence=1.0,
-                        flags=[make_flag("high", "EXTRACTION_FAILED")]),
-        ])
-        assert result.risk_level == "UNVERIFIABLE"
-
-        summary = generate_summary(result)
-        summary_lower = summary.lower()
-        assert (
-            "could not be read" in summary_lower
-            or "not be read" in summary_lower
-            or "verified" in summary_lower
-        )
-        assert "some concerns" not in summary_lower
-
-    def test_summary_includes_flag_descriptions(self):
-        """Summary should describe the issues found (rich summary format)."""
-        result = create_analysis_result("abc", [
-            make_result(
-                score=60,
-                flags=[
-                    make_flag("high", code="META_ONLINE_CONVERTER",
-                              message="Document was processed by iLovePDF"),
-                    make_flag("medium", code="CONTENT_ANACHRONISM_SERVICE",
-                              message="Service date after invoice date"),
-                ],
-            ),
-        ])
-        summary = generate_summary(result)
-        # Rich summary should describe the findings, not just list counts
-        assert "converter" in summary.lower()
-        assert "date" in summary.lower()
 
 
 def test_scanner_pipeline_handles_non_numeric_hours():

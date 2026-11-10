@@ -206,7 +206,7 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
     # versions with a diff to show.
     _history_html = ""
     if history["version_count"] > 1 and history.get("diffs"):
-        from src.history_view import fill_covered_values, pair_changes
+        from src.web.views.history import fill_covered_values, pair_changes
 
         # new text -> text it covers, from the cover-and-retype
         # findings: lets an "added" line show the value it replaced.

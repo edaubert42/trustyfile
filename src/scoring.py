@@ -119,29 +119,6 @@ def collect_all_flags(module_results: list[ModuleResult]) -> list[Flag]:
     return all_flags
 
 
-def count_flags_by_severity(flags: list[Flag]) -> dict[str, int]:
-    """
-    Count flags by severity level.
-
-    Args:
-        flags: List of all flags
-
-    Returns:
-        Dict mapping severity to count
-    """
-    counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-
-    for flag in flags:
-        if flag.severity in counts:
-            counts[flag.severity] += 1
-
-    return counts
-
-
-# =============================================================================
-# MAIN SCORING FUNCTION
-# =============================================================================
-
 def _is_scanner_pipeline_critical(flag: Flag) -> bool:
     """True if this flag is the known scanner→viewer false positive.
 
@@ -260,26 +237,3 @@ def create_analysis_result(
         score_high=agg.score_high,
         evidence_ledger=agg.ledger,
     )
-
-
-# =============================================================================
-# SUMMARY GENERATION
-# =============================================================================
-
-def generate_summary(result: AnalysisResult) -> str:
-    """
-    Generate a human-readable summary of the analysis.
-
-    Delegates to the rich summary generator and returns the combined
-    verdict + explanation as a single string for backward compatibility.
-
-    Args:
-        result: The complete analysis result
-
-    Returns:
-        Summary string suitable for display
-    """
-    from src.summary import generate_rich_summary
-
-    rich = generate_rich_summary(result)
-    return f"{rich.verdict} {' '.join(rich.bullets)}"

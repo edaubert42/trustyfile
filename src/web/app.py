@@ -53,7 +53,7 @@ from src.report import (
 )
 from src.site.render import head_inner, landing_head_args
 from src.summary import generate_rich_summary
-from src.twod_doc_view import photo_result_html, twod_pdf_panel_html
+from src.web.views.twod_doc import photo_result_html, twod_pdf_panel_html
 from src.web.documents import (
     BatchFile,
     FeedbackState,
@@ -98,7 +98,7 @@ PUBLIC_FILES = {
     "/apple-touch-icon.png": "apple-touch-icon.png",
     "/site.webmanifest": "site.webmanifest",
     "/og-image.png": "og-image-1200x630.png",
-    "/logo.png": "upload_icon_medium.png",
+    "/logo.png": "logo.png",
 }
 
 app = FastAPI(title="TrustyFile", docs_url=None, redoc_url=None, openapi_url=None)

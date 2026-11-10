@@ -1,5 +1,5 @@
 """Tests for the modification-history display helpers."""
-from src.history_view import fill_covered_values, pair_changes
+from src.web.views.history import fill_covered_values, pair_changes
 
 
 def test_replaced_value_becomes_one_old_new_pair():

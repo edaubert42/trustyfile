@@ -177,7 +177,6 @@ handle /og-image.png {
 # The app logo (header and loading overlay).
 handle /logo.png {
 	root * /app/public/static
-	rewrite * /upload_icon_medium.png
 	header Cache-Control "public, max-age=604800"
 	file_server
 }
