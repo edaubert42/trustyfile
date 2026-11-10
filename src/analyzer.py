@@ -35,7 +35,7 @@ from src.modules.external import analyze_external
 from src.modules.forensics import analyze_forensics
 from src.modules.identity import analyze_identity, is_likely_identity_doc
 from src.modules.twod_doc import PYLIBDMTX_AVAILABLE, analyze_twod_doc
-from src.scoring import create_analysis_result, generate_summary
+from src.scoring import create_analysis_result
 from src.document_type import detect_document_type
 
 logger = logging.getLogger(__name__)
@@ -329,52 +329,3 @@ class TrustyFileAnalyzer:
 
         logger.info(f"Analysis complete: score={result.trust_score}, risk={result.risk_level}")
         return result
-
-    def analyze_with_summary(
-        self,
-        file_path: str,
-        expected_domains: Optional[list[str]] = None,
-    ) -> tuple[AnalysisResult, str]:
-        """
-        Analyze a document and return both result and human-readable summary.
-
-        Args:
-            file_path: Path to the PDF file
-            expected_domains: Optional list of expected sender domains
-
-        Returns:
-            Tuple of (AnalysisResult, summary_string)
-        """
-        result = self.analyze(file_path, expected_domains)
-        summary = generate_summary(result)
-        return result, summary
-
-
-def quick_analyze(file_path: str) -> dict:
-    """
-    Quick analysis function for simple use cases.
-
-    Returns a simple dict instead of full AnalysisResult.
-
-    Args:
-        file_path: Path to the PDF file
-
-    Returns:
-        Dict with score, risk_level, and flag_count
-
-    Example:
-        >>> result = quick_analyze("invoice.pdf")
-        >>> print(result)
-        {'score': 85, 'risk_level': 'LOW', 'flag_count': 2}
-    """
-    analyzer = TrustyFileAnalyzer(enable_external=False)
-    result = analyzer.analyze(file_path)
-
-    total_flags = sum(len(m.flags) for m in result.modules)
-
-    return {
-        "score": result.trust_score,
-        "risk_level": result.risk_level,
-        "flag_count": total_flags,
-        "analysis_time_ms": result.analysis_time_ms,
-    }

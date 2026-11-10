@@ -34,8 +34,8 @@ from src.models import Flag, ModuleResult
 # DRY: the FR/anglo money parser proven in the overlay module, the
 # e-invoice-attachment recogniser proven in the structure module, and the local
 # mod-97 IBAN validator proven in the content module.
-from src.modules.overlay import _money_value
-from src.modules.structure import _is_einvoice_attachment
+from src.modules.span_conflict import money_value
+from src.modules.structure import is_einvoice_attachment
 from src.modules.content import validate_iban_checksum
 
 logger = logging.getLogger(__name__)
@@ -91,7 +91,7 @@ def _grand_total_candidates(text: str) -> set:
             continue
         m = _LINE_AMOUNT_RE.search(raw, pos)
         if m:
-            val = _money_value(m.group(0))
+            val = money_value(m.group(0))
             if val is not None:
                 out.add(round(val, 2))
     return out
@@ -172,7 +172,7 @@ def _extract_einvoice_xml(file_path: str) -> bytes | None:
                 name = doc.embfile_info(i).get("filename", "")
             except Exception:
                 continue
-            if _is_einvoice_attachment(name):
+            if is_einvoice_attachment(name):
                 return doc.embfile_get(i)
             # Fallback: a generically-named .xml attachment still counts if its
             # ROOT element is an e-invoice (CII or UBL) — recognition by

@@ -40,7 +40,7 @@ import fitz
 from src.models import Flag, ModuleResult
 # DRY: the "group words into visual rows by vertical position" helper proven
 # in the overlay module (cover-and-retype row diff).
-from src.modules.overlay import _visual_rows
+from src.modules.overlay import visual_rows
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +360,7 @@ def visual_lines(file_path: str) -> list[str] | None:
     try:
         lines = []
         for page in doc:
-            for row in _visual_rows(page.get_text("words")):
+            for row in visual_rows(page.get_text("words")):
                 words = row["words"]
                 parts = [words[0][4]]
                 for previous, word in zip(words, words[1:]):

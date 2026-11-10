@@ -54,7 +54,7 @@ _EINVOICE_XML_NAMES = frozenset({
 _EINVOICE_XML_KEYWORDS = ("factur-x", "facturx", "zugferd", "xrechnung", "order-x", "ubl")
 
 
-def _is_einvoice_attachment(name: str) -> bool:
+def is_einvoice_attachment(name: str) -> bool:
     """True if `name` is a recognised EU e-invoice XML payload (Factur-X etc.).
 
     Matches the standard filenames exactly, plus any *.xml whose name contains a
@@ -2020,10 +2020,10 @@ def check_embedded_files(pdf_path: str) -> list[Flag]:
                 return any(name.lower().endswith(ext) for ext in exts)
 
             dangerous_files = [f for f in embedded_files if _ext_in(f["name"], dangerous_extensions)]
-            einvoice_files = [f for f in embedded_files if _is_einvoice_attachment(f["name"])]
+            einvoice_files = [f for f in embedded_files if is_einvoice_attachment(f["name"])]
             companion_files = [f for f in embedded_files
                                if not _ext_in(f["name"], dangerous_extensions)
-                               and not _is_einvoice_attachment(f["name"])]
+                               and not is_einvoice_attachment(f["name"])]
 
             if dangerous_files:
                 # Executable/active content is dangerous regardless of any

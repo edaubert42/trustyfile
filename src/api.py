@@ -33,7 +33,6 @@ import hmac
 import logging
 import math
 import os
-import tempfile
 import threading
 import time
 from collections import deque
@@ -48,6 +47,7 @@ from starlette.concurrency import run_in_threadpool
 from src.analyzer import TrustyFileAnalyzer
 from src.feedback import export_csv
 from src.intake import MAX_BYTES, MAX_PAGES, looks_like_pdf, page_count
+from src.pipeline import temporary_pdf
 from src.report import SCHEMA_VERSION, build_report, report_json
 
 logger = logging.getLogger(__name__)
@@ -182,13 +182,10 @@ def _run_analysis(data: bytes, *, filename: str, lang: str, external: bool) -> s
     The blocking part, run in the threadpool: temp file → analyzer → report text.
 
     The analyzer reads a path, so the bytes are written to a temp file for
-    exactly this call; the `finally` is what makes "not retained" true even
-    when a module raises.
+    exactly this call; `temporary_pdf` deletes the file even when a module
+    raises, which is what makes "not retained" true.
     """
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(data)
-        tmp_path = tmp.name
-    try:
+    with temporary_pdf(data) as tmp_path:
         # Same options as the web UI (app.py): QR scan on, INSEE/VIES per the
         # caller's choice, IBAN API only when the key is configured.
         iban_key = os.environ.get("IBAN_API_KEY")
@@ -206,11 +203,6 @@ def _run_analysis(data: bytes, *, filename: str, lang: str, external: bool) -> s
             lang=lang,
         )
         return report_json(report)
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except FileNotFoundError:
-            pass
 
 
 @api.get("/api/v1/health", summary="Liveness check")

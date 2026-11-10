@@ -99,7 +99,7 @@ def test_embedded_image_over_placeholder_not_flagged(tmp_path):
 
 def test_embedded_image_over_date_not_flagged(tmp_path):
     # FP guard: a DATE (not money) covered inside a wider span must not be read as
-    # an image-over-VALUE — _money_value rejects the date, so the amount path can't
+    # an image-over-VALUE — money_value rejects the date, so the amount path can't
     # fire. (Guards the date/phone/id false-positive path.)
     p = _embedded_image(str(tmp_path / "emb_date.pdf"), label="Faellig am ",
                         amount="10.01.20", suffix=" - Rechnung")

@@ -190,6 +190,7 @@ trustyfile/
 │   ├── generate_tampered.py  # Generate tampered corpus samples
 │   ├── build_corpus.py       # Corpus indexing for the band-gate tests
 │   ├── eval_harness.py       # Calibration / evaluation harness
+│   ├── run_analysis.py       # Analyse every PDF of a folder from the command line
 │   └── record_demo.py        # Record demo GIF
 └── tests/                    # Unit tests
 ```

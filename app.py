@@ -1542,6 +1542,9 @@ if batch_files and uploaded_file is None:
                 st.session_state["cached_result"] = _item.result
                 st.session_state["cached_summary"] = _item.summary
                 st.session_state["cached_twod_doc"] = _item.twod_doc
+                # Without this the results page would show the signature
+                # badges of whichever document was analysed before.
+                st.session_state["cached_twod_doc_signatures"] = _item.twod_doc_signatures
                 st.session_state["cached_analysed_at"] = _item.analysed_at
                 st.session_state.pop("page_selector", None)
                 st.rerun()
@@ -1580,6 +1583,7 @@ if uploaded_file is not None:
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
     from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+    from src.pipeline import scan_2d_doc
     from src.twod_doc_view import twod_pdf_panel_html
     import hashlib
 
@@ -1692,31 +1696,14 @@ if uploaded_file is not None:
             result = analyzer.analyze(tmp_path)
             summary = generate_rich_summary(result, lang=get_lang())
 
-            # Scan for 2D-DOC barcodes (French government signed barcodes).
-            # Le 2D-Doc n'existe que sur les CNI (TD1) — pas sur les passeports (TD3).
-            # On détecte le format MRZ depuis le module identity pour éviter un scan inutile.
-            _identity_mod = next(
-                (m for m in result.modules if m.module == "identity"), None
+            # Scan for 2D-DOC barcodes (French government signed barcodes)
+            # and check each code's signature for the panel badge. Passports
+            # are skipped (no 2D-Doc on a TD3) — see src/pipeline.py, shared
+            # with the batch page. Done once, then cached.
+            twod_doc_results, twod_doc_signatures = scan_2d_doc(
+                tmp_path, result,
+                scan_pdf_for_2d_doc if PYLIBDMTX_AVAILABLE else None,
             )
-            _mrz_lines = (_identity_mod.details or {}).get("mrz_lines") if _identity_mod else None
-            # ICAO 9303 : première lettre 'P' = passeport. Le 2D-Doc n'existe que sur les CNI.
-            _is_passport = bool(_mrz_lines and _mrz_lines[0].startswith("P"))
-
-            twod_doc_results = []
-            if PYLIBDMTX_AVAILABLE and not _is_passport:
-                twod_doc_results = scan_pdf_for_2d_doc(tmp_path)
-
-            # Signature status of EACH code, in the same order, for the panel
-            # badge. Recomputed here rather than read from the twod_doc
-            # module's details: that list skips a code whose field check
-            # failed, so its indexes are not guaranteed to match ours.
-            # Offline ECDSA, a few ms per code; done once, then cached.
-            twod_doc_signatures = []
-            if twod_doc_results:
-                from src.modules.twod_doc_crypto import verify_twod_doc_signature
-                twod_doc_signatures = [
-                    verify_twod_doc_signature(td).status for td in twod_doc_results
-                ]
 
             # Cache everything in session_state so page navigation doesn't re-trigger analysis
             st.session_state["last_file_hash"] = file_hash

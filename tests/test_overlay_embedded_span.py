@@ -122,7 +122,7 @@ def test_white_box_over_single_amount_no_retype_not_confirmed(tmp_path):
 
 def test_white_box_over_date_with_retype_not_confirmed(tmp_path):
     # A DATE (not money) covered in a wide span, with an amount stamped over it,
-    # must not be read as a cover-and-retype: _money_value rejects the date, so
+    # must not be read as a cover-and-retype: money_value rejects the date, so
     # the amounts-conflict test can't fire. Guards the date/phone FP path.
     p = _white_box_over_span(str(tmp_path / "date.pdf"),
                              "Fällig am 10.01.20 - Rechnung", "10.01.20",
@@ -146,7 +146,7 @@ def test_white_box_over_four_digit_year_date_not_confirmed(tmp_path):
 
 def test_white_box_same_value_restamp_not_confirmed(tmp_path):
     # Same amount re-stamped in a different style ("1.200,00" -> "1 200,00") is
-    # not a value change; _money_value equality must suppress it.
+    # not a value change; money_value equality must suppress it.
     p = _white_box_over_span(str(tmp_path / "restamp.pdf"),
                              "Total: 1.200,00 EUR", "1.200,00", extra_over="1 200,00")
     codes = _codes(_analyze(p))

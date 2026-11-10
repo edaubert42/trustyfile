@@ -90,6 +90,7 @@ trustyfile/
 │   ├── report.py             # AnalysisResult -> versioned JSON report (download + API)
 │   ├── api.py                # FastAPI: POST /api/v1/analyze (uvicorn :8000, Caddy /api/*)
 │   ├── intake.py             # Shared limits + PDF checks (batch page, API)
+│   ├── pipeline.py           # Shared temp file + 2D-Doc scan/signatures (page, batch, API)
 │   ├── batch.py              # One BatchItem per uploaded file (batch page)
 │   ├── feedback.py           # Thumbs up/down: log line + SQLite (TRUSTYFILE_FEEDBACK_DB);
 │   │                         # owner CSV export at /api/v1/feedback.csv (TRUSTYFILE_ADMIN_TOKEN)

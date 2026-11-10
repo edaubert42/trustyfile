@@ -20,7 +20,7 @@ from src.modules.span_conflict import (
     span_text, char_class, norm, amount_token, is_horizontal,
     is_placeholder, page_angle as _page_angle,
     pair_is_conflict as _pair_is_conflict,
-    money_value as _money_value,
+    money_value,
 )
 
 logger = logging.getLogger(__name__)
@@ -316,14 +316,14 @@ def _amounts_conflict(a: dict, b: dict, page_angle: float,
 
     True when both spans carry a horizontal, same-size monetary amount, the
     covered (A) amount is a real value (not a placeholder), and the two amounts
-    differ NUMERICALLY. Comparing parsed numeric values (via _money_value) — not
+    differ NUMERICALLY. Comparing parsed numeric values (via money_value) — not
     whole-span text — is what lets a label-wrapped original ("Gesamtbetrag:
     571,04 €") conflict with a bare retype ("690,25"), while REJECTING dates /
-    phone numbers / ids (which _money_value returns None for) and treating two
+    phone numbers / ids (which money_value returns None for) and treating two
     equal amounts written in different styles ("1.200,00" vs "1 200,00") as the
     SAME value, not a spurious change."""
     at, bt = span_text(a), span_text(b)
-    av, bv = _money_value(at), _money_value(bt)
+    av, bv = money_value(at), money_value(bt)
     if av is None or bv is None:
         return False                       # a non-amount (date/phone/id) never conflicts
     a_tok = amount_token(at)
@@ -582,7 +582,7 @@ def _is_value_change(old_text: str, new_text: str) -> bool:
     return True
 
 
-def _visual_rows(words: list[tuple]) -> list[dict]:
+def visual_rows(words: list[tuple]) -> list[dict]:
     """Group a page's words into visual rows by vertical position.
 
     Why not PyMuPDF's own (block_no, line_no)? Because retyped text is a NEW
@@ -722,7 +722,7 @@ def _revision_value_flag(old_text: str, new_text: str, page_num: int, confirmed:
     sits, for preview highlighting: a bare 4-tuple (what `_diff_revision_page`
     passes) or a full `get_text("words")` tuple — only `nw[:4]` is read.
     """
-    old_v, new_v = _money_value(old_text), _money_value(new_text)
+    old_v, new_v = money_value(old_text), money_value(new_text)
     # money_value() reads the DAY of a date as an amount ("19/08/1992" -> 19.0),
     # which turned a birth-year change into "a change of +0.00". A date has no
     # money delta, so we skip it there.
@@ -795,7 +795,7 @@ def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> l
     """Diff one page between two revisions, row by row, and emit Signal-4 flags.
 
     Steps:
-      1. Group both revisions' words into visual rows (_visual_rows).
+      1. Group both revisions' words into visual rows (visual_rows).
       2. Pair each old row with the new row at the same height.
          Identical token lists -> a STABLE row.
       3. Reflow guard: if fewer than MIN_STABLE_ROWS / MIN_STABLE_FRACTION of
@@ -812,8 +812,8 @@ def _diff_revision_page(old_page, new_page, page_num: int, confirmed: bool) -> l
     "Total TTC : 1 200,00 EUR" -> "Total TTC : 4 200,00 EUR" yields
     OVERLAY_REVISION_VALUE_CHANGED "1 200,00" -> "4 200,00" (delta +3,000.00).
     """
-    old_rows = _visual_rows(old_page.get_text("words"))
-    new_rows = _visual_rows(new_page.get_text("words"))
+    old_rows = visual_rows(old_page.get_text("words"))
+    new_rows = visual_rows(new_page.get_text("words"))
     if not old_rows:
         return []
 
@@ -1035,7 +1035,7 @@ def _find_embedded_image_cover(irect: fitz.Rect, spans: list[dict]):
 
     FP guards, in order — each mirrors the Signal-3 embedded path:
       - amount_token present            (the span carries a monetary amount)
-      - _money_value(tok) is not None   (reject dates / phones / ids)
+      - money_value(tok) is not None   (reject dates / phones / ids)
       - not is_placeholder(tok)         ("0,00" -> benign template scaffolding)
       - _box_on_span_row                (image sits on the span's row, within it)
       - _image_covers_amount            (image covers the NUMBER's x-range) <- the
@@ -1045,7 +1045,7 @@ def _find_embedded_image_cover(irect: fitz.Rect, spans: list[dict]):
         tok = amount_token(span_text(t))
         if tok is None:
             continue
-        if _money_value(tok) is None:
+        if money_value(tok) is None:
             continue                        # a non-amount (date/phone/id) is never a hidden value
         if is_placeholder(tok):
             continue                        # covered a placeholder -> benign scaffolding
@@ -1264,7 +1264,7 @@ def _cover_and_retype_flag(hit: dict, page_num: int, confirmed: bool) -> Flag:
     over_txt = span_text(hit["over"]).strip()
     details = {"page": page_num, "covered": under_txt, "replacement": over_txt,
               "bbox": tuple(hit["fill"]["rect"])}
-    old_v, new_v = _money_value(under_txt), _money_value(over_txt)
+    old_v, new_v = money_value(under_txt), money_value(over_txt)
     if old_v is not None and new_v is not None:
         delta = new_v - old_v
         details["delta"] = delta

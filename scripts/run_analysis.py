@@ -4,9 +4,9 @@ TrustyFile - Script d'analyse batch en ligne de commande.
 Analyse tous les fichiers PDF d'un répertoire et affiche les résultats.
 
 Usage:
-    python run_analysis.py [dossier]
-    python run_analysis.py samples/id_doc
-    python run_analysis.py samples/legitimate
+    python scripts/run_analysis.py [dossier]
+    python scripts/run_analysis.py samples/id_doc
+    python scripts/run_analysis.py samples/legitimate
 
 Par défaut (sans argument), analyse le dossier samples/id_doc.
 """
@@ -14,6 +14,11 @@ Par défaut (sans argument), analyse le dossier samples/id_doc.
 import sys
 import os
 import logging
+from pathlib import Path
+
+# Le script vit dans scripts/ : on ajoute la racine du dépôt au chemin
+# d'import pour que `from src...` fonctionne quel que soit le dossier courant.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Optionnel : activer les logs pour voir ce que fait chaque module
 # logging.basicConfig(level=logging.DEBUG)

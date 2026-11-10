@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 import json
 import re
+import tempfile
 from pathlib import Path
 
 import fitz
@@ -195,13 +196,13 @@ def test_limits_match_the_ui():
 
 
 def test_upload_is_not_retained_on_disk(client, monkeypatch, tmp_path):
-    monkeypatch.setattr(api_module.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     assert _post_pdf(client, DEMO_PDF.read_bytes()).status_code == 200
     assert list(tmp_path.iterdir()) == []
 
 
 def test_upload_is_not_retained_when_analysis_fails(client, monkeypatch, tmp_path):
-    monkeypatch.setattr(api_module.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
 
     def boom(self, path):
         raise RuntimeError("module exploded")

@@ -20,8 +20,6 @@ Example:
 from __future__ import annotations
 
 import logging
-import os
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -29,6 +27,10 @@ from datetime import datetime
 from src.analyzer import TrustyFileAnalyzer
 from src.intake import check_pdf
 from src.models import AnalysisResult, AnalysisSummary
+# should_scan_2d_doc is re-exported: it used to live here and the batch
+# tests import it from this module.
+from src.pipeline import scan_2d_doc as run_2d_doc_scan
+from src.pipeline import should_scan_2d_doc, temporary_pdf
 from src.summary import generate_rich_summary
 
 logger = logging.getLogger(__name__)
@@ -55,6 +57,7 @@ class BatchItem:
         problem: None when analysed; otherwise an intake token
             (too_large / not_a_pdf / too_many_pages) or FAILED.
         result, summary, twod_doc: The analysis outputs (analysed items only).
+        twod_doc_signatures: Signature status of each 2D-Doc, same order.
         analysed_at: Display timestamp, ANALYSED_AT_FORMAT.
     """
 
@@ -65,27 +68,13 @@ class BatchItem:
     result: AnalysisResult | None = None
     summary: AnalysisSummary | None = None
     twod_doc: list = field(default_factory=list)
+    twod_doc_signatures: list[str] = field(default_factory=list)
     analysed_at: str = ""
 
     @property
     def ok(self) -> bool:
         """True when the document was analysed (whatever its verdict)."""
         return self.problem is None
-
-
-def should_scan_2d_doc(result: AnalysisResult) -> bool:
-    """
-    Whether to look for a 2D-Doc barcode after the analysis.
-
-    2D-Doc exists on French identity cards (ICAO TD1) and administrative
-    documents, never on passports (TD3). The identity module leaves the MRZ
-    lines in its details; a first line starting with "P" is a passport, so the
-    (slow) DataMatrix scan is skipped. Same rule as the single-file page.
-    """
-    identity = next((m for m in result.modules if m.module == "identity"), None)
-    mrz_lines = (identity.details or {}).get("mrz_lines") if identity else None
-    is_passport = bool(mrz_lines and mrz_lines[0].startswith("P"))
-    return not is_passport
 
 
 def analyse_document(
@@ -118,24 +107,17 @@ def analyse_document(
     if problem is not None:
         return BatchItem(name=name, size_bytes=len(data), pages=pages, problem=problem)
 
-    # The analyzer reads a path: write the bytes for this call only and unlink
-    # in the finally, so a batch leaves nothing behind (the disclaimer's
-    # "not retained" holds for ten files as it does for one).
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(data)
-        tmp_path = tmp.name
+    # The analyzer reads a path: temporary_pdf writes the bytes for this call
+    # only and deletes the file afterwards, so a batch leaves nothing behind
+    # (the disclaimer's "not retained" holds for ten files as it does for one).
     try:
-        result = analyzer_factory().analyze(tmp_path)
-        summary = generate_rich_summary(result, lang=lang)
-        twod_doc = scan_2d_doc(tmp_path) if scan_2d_doc and should_scan_2d_doc(result) else []
+        with temporary_pdf(data) as tmp_path:
+            result = analyzer_factory().analyze(tmp_path)
+            summary = generate_rich_summary(result, lang=lang)
+            twod_doc, twod_doc_signatures = run_2d_doc_scan(tmp_path, result, scan_2d_doc)
     except Exception:
         logger.exception("batch: analysis of %r failed", name)
         return BatchItem(name=name, size_bytes=len(data), pages=pages, problem=FAILED)
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except FileNotFoundError:
-            pass
 
     return BatchItem(
         name=name,
@@ -145,5 +127,6 @@ def analyse_document(
         result=result,
         summary=summary,
         twod_doc=twod_doc,
+        twod_doc_signatures=twod_doc_signatures,
         analysed_at=(now or datetime.now()).strftime(ANALYSED_AT_FORMAT),
     )

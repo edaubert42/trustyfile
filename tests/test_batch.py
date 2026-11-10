@@ -8,13 +8,13 @@ demo invoice (static/demo/facture-exemple.pdf) is the analysed document.
 from __future__ import annotations
 
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import fitz
 import pytest
 
-import src.batch as batch_module
 import src.intake as intake
 from src.analyzer import TrustyFileAnalyzer
 from src.batch import FAILED, BatchItem, analyse_document, should_scan_2d_doc
@@ -161,7 +161,7 @@ def test_failed_analysis_becomes_an_item_not_an_exception(monkeypatch):
 
 
 def test_temp_file_is_gone_after_success_and_after_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(batch_module.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
     assert analyse_document("a.pdf", DEMO_BYTES, lang="fr", analyzer_factory=OFFLINE).ok
     assert list(tmp_path.iterdir()) == []
 
