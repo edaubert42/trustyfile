@@ -10,6 +10,7 @@ import difflib
 import logging
 import re
 import statistics
+import struct
 import fitz
 
 from src.models import Flag, ModuleResult
@@ -41,6 +42,34 @@ FULL_WIDTH_BAND_FRAC = 0.85  # image width >= this * page width => header/logo b
 # original: 9-17 % off). Measured on the real-tool corpus: retypes over
 # LibreOffice / Chromium bases were 13-14 % smaller and slipped through.
 COVER_SIZE_MATCH_FRAC = 0.20
+
+
+def boxes_disjoint(a, b) -> bool:
+    """True when two (x0, y0, x1, y1) boxes share no area at all.
+
+    Why this exists: the signals below compare every span with every other
+    span (or with every fill / image). On a dense page that is hundreds of
+    thousands of pairs, and almost all of them are nowhere near each other.
+    Building two fitz.Rect objects and intersecting them costs ~25 microseconds
+    in PyMuPDF's Python layer; four float comparisons on plain tuples cost
+    ~0.1. So callers ask this first and only build Rects for the few pairs
+    that actually touch.
+
+    It is a pure shortcut, never a different answer: when it returns True the
+    intersection is empty (zero or negative width or height), which is exactly
+    the case where iou() and containment() return 0.0. Boxes that merely touch
+    along an edge count as disjoint, as they do for fitz.Rect.is_empty.
+
+    Args:
+        a, b: Any 4-item sequences (tuple, list). Pass tuples, not fitz.Rect:
+            indexing a Rect is itself slow.
+
+    Examples:
+        boxes_disjoint((0, 0, 10, 10), (20, 0, 30, 10)) -> True   (far apart)
+        boxes_disjoint((0, 0, 10, 10), (10, 0, 20, 10)) -> True   (edge only)
+        boxes_disjoint((0, 0, 10, 10), (5, 5, 15, 15))  -> False  (overlap)
+    """
+    return a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1]
 
 
 def iou(r1: fitz.Rect, r2: fitz.Rect) -> float:
@@ -214,7 +243,10 @@ def _signal_cover_and_retype(fills: list[dict], spans: list[dict], page_angle: f
 
     for f in fills:
         frect = f["rect"]
-        inside = [s for s in spans if containment(fitz.Rect(s["bbox"]), frect) >= CONTAINMENT_MIN]
+        fbox = tuple(frect)                # plain tuple for the cheap pre-reject
+        inside = [s for s in spans
+                  if not boxes_disjoint(s["bbox"], fbox)
+                  and containment(fitz.Rect(s["bbox"]), frect) >= CONTAINMENT_MIN]
         under = [s for s in inside if s.get("seqno", 0) < f.get("seqno", 0)]
         over = [s for s in inside if s.get("seqno", 0) > f.get("seqno", 0)]
         found = _find_cover_pair(under, over, page_angle)
@@ -323,11 +355,14 @@ def _signal_opaque_fill_over_text(fills: list[dict], spans: list[dict],
         if id(f) in consumed_fills:
             continue
         frect = f["rect"]
+        fbox = tuple(frect)                # plain tuple for the cheap pre-reject
         for t in spans:
             if id(t) in consumed_spans:
                 continue
             if t.get("seqno", 0) >= f.get("seqno", 0):
                 continue                   # painted after the box = on top, not hidden
+            if boxes_disjoint(t["bbox"], fbox):
+                continue                   # nowhere near the box: containment is 0
             if containment(fitz.Rect(t["bbox"]), frect) < CONTAINMENT_MIN:
                 continue
             if is_placeholder(span_text(t)):
@@ -356,6 +391,10 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
     for i in range(len(live)):
         for j in range(i + 1, len(live)):
             a, b = live[i], live[j]
+            # Almost every pair of spans on a page is far apart: skip those
+            # on four float comparisons before paying for two fitz.Rect.
+            if boxes_disjoint(a["bbox"], b["bbox"]):
+                continue
             if iou(fitz.Rect(a["bbox"]), fitz.Rect(b["bbox"])) < CONFLICT_IOU_MIN:
                 continue
             if _is_layered_icon(a, b):
@@ -1041,6 +1080,60 @@ def _paint_log(page) -> list | None:
         return None
 
 
+_TEXT_PAINT_KINDS = ("fill-text", "stroke-text")
+_FLOAT32 = struct.Struct("f")
+
+
+def _as_float32(value: float) -> float:
+    """Round a Python float the way MuPDF stores it (C `float`, 32 bits).
+
+    MuPDF compares coordinates as 32-bit floats. A centre computed in Python
+    (64 bits) can sit a hair inside a box that the 32-bit value sits exactly
+    on the edge of — and the edge is outside. Rounding first keeps this
+    module's answer identical to fitz.Rect.contains(), which it replaces.
+
+    Example:
+        _as_float32(9.9999999999) -> 10.0
+    """
+    try:
+        return _FLOAT32.unpack(_FLOAT32.pack(value))[0]
+    except OverflowError:               # beyond float32 range: C gives +/-inf
+        return float("inf") if value > 0 else float("-inf")
+
+
+def _last_image_op(log: list, irect) -> int | None:
+    """Index of the LAST paint operation that draws the image at `irect`.
+
+    The same image can be painted several times; only the last one decides
+    what ends up on top. None when the log holds no such operation.
+    """
+    last = None
+    for index, (kind, r) in enumerate(log):
+        if kind == "fill-image" and all(abs(a - b) <= _SAME_RECT_TOL for a, b in zip(r, irect)):
+            last = index
+    return last
+
+
+def _first_text_op(log: list, span: dict) -> int | None:
+    """Index of the FIRST text operation whose box contains the span's centre.
+
+    Depends on the span only, not on any image, so the caller computes it once
+    per span and reuses it for every image on the page.
+
+    "Contains" follows MuPDF: left/top edges are inside, right/bottom edges
+    are outside (x0 <= x < x1), compared as 32-bit floats.
+    """
+    x0, y0, x1, y1 = span["bbox"]
+    cx = _as_float32((x0 + x1) / 2)
+    cy = _as_float32((y0 + y1) / 2)
+    for index, (kind, r) in enumerate(log):
+        if (kind in _TEXT_PAINT_KINDS
+                and _as_float32(r[0]) <= cx < _as_float32(r[2])
+                and _as_float32(r[1]) <= cy < _as_float32(r[3])):
+            return index                # the log is in paint order: first hit is the minimum
+    return None
+
+
 def _text_painted_over_image(log: list | None, irect: fitz.Rect, span: dict) -> bool:
     """True if `span` is painted AFTER every drawing of the image at `irect`.
 
@@ -1059,16 +1152,11 @@ def _text_painted_over_image(log: list | None, irect: fitz.Rect, span: dict) -> 
     """
     if not log:
         return False
-    image_ops = [i for i, (kind, r) in enumerate(log)
-                 if kind == "fill-image"
-                 and all(abs(a - b) <= _SAME_RECT_TOL for a, b in zip(r, irect))]
-    sbox = fitz.Rect(span["bbox"])
-    centre = fitz.Point((sbox.x0 + sbox.x1) / 2, (sbox.y0 + sbox.y1) / 2)
-    text_ops = [i for i, (kind, r) in enumerate(log)
-                if kind in ("fill-text", "stroke-text") and fitz.Rect(r).contains(centre)]
-    if not image_ops or not text_ops:
+    last_image = _last_image_op(log, irect)
+    first_text = _first_text_op(log, span)
+    if last_image is None or first_text is None:
         return False
-    return min(text_ops) > max(image_ops)
+    return first_text > last_image
 
 
 def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
@@ -1091,13 +1179,27 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
     log = None
     for info in _localized_image_placements(page):
         irect = fitz.Rect(info["bbox"])
+        ibox = tuple(irect)                       # plain tuple for the cheap pre-reject
         if log is None:
             log = _paint_log(page) or []          # computed once, only if needed
+            # Where each span first appears in the paint log. It does not
+            # depend on the image, so it is worked out once per page instead
+            # of once per (image, span) pair — that product was the slowest
+            # loop of the whole analysis (45 s on a 3-page invoice).
+            first_text = {id(t): _first_text_op(log, t) for t in spans} if log else {}
         # Text painted ON TOP of the image is visible, not covered: drop it
-        # before looking for a hidden span (see _text_painted_over_image).
-        under = [t for t in spans if not _text_painted_over_image(log, irect, t)]
+        # before looking for a hidden span (same rule as
+        # _text_painted_over_image, with both halves precomputed).
+        last_image = _last_image_op(log, irect) if log else None
+        if last_image is None:
+            under = list(spans)                   # order unknown: stay cautious
+        else:
+            under = [t for t in spans
+                     if first_text[id(t)] is None or first_text[id(t)] <= last_image]
         covered = None
         for t in under:
+            if boxes_disjoint(t["bbox"], ibox):
+                continue                   # nowhere near the image: containment is 0
             if containment(fitz.Rect(t["bbox"]), irect) < CONTAINMENT_MIN:
                 continue
             if is_placeholder(span_text(t)):

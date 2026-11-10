@@ -66,3 +66,41 @@ def test_norm_strips_no_break_spaces():
     # separators; norm() must strip them so a covered "1 200,00" matches "1200,00".
     assert norm("1 200,00 €") == norm("1200,00€")
     assert norm("9 200,00") != norm("1 200,00")
+
+
+# --- Fast paths added for performance: they must never change an answer ------
+
+def test_boxes_disjoint_is_only_true_when_the_boxes_share_no_area():
+    from src.modules.overlay import boxes_disjoint
+    assert boxes_disjoint((0, 0, 10, 10), (20, 0, 30, 10))       # far apart
+    assert boxes_disjoint((0, 0, 10, 10), (10, 0, 20, 10))       # touching edge: no area
+    assert not boxes_disjoint((0, 0, 10, 10), (5, 5, 15, 15))    # real overlap
+    assert not boxes_disjoint((0, 0, 10, 10), (2, 2, 4, 4))      # one inside the other
+
+
+def test_boxes_disjoint_agrees_with_iou_and_containment():
+    """Whenever the shortcut says "disjoint", the real maths says 0."""
+    import random
+    from src.modules.overlay import boxes_disjoint
+    rng = random.Random(42)
+    for _ in range(5000):
+        a = sorted(rng.randint(0, 12) for _ in range(2)) + sorted(rng.randint(0, 12) for _ in range(2))
+        b = sorted(rng.randint(0, 12) for _ in range(2)) + sorted(rng.randint(0, 12) for _ in range(2))
+        a, b = (a[0], a[2], a[1], a[3]), (b[0], b[2], b[1], b[3])
+        if boxes_disjoint(a, b):
+            assert iou(fitz.Rect(a), fitz.Rect(b)) == 0.0
+            assert containment(fitz.Rect(a), fitz.Rect(b)) == 0.0
+
+
+def test_first_text_op_uses_mupdf_edges_and_float32():
+    """Left/top edge inside, right/bottom edge outside, compared as 32-bit
+    floats — the rules of fitz.Rect.contains(), which this replaces."""
+    from src.modules.overlay import _first_text_op
+    log = [("fill-path", (0, 0, 100, 100)),          # not text: ignored
+           ("fill-text", (0, 0, 10, 10)),
+           ("stroke-text", (0, 0, 10, 10))]
+    assert _first_text_op(log, {"bbox": (4, 4, 6, 6)}) == 1            # centre (5, 5): first text op
+    assert _first_text_op(log, {"bbox": (-2, 4, 2, 6)}) == 1           # centre x = 0: left edge is inside
+    assert _first_text_op(log, {"bbox": (8, 4, 12, 6)}) is None        # centre x = 10: right edge is outside
+    # 9.9999999999 is 10.0 once stored as a C float, so it is outside too.
+    assert _first_text_op(log, {"bbox": (9.9999999999, 4, 9.9999999999, 6)}) is None
