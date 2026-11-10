@@ -36,6 +36,8 @@ import os
 import threading
 import time
 from collections import deque
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Literal
 
@@ -152,6 +154,25 @@ api = FastAPI(
 # Module-level so tests can swap them; one of each per process.
 _limiter = SlidingWindowLimiter(limit=RATE_LIMIT, window_s=RATE_WINDOW_S)
 _analysis_slots = threading.BoundedSemaphore(MAX_CONCURRENT_ANALYSES)
+
+
+@contextmanager
+def analysis_slot(timeout: float) -> Iterator[None]:
+    """
+    Hold one analysis slot for a `with` block, waiting up to `timeout` seconds.
+
+    For the web pages (src/web/app.py), which share the slots with this API:
+    a person uploading is better served by a short wait than by a refusal.
+
+    Raises:
+        TimeoutError: no slot became free in time.
+    """
+    if not _analysis_slots.acquire(timeout=timeout):
+        raise TimeoutError("no analysis slot became free")
+    try:
+        yield
+    finally:
+        _analysis_slots.release()
 
 
 def _error(status: int, code: str, message: str, retry_after: int | None = None) -> JSONResponse:

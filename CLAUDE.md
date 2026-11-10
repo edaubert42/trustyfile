@@ -100,12 +100,22 @@ trustyfile/
 │   │                         # clamps renders so hostile page geometry
 │   │                         # cannot exhaust memory
 │   ├── i18n.py, translations/  # EN/FR strings
-│   ├── web/                  # Display layer, free of any web framework
+│   ├── web/                  # The website (display layer)
+│   │   ├── app.py            # FastAPI pages: /, /en, POST /analyse, /r/<token>,
+│   │   │                     # /b/<token>, /demo; mounts the JSON API. Built
+│   │   │                     # next to Streamlit, NOT routed by Caddy yet
+│   │   ├── documents.py      # What a page keeps about an upload (StoredDocument,
+│   │   │                     # StoredBatch, StoredPhoto) and how it is produced
+│   │   ├── store.py          # In-memory TTL store behind /r/<token> (15 min,
+│   │   │                     # capped in count and bytes, nothing on disk)
+│   │   ├── templates/        # Jinja: base, landing, results, batch, message
+│   │   ├── static/           # app.css, app.js, fonts/ (served under /assets)
 │   │   ├── viewmodel.py      # DocumentView: per-document data, computed once
 │   │   ├── virustotal.py     # File-hash lookup (optional, network)
-│   │   └── views/            # Pure functions (data, lang) -> HTML string:
-│   │                         # landing, batch, verdict, findings, properties,
-│   │                         # details, actions, errors, links, common
+│   │   └── views/            # Pure functions (data, lang) -> HTML string,
+│   │                         # free of any web framework: landing, batch,
+│   │                         # verdict, findings, properties, details,
+│   │                         # actions, errors, links, common
 │   ├── site/                 # Static site generator (guides, tools, sitemap):
 │   │                         # content.py (data), assets.py (CSS/JS), render.py
 │   ├── modules/              # 14 detection modules (see Analysis Modules)
@@ -317,6 +327,10 @@ pip install -r requirements-dev.txt
 
 # Run the app
 streamlit run app.py
+
+# Run the new FastAPI + Jinja site (same pages, replaces Streamlit at cutover).
+# Optional keys are read from the environment: IBAN_API_KEY, VIRUSTOTAL_API_KEY
+uvicorn src.web.app:app --port 8000
 
 # Run tests
 pytest tests/ -v

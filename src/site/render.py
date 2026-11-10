@@ -123,7 +123,7 @@ def _slugify_heading(heading: str) -> str:
     return slug.strip("-")
 
 
-def _head(
+def head_inner(
     *,
     lang: str,
     title: str,
@@ -135,8 +135,9 @@ def _head(
     extra_head: str = "",
     og_description: str | None = None,
     twitter_description: str | None = None,
+    style: str | None = None,
 ) -> str:
-    """Build the <head> shared by every generated page.
+    """Build what goes between <head> and </head> on every page of the site.
 
     Args:
         lang: "fr" or "en".
@@ -152,7 +153,11 @@ def _head(
         og_type: Open Graph type — "article" for guides, "website" for the
             landing pages.
         extra_head: extra lines inserted before </head> (already escaped).
+        style: the stylesheet block. Default: the guides' stylesheet,
+            inlined. The web app passes a <link> to its own instead.
     """
+    if style is None:
+        style = f"    <style>\n{STYLESHEET}    </style>"
     chrome = CHROME[lang]
     esc = html.escape
     alt_links = "\n".join(
@@ -165,10 +170,7 @@ def _head(
         + "\n    </script>"
         for block in json_ld
     )
-    return f"""<!DOCTYPE html>
-<html lang="{lang}">
-<head>
-    <meta charset="UTF-8">
+    return f"""    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{esc(title)}</title>
     <meta name="description" content="{esc(description)}">
@@ -192,11 +194,17 @@ def _head(
     <meta name="twitter:title" content="{esc(title)}">
     <meta name="twitter:description" content="{esc(twitter_description or description)}">
     <meta name="twitter:image" content="{SITE}/og-image.png">
-    <style>
-{STYLESHEET}    </style>
+{style}
 {ld_blocks}
-{extra_head}</head>
-<body>"""
+{extra_head}"""
+
+
+def _head(*, lang: str, **kwargs) -> str:
+    """A generated page from <!DOCTYPE> to <body> (see head_inner for the arguments)."""
+    return (
+        f'<!DOCTYPE html>\n<html lang="{lang}">\n<head>\n'
+        f"{head_inner(lang=lang, **kwargs)}</head>\n<body>"
+    )
 
 
 def _nav(lang: str, other_url: str) -> str:
@@ -445,25 +453,13 @@ def render_index(lang: str) -> str:
     return "\n".join(parts)
 
 
-def render_landing(lang: str) -> str:
-    """Render the crawler-facing landing page (seo-fr.html / seo-en.html).
-
-    Caddy serves this file to search-engine and link-preview bots instead of
-    the Streamlit shell, whose landing content only exists after JavaScript
-    runs. To stay clear of cloaking, the *visible* body is limited to what
-    app.py renders when no file is uploaded — headline, tagline, the upload
-    disclaimer, the three steps, the API disclaimer and the footer links — and
-    every one of those strings is read from src/translations/<lang>.json, the
-    same file app.py's t() reads. Head metadata (title, description, JSON-LD)
-    comes from CHROME[lang]; it describes the app rather than adding content.
-
-    Example:
-        >>> "Vous avez un doute" in render_landing("fr")
-        True
-    """
+def landing_head_args(lang: str) -> dict:
+    """Arguments of `head_inner` for the landing page: title, canonical,
+    hreflang alternates, structured data. Shared by the crawler copy
+    (render_landing) and the web app's own landing page, so both
+    declare exactly the same metadata."""
     chrome = CHROME[lang]
     other_lang = "en" if lang == "fr" else "fr"
-    t = load_translations(lang)
     esc = html.escape
 
     fr_home = f"{SITE}{CHROME['fr']['landing_path']}"
@@ -519,6 +515,41 @@ def render_landing(lang: str) -> str:
         ]
     )
 
+    return dict(
+        lang=lang,
+        title=chrome["landing_title"],
+        description=chrome["landing_description"],
+        canonical=canonical,
+        alternates=alternates,
+        json_ld=[graph_ld],
+        og_type="website",
+        extra_head=extra_head,
+        og_description=chrome["landing_og_description"],
+        twitter_description=chrome["landing_twitter_description"],
+    )
+
+
+def render_landing(lang: str) -> str:
+    """Render the crawler-facing landing page (seo-fr.html / seo-en.html).
+
+    Caddy serves this file to search-engine and link-preview bots instead of
+    the Streamlit shell, whose landing content only exists after JavaScript
+    runs. To stay clear of cloaking, the *visible* body is limited to what
+    app.py renders when no file is uploaded — headline, tagline, the upload
+    disclaimer, the three steps, the API disclaimer and the footer links — and
+    every one of those strings is read from src/translations/<lang>.json, the
+    same file app.py's t() reads. Head metadata (title, description, JSON-LD)
+    comes from CHROME[lang]; it describes the app rather than adding content.
+
+    Example:
+        >>> "Vous avez un doute" in render_landing("fr")
+        True
+    """
+    chrome = CHROME[lang]
+    other_lang = "en" if lang == "fr" else "fr"
+    t = load_translations(lang)
+    esc = html.escape
+
     guide_links = " &middot; ".join(
         f'<a href="{chrome["guides_path"]}/{g.slug}">{esc(g.title)}</a>' for g in GUIDES[lang]
     )
@@ -536,18 +567,7 @@ def render_landing(lang: str) -> str:
     other_home = CHROME[other_lang]["landing_path"]
 
     parts = [
-        _head(
-            lang=lang,
-            title=chrome["landing_title"],
-            description=chrome["landing_description"],
-            canonical=canonical,
-            alternates=alternates,
-            json_ld=[graph_ld],
-            og_type="website",
-            extra_head=extra_head,
-            og_description=chrome["landing_og_description"],
-            twitter_description=chrome["landing_twitter_description"],
-        ),
+        _head(**landing_head_args(lang)),
         '    <header class="brand">',
         f'        <a class="name" href="{chrome["landing_path"]}">TrustyFile</a>',
         f'        <span class="subtitle">{esc(t["subtitle"])}</span>',

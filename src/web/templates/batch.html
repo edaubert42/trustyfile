@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block page_class %}tf-page-batch{% endblock %}
+{% block content %}
+        <div class="tf-el"><div class="md"><hr style="margin:0 0 0.3rem 0;"></div></div>
+        <div class="tf-el"><div class="md">{{ title }}</div></div>
+{% if too_many %}
+        <div class="tf-el"><div class="md">{{ too_many }}</div></div>
+{% endif %}
+        <div class="tf-cols tf-cols-center">
+{% for heading in headings %}
+            <div class="tf-col" style="--w:{{ widths[loop.index0] }}"><div class="tf-el"><div class="md">{{ heading }}</div></div></div>
+{% endfor %}
+            <div class="tf-col" style="--w:{{ widths[4] }}"></div>
+        </div>
+{% for row in rows %}
+        <div class="tf-cols tf-cols-center">
+            <div class="tf-col" style="--w:{{ widths[0] }}"><div class="tf-el"><div class="md">{{ row.name }}</div></div></div>
+            <div class="tf-col" style="--w:{{ widths[1] }}"><div class="tf-el"><div class="md"><p>{{ row.band }}</p></div></div></div>
+            <div class="tf-col" style="--w:{{ widths[2] }}"><div class="tf-el"><div class="md"><p>{{ row.score }}</p></div></div></div>
+            <div class="tf-col" style="--w:{{ widths[3] }}"><div class="tf-el"><div class="md">{{ row.finding }}</div></div></div>
+            <div class="tf-col" style="--w:{{ widths[4] }}">{% if row.open_url %}<a class="tf-btn" href="{{ row.open_url }}">{{ t('batch_open') }}</a>{% endif %}</div>
+        </div>
+{% endfor %}
+        <div class="tf-report-row tf-report-row-batch">
+            <div class="tf-download"><a href="{{ report_url }}" download>{{ t('batch_download') }}</a></div>
+        </div>
+{% endblock %}

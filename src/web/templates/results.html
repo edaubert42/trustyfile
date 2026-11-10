@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block page_class %}tf-page-results{% endblock %}
+{% block content %}
+        <div class="tf-stack">
+{% if batch_url %}
+            <a class="tf-btn-tertiary" href="{{ batch_url }}">{{ t('batch_back') }}</a>
+{% endif %}
+{% if demo %}
+            <div class="tf-cols">
+                <div class="tf-col" style="--w:80%">
+                    <div class="tf-el"><div class="md"><div style="background:#1a1a2e; border:1px solid #2563eb; border-radius:8px; padding:8px 14px; color:#cdd6f4; font-size:0.82rem;">{{ t('demo_banner') }}</div></div></div>
+                </div>
+                <div class="tf-col" style="--w:20%">
+                    <a class="tf-btn" href="{{ home_url }}">{{ t('demo_exit') }}</a>
+                </div>
+            </div>
+{% endif %}
+            <div class="tf-cols tf-results-cols">
+                <div class="tf-col tf-stack" style="--w:60%">
+                    <div class="tf-raw">{{ print_header }}</div>
+                    <div class="tf-el"><div class="md">{{ gauge }}</div></div>
+                    <div class="tf-feedback" id="tf-feedback" data-url="/r/{{ token }}/feedback?lang={{ lang }}"
+                         data-vote="{{ vote or '' }}" data-sent="{{ '1' if comment_sent else '' }}">
+                        <div class="tf-feedback-row">
+                            <div class="tf-raw">{{ feedback_question }}</div>
+                            <div class="tf-thumbs" role="radiogroup" aria-label="Feedback rating">
+                                <button type="button" role="radio" aria-checked="{{ 'true' if vote == 'up' else 'false' }}" aria-label="Thumbs up" data-vote="up"><svg viewBox="0 -960 960 960" width="20" height="20" aria-hidden="true"><path transform="scale(1,-1)" fill="currentColor" d="M840 640Q872 640 896 616Q920 592 920 560V480Q920 473 918 465Q916 457 914 450L794 168Q785 148 764 134Q743 120 720 120H280V640L520 878Q535 893 555.5 895.5Q576 898 595 888Q614 878 623 860Q632 842 627 823L582 640ZM360 606V200H720L840 480V560H480L534 780ZM160 120Q127 120 103.5 143.5Q80 167 80 200V560Q80 593 103.5 616.5Q127 640 160 640H280V560H160V200H280V120Z"/></svg></button>
+                                <button type="button" role="radio" aria-checked="{{ 'true' if vote == 'down' else 'false' }}" aria-label="Thumbs down" data-vote="down"><svg viewBox="0 -960 960 960" width="20" height="20" aria-hidden="true"><path transform="scale(1,-1)" fill="currentColor" d="M120 320Q88 320 64 344Q40 368 40 400V480Q40 487 42 495Q44 503 46 510L166 792Q175 812 196 826Q217 840 240 840H680V320L440 82Q425 67 404.5 64.5Q384 62 365 72Q346 82 337 100Q328 118 333 137L378 320ZM600 354V760H240L120 480V400H480L426 180ZM800 840Q833 840 856.5 816.5Q880 793 880 760V400Q880 367 856.5 343.5Q833 320 800 320H680V400H800V760H680V840Z"/></svg></button>
+                            </div>
+                        </div>
+                        <form class="tf-feedback-form" hidden>
+                            <label for="tf-feedback-comment">{{ t('feedback_comment_label') }}</label>
+                            <div class="tf-textarea"><textarea id="tf-feedback-comment" rows="3" maxlength="{{ max_comment_chars }}" placeholder="{{ t('feedback_comment_placeholder') }}"></textarea></div>
+                            <button type="submit" class="tf-btn tf-btn-fit">{{ t('feedback_send') }}</button>
+                        </form>
+                        <div class="tf-raw tf-feedback-thanks" hidden>{{ feedback_thanks }}</div>
+                        <div class="tf-raw tf-feedback-privacy">{{ feedback_privacy }}</div>
+                    </div>
+                    <div class="tf-el"><div class="md">{{ summary }}</div></div>
+                    <div class="tf-report-row">
+                        <div class="tf-raw">{{ new_analysis }}</div>
+                        <div class="tf-raw">{{ print_button }}</div>
+                        <div class="tf-download"><a href="{{ report_url }}" download>{{ t('download_report') }}</a></div>
+                    </div>
+                </div>
+                <div class="tf-col tf-stack" style="--w:40%">
+                    <div class="tf-el"><div class="md"><div class="preview-title"><span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
+                letter-spacing:0.5px;">{{ t('preview') }}</span>
+                <hr style="border:none; border-top:1px solid #2a2a2a; margin:2px 0 0 0;"></div></div></div>
+{% if page_count > 1 %}
+                    <div class="tf-select">
+                        <select id="tf-page-select" aria-label="{{ t('label_page') }}" data-src="/r/{{ token }}/page/">
+{% for number in range(1, page_count + 1) %}
+                            <option value="{{ number }}"{% if number == page_number %} selected{% endif %}>{{ t('page_x_of_y').format(x=number, y=page_count) }}</option>
+{% endfor %}
+                        </select>
+                    </div>
+{% endif %}
+                    <div class="tf-preview"><img id="tf-preview-img" src="/r/{{ token }}/page/{{ page_number }}.png" alt="{{ t('preview') }}"></div>
+                    <div class="tf-el"><div class="md">{{ properties }}</div></div>
+                </div>
+            </div>
+            <div class="tf-el"><div class="md">{{ all_details }}</div></div>
+        </div>
+{% endblock %}

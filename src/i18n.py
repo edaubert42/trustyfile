@@ -21,7 +21,7 @@ SUPPORTED_LANGS = {"fr", "en"}
 DEFAULT_LANG = "fr"
 
 
-def _parse_accept_language(header: str) -> str | None:
+def parse_accept_language(header: str) -> str | None:
     """
     Pick the best supported language out of an Accept-Language header.
 
@@ -42,9 +42,9 @@ def _parse_accept_language(header: str) -> str | None:
         Two-letter code ("fr" or "en"), or None if nothing matched.
 
     Examples:
-        >>> _parse_accept_language("en-US,en;q=0.9")
+        >>> parse_accept_language("en-US,en;q=0.9")
         'en'
-        >>> _parse_accept_language("de-DE,de;q=0.9")   # unsupported -> None
+        >>> parse_accept_language("de-DE,de;q=0.9")   # unsupported -> None
     """
     if not header:
         return None
@@ -93,7 +93,7 @@ def _detect_browser_lang() -> str | None:
     except Exception:
         # No script run context (bare imports, tests) — no headers to read.
         return None
-    return _parse_accept_language(header)
+    return parse_accept_language(header)
 
 
 def get_lang() -> str:

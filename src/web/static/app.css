@@ -1,0 +1,516 @@
+/* TrustyFile — stylesheet of the web app (src/web/templates).
+
+   The page used to be drawn by Streamlit. Its look is reproduced here in
+   three layers:
+     1. Base: the browser defaults Streamlit set (font, colours, margins).
+     2. Layout: page padding, stacks and columns, sized like Streamlit's.
+     3. Widgets: the dropzone, buttons, page selector, thumbs, comment form.
+   The HTML blocks themselves (gauge, findings, panels) come from
+   src/web/views and carry their own inline styles. */
+
+/* ---- 1. Base ------------------------------------------------------------ */
+
+@font-face {
+    font-family: "Source Sans";
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+    src: url("fonts/SourceSansVF-Upright.woff2") format("woff2");
+}
+
+html { font-size: 16px; }
+*, ::before, ::after { box-sizing: border-box; }
+/* A thin scrollbar, the size Streamlit's was (the page is 10px narrower
+   when it scrolls, exactly as before). */
+::-webkit-scrollbar { width: 10px; height: 10px; background: transparent; }
+::-webkit-scrollbar-thumb {
+    /* Invisible at rest, shown while the pointer is over the page. */
+    background-color: transparent;
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: 100px;
+}
+html:hover::-webkit-scrollbar-thumb { background-color: rgba(250, 250, 250, 0.4); }
+body {
+    margin: 0;
+    font-family: "Source Sans", sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    color: #fafafa;
+    background-color: #0e1117;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+p, ol, ul, dl { margin: 0 0 1rem; padding: 0; font-size: 1rem; font-weight: 400; }
+img, svg { vertical-align: middle; }
+input, button, select, optgroup, textarea { margin: 0; font-family: inherit; line-height: inherit; font-size: inherit; }
+button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* A block of HTML that Streamlit rendered through st.markdown: these are the
+   rules its markdown container applied to what is inside. */
+.md {
+    font-size: 1rem;
+    /* Cancels the bottom margin of a trailing paragraph, exactly as before:
+       the vertical rhythm of every block depends on it. */
+    margin-bottom: -1rem;
+    color: inherit;
+    max-width: 100%;
+    width: 100%;
+    overflow-wrap: break-word;
+}
+.md a { color: #3d9df3; text-decoration: underline; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { line-height: 1.2; margin: 0; color: inherit; }
+.md h1 { font-size: 2.75rem; font-weight: 700; padding: 1.25rem 0 1rem; }
+.md h2, .md h3 { letter-spacing: -0.005em; }
+.md h2 { font-size: 2.25rem; font-weight: 600; padding: 1rem 0; }
+.md h3 { font-size: 1.75rem; font-weight: 600; padding: 0.75rem 0 1rem; }
+.md h4 { font-size: 1.5rem; font-weight: 600; padding: 0.5rem 0 1rem; }
+.md h5 { font-size: 1.25rem; font-weight: 600; padding: 0.375rem 0 1rem; }
+.md h6 { font-size: 1rem; font-weight: 600; padding: 0.25rem 0 1rem; }
+.md p { word-break: break-word; margin-top: 0; margin-left: 0; margin-right: 0; }
+.md img { max-width: 100%; vertical-align: middle; object-fit: scale-down; }
+.md li { margin: 0.2em 0 0.2em 1.15em; padding: 0 0 0 0.3em; }
+.md b, .md strong { font-weight: 600; }
+.md hr {
+    margin: 2em 0;
+    padding: 0;
+    color: inherit;
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(250, 250, 250, 0.2);
+    height: 1px;
+}
+.md table { display: table; border-collapse: collapse; margin-bottom: 1rem; }
+.md tr { border-top: 1px solid rgba(250, 250, 250, 0.1); }
+.md th { text-align: inherit; }
+.md th, .md td { padding: 0.375rem 0.75rem; border: 1px solid rgba(250, 250, 250, 0.1); }
+.md p, .md ol, .md ul, .md dl, .md li { font-size: inherit; }
+.md > ul, .md > ol { display: block; width: fit-content; text-align: left; }
+
+/* Tighten h2 section headers (Detected Issues, More Details) */
+h2 { margin-top: -0.5rem !important; padding-top: 0 !important; }
+
+/* ---- 2. Layout ---------------------------------------------------------- */
+
+/* Header bar */
+.custom-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: #0e1117;
+    border-bottom: 1px solid #2a2a3e;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    z-index: 999;
+}
+.custom-header a.home-link { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
+.custom-header img { height: 36px; width: 36px; object-fit: contain; margin-right: 6px; }
+.custom-header .title { font-size: 1.4rem; font-weight: bold; color: white; margin-right: 12px; }
+.custom-header .subtitle { font-size: 0.9rem; color: #888; font-weight: normal; }
+
+/* Footer bar. The centred contact link is flanked by the Guides link and the
+   language toggle, so on a narrow phone the three collide: below 420px the
+   "Questions or feedback?" prefix is dropped and only the address stays. */
+.tf-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem 1rem;
+    background: #0e1117;
+    border-top: 1px solid #1a1a2e;
+    z-index: 999;
+}
+.tf-footer a { color: #888; font-size: 0.78rem; text-decoration: none; }
+.tf-footer-left, .tf-footer-right { position: absolute; padding: 2px 4px; }
+.tf-footer-left { left: 1rem; }
+.tf-footer-right { right: 1rem; }
+@media (max-width: 420px) {
+    .tf-footer-label { display: none; }
+}
+
+/* The page: content starts right below the fixed header (56px). */
+.tf-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 64px 5rem 10rem;
+    overflow-x: clip;
+}
+/* Each page starts where Streamlit drew its first visible element. */
+.tf-page-landing { padding-top: 128px; padding-bottom: 11rem; }
+.tf-page-results { gap: 0; }
+.tf-page-batch { gap: 0.5rem; padding-top: 111.5px; }
+.tf-page-message { gap: 0; }
+
+/* A vertical stack of blocks, 1rem apart. */
+.tf-stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+/* The box around a markdown block. A flex container, so its height stops at
+   zero when the block's -1rem margin is larger than the block itself (a lone
+   <hr>): the next block then keeps its distance, as it did in Streamlit. */
+.tf-el { display: flex; align-items: center; width: 100%; min-width: 0; }
+/* Raw HTML block (Streamlit's st.html): no markdown rules inside. */
+.tf-raw { width: 100%; }
+
+/* Columns sized by weight: --w is the column's share of the row. Below
+   640px every column takes the full width, so they stack. */
+.tf-cols { display: flex; flex-wrap: wrap; flex-grow: 1; align-items: stretch; gap: 1rem; }
+.tf-cols-center { align-items: center; }
+.tf-col { width: calc(var(--w) - 1rem); flex: 1 1 calc(var(--w) - 1rem); min-width: 0; }
+@media (max-width: 640px) {
+    .tf-col { min-width: calc(100% - 1.5rem); }
+}
+
+/* Reduce gap between Preview title and image below */
+.preview-title { margin-top: 1rem !important; margin-bottom: 0.7rem !important; }
+
+/* Responsive pill text: short version on mobile, long on desktop */
+.pill-long { display: inline; }
+.pill-short { display: none; }
+
+@media (max-width: 480px) {
+    .pill-long { display: none !important; }
+    .pill-short { display: inline !important; }
+    /* More space between collapsible sections on mobile */
+    details { margin-bottom: 8px !important; }
+    .tf-page { padding-left: 0.4rem; padding-right: 0.4rem; max-width: 100vw; }
+    #landing-content p { margin-top: 1rem !important; margin-bottom: 1rem !important; font-size: 2.5rem !important; }
+    #landing-tagline p { font-size: 0.85rem !important; margin-top: 0.8rem !important; }
+    img { max-width: 100% !important; height: auto !important; }
+}
+
+.score-box { padding: 1.5rem; border-radius: 10px; text-align: center; margin: 1rem 0; }
+.score-low { background-color: #198754; border: 2px solid #146c43; color: white; }
+.score-medium { background-color: #ffb627; border: 2px solid #dc6a10; color: white; }
+.score-high { background-color: #ff6b35; border: 2px solid #e55a25; color: white; }
+.score-critical { background-color: #ef233c; border: 2px solid #4a1119; color: white; }
+.flag-critical { color: #ef233c; font-weight: bold; }
+.flag-high { color: #ff6b35; }
+.flag-medium { color: #ffb627; }
+.flag-low { color: #6c757d; }
+
+/* Label with hover tooltip */
+.tf-label { position: relative; cursor: help; font-size: 0.8rem; }
+.tf-label .tf-tip {
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    transform: none;
+    margin-top: 4px;
+    background: #333;
+    color: #ccc;
+    font-size: 0.7rem;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    transition: opacity 0.2s;
+    pointer-events: none;
+    z-index: 10;
+}
+.tf-label:hover .tf-tip,
+.tf-label:focus .tf-tip,
+.tf-label:focus-within .tf-tip { visibility: visible; opacity: 1; }
+/* The labels carry tabindex="0" so a tap (or Tab) focuses them: hover does
+   not exist on a touchscreen, and these tips are the only place the score
+   categories and the date rows are explained. */
+.tf-label:focus { outline: 1px dotted #666; outline-offset: 2px; }
+@media (max-width: 600px) {
+    /* The tip is absolutely positioned inside a ~100px label, so plain
+       `white-space: normal` would wrap it into a 72px-wide sliver. */
+    .tf-label .tf-tip { white-space: normal; width: max-content; max-width: 70vw; }
+}
+
+/* ---- 3. Widgets --------------------------------------------------------- */
+
+/* Standard button (Streamlit's "secondary"), also used on links. */
+.tf-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.25rem 0.75rem;
+    border: 1px solid rgba(250, 250, 250, 0.2);
+    border-radius: 0.5rem;
+    background: #131720;
+    color: #fafafa;
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    user-select: none;
+}
+.tf-btn:hover { border-color: #4a90e2; color: #4a90e2; }
+.tf-btn:active { background: #4a90e2; border-color: #4a90e2; color: #fff; }
+.tf-btn:focus-visible { outline: none; box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.5); }
+.tf-btn-fit { width: auto; }
+/* Text-only button ("← back to the batch"). */
+.tf-btn-tertiary {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.5rem;
+    color: #fafafa;
+    font-size: 14px;
+    text-decoration: none;
+}
+.tf-btn-tertiary:hover { color: #4a90e2; }
+
+/* Upload zone: a dashed frame with the icon, a line of text, "or", a button. */
+.tf-uploader { width: 100%; }
+.tf-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    max-width: 420px;
+    min-height: 340px;
+    margin: 0 auto;
+    padding: 2rem;
+    border: 2px dashed #444;
+    border-radius: 16px;
+    background: transparent;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.3s, background 0.3s;
+}
+.tf-dropzone:hover, .tf-dropzone.tf-drag { border-color: #888; background: rgba(255, 255, 255, 0.03); }
+.tf-dz-instructions { display: flex; flex-direction: column; align-items: center; width: 100%; flex: 0 0 auto; }
+.tf-dz-icon {
+    display: block;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 1rem auto;
+    background: url("/logo.png") center/contain no-repeat;
+    opacity: 0.85;
+}
+.tf-dz-text {
+    display: block;
+    text-align: center;
+    color: #bbb;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    line-height: 1.3;
+}
+.tf-dz-or { display: block; margin: 0.6rem 0 0.9rem; color: #888; font-size: 0.95rem; line-height: 1; }
+.tf-dz-browse {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.4rem 1.5rem;
+    border: 1.5px solid #666;
+    border-radius: 8px;
+    background: transparent;
+    color: #bbb;
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.tf-dz-browse:hover { border-color: #999; color: #eee; }
+/* With JavaScript the native input is hidden and the zone drives it; without,
+   it stays visible next to the <noscript> submit button. */
+.tf-js .tf-dz-input { display: none; }
+.tf-noscript-submit { max-width: 420px; margin: 0.5rem auto 0; display: flex; }
+@media (max-width: 480px) {
+    .tf-uploader { max-width: 65%; margin: 0 auto; }
+    .tf-dropzone { gap: 0.75rem; }
+    .tf-dz-icon { width: 80px; height: 80px; margin-bottom: 0.5rem; }
+    .tf-dz-text { font-size: 0.9rem; }
+}
+/* Short viewports (phone landscape, small windows): shrink the zone so the
+   Browse button is not clipped below the fold. */
+@media (max-height: 500px) {
+    .tf-dropzone { min-height: 0; padding: 0.6rem 1rem; }
+    .tf-dz-icon { width: 70px; height: 70px; margin-bottom: 0.3rem; }
+    .tf-dz-text { font-size: 0.85rem; line-height: 1.3; }
+    .tf-dz-or { margin: 0.4rem 0; font-size: 0.8rem; }
+}
+
+/* Loading splash: one opaque overlay while the upload is analysed. */
+#tf-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483600;
+    background: #0e1117;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    opacity: 1;
+    transition: opacity 0.25s ease-out;
+}
+#tf-splash img { width: 84px; height: 84px; }
+#tf-splash .tf-label {
+    color: #cfd6e4;
+    font: 500 0.95rem/1.4 system-ui, sans-serif;
+    text-align: center;
+    max-width: 80vw;
+    margin-top: -0.5rem;
+    cursor: default;
+}
+#tf-splash .tf-spin {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.15);
+    border-top-color: #4a90e2;
+    animation: tf-spin 0.8s linear infinite;
+}
+@keyframes tf-spin { to { transform: rotate(360deg); } }
+
+/* Page preview: fades in instead of popping when the image arrives. */
+.tf-preview img { display: block; width: 100%; height: auto; border-radius: 0.5rem; animation: tf-fade 0.3s ease-in; }
+@keyframes tf-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Page selector above the preview. */
+.tf-select { position: relative; }
+.tf-select select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2.5rem;
+    padding: 0 2.5rem 0 0.75rem;
+    border: 1px solid #262730;
+    border-radius: 0.5rem;
+    background: #262730 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fafafa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 0.75rem center/14px no-repeat;
+    color: #fafafa;
+    font-size: 14px;
+    cursor: pointer;
+}
+.tf-select select:focus { outline: none; border-color: #4a90e2; }
+
+/* Feedback: the question and thumbs on one line, the privacy note under it. */
+.tf-feedback { display: flex; flex-direction: column; gap: 0; }
+.tf-feedback-row { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.tf-feedback-row .tf-raw { width: auto; }
+.tf-thumbs { display: flex; gap: 2px; height: 24px; }
+.tf-thumbs button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 2px;
+    border: none;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: rgba(250, 250, 250, 0.6);
+}
+.tf-thumbs button:hover, .tf-thumbs button[aria-checked="true"] { color: #fafafa; }
+.tf-thumbs button:focus-visible { outline: none; box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.5); }
+/* Comment form: same centred 440 px column as the findings. */
+.tf-feedback-form { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; width: 100%; max-width: 440px; margin: 0 auto; }
+.tf-feedback-form label { display: flex; align-items: center; min-height: 1.5rem; margin-bottom: calc(0.25rem - 1rem); font-size: 14px; }
+.tf-textarea { width: 100%; display: flex; border: 1px solid #262730; border-radius: 0.5rem; background: #262730; }
+.tf-textarea:focus-within { border-color: #4a90e2; }
+.tf-textarea textarea {
+    width: 100%;
+    /* 68 + the 1 px border each side = the 70 px box Streamlit drew. */
+    height: 68px;
+    min-height: 68px;
+    padding: 12px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #fafafa;
+    font-size: 14px;
+    line-height: 1.4;
+    resize: vertical;
+}
+.tf-textarea textarea::placeholder { color: rgba(250, 250, 250, 0.6); }
+
+/* Report actions: same 440 px column as the findings. The main action takes
+   a full row; the two quiet exports share the row below, half each. */
+.tf-report-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 440px;
+    margin: 1.4rem auto 0 auto;
+}
+.tf-report-row > * { flex: 1 1 0; min-width: 0; width: auto; }
+.tf-report-row > *:first-child { flex: 1 1 100%; }
+.tf-report-row #tf-new-analysis { display: block !important; text-align: center; }
+.tf-report-row #tf-print-wrap, .tf-report-row #tf-print { width: 100% !important; }
+.tf-download a {
+    display: block;
+    width: 100%;
+    padding: 7px 14px;
+    border: 1px solid #2a2a3e;
+    border-radius: 6px;
+    background: transparent;
+    color: #888;
+    font-size: 14px;
+    line-height: 1.2;
+    text-align: center;
+    text-decoration: none;
+}
+.tf-download a:hover { color: #ccc; border-color: #4a90e2; }
+
+/* ---- Print / "Save as PDF" ----------------------------------------------
+   The results page IS the report. This turns the dark UI into a
+   black-on-white document: hides the chrome, stacks the two columns and
+   remaps the inline dark-theme colours through [style*=...] selectors —
+   blunt, but it leaves every inline style alone. */
+.tf-print-only { display: none; }
+@media print {
+    @page { margin: 12mm; }
+    html, body { background: #fff !important; color: #000 !important; }
+    .tf-print-only { display: block; }
+    .custom-header, .tf-footer, #tf-print-wrap, #tf-new-analysis, .tf-feedback, .tf-download,
+    .tf-select, .tf-btn, .tf-btn-tertiary, #tf-splash {
+        display: none !important;
+    }
+    /* Results above the preview, instead of two narrow columns */
+    .tf-cols { display: block !important; }
+    .tf-col { width: 100% !important; flex: none !important; }
+    .tf-page { padding: 0 !important; max-width: none !important; }
+    /* Blanket black text, then give the coloured severity pills their white
+       text back. */
+    .md *, .tf-raw * { color: #000 !important; }
+    .md [style*="color:white"][style*="background:#"],
+    .md [style*="color: white"][style*="background: #"],
+    .md [style*="color:white"][style*="background-color:#"] {
+        color: #fff !important;
+    }
+    /* Dark cards and bar tracks -> light paper cards. */
+    [style*="background:#1a1a2e"], [style*="background:#111"], [style*="background:#0e1117"],
+    [style*="background:#1a1a1a"], [style*="background:#2a2a2a"], [style*="background:#0a0a0a"],
+    [style*="background:#1e1e1e"], [style*="background:#333"], [style*="background:#0a2e1a"],
+    [style*="background:#0a1e3a"], [style*="background:#1a2a3a"],
+    [style*="background: #1a1a2e"], [style*="background: #111"], [style*="background: #0e1117"],
+    [style*="background: #1a1a1a"], [style*="background: #2a2a2a"], [style*="background: #0a0a0a"],
+    [style*="background: #1e1e1e"], [style*="background: #333"], [style*="background: #0a2e1a"],
+    [style*="background: #0a1e3a"], [style*="background: #1a2a3a"] {
+        background: #f3f4f6 !important;
+    }
+    [style*="solid #2a2a2a"], [style*="solid #222"] { border-color: #d1d5db !important; }
+    hr { border-color: #d1d5db !important; }
+    /* Gauge: the white score glyph and the dark track */
+    svg text[fill="white"] { fill: #000 !important; }
+    svg circle[stroke="#2a2a2a"] { stroke: #e5e7eb !important; }
+    /* Keep severity pills and score bars in colour */
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    details, .tf-print-keep { break-inside: avoid; }
+    img { max-width: 100% !important; }
+    a { text-decoration: none; color: inherit; }
+}

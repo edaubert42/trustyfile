@@ -29,7 +29,7 @@ def new_analysis_link_html(lang: str = "fr") -> str:
     """Blue "analyse another document" link back to the upload page."""
     t = translator(lang)
     return f"""
-                <a id="tf-new-analysis" href="?lang={lang}" target="_parent" style="display:inline-block; background:#2563eb; color:white; text-decoration:none; border:1px solid #2563eb; border-radius:6px; padding:7px 14px; font-size:0.85rem; font-weight:600; line-height:1.2;">
+                <a id="tf-new-analysis" href="/?lang={lang}" target="_parent" style="display:inline-block; background:#2563eb; color:white; text-decoration:none; border:1px solid #2563eb; border-radius:6px; padding:7px 14px; font-size:0.85rem; font-weight:600; line-height:1.2;">
                     {t("analyze_another")}
                 </a>
                 """

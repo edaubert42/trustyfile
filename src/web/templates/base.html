@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+{{ head }}    <script>document.documentElement.classList.add("tf-js");</script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="50120522-6e98-4433-9238-81c6ba8358c1"></script>
+    <script defer src="/assets/app.js?v={{ asset_version }}"></script>
+</head>
+<body data-analyzing="{{ t('analyzing') }}">
+    <div class="custom-header">
+        <a class="home-link" href="/">
+            <img src="/logo.png" alt="logo">
+            <span class="title">TrustyFile</span>
+        </a>
+        <span class="subtitle">{{ t('subtitle') }}</span>
+    </div>
+    <main class="tf-page {% block page_class %}{% endblock %}">
+{% block content %}{% endblock %}
+    </main>
+    <div class="tf-footer">
+        <a class="tf-footer-left" href="{{ '/guides/' if lang == 'fr' else '/en/guides/' }}">{{ t('footer_guides') }}</a>
+        <a class="tf-footer-contact" href="mailto:contact@trustyfile.com"><span class="tf-footer-label">{{ t('footer_contact') }} </span><span style="text-decoration:underline;">contact@trustyfile.com</span></a>
+        <a class="tf-footer-right" href="?lang={{ other_lang }}">{{ other_lang | upper }}</a>
+    </div>
+</body>
+</html>

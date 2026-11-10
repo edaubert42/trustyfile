@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block page_class %}tf-page-landing{% endblock %}
+{% block content %}
+        <form id="tf-upload" class="tf-uploader" method="post" action="/analyse" enctype="multipart/form-data"
+              data-max-bytes="{{ max_bytes }}">
+            <input type="hidden" name="lang" value="{{ lang }}">
+            <div class="tf-dropzone" id="tf-dropzone">
+                <div class="tf-dz-instructions">
+                    <span class="tf-dz-icon"></span>
+                    <span class="tf-dz-text">{{ t('drop_pdf_here') }}</span>
+                </div>
+                <span class="tf-dz-or">{{ t('drop_or') }}</span>
+                <button type="button" class="tf-dz-browse">{{ t('browse_file') }}</button>
+                <input id="tf-file" class="tf-dz-input" type="file" name="files" multiple
+                       accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                       aria-label="{{ t('drop_pdf_here') }}">
+            </div>
+            {# Without JavaScript the file input above stays visible and this button sends the form. #}
+            <noscript><button type="submit" class="tf-btn tf-noscript-submit">{{ t('browse_file') }}</button></noscript>
+        </form>
+        <div class="tf-el"><div class="md">{{ disclaimer }}</div></div>
+{% if demo_available %}
+        <div class="tf-cols">
+            <div class="tf-col" style="--w:35.7143%"></div>
+            <div class="tf-col" style="--w:28.5714%">
+                <a class="tf-btn tf-splash-link" href="/demo?lang={{ lang }}">{{ t('demo_button') }}</a>
+            </div>
+            <div class="tf-col" style="--w:35.7143%"></div>
+        </div>
+{% endif %}
+        <div class="tf-cols">
+            <div class="tf-col" style="--w:25%"></div>
+            <div class="tf-col" style="--w:50%"><div class="tf-el"><div class="md">{{ headline }}</div></div></div>
+            <div class="tf-col" style="--w:25%"></div>
+        </div>
+        <div class="tf-el"><div class="md">{{ steps }}</div></div>
+{% endblock %}
