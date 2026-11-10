@@ -1,7 +1,7 @@
 """
 HTML for 2D-Doc data, shared by the PDF results page and the photo scan view.
 
-The rows were built inline in app.py's PDF results page; they live here so the
+The rows of the PDF results page and of the photo scan live here so the
 photo view (a 2D-Doc read from a phone photo) shows exactly the same fields,
 labels and formatting without a second copy of ~120 lines.
 
@@ -16,7 +16,7 @@ from src.i18n import translator
 from src.modules.twod_doc import TwoDocData, extract_verified_data
 
 
-def twod_rows_html(twod_doc_data: TwoDocData, lang: str | None = None) -> str:
+def twod_rows_html(twod_doc_data: TwoDocData, lang: str) -> str:
     """Rows (label / value) for one decoded 2D-Doc, as an HTML fragment.
 
     Known fields first (type, identity, address, tax, invoice), then every
@@ -24,7 +24,7 @@ def twod_rows_html(twod_doc_data: TwoDocData, lang: str | None = None) -> str:
 
     Args:
         twod_doc_data: A parsed 2D-Doc (parse_twod_doc output).
-        lang: "fr" or "en"; None uses the current Streamlit request's language.
+        lang: "fr" or "en".
 
     Returns:
         HTML <div> rows, without the surrounding card.
@@ -170,14 +170,14 @@ _LEVEL_STYLE = {
 }
 
 
-def photo_result_html(result, level: str, key: str, lang: str | None = None) -> str:
+def photo_result_html(result, level: str, key: str, lang: str) -> str:
     """The photo scan view: verdict banner, then the signed data, then advice.
 
     Args:
         result: PhotoScanResult from twod_doc_photo.scan_photo.
         level, key: photo_verdict(result) — the banner colour and the
             translation key of its message (title is key + "_title").
-        lang: "fr" or "en"; None uses the current Streamlit request's language.
+        lang: "fr" or "en".
 
     Returns:
         One HTML fragment (rendered with st.markdown(unsafe_allow_html=True)).
@@ -276,7 +276,7 @@ def pdf_signature_badge(statuses: list[str]) -> tuple[str, str]:
 
 
 def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str],
-                        lang: str | None = None) -> str:
+                        lang: str) -> str:
     """The 2D-Doc panel of the PDF results page (one card per decoded code).
 
     The panel colour and its badge follow pdf_signature_badge: a forged code
@@ -285,7 +285,7 @@ def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str],
     Args:
         twod_docs: parsed 2D-Docs found on the page (scan_pdf_for_2d_doc).
         statuses: signature status of each of them (same order).
-        lang: "fr" or "en"; None uses the current Streamlit request's language.
+        lang: "fr" or "en".
 
     Returns:
         A <details> HTML fragment, or "" when there is no code.

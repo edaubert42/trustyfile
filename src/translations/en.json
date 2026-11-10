@@ -29,6 +29,8 @@
     "back_to_home": "Go back",
     "render_error_title": "The result could not be displayed",
     "render_error_message": "An internal error occurred while displaying the analysis; it has been logged. Try again in a moment or with another document.",
+    "not_found_title": "Page not found",
+    "not_found_message": "This address does not exist, or the result it showed has expired.",
 
     "label_name": "Name",
     "label_stated_date": "Stated date",

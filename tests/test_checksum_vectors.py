@@ -34,7 +34,7 @@ from src.modules.content import (
 
 ROOT = Path(__file__).resolve().parent.parent
 VECTORS_PATH = ROOT / "tests" / "fixtures" / "checksum_vectors.json"
-CHECKSUMS_JS = ROOT / "tools" / "checksums.js"
+CHECKSUMS_JS = ROOT / "public" / "tools" / "checksums.js"
 
 VECTORS = json.loads(VECTORS_PATH.read_text(encoding="utf-8"))["vectors"]
 PYTHON_VALIDATORS = {

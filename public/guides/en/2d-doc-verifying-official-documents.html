@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D-Doc: verifying French official documents</title>
+    <meta name="description" content="The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/2d-doc-verifier-un-document-officiel">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/2d-doc-verifier-un-document-officiel">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="2D-Doc: verifying French official documents">
+    <meta property="og:description" content="The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.">
+    <meta property="og:url" content="https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="2D-Doc: verifying French official documents">
+    <meta name="twitter:description" content="The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "2D-Doc: verifying French official documents",
+        "description": "The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.",
+        "inLanguage": "en",
+        "datePublished": "2026-08-13",
+        "dateModified": "2026-08-13",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/en"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/en/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "2D-Doc: verifying French official documents"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/en">Home</a>
+        <span class="sep">/</span>
+        <a href="/en/guides/">Guides</a>
+        <a class="lang" href="/guides/2d-doc-verifier-un-document-officiel">Français</a>
+    </nav>
+
+    <h1>2D-Doc: the only check that proves something</h1>
+    <p class="updated"><time datetime="2026-08-13">Updated 13 August 2026</time></p>
+    <p class="intro">Every check described in the other guides is circumstantial — it makes fraud more or less likely, never certain. 2D-Doc is different: it rests on cryptography, and allows a clear-cut answer.</p>
+    <h2>Contents</h2>
+    <ol class="toc">
+        <li><a href="#what-a-2d-doc-is">What a 2D-Doc is</a></li>
+        <li><a href="#why-it-beats-everything-else">Why it beats everything else</a></li>
+        <li><a href="#where-trustyfile-stands">Where TrustyFile stands</a></li>
+        <li><a href="#check-with-the-issuer-in-parallel">Check with the issuer in parallel</a></li>
+    </ol>
+    <h2 id="what-a-2d-doc-is">What a 2D-Doc is</h2>
+    <p>2D-Doc is a two-dimensional DataMatrix barcode specified by the French ANTS (national agency for secure documents). It appears on tax notices, pay slips, social security certificates, proof-of-address bills from some suppliers, and assorted administrative documents.</p>
+    <p>It holds two things: the document's key data in clear text (name, amount, date, reference), and a <strong>cryptographic signature</strong> of that data, produced with the issuer's private key.</p>
+    <h2 id="why-it-beats-everything-else">Why it beats everything else</h2>
+    <p>Metadata can be rewritten, fonts can be imitated, a scan erases the traces. A cryptographic signature cannot: without the issuer's private key you cannot produce a valid signature over modified data.</p>
+    <p>That yields two distinct checks, and the difference between them matters:</p>
+    <ul>
+        <li><strong>Is the code readable and consistent?</strong> Does the encoded data match the text printed on the document? If the PDF shows one amount and the code holds another, somebody edited the visual without being able to touch the code.</li>
+        <li><strong>Is the signature valid?</strong> This requires the issuer's certificate and an ECDSA verification. It is the only check that can assert a document is genuine, rather than merely "no anomaly detected".</li>
+    </ul>
+    <h2 id="where-trustyfile-stands">Where TrustyFile stands</h2>
+    <p>TrustyFile currently decodes the 2D-Doc and compares the encoded data against the visible text. That is the first check, and it already catches visual edits.</p>
+    <p>Signature verification itself is not implemented yet. We would rather write that here than imply a guarantee that does not exist: today, no TrustyFile result proves a document is genuine. The tool reports anomalies; it does not issue certificates.</p>
+    <h2 id="check-with-the-issuer-in-parallel">Check with the issuer in parallel</h2>
+    <p>For a French tax notice, the tax administration runs an online verification service (SVAIR) where you enter the tax number and the notice reference. The answer comes from the source itself, which beats any file analysis.</p>
+    <p>General rule: when the issuer offers a way to verify directly with them, that is always the route to take first.</p>
+    <h2>More guides</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
+        <h3>How to spot a tampered invoice</h3>
+        <p>Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-proof-of-address">
+        <h3>How to verify a proof of address</h3>
+        <p>Utility, telecom and internet bills used as proof of address: the technical checks that reveal an edited document, and when the checks simply cannot apply.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-tell-if-a-pdf-was-modified">
+        <h3>How to tell if a PDF was modified</h3>
+        <p>A PDF keeps a record of its successive saves: incremental revisions, ghost objects, two sets of metadata. Where to look to find out whether a file was edited.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-pay-slip">
+        <h3>How to verify a pay slip</h3>
+        <p>Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
+        <h3>How to spot a fake IBAN on an invoice</h3>
+        <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
+    </a>
+    <a class="card" href="/en/guides/supplier-bank-detail-change-fraud">
+        <h3>Supplier bank-detail change fraud: verifying a new IBAN</h3>
+        <p>A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-kbis-extract">
+        <h3>How to verify a Kbis extract (French company registration)</h3>
+        <p>Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
+        <h3>How to verify a French tax notice (avis d&#x27;imposition)</h3>
+        <p>Landlord or agency: verify a tenant&#x27;s French income-tax notice with the tax office&#x27;s online service (SVAIR), the signed 2D-Doc code and the other documents in the file.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
+        <h3>How to verify an URSSAF vigilance certificate (France)</h3>
+        <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/en">TrustyFile</a>
+        &middot; <a href="/en/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

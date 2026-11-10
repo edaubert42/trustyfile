@@ -8,7 +8,7 @@ from src.web.viewmodel import DocumentView
 from src.web.views.common import esc
 
 
-def file_properties_html(view: DocumentView, lang: str | None = None) -> str:
+def file_properties_html(view: DocumentView, lang: str) -> str:
     """
     The file properties table, with red pills on suspicious date gaps.
 

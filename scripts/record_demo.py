@@ -3,7 +3,7 @@
 Record a demo GIF of TrustyFile analyzing a suspicious PDF.
 
 Uses Playwright to:
-1. Start the Streamlit app as a subprocess
+1. Start the website (uvicorn src.web.app:app) as a subprocess
 2. Open headless Chromium and navigate to the app
 3. Upload the demo suspicious PDF
 4. Wait for analysis to complete
@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO_PDF = ROOT / "samples" / "suspicious" / "demo_suspicious.pdf"
 OUTPUT_GIF = ROOT / "docs" / "demo.gif"
 OUTPUT_WEBM = ROOT / "docs" / "demo.webm"
-STREAMLIT_PORT = 8502  # Use a non-default port to avoid conflicts
+APP_PORT = 8502  # Use a non-default port to avoid conflicts
 
 
 def check_prerequisites(video_only: bool) -> None:
@@ -86,7 +86,7 @@ def wait_for_server(url: str, timeout: int = 30) -> bool:
 
 def record_demo(video_only: bool = False):
     """
-    Main function: start Streamlit, record the demo, convert to GIF.
+    Main function: start the app, record the demo, convert to GIF.
 
     Args:
         video_only: If True, keep the .webm and skip GIF conversion.
@@ -103,30 +103,28 @@ def record_demo(video_only: bool = False):
     OUTPUT_GIF.parent.mkdir(parents=True, exist_ok=True)
 
     # =========================================================================
-    # Step 1: Start Streamlit in background
+    # Step 1: Start the app in background
     # =========================================================================
-    print("Starting Streamlit app...")
-    streamlit_proc = subprocess.Popen(
+    print("Starting the app...")
+    app_proc = subprocess.Popen(
         [
-            sys.executable, "-m", "streamlit", "run", "app.py",
-            "--server.port", str(STREAMLIT_PORT),
-            "--server.headless", "true",
-            "--browser.gatherUsageStats", "false",
+            sys.executable, "-m", "uvicorn", "src.web.app:app",
+            "--port", str(APP_PORT),
         ],
         cwd=str(ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
 
-    app_url = f"http://localhost:{STREAMLIT_PORT}"
+    app_url = f"http://localhost:{APP_PORT}"
 
     try:
         # Wait for the server to be ready
-        print(f"Waiting for Streamlit at {app_url}...")
+        print(f"Waiting for the app at {app_url}...")
         if not wait_for_server(app_url):
-            print("ERROR: Streamlit did not start within 30 seconds.")
+            print("ERROR: the app did not start within 30 seconds.")
             sys.exit(1)
-        print("Streamlit is ready!")
+        print("The app is ready!")
 
         # Give it a moment to fully initialize
         time.sleep(2)
@@ -149,9 +147,9 @@ def record_demo(video_only: bool = False):
             )
             page = context.new_page()
 
-            # Navigate to the app with dark theme forced via query param
-            print("Navigating to app (dark mode)...")
-            page.goto(f"{app_url}/?embed_options=dark_theme", wait_until="networkidle")
+            # Navigate to the app, in English (the script waits for "Summary")
+            print("Navigating to app...")
+            page.goto(f"{app_url}/?lang=en", wait_until="networkidle")
             time.sleep(2)
 
             # -----------------------------------------------------------------
@@ -159,18 +157,16 @@ def record_demo(video_only: bool = False):
             # -----------------------------------------------------------------
             print("Uploading demo PDF...")
 
-            # Streamlit uses a hidden file input inside the uploader component.
-            # We set files on it using Playwright's set_input_files.
-            file_input = page.locator('[data-testid="stFileUploaderDropzone"] input[type="file"]')
+            # The drop zone wraps a file input; choosing a file submits the
+            # form, and the server answers with the results page.
+            file_input = page.locator('#tf-upload input[type="file"]')
             file_input.set_input_files(str(DEMO_PDF))
 
-            # Wait for analysis to complete:
-            # The spinner "Analyzing document..." appears, then disappears.
-            # We wait for "Analysis completed in" text which appears after all
-            # results have rendered.
+            # Wait for analysis to complete: the loading overlay shows until
+            # the results page arrives, with its "Summary" heading.
             print("Waiting for analysis to complete...")
             page.wait_for_selector(
-                'text="Summary"',
+                'text=/^summary$/i',
                 timeout=60000,
             )
             # Give the UI time to render all results
@@ -181,10 +177,10 @@ def record_demo(video_only: bool = False):
             # -----------------------------------------------------------------
             print("Scrolling through results...")
 
-            # Streamlit's scrollable container is section[data-testid="stMain"]
+            # The page itself scrolls.
             scroll_data = page.evaluate("""() => {
-                const el = document.querySelector('[data-testid="stMain"]');
-                return {height: el.scrollHeight, client: el.clientHeight};
+                const el = document.documentElement;
+                return {height: el.scrollHeight, client: window.innerHeight};
             }""")
             total = scroll_data["height"]
             client = scroll_data["client"]
@@ -196,7 +192,7 @@ def record_demo(video_only: bool = False):
             max_scroll = total - client
             while scroll_pos < max_scroll:
                 scroll_pos = min(scroll_pos + step, max_scroll)
-                page.evaluate(f'document.querySelector(\'[data-testid="stMain"]\').scrollTop = {scroll_pos}')
+                page.evaluate(f"window.scrollTo(0, {scroll_pos})")
                 time.sleep(0.5)
 
             # Pause at the bottom
@@ -205,7 +201,7 @@ def record_demo(video_only: bool = False):
             # Scroll back to top
             while scroll_pos > 0:
                 scroll_pos = max(scroll_pos - 300, 0)
-                page.evaluate(f'document.querySelector(\'[data-testid="stMain"]\').scrollTop = {scroll_pos}')
+                page.evaluate(f"window.scrollTo(0, {scroll_pos})")
                 time.sleep(0.2)
             time.sleep(2)
 
@@ -270,11 +266,11 @@ def record_demo(video_only: bool = False):
 
     finally:
         # =====================================================================
-        # Cleanup: stop Streamlit
+        # Cleanup: stop the app
         # =====================================================================
-        print("Stopping Streamlit...")
-        streamlit_proc.send_signal(signal.SIGTERM)
-        streamlit_proc.wait(timeout=10)
+        print("Stopping the app...")
+        app_proc.send_signal(signal.SIGTERM)
+        app_proc.wait(timeout=10)
 
 
 if __name__ == "__main__":

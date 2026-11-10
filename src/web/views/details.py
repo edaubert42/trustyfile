@@ -19,7 +19,7 @@ from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc
 from src.web.views.links import guide_url_for_flag, tool_url_for_flag
 
 
-def issues_html(all_flags: list, document_type: str, lang: str = "fr") -> str:
+def issues_html(all_flags: list, document_type: str, lang: str) -> str:
     """
     Every finding as a foldable line: severity pill, sentence, raw details.
 
@@ -114,7 +114,7 @@ def issues_html(all_flags: list, document_type: str, lang: str = "fr") -> str:
     return issues_html
 
 
-def history_panel_html(view: DocumentView, lang: str | None = None) -> str:
+def history_panel_html(view: DocumentView, lang: str) -> str:
     """
     Detailed modification history: one card per saved version, with its diff.
 
@@ -238,7 +238,7 @@ def history_panel_html(view: DocumentView, lang: str | None = None) -> str:
     return more_details_html
 
 
-def modules_panel_html(result: AnalysisResult, lang: str = "fr") -> str:
+def modules_panel_html(result: AnalysisResult, lang: str) -> str:
     """Per-module raw data: score, findings and their details."""
     t = translator(lang)
     more_details_html = ""
@@ -393,7 +393,7 @@ def _extract_entity_address(text: str) -> str | None:
     return None
 
 
-def entities_panel_html(result: AnalysisResult, full_text: str, lang: str | None = None) -> str:
+def entities_panel_html(result: AnalysisResult, full_text: str, lang: str) -> str:
     """
     Companies named in the document: verified ones, then bare identifiers.
 
@@ -564,7 +564,7 @@ def entities_panel_html(result: AnalysisResult, full_text: str, lang: str | None
     return more_details_html
 
 
-def bank_panel_html(result: AnalysisResult, full_text: str, lang: str | None = None) -> str:
+def bank_panel_html(result: AnalysisResult, full_text: str, lang: str) -> str:
     """
     Bank accounts: IBANs verified by the API, then IBANs only read in the text.
 
@@ -682,7 +682,7 @@ def bank_panel_html(result: AnalysisResult, full_text: str, lang: str | None = N
     return more_details_html
 
 
-def mrz_panel_html(result: AnalysisResult, lang: str | None = None) -> str:
+def mrz_panel_html(result: AnalysisResult, lang: str) -> str:
     """
     Machine-readable zone of an identity document: fields and coherence checks.
 
@@ -945,7 +945,7 @@ def mrz_panel_html(result: AnalysisResult, lang: str | None = None) -> str:
 
 
 def all_details_html(bars_html: str, issues: str, more_details: str,
-                     lang: str | None = None) -> str:
+                     lang: str) -> str:
     """
     The single fold holding everything below the verdict.
 

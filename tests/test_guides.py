@@ -17,7 +17,6 @@ import json
 import re
 from datetime import date
 import xml.etree.ElementTree as ET
-from html.parser import HTMLParser
 from pathlib import Path
 
 import pytest
@@ -48,6 +47,15 @@ def test_committed_output_matches_generator():
 
 
 # --- Structural SEO invariants ----------------------------------------------
+
+
+def _landing(lang: str) -> str:
+    """The landing page as the web app serves it, to visitors and crawlers."""
+    from fastapi.testclient import TestClient
+
+    import src.web.app as web_app
+
+    return TestClient(web_app.app).get("/", params={"lang": lang}).text
 
 
 def _all_guides():
@@ -88,7 +96,7 @@ def test_landing_descriptions_fit_their_budgets_and_reach_the_head(lang):
     assert len(chrome["landing_og_description"]) <= 175
     assert len(chrome["landing_twitter_description"]) <= 175
     assert len(chrome["landing_title"]) <= 65
-    rendered = render.render_landing(lang)
+    rendered = _landing(lang)
     esc = html.escape
     assert f'<meta name="description" content="{esc(chrome["landing_description"])}">' in rendered
     assert f'<meta property="og:description" content="{esc(chrome["landing_og_description"])}">' in rendered
@@ -234,7 +242,7 @@ SITEMAP_NS = {
 
 def test_sitemap_is_well_formed_and_complete():
     """Every guide URL appears in the sitemap exactly once."""
-    root = ET.fromstring((ROOT / "sitemap.xml").read_text(encoding="utf-8"))
+    root = ET.fromstring((ROOT / "public" / "sitemap.xml").read_text(encoding="utf-8"))
     locs = [el.text for el in root.findall("sm:url/sm:loc", SITEMAP_NS)]
     assert len(locs) == len(set(locs)), "duplicate <loc> in sitemap"
 
@@ -250,10 +258,10 @@ def test_sitemap_urls_all_resolve_to_a_committed_file():
     """No sitemap entry points at a page that does not exist.
 
     A sitemap listing URLs that 404 is a crawl-budget leak and shows up as an
-    error in Search Console. The two app landing pages are served by Streamlit
-    rather than from a file, so they are skipped.
+    error in Search Console. The two landing pages are rendered by the web
+    app rather than read from a file, so they are skipped.
     """
-    root = ET.fromstring((ROOT / "sitemap.xml").read_text(encoding="utf-8"))
+    root = ET.fromstring((ROOT / "public" / "sitemap.xml").read_text(encoding="utf-8"))
     app_pages = {content.SITE + "/", content.SITE + "/en"}
 
     for el in root.findall("sm:url/sm:loc", SITEMAP_NS):
@@ -263,23 +271,23 @@ def test_sitemap_urls_all_resolve_to_a_committed_file():
         path = url.removeprefix(content.SITE)
         if path.startswith("/en/guides"):
             rel = path.removeprefix("/en/guides").strip("/")
-            base = ROOT / "guides" / "en"
+            base = ROOT / "public" / "guides" / "en"
         elif path.startswith("/en/tools"):
             rel = path.removeprefix("/en/tools").strip("/")
-            base = ROOT / "tools" / "en"
+            base = ROOT / "public" / "tools" / "en"
         elif path.startswith("/outils"):
             rel = path.removeprefix("/outils").strip("/")
-            base = ROOT / "tools" / "fr"
+            base = ROOT / "public" / "tools" / "fr"
         else:
             rel = path.removeprefix("/guides").strip("/")
-            base = ROOT / "guides" / "fr"
+            base = ROOT / "public" / "guides" / "fr"
         target = base / "index.html" if not rel else base / f"{rel}.html"
         assert target.exists(), f"{url} has no file at {target.relative_to(ROOT)}"
 
 
 def test_sitemap_hreflang_annotations_are_self_referential():
     """Each URL's alternates include the URL itself, as the spec requires."""
-    root = ET.fromstring((ROOT / "sitemap.xml").read_text(encoding="utf-8"))
+    root = ET.fromstring((ROOT / "public" / "sitemap.xml").read_text(encoding="utf-8"))
     for url_el in root.findall("sm:url", SITEMAP_NS):
         loc = url_el.find("sm:loc", SITEMAP_NS).text
         alternates = {
@@ -292,14 +300,13 @@ def test_sitemap_hreflang_annotations_are_self_referential():
 # --- Cross-file consistency -------------------------------------------------
 
 
-def test_seo_landing_pages_link_to_the_guides():
-    """The crawler-facing pages link into /guides.
+def test_landing_pages_link_to_the_guides():
+    """The landing pages link into /guides.
 
     Without an internal link the guides are reachable only through the sitemap,
     which crawls far more slowly and passes no link signal.
     """
-    fr = (ROOT / "seo-fr.html").read_text(encoding="utf-8")
-    en = (ROOT / "seo-en.html").read_text(encoding="utf-8")
+    fr, en = _landing("fr"), _landing("en")
     assert 'href="/guides/' in fr
     assert 'href="/en/guides/' in en
     # Same for the checker tools: a page only the hub links to is one hop
@@ -308,68 +315,6 @@ def test_seo_landing_pages_link_to_the_guides():
         assert f'href="/outils/{tool.slug}"' in fr
     for tool in content.TOOLS["en"]:
         assert f'href="/en/tools/{tool.slug}"' in en
-
-
-class _VisibleText(HTMLParser):
-    """Collect the text nodes a reader sees in <body>, skipping script/style."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.in_body = False
-        self.skipping = 0
-        self.texts: list[str] = []
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "body":
-            self.in_body = True
-        if tag in ("script", "style"):
-            self.skipping += 1
-
-    def handle_endtag(self, tag):
-        if tag in ("script", "style"):
-            self.skipping -= 1
-
-    def handle_data(self, data):
-        if self.in_body and not self.skipping:
-            # Separator glyphs and whitespace carry no content of their own.
-            text = data.strip(" \n\t·")
-            if text:
-                self.texts.append(text)
-
-
-@pytest.mark.parametrize("lang", ["fr", "en"])
-def test_landing_page_says_nothing_the_app_does_not(lang):
-    """The crawler landing page is built from the app's own strings — and only them.
-
-    Every visible text node must be a translation value app.py renders on its
-    landing (headline, tagline, disclaimers, steps, footer), a guide title, or
-    fixed chrome (brand, step numbers, punctuation, contact address, language
-    switch). Anything else is prose a human never sees: the cloaking bug this
-    generator exists to prevent (fixed 2026-08-27).
-    """
-    t = content.load_translations(lang)
-    colon = " :" if lang == "fr" else ":"
-    allowed = {
-        t[key]
-        for key in (
-            "subtitle", "landing_headline", "landing_tagline", "disclaimer_upload",
-            "step1_title", "step1_desc", "step2_title", "step2_desc",
-            "step3_title", "step3_desc", "disclaimer_api",
-            "footer_guides", "footer_tools", "footer_contact",
-        )
-    }
-    allowed |= {t["footer_guides"] + colon, t["footer_tools"] + colon}
-    allowed |= {guide.title for guide in content.GUIDES[lang]}
-    allowed |= {tool.title for tool in content.TOOLS[lang]}
-    allowed |= {
-        "TrustyFile", "1", "2", "3", "contact@trustyfile.com",
-        content.CHROME[lang]["lang_switch"],
-    }
-
-    parser = _VisibleText()
-    parser.feed(render.render_landing(lang))
-    stray = [text for text in parser.texts if text not in allowed]
-    assert not stray, f"crawler page carries text the app landing does not: {stray}"
 
 
 @pytest.mark.parametrize("lang", ["fr", "en"])
@@ -397,7 +342,7 @@ def test_faq_structured_data_matches_visible_faq(lang):
 
 def test_robots_does_not_block_the_guides():
     """A Disallow rule covering /guides would undo the whole exercise."""
-    robots = (ROOT / "robots.txt").read_text(encoding="utf-8")
+    robots = (ROOT / "public" / "robots.txt").read_text(encoding="utf-8")
     disallowed = [
         line.split(":", 1)[1].strip()
         for line in robots.splitlines()
@@ -438,7 +383,7 @@ def test_guide_dates_are_real_and_rendered(lang, guide):
 
 def test_sitemap_lastmod_comes_from_each_page():
     """Every guide and tool URL carries its own modified date, not a global one."""
-    tree = ET.parse(ROOT / "sitemap.xml")
+    tree = ET.parse(ROOT / "public" / "sitemap.xml")
     ns = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
     lastmod = {
         url.find("sm:loc", ns).text: url.find("sm:lastmod", ns).text
@@ -502,10 +447,10 @@ def test_llms_txt_lists_every_public_page():
 
 
 _LINK_ROOTS = {
-    "/guides/": ROOT / "guides" / "fr",
-    "/en/guides/": ROOT / "guides" / "en",
-    "/outils/": ROOT / "tools" / "fr",
-    "/en/tools/": ROOT / "tools" / "en",
+    "/guides/": ROOT / "public" / "guides" / "fr",
+    "/en/guides/": ROOT / "public" / "guides" / "en",
+    "/outils/": ROOT / "public" / "tools" / "fr",
+    "/en/tools/": ROOT / "public" / "tools" / "en",
 }
 
 

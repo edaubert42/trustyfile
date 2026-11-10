@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraude au faux fournisseur : vérifier un changement de RIB</title>
+    <meta name="description" content="Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Fraude au faux fournisseur : vérifier un changement de RIB">
+    <meta property="og:description" content="Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fraude au faux fournisseur : vérifier un changement de RIB">
+    <meta name="twitter:description" content="Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Fraude au faux fournisseur : vérifier un changement de RIB",
+        "description": "Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d'alerte dans le message et le RIB, et la procédure à suivre avant de payer.",
+        "inLanguage": "fr",
+        "datePublished": "2026-09-03",
+        "dateModified": "2026-09-03",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/fraude-au-faux-fournisseur-changement-de-rib"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Fraude au faux fournisseur : vérifier un changement de RIB"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/supplier-bank-detail-change-fraud">English</a>
+    </nav>
+
+    <h1>Fraude au faux fournisseur : que faire face à un changement de RIB</h1>
+    <p class="updated"><time datetime="2026-09-03">Mis à jour le 3 septembre 2026</time></p>
+    <p class="intro">La fraude au faux fournisseur consiste à se faire passer pour un fournisseur habituel afin de détourner ses paiements : un message annonce un « changement de coordonnées bancaires », la comptabilité met la fiche à jour, et le règlement suivant part sur le compte de l'escroc. Le vrai fournisseur ne s'en aperçoit qu'en relançant sa facture impayée, souvent des semaines plus tard. Ce guide s'adresse à ceux qui traitent les paiements : reconnaître l'attaque, contrôler le document reçu, et surtout appliquer la procédure qui la neutralise.</p>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#comment-se-deroule-l-attaque">Comment se déroule l&#x27;attaque</a></li>
+        <li><a href="#les-signaux-d-alerte-dans-le-message">Les signaux d&#x27;alerte dans le message</a></li>
+        <li><a href="#ce-que-revele-le-rib-joint">Ce que révèle le RIB joint</a></li>
+        <li><a href="#la-procedure-qui-protege-vraiment-le-rappel">La procédure qui protège vraiment : le rappel</a></li>
+        <li><a href="#si-le-virement-est-deja-parti">Si le virement est déjà parti</a></li>
+        <li><a href="#ce-qu-un-controle-automatique-peut-et-ne-peut-pas-faire">Ce qu&#x27;un contrôle automatique peut et ne peut pas faire</a></li>
+    </ol>
+    <h2 id="comment-se-deroule-l-attaque">Comment se déroule l&#x27;attaque</h2>
+    <p>Le fraudeur commence par se renseigner : qui sont vos fournisseurs, qui traite les factures chez vous, quand tombent les échéances. Sites web, appels d'offres, réseaux professionnels et, de plus en plus souvent, une boîte mail compromise chez le fournisseur lui-même fournissent tout cela.</p>
+    <p>Vient ensuite l'usurpation. Dans la version la plus simple, le message part d'un domaine sosie — une lettre doublée, un <em>.co</em> à la place d'un <em>.com</em>, un tiret ajouté. Dans la version la plus dangereuse, il part de la vraie boîte mail du fournisseur, piratée, en réponse à un échange réel : l'expéditeur, le fil, la signature, tout est authentique. Seul le RIB ne l'est pas.</p>
+    <p>Le déclencheur est un prétexte banal : changement de banque, fusion, réorganisation comptable, « suite à un contrôle ». Un RIB est joint, parfois une facture. Puis vient la pression : un rappel téléphonique, une échéance proche, une remise si le paiement est rapide. La <a href="/guides/detecter-un-faux-rib">fraude au faux RIB</a> est le volet documentaire de ce scénario ; la « fraude au président », où l'ordre de virement urgent vient d'un prétendu dirigeant, en est la cousine.</p>
+    <h2 id="les-signaux-d-alerte-dans-le-message">Les signaux d&#x27;alerte dans le message</h2>
+    <p>Aucun de ces indices ne prouve la fraude ; un seul suffit à déclencher la vérification décrite plus bas.</p>
+    <ul>
+        <li>L'<strong>adresse d'expédition</strong> diffère d'une lettre du domaine habituel, ou l'adresse de réponse (<em>Reply-To</em>) n'est pas celle de l'expéditeur affiché.</li>
+        <li>Un <strong>nouvel interlocuteur</strong> apparaît, ou l'on vous demande de ne plus passer par le contact habituel, « en congé » ou « parti ».</li>
+        <li><strong>Urgence et confidentialité</strong> : régler avant telle date, ne pas en parler, traiter « en direct ».</li>
+        <li>La nouvelle banque est dans un <strong>autre pays</strong> que le fournisseur, ou c'est un établissement de paiement en ligne pour une entreprise qui, jusque-là, était dans une banque de réseau.</li>
+        <li>Le fournisseur <strong>évite le téléphone</strong> ou ne rappelle que depuis un numéro inconnu.</li>
+        <li>Le message arrive <strong>juste après l'émission d'une facture importante</strong> ou juste avant son échéance.</li>
+    </ul>
+    <h2 id="ce-que-revele-le-rib-joint">Ce que révèle le RIB joint</h2>
+    <p>Le document est le seul élément tangible que vous tenez. Trois contrôles se font en quelques minutes :</p>
+    <ul>
+        <li>La <strong>clé de l'IBAN</strong> (et la clé RIB pour un compte français) : une clé fausse condamne le document. Une clé valide ne l'innocente pas — les fraudeurs ouvrent de vrais comptes.</li>
+        <li>La <strong>cohérence bancaire</strong> : le code établissement dans l'IBAN, le BIC et le nom de banque imprimé doivent désigner le même établissement ; un logo de grande banque sur un IBAN d'établissement de paiement se contredit.</li>
+        <li>Les <strong>traces de retouche</strong> : changement de police sur la ligne de l'IBAN, rectangle blanc recouvrant l'ancien numéro, révision du PDF postérieure à sa création, métadonnées d'un éditeur PDF sur un document censé sortir de la banque. Le guide <a href="/guides/verifier-une-facture-falsifiee">sur les factures falsifiées</a> détaille chacun de ces indices.</li>
+    </ul>
+    <h2 id="la-procedure-qui-protege-vraiment-le-rappel">La procédure qui protège vraiment : le rappel</h2>
+    <p>Aucun contrôle du document ne peut établir à qui appartient le compte. Une seule chose le peut : demander au fournisseur, par un canal que le fraudeur ne contrôle pas.</p>
+    <p>Rappelez à un <strong>numéro que vous possédiez déjà</strong> — contrat, ancienne facture, fiche fournisseur, site officiel — jamais celui du message ni celui imprimé sur le RIB reçu. Parlez à une personne que vous connaissez, ou à défaut au service comptable, et faites-lui lire l'IBAN. Si la boîte mail du fournisseur est compromise, c'est aussi ainsi qu'il l'apprendra.</p>
+    <p>Inscrivez ce rappel dans une <strong>procédure</strong> : tout changement de coordonnées bancaires est validé par deux personnes, après confirmation téléphonique tracée, et le premier paiement vers un nouveau compte attend ce feu vert quelle que soit l'urgence invoquée. L'urgence est l'outil du fraudeur ; la procédure est le vôtre.</p>
+    <p>Depuis le 9 octobre 2025, les banques de la zone euro vérifient la concordance entre le nom du bénéficiaire saisi et le titulaire de l'IBAN avant d'exécuter un virement. C'est un filet supplémentaire, pas une raison de sauter le rappel : le compte frauduleux est souvent ouvert sous un nom proche de celui du fournisseur, ou au nom d'une société écran.</p>
+    <h2 id="si-le-virement-est-deja-parti">Si le virement est déjà parti</h2>
+    <p>Chaque heure compte : les fonds sont généralement retirés ou renvoyés à l'étranger en quelques heures ou quelques jours.</p>
+    <ul>
+        <li><strong>Appelez votre banque</strong> immédiatement et demandez un rappel de fonds (<em>recall</em>) ; les chances baissent vite mais ne sont pas nulles tant que le compte destinataire n'a pas été vidé.</li>
+        <li><strong>Prévenez le vrai fournisseur</strong> : si sa messagerie est compromise, il doit la sécuriser et alerter ses autres clients.</li>
+        <li><strong>Déposez plainte</strong> et conservez tout : e-mails avec leurs en-têtes complets, RIB reçu, ordres de virement, relevés d'appels.</li>
+        <li><strong>Déclarez le sinistre</strong> à votre assureur si vous avez une garantie fraude ou cyber, dans les délais du contrat.</li>
+        <li><strong>Signalez</strong> l'attaque sur cybermalveillance.gouv.fr et revoyez la procédure interne qui a laissé passer le changement.</li>
+    </ul>
+    <h2 id="ce-qu-un-controle-automatique-peut-et-ne-peut-pas-faire">Ce qu&#x27;un contrôle automatique peut et ne peut pas faire</h2>
+    <p>TrustyFile vérifie le document : clé de l'IBAN, cohérence des identifiants d'entreprise (SIRET, TVA), traces de retouche, révisions, texte recouvert. Il repère le RIB fabriqué ou modifié, cas le plus fréquent. Il ne peut pas savoir à qui appartient un compte parfaitement réel : ce dernier maillon reste le coup de téléphone — et il n'est pas remplaçable.</p>
+    <h2>Outils gratuits</h2>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siret">
+        <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
+        <h3>Vérifier un justificatif de domicile</h3>
+        <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
+    </a>
+    <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
+        <h3>Savoir si un PDF a été modifié</h3>
+        <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
+    </a>
+    <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
+        <h3>2D-Doc : vérifier un document officiel français</h3>
+        <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

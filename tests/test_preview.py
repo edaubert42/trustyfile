@@ -196,15 +196,6 @@ def test_real_overlay_flag_boxes_are_collectible(tmp_path):
     assert 0 <= x0 < x1 <= 595 and 0 <= y0 < y1 <= 842
 
 
-# --- Task 4: app.py wires to src.preview instead of a local definition ---
-def test_app_imports_render_pdf_page_from_preview():
-    import app
-    import src.preview as preview
-    assert app.render_pdf_page is preview.render_pdf_page
-    assert app.collect_evidence_boxes is preview.collect_evidence_boxes
-    assert app.first_flagged_page is preview.first_flagged_page
-
-
 def test_marker_highlight_is_deterministic(tmp_path):
     # The wavy marker style uses sine-based jitter, not `random` — the same
     # bbox on the same page must render byte-identical PNGs every call.

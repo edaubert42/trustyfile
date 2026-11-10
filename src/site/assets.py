@@ -249,21 +249,6 @@ footer {
 /* Guides index FAQ */
 dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
-/* Crawler landing page — mirrors the Streamlit landing, element for element */
-header.brand { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 2.5rem; }
-header.brand .name { font-weight: 700; color: #1a1a2e; text-decoration: none; font-size: 1.05rem; }
-header.brand .subtitle { color: #888; font-size: 0.85rem; }
-p.tagline { font-size: 1.15rem; color: #444; margin: 0 0 1rem; }
-p.note { font-size: 0.85rem; color: #777; }
-ol.steps { list-style: none; padding: 0; display: flex; gap: 1rem; flex-wrap: wrap; margin: 2rem 0; }
-ol.steps li { flex: 1 1 180px; background: #f8f9fa; border-radius: 10px; padding: 1rem 1.1rem; }
-ol.steps .n {
-    display: inline-flex; width: 26px; height: 26px; border-radius: 50%;
-    background: #1a1a2e; color: #fff; align-items: center; justify-content: center;
-    font-size: 0.8rem; font-weight: 700; margin-bottom: 0.5rem;
-}
-ol.steps strong { display: block; color: #1a1a2e; margin-bottom: 0.2rem; }
-ol.steps .d { color: #666; font-size: 0.9rem; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
 form.tool input {

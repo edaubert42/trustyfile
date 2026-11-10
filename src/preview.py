@@ -1,8 +1,8 @@
 """PDF preview rendering + evidence-region collection (spec 2026-07-21).
 
-Pure PyMuPDF + dataclass code, zero Streamlit dependency, so every function
-here is directly unit-testable. app.py imports from this module instead of
-defining its own rendering helper.
+Pure PyMuPDF + dataclass code, no web framework involved, so every function
+here is directly unit-testable. The website draws its preview through
+src/web/documents.py, which calls this module.
 """
 import math
 from typing import Iterator

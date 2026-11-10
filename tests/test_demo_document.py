@@ -1,6 +1,6 @@
 """The sample document behind the landing page's "try with a sample document" button.
 
-static/demo/facture-exemple.pdf is a fictitious invoice tampered on purpose by
+public/static/demo/facture-exemple.pdf is a fictitious invoice tampered on purpose by
 scripts/make_demo_invoice.py. These tests pin that it is still caught for the
 reasons the banner promises, that the generator still reproduces it, and that
 the stand-in app.py wraps it in walks and talks like an upload.
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO = ROOT / "static" / "demo" / "facture-exemple.pdf"
+DEMO = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 EXPECTED_CODES = {
@@ -49,9 +49,8 @@ def test_generator_still_reproduces_the_committed_sample(tmp_path):
     assert result.band == "SUSPICIOUS"
 
 
-def test_stand_in_upload_serves_the_committed_bytes():
-    import app
+def test_the_website_serves_the_committed_sample():
+    import src.web.app as web_app
 
-    demo = app._DemoUpload()
-    assert demo.name == DEMO.name
-    assert demo.getvalue() == DEMO.read_bytes()
+    assert web_app.DEMO_PDF == DEMO
+    assert web_app.DEMO_NAME == DEMO.name

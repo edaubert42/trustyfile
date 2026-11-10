@@ -7,7 +7,7 @@ import html
 from src.i18n import translator
 
 
-def upload_disclaimer_html(lang: str | None = None) -> str:
+def upload_disclaimer_html(lang: str) -> str:
     """Small grey line under the drop zone ("your document is not kept")."""
     t = translator(lang)
     return f"""
@@ -17,7 +17,7 @@ def upload_disclaimer_html(lang: str | None = None) -> str:
     """
 
 
-def headline_html(lang: str | None = None) -> str:
+def headline_html(lang: str) -> str:
     """Headline and tagline above the drop zone."""
     t = translator(lang)
     return f"""
@@ -34,7 +34,7 @@ def headline_html(lang: str | None = None) -> str:
         """
 
 
-def steps_html(guides: list, tools: list, lang: str = "fr") -> str:
+def steps_html(guides: list, tools: list, lang: str) -> str:
     """
     The three "how it works" cards, then the guide and tool links.
 

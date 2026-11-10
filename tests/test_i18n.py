@@ -2,9 +2,8 @@
 Tests for the i18n language resolution.
 
 Focus on parse_accept_language: it is pure logic (string in, language code
-out) with no Streamlit dependency, so it can be tested directly. get_lang
-itself needs a script run context, which is why the header parsing lives in
-its own function.
+out), so it can be tested directly. The rest of the resolution (?lang=, the
+path) lives in src/web/app.py and is tested in tests/test_web_pages.py.
 """
 
 import json
@@ -34,9 +33,11 @@ def test_every_app_translation_key_exists_in_both_languages():
     Every literal t("key") in the page's code must resolve in both files, and every
     dynamic family t(f"prefix{...}") must have the same members in both.
     """
-    # The page is app.py plus the HTML views it calls (src/web/views/).
-    files = [ROOT / "app.py", ROOT / "src" / "twod_doc_view.py",
-             *sorted((ROOT / "src" / "web" / "views").glob("*.py"))]
+    # The pages: the routes, the Jinja templates and the HTML views.
+    web = ROOT / "src" / "web"
+    files = [web / "app.py", ROOT / "src" / "twod_doc_view.py",
+             *sorted((web / "views").glob("*.py")),
+             *sorted((web / "templates").glob("*.html"))]
     source = "\n".join(path.read_text(encoding="utf-8") for path in files)
     literal = set(re.findall(r"""\bt\(\s*["']([A-Za-z0-9_]+)["']\s*\)""", source))
     families = set(re.findall(r"""\bt\(f["']([A-Za-z0-9_]+)\{""", source))
@@ -49,7 +50,7 @@ def test_every_app_translation_key_exists_in_both_languages():
         for key in sorted(literal)
         if key not in en or key not in fr
     }
-    assert not missing, f"keys used by app.py but absent from a translation file: {missing}"
+    assert not missing, f"keys used by the pages but absent from a translation file: {missing}"
 
     for prefix in families:
         en_members = {k for k in en if k.startswith(prefix)}

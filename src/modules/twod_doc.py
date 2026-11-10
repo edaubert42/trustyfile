@@ -900,11 +900,11 @@ _CROP_MARGIN_PX = 20
 
 # --- Scan cache -------------------------------------------------------------
 # The same PDF is scanned more than once per upload: by analyze_twod_doc during
-# the analysis, then again by app.py (and batch.py) to display the decoded
+# the analysis, then again by the pages (pipeline.py) to display the decoded
 # fields. Keyed by the file's SHA-256 — the CONTENT, not the path, so a new
 # upload that reuses a temp-file name can never get another file's result.
 # Small LRU (least recently used entries evicted first); the lock makes it safe
-# under Streamlit, which serves each browser session from its own thread.
+# under the web app, which runs each analysis in a threadpool thread.
 _SCAN_CACHE: "OrderedDict[tuple[str, int], list[TwoDocData]]" = OrderedDict()
 _SCAN_CACHE_SIZE = 16
 _SCAN_CACHE_LOCK = threading.Lock()

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifier un numéro de TVA intracommunautaire français</title>
+    <meta name="description" content="Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/vat-number-checker">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/verifier-un-numero-de-tva">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Vérifier un numéro de TVA intracommunautaire français">
+    <meta property="og:description" content="Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.">
+    <meta property="og:url" content="https://www.trustyfile.com/outils/verifier-un-numero-de-tva">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vérifier un numéro de TVA intracommunautaire français">
+    <meta name="twitter:description" content="Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Vérifier un numéro de TVA intracommunautaire français",
+        "url": "https://www.trustyfile.com/outils/verifier-un-numero-de-tva",
+        "description": "Vérifiez la clé d'un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l'existence du numéro, VIES.",
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "EUR"
+        },
+        "inLanguage": "fr",
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Outils gratuits",
+                        "item": "https://www.trustyfile.com/guides/#outils"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Vérifier un numéro de TVA intracommunautaire français"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/tools/vat-number-checker">English</a>
+    </nav>
+
+    <h1>Vérifier un numéro de TVA intracommunautaire</h1>
+    <p class="intro">Collez un numéro de TVA français : l'outil vérifie que la clé à deux chiffres correspond bien au SIREN qui la suit, et que ce SIREN est lui-même bien formé. Tout se calcule dans votre navigateur : le numéro n'est envoyé nulle part.</p>
+    <form class="tool" id="tf-form" autocomplete="off">
+        <input id="tf-input" type="text" spellcheck="false" placeholder="FR03 552 081 317" aria-label="Vérifier un numéro de TVA intracommunautaire">
+        <button type="submit">Vérifier</button>
+    </form>
+    <div id="tf-result" class="result" role="status" aria-live="polite"></div>
+    <p class="privacy">Le calcul se fait dans votre navigateur : le numéro saisi n&#x27;est envoyé à aucun serveur.</p>
+    <h2 id="ce-que-ce-controle-prouve">Ce que ce contrôle prouve</h2>
+    <p>Qu'un numéro de TVA français est cohérent avec lui-même : la clé se calcule à partir du SIREN — (12 + 3 × (SIREN modulo 97)) modulo 97 — et le SIREN porte sa propre clé de Luhn. Un numéro recopié avec une faute, ou inventé pour habiller une fausse facture, échoue presque toujours.</p>
+    <p>Sur une facture, le numéro de TVA doit correspondre au SIRET imprimé à côté : les neuf premiers chiffres du SIRET sont le SIREN qui suit la clé. Un écart entre les deux est l'une des incohérences les plus parlantes, et l'une de celles que TrustyFile recherche dans un document.</p>
+    <h2 id="ce-qu-il-ne-prouve-pas">Ce qu&#x27;il ne prouve pas</h2>
+    <p>Que le numéro est attribué, actif et enregistré pour les échanges intracommunautaires. Seule la base <a href="https://ec.europa.eu/taxation_customs/vies/">VIES</a> de la Commission européenne répond à cette question, en interrogeant l'administration fiscale du pays. Une entreprise française en franchise en base de TVA peut n'avoir aucun numéro intracommunautaire tout en étant parfaitement réelle.</p>
+    <p>Certains numéros français ont une clé qui contient des lettres, calculée selon un autre algorithme : cet outil les signale comme hors de son périmètre plutôt que de les valider ou de les rejeter à tort.</p>
+    <h2 id="comment-lire-le-resultat">Comment lire le résultat</h2>
+    <ul>
+        <li>Clé valide : le numéro est cohérent. Comparez-le au SIRET de la facture et, pour un nouveau fournisseur, vérifiez-le dans VIES.</li>
+        <li>Clé invalide, SIREN bien formé : la clé attendue est affichée. Une seule faute de frappe suffit à l'expliquer — un numéro fabriqué aussi.</li>
+        <li>SIREN invalide : le cœur du numéro est faux ; recopiez-le depuis le document original avant de conclure.</li>
+    </ul>
+    <h2 id="verifier-toute-la-facture-pas-seulement-le-numero-de-tva">Vérifier toute la facture, pas seulement le numéro de TVA</h2>
+    <p>TrustyFile fait ce contrôle sur les numéros trouvés dans un PDF, confronte la TVA au SIRET, interroge le registre des entreprises, puis cherche ce qu'un numéro cohérent ne dira jamais : un montant recouvert, une révision ajoutée après coup, un texte masqué.</p>
+    <h2>Autres outils</h2>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siret">
+        <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siren">
+        <h3>Vérifier un SIREN et retrouver le numéro de TVA</h3>
+        <p>Vérifiez la clé de Luhn d&#x27;un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
+        <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n&#x27;est envoyé.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.", "valid_nir": "Clé de contrôle valide", "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé", "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}", "nir_male": "Homme", "nir_female": "Femme", "nir_temporary": "Numéro provisoire", "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}", "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "vat"}</script>
+    <script>
+// TrustyFile checksum validators. Generated by scripts/build_guides.py —
+// mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
+(function (root) {
+  'use strict';
+  var LA_POSTE_SIREN = '356000000';
+  var IBAN_LENGTHS = { AT: 20, BE: 16, CH: 21, DE: 22, ES: 24, FR: 27, GB: 22, IE: 22,
+                       IT: 27, LU: 20, MC: 27, NL: 18, PL: 28, PT: 25 };
+
+  function stripSeparators(text) { return String(text == null ? '' : text).replace(/[\s.\-]/g, ''); }
+
+  // Luhn as content.py applies it: for 14 digits the doubled positions are the
+  // even indexes from the left (0, 2, ... 12); for 9 digits the odd ones (1, 3, 5, 7).
+  function luhnOk(digits, doubleEvenIndexes) {
+    var total = 0;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits.charCodeAt(i) - 48;
+      if ((i % 2 === 0) === doubleEvenIndexes) { d *= 2; if (d > 9) { d -= 9; } }
+      total += d;
+    }
+    return total % 10 === 0;
+  }
+  function digitSum(digits) {
+    var s = 0;
+    for (var i = 0; i < digits.length; i++) { s += digits.charCodeAt(i) - 48; }
+    return s;
+  }
+  // Remainder of a long decimal string divided by 97, digit by digit (no BigInt needed).
+  function mod97(digits) {
+    var m = 0;
+    for (var i = 0; i < digits.length; i++) { m = (m * 10 + (digits.charCodeAt(i) - 48)) % 97; }
+    return m;
+  }
+
+  function sirenCheck(text) {
+    var siren = stripSeparators(text);
+    if (!/^\d{9}$/.test(siren)) { return { ok: false, reason: 'format', value: siren }; }
+    var ok = luhnOk(siren, false);
+    // French VAT key, as content.py's validate_french_vat computes it.
+    var key = (12 + 3 * mod97(siren)) % 97;
+    return { ok: ok, reason: ok ? null : 'checksum', value: siren, vatKey: (key < 10 ? '0' : '') + key };
+  }
+
+  function siretCheck(text) {
+    var siret = stripSeparators(text);
+    if (!/^\d{14}$/.test(siret)) { return { ok: false, reason: 'format', value: siret }; }
+    var luhn = luhnOk(siret, true);
+    var laPoste = siret.indexOf(LA_POSTE_SIREN) === 0;
+    var ok = luhn || (laPoste && digitSum(siret) % 5 === 0);
+    return { ok: ok, reason: ok ? null : 'checksum', value: siret,
+             siren: siret.slice(0, 9), nic: siret.slice(9), laPoste: laPoste && ok && !luhn };
+  }
+
+  // French RIB key: bank (5) branch (5) account (11) key (2). Letters in the
+  // account map to digits (A,J=1 B,K,S=2 ... I,R,Z=9); key = 97 - (BGC x 100 mod 97).
+  function ribKeyOk(bban) {
+    var account = bban.slice(10, 21).toUpperCase().replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    var remainder = (mod97(bban.slice(0, 10) + account) * 100) % 97;
+    return (97 - remainder) === parseInt(bban.slice(21, 23), 10);
+  }
+
+  function ibanCheck(text) {
+    var iban = stripSeparators(text).toUpperCase();
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) { return { ok: false, reason: 'format', value: iban }; }
+    var rearranged = iban.slice(4) + iban.slice(0, 4);
+    var numeric = '';
+    for (var i = 0; i < rearranged.length; i++) {
+      var c = rearranged.charCodeAt(i);
+      numeric += c >= 65 ? String(c - 55) : rearranged.charAt(i);   // A=10 ... Z=35
+    }
+    var ok = mod97(numeric) === 1;
+    var country = iban.slice(0, 2);
+    var expected = IBAN_LENGTHS[country] || null;
+    return { ok: ok, reason: ok ? null : 'checksum', value: iban, country: country,
+             expectedLength: expected, lengthOk: expected ? iban.length === expected : null,
+             formatted: iban.replace(/(.{4})/g, '$1 ').trim(),
+             ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
+  }
+
+  // French VAT number: FR + two-digit key + SIREN; key = (12 + 3 x (SIREN mod 97)) mod 97,
+  // as content.py's validate_french_vat computes it. Keys with letters (another
+  // algorithm) are a format failure here, never a guess.
+  function vatCheck(text) {
+    var vat = stripSeparators(text).toUpperCase();
+    if (!/^FR\d{11}$/.test(vat)) { return { ok: false, reason: 'format', value: vat }; }
+    var key = vat.slice(2, 4), siren = vat.slice(4);
+    var sirenOk = luhnOk(siren, false);
+    var expected = (12 + 3 * mod97(siren)) % 97;
+    var expectedKey = (expected < 10 ? '0' : '') + expected;
+    var ok = sirenOk && key === expectedKey;
+    return { ok: ok, reason: ok ? null : 'checksum', value: vat, key: key, siren: siren,
+             sirenOk: sirenOk, expectedKey: expectedKey };
+  }
+
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck };
+  root.TFChecks = api;
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+})(typeof window !== 'undefined' ? window : this);
+(function () {
+  'use strict';
+  var M = JSON.parse(document.getElementById('tf-i18n').textContent);
+  var kind = M.kind;
+  var form = document.getElementById('tf-form');
+  var input = document.getElementById('tf-input');
+  var out = document.getElementById('tf-result');
+  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15 }[kind];
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(template, values) {
+    return template.replace(/\{(\w+)\}/g, function (_, k) { return values[k] == null ? '' : values[k]; });
+  }
+  function render(r) {
+    if (!r.value) { out.className = 'result'; out.innerHTML = ''; return; }
+    var cls, title, lines = [];
+    if (r.reason === 'format') { cls = 'ko'; title = M['format_' + kind]; }
+    else if (r.ok) { cls = 'ok'; title = M['valid_' + kind]; }
+    else { cls = 'ko'; title = M['invalid_' + kind]; }
+    if (kind === 'iban' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      lines.push(fmt(M.country, { country: r.country }));
+      if (r.expectedLength) {
+        lines.push(fmt(r.lengthOk ? M.length_ok : M.length_ko,
+                       { country: r.country, n: r.value.length, expected: r.expectedLength }));
+        if (r.ok && !r.lengthOk) { cls = 'warn'; }
+      } else {
+        lines.push(M.length_unknown);
+      }
+      if (r.ribKeyOk !== null) { lines.push(r.ribKeyOk ? M.rib_ok : M.rib_ko); if (r.ok && !r.ribKeyOk) { cls = 'warn'; } }
+    }
+    if (kind === 'siret' && r.reason !== 'format') {
+      lines.push(fmt(M.siren_part, { siren: r.siren, nic: r.nic }));
+      if (r.laPoste) { lines.push(M.la_poste); }
+    }
+    if (kind === 'siren' && r.ok) { lines.push(fmt(M.vat_hint, { key: r.vatKey, siren: r.value })); }
+    if (kind === 'vat' && r.reason !== 'format') {
+      lines.push(fmt(M.vat_parts, { key: r.key, siren: r.siren }));
+      if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
+      else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
+    var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
+    out.className = 'result show ' + cls;
+    out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
+  }
+  function run() { render(check(input.value)); }
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+  input.addEventListener('input', function () {
+    var compact = input.value.replace(/[\s.\-]/g, '');
+    if (compact.length >= minLength) { run(); }
+    else { out.className = 'result'; out.innerHTML = ''; }
+  });
+})();
+    </script>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

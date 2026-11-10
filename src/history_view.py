@@ -1,6 +1,6 @@
 """Display helpers for the modification-history timeline (results page).
 
-Pure functions, zero Streamlit dependency, so they are unit-testable.
+Pure functions, no web framework involved, so they are unit-testable.
 """
 
 # One displayed change: (old text, new text). Either side can be None:

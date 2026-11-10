@@ -153,7 +153,7 @@ def build_report(
         result: The analysis to report on.
         filename: The uploaded file's name (the result only knows the hash).
         analysed_at: When the analysis ran — a datetime (written as ISO 8601)
-            or the preformatted string app.py keeps in session_state.
+            or the preformatted string the pages keep with the document.
         lang: "fr" or "en"; drives the flag sentences and the summary.
         summary: The AnalysisSummary the app already computed. Computed here
             from `result` when not given.

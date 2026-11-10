@@ -1,5 +1,0 @@
-tesseract-ocr
-tesseract-ocr-fra
-libzbar0
-libdmtx0b
-libgl1

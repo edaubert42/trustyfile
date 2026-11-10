@@ -2,8 +2,8 @@
 The website: landing page, upload, results, batch — server-rendered HTML.
 
 One FastAPI application serves the pages and, mounted underneath, the JSON
-API (`src/api.py`, same URLs as before). It replaces the Streamlit app
-without changing what the visitor sees: the HTML of every block still comes
+API (`src/web/api.py`). It took over from a Streamlit app without changing
+what the visitor sees: the HTML of every block still comes
 from `src/web/views/`, the templates only arrange those blocks on the page.
 
 How a document travels through it:
@@ -38,7 +38,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 from starlette.concurrency import run_in_threadpool
 
-from src import api as json_api
+from src.web import api as json_api
 from src.batch import BatchItem
 from src.feedback import MAX_COMMENT_CHARS, FeedbackRecord, add_comment, save_feedback
 from src.i18n import DEFAULT_LANG, SUPPORTED_LANGS, parse_accept_language, translator
@@ -74,7 +74,7 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 WEB_DIR = Path(__file__).resolve().parent
-PUBLIC_DIR = ROOT / "static"
+PUBLIC_DIR = ROOT / "public" / "static"
 DEMO_PDF = PUBLIC_DIR / "demo" / "facture-exemple.pdf"
 DEMO_NAME = "facture-exemple.pdf"
 # The sample document lives in the store under this fixed token, pinned.
@@ -87,7 +87,7 @@ MAX_BATCH_FILES = 10
 # short wait than by an error page.
 SLOT_WAIT_S = 120
 
-# Icons and images served from the repository's static/ folder. In
+# Icons and images served from public/static/. In
 # production Caddy serves most of these itself; the routes exist so the app
 # is complete when run on its own.
 PUBLIC_FILES = {
@@ -231,25 +231,34 @@ def _landing(request: Request, path_lang: str | None) -> HTMLResponse:
     )
 
 
-@app.get("/", response_class=HTMLResponse)
+# HEAD as well as GET: link checkers and uptime monitors ask for the headers
+# only, and must not be told the home page does not exist.
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def landing_page(request: Request) -> HTMLResponse:
     """The upload page. Language from ?lang=, else the browser, else French."""
     return _landing(request, None)
 
 
-@app.get("/en", response_class=HTMLResponse)
+@app.api_route("/en", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def landing_page_en(request: Request) -> HTMLResponse:
     """The upload page in English."""
     return _landing(request, "en")
 
 
 @app.get("/fr")
+@app.get("/fr/")
 @app.get("/index.html")
 @app.get("/r/")
 @app.get("/b/")
 def to_home() -> RedirectResponse:
     """Old or partial addresses lead to the upload page."""
     return RedirectResponse("/", status_code=301)
+
+
+@app.get("/en/")
+def to_home_en() -> RedirectResponse:
+    """One address per page: /en/ is /en."""
+    return RedirectResponse("/en", status_code=301)
 
 
 # --- Upload -------------------------------------------------------------------
@@ -677,5 +686,24 @@ def batch_report(request: Request, token: str) -> Response:
 # --- Assets and API -----------------------------------------------------------
 
 app.mount("/assets", StaticFiles(directory=WEB_DIR / "static"), name="assets")
-# Everything else is the JSON API (/api/v1/*, /api/docs), unchanged.
-app.mount("/", json_api.api)
+
+
+async def _api_or_not_found(scope, receive, send) -> None:
+    """
+    What no route above matched: the JSON API, or a 404 page.
+
+    /api/* belongs to the API application (src/web/api.py), which answers in
+    JSON, errors included. Any other address is a person or a crawler on a
+    page that does not exist: they get the usual card and an honest 404.
+    """
+    if scope["type"] != "http" or scope["path"].startswith("/api/"):
+        await json_api.api(scope, receive, send)
+        return
+    request = Request(scope, receive)
+    lang = resolve_lang(request)
+    t = translator(lang)
+    response = _error_page(lang, "not_found_title", t("not_found_message"), 404)
+    await response(scope, receive, send)
+
+
+app.mount("/", _api_or_not_found)

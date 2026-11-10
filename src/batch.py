@@ -1,9 +1,9 @@
 """
 Batch analysis (roadmap #14): one record per uploaded document.
 
-The batch page in app.py drops several PDFs at once and shows one row per
-file. The work behind each row lives here so it can be tested without
-Streamlit: intake checks (src/intake.py), the analyzer, the FR/EN summary and
+The batch page (src/web/app.py) takes several PDFs at once and shows one row
+per file. The work behind each row lives here so it can be tested without
+any web server: intake checks (src/intake.py), the analyzer, the FR/EN summary and
 the optional 2D-Doc scan, all folded into one `BatchItem`. A document that is
 refused or whose analysis fails still yields an item — the row says why —
 so one bad file never takes the batch down.
@@ -35,7 +35,7 @@ from src.summary import generate_rich_summary
 
 logger = logging.getLogger(__name__)
 
-# The web UI shows analysis times as "YYYY-MM-DD HH:MM" (app.py's
+# The web UI shows analysis times as "YYYY-MM-DD HH:MM" (the pages'
 # cached_analysed_at); the batch keeps the same format so an item opened
 # from the table prints exactly as one analysed on its own.
 ANALYSED_AT_FORMAT = "%Y-%m-%d %H:%M"
@@ -95,7 +95,7 @@ def analyse_document(
         lang: "fr" or "en" for the summary.
         analyzer_factory: Builds the analyzer with the caller's options (the
             web UI's external/QR/IBAN settings), so this module knows nothing
-            about Streamlit secrets.
+            about API keys.
         scan_2d_doc: Optional path -> list scanner (twod_doc.scan_pdf_for_2d_doc),
             None when libdmtx is unavailable.
         now: Injectable clock for tests.

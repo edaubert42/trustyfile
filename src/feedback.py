@@ -10,8 +10,8 @@ Where it goes:
   the container's own disk is wiped on every deploy.
 
 Why SQLite: it is one file, ships with Python (``sqlite3``, nothing to install),
-and handles the two processes that share it here (Streamlit writes, the API
-reads) through file locks. Feedback volume is tiny; a server database would
+and handles concurrent readers and writers (the pages write, the export
+endpoint reads) through file locks. Feedback volume is tiny; a server database would
 be a second always-on service to pay for.
 
 What is stored — never the document, never its text:
@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from typing import Literal
 
 logger = logging.getLogger(__name__)
-# Nothing in app.py or api.py configures logging, so the root logger keeps
+# Nothing in the web app configures logging, so the root logger keeps
 # Python's default WARNING threshold and an INFO "FEEDBACK ..." line would be
 # dropped silently — losing the very fallback this module promises before a
 # database exists. Give this logger its own stderr handler (Railway records

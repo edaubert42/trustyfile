@@ -38,34 +38,15 @@ python-dateutil>=2.8.2,<3    # Date parsing utilities
 defusedxml>=0.7.1,<0.8   # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
 cryptography>=43,<50     # 2D-Doc ECDSA signature verification (twod_doc_crypto)
 
-# Web Interface
-# Capped at the next MINOR. app.py injects SEO meta tags through st.html with
-# unsafe_allow_javascript=True, having been ported off the removed
-# st.components.v1.html. That injection is verified in a browser on 1.58 only,
-# and it broke once already when the scoping model changed underneath it, so
-# prove a later minor in a browser (fresh load AND a rerun) before raising.
-streamlit>=1.58,<1.59    # MVP frontend
-
-# Starlette is Streamlit's web server since 1.58 (Streamlit only asks for
-# starlette>=0.40). Starlette 1.8.0 changed GZipMiddleware: for content it does
-# not compress (images), the response headers are now sent from the
-# "http.response.start" branch, the very branch Streamlit 1.58's
-# SelectiveGZipMiddleware overrides. The body then goes out with no headers,
-# uvicorn raises "Expected ASGI message 'http.response.start'", and every
-# st.image (the document preview) is a 500 / broken image. That reached
-# production on 2026-11-05. Raise this cap only together with a Streamlit
-# release whose gzip middleware handles the new behaviour, and only once
-# tests/test_streamlit_media.py passes on it.
-starlette>=0.46,<1.8     # green on 1.7.0; 1.8.0+ breaks Streamlit 1.58 images
-
 # Testing
 pytest>=8.0.0,<10        # Test framework (green on 9.1.1)
 pytest-cov>=4.1.0,<8     # Coverage reports (green on 7.1.0)
 
-# API endpoint (src/api.py): uvicorn serves it on :8000, Caddy proxies /api/*.
+# Website and API (src/web/app.py): one uvicorn process on :8000 behind Caddy.
+# Starlette comes with FastAPI, which pins the range it supports.
 fastapi>=0.115,<1                # green on 0.141.1
 uvicorn>=0.30,<1                 # ASGI server (green on 0.52.2)
 python-multipart>=0.0.20,<0.1    # multipart/form-data parsing for the upload (green on 0.0.32)
-jinja2>=3.1,<4                   # page templates of the website, src/web/templates (green on 3.1.6)
+jinja2>=3.1,<4                   # page templates, src/web/templates (green on 3.1.6)
 requests>=2.32.0,<3     # External API calls (VirusTotal, Module G)
 # dnspython>=2.6.0       # DNS lookups (Module G)

@@ -28,7 +28,6 @@ from src.site.content import (
     TOOLS,
     Guide,
     Tool,
-    load_translations,
 )
 
 _MONTHS = {
@@ -455,9 +454,8 @@ def render_index(lang: str) -> str:
 
 def landing_head_args(lang: str) -> dict:
     """Arguments of `head_inner` for the landing page: title, canonical,
-    hreflang alternates, structured data. Shared by the crawler copy
-    (render_landing) and the web app's own landing page, so both
-    declare exactly the same metadata."""
+    hreflang alternates, structured data. Used by the web app's landing
+    page (src/web/app.py), which is served to visitors and crawlers alike."""
     chrome = CHROME[lang]
     other_lang = "en" if lang == "fr" else "fr"
     esc = html.escape
@@ -527,71 +525,6 @@ def landing_head_args(lang: str) -> dict:
         og_description=chrome["landing_og_description"],
         twitter_description=chrome["landing_twitter_description"],
     )
-
-
-def render_landing(lang: str) -> str:
-    """Render the crawler-facing landing page (seo-fr.html / seo-en.html).
-
-    Caddy serves this file to search-engine and link-preview bots instead of
-    the Streamlit shell, whose landing content only exists after JavaScript
-    runs. To stay clear of cloaking, the *visible* body is limited to what
-    app.py renders when no file is uploaded — headline, tagline, the upload
-    disclaimer, the three steps, the API disclaimer and the footer links — and
-    every one of those strings is read from src/translations/<lang>.json, the
-    same file app.py's t() reads. Head metadata (title, description, JSON-LD)
-    comes from CHROME[lang]; it describes the app rather than adding content.
-
-    Example:
-        >>> "Vous avez un doute" in render_landing("fr")
-        True
-    """
-    chrome = CHROME[lang]
-    other_lang = "en" if lang == "fr" else "fr"
-    t = load_translations(lang)
-    esc = html.escape
-
-    guide_links = " &middot; ".join(
-        f'<a href="{chrome["guides_path"]}/{g.slug}">{esc(g.title)}</a>' for g in GUIDES[lang]
-    )
-    tool_links = " &middot; ".join(
-        f'<a href="{chrome["tools_path"]}/{tool.slug}">{esc(tool.title)}</a>'
-        for tool in TOOLS[lang]
-    )
-    colon = " :" if lang == "fr" else ":"
-    steps = "\n".join(
-        f'        <li><span class="n">{i}</span>'
-        f'<strong>{esc(t[f"step{i}_title"])}</strong>'
-        f'<span class="d">{esc(t[f"step{i}_desc"])}</span></li>'
-        for i in (1, 2, 3)
-    )
-    other_home = CHROME[other_lang]["landing_path"]
-
-    parts = [
-        _head(**landing_head_args(lang)),
-        '    <header class="brand">',
-        f'        <a class="name" href="{chrome["landing_path"]}">TrustyFile</a>',
-        f'        <span class="subtitle">{esc(t["subtitle"])}</span>',
-        "    </header>",
-        f"    <h1>{esc(t['landing_headline'])}</h1>",
-        f'    <p class="tagline">{esc(t["landing_tagline"])}</p>',
-        f'    <p class="note">{esc(t["disclaimer_upload"])}</p>',
-        '    <ol class="steps">',
-        steps,
-        "    </ol>",
-        f'    <p class="note">{esc(t["footer_guides"])}{colon} {guide_links}</p>',
-        f'    <p class="note">{esc(t["footer_tools"])}{colon} {tool_links}</p>',
-        f'    <p class="note">{esc(t["disclaimer_api"])}</p>',
-        "    <footer>",
-        f'        <p><a href="{chrome["index_path"]}">{esc(t["footer_guides"])}</a>',
-        f'        &middot; {esc(t["footer_contact"])} '
-        '<a href="mailto:contact@trustyfile.com">contact@trustyfile.com</a>',
-        f'        &middot; <a class="lang" href="{other_home}">{chrome["lang_switch"]}</a></p>',
-        "    </footer>",
-        "</body>",
-        "</html>",
-        "",
-    ]
-    return "\n".join(parts)
 
 
 def render_tool(lang: str, tool: Tool) -> str:
@@ -878,12 +811,11 @@ def build() -> dict[Path, str]:
         pages[OUTPUT_DIR / lang / "index.html"] = render_index(lang)
         for guide in GUIDES[lang]:
             pages[OUTPUT_DIR / lang / f"{guide.slug}.html"] = render_guide(lang, guide)
-        pages[ROOT / f"seo-{lang}.html"] = render_landing(lang)
         for tool in TOOLS[lang]:
-            pages[ROOT / "tools" / lang / f"{tool.slug}.html"] = render_tool(lang, tool)
+            pages[ROOT / "public" / "tools" / lang / f"{tool.slug}.html"] = render_tool(lang, tool)
     # The same validators the pages inline, as a Node module for the parity
     # test (tests/test_checksum_vectors.py). Not served by Caddy.
-    pages[ROOT / "tools" / "checksums.js"] = CHECKSUM_JS
-    pages[ROOT / "sitemap.xml"] = render_sitemap()
-    pages[ROOT / "llms.txt"] = render_llms_txt()
+    pages[ROOT / "public" / "tools" / "checksums.js"] = CHECKSUM_JS
+    pages[ROOT / "public" / "sitemap.xml"] = render_sitemap()
+    pages[ROOT / "public" / "llms.txt"] = render_llms_txt()
     return pages

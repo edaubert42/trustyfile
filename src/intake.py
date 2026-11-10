@@ -16,7 +16,7 @@ PDF-only.
 Example:
     >>> check_pdf(b"hello")
     ('not_a_pdf', 0)
-    >>> check_pdf(Path("static/demo/facture-exemple.pdf").read_bytes())
+    >>> check_pdf(Path("public/static/demo/facture-exemple.pdf").read_bytes())
     (None, 1)
 """
 

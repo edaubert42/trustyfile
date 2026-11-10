@@ -12,7 +12,7 @@ COLUMN_WIDTHS = [3, 1.6, 0.8, 4, 1]
 COLUMN_KEYS = ("batch_col_file", "batch_col_verdict", "batch_col_score", "batch_col_finding")
 
 
-def title_html(count: int, lang: str | None = None) -> str:
+def title_html(count: int, lang: str) -> str:
     """Page title ("3 documents analysed") and the one-line introduction."""
     t = translator(lang)
     return (
@@ -22,7 +22,7 @@ def title_html(count: int, lang: str | None = None) -> str:
     )
 
 
-def too_many_html(max_files: int, lang: str | None = None) -> str:
+def too_many_html(max_files: int, lang: str) -> str:
     """Warning shown when more files were dropped than the batch accepts."""
     t = translator(lang)
     return (
@@ -31,7 +31,7 @@ def too_many_html(max_files: int, lang: str | None = None) -> str:
     )
 
 
-def column_heading_html(key: str, lang: str | None = None) -> str:
+def column_heading_html(key: str, lang: str) -> str:
     """One column heading of the table."""
     t = translator(lang)
     return (
@@ -56,7 +56,7 @@ def file_name_html(name: str) -> str:
     )
 
 
-def row_cells_html(item: BatchItem, lang: str | None = None) -> tuple[str, str, str]:
+def row_cells_html(item: BatchItem, lang: str) -> tuple[str, str, str]:
     """
     The verdict, score and finding cells of one row.
 

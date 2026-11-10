@@ -1,23 +1,12 @@
-"""Render the static pages: guides (/guides, /en/guides), the crawler landing
-pages (seo-*.html), the checker tools (/outils, /en/tools), sitemap.xml
-and llms.txt.
+"""Render the static pages: guides (/guides, /en/guides), the checker tools
+(/outils, /en/tools), sitemap.xml and llms.txt.
 
 WHY THIS EXISTS
 ---------------
-`seo-fr.html` / `seo-en.html` are served *only to crawlers* — real users get
-proxied to Streamlit, whose landing page is built by JavaScript. Serving a
-crawler different *content* from what a human sees is cloaking, which Google
-can penalise site-wide. Two things keep us on the right side of that line:
-
-1. The crawler pages are generated here (`render_landing`) from the very same
-   `src/translations/*.json` strings that `app.py` renders on its landing page
-   — headline, tagline, the three steps, both disclaimers, the footer links.
-   Same words, static HTML: that is "dynamic rendering", not cloaking. Until
-   2026-08-27 they were hand-written and had drifted to ~800 words of prose,
-   a feature list and a FAQ that no human ever saw.
-2. The guides are real URLs served to **everyone**, linked from the app
-   footer. A crawler and a human see the same bytes. The FAQ that used to
-   live only on the crawler pages now lives on the guides index, visibly.
+The guides are real URLs served to **everyone**, linked from the landing page.
+A crawler and a human see the same bytes. (The landing page itself is rendered
+by the web app, src/web/app.py, also identically for everyone: there is no
+crawler-only copy any more.)
 
 They also carry the long-tail queries the single-page app can never rank for
 ("comment savoir si un PDF a été modifié", "vérifier un justificatif de

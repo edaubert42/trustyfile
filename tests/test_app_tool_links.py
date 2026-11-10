@@ -66,7 +66,7 @@ def test_link_targets_are_generated_pages():
     """The URLs the helper returns exist as generated files under tools/."""
     from src.web.views import links as app
 
-    roots = {"/outils/": ROOT / "tools" / "fr", "/en/tools/": ROOT / "tools" / "en"}
+    roots = {"/outils/": ROOT / "public" / "tools" / "fr", "/en/tools/": ROOT / "public" / "tools" / "en"}
     for lang in ("fr", "en"):
         for code in ("CONTENT_INVALID_IBAN", "EXTERNAL_SIRET_NOT_FOUND", "EXTERNAL_VAT_INVALID"):
             url = app.tool_url_for_flag(code, lang)
@@ -125,5 +125,5 @@ def test_every_mapped_guide_slug_is_a_generated_page():
 
     for topic, by_lang in app._GUIDE_SLUGS.items():
         for lang, slug in by_lang.items():
-            folder = ROOT / "guides" / lang
+            folder = ROOT / "public" / "guides" / lang
             assert (folder / f"{slug}.html").exists(), (topic, lang, slug)

@@ -49,7 +49,7 @@ Claude: "Exactly! Also: ModDate, Producer (the software), Creator, Title.
 
 TrustyFile is a document fraud detection tool inspired by VirusTotal. Users upload invoices/documents (PDF, images) and the system analyzes them through multiple detection modules, returning a trust score (0-100).
 
-**Target**: MVP with Streamlit interface, deployable on Streamlit Community Cloud.
+**Target**: a public website (trustyfile.com, deployed on Railway) plus a JSON API.
 
 ## Tech Stack
 
@@ -62,8 +62,10 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 - **2D-Doc / DataMatrix**: pylibdmtx (needs the libdmtx system lib)
 - **Image Processing**: opencv-python-headless (cv2), numpy, Pillow
 - **XML (e-invoice)**: defusedxml — untrusted embedded XML, blocks XXE
-- **Web Interface**: Streamlit, fronted by Caddy for SEO/crawler routing
-- **API**: FastAPI + uvicorn (`src/api.py`), same container, Caddy proxies `/api/*`
+- **Web Interface**: FastAPI + Jinja templates, rendered on the server
+  (`src/web/app.py`); one uvicorn process behind Caddy, which serves the
+  static files itself. Streamlit was dropped in 2026-11.
+- **API**: FastAPI (`src/web/api.py`), mounted in the same application
 - **Testing**: pytest (+ pikepdf/pypdfium2 in requirements-dev.txt)
 
 ## Project Structure
@@ -75,10 +77,9 @@ trustyfile/
 ├── LICENSE                   # Proprietary — all rights reserved
 ├── requirements.txt          # Runtime deps
 ├── requirements-dev.txt      # + pikepdf/pypdfium2 (tests only, not shipped)
-├── app.py                    # Streamlit entry point (widgets + calls to src/web/views)
-├── start.sh                  # Streamlit + Caddy boot (Railway)
-├── Caddyfile                 # Crawler -> static SEO page, users -> Streamlit;
-│                             # /guides served to everyone (anti-cloaking)
+├── start.sh                  # uvicorn (src.web.app:app) + Caddy boot (Railway)
+├── Caddyfile                 # Static files served directly, the rest -> :8000;
+│                             # every visitor gets the same bytes, crawler or not
 ├── nixpacks.toml             # Railway build: system deps, python pin, test gate
 ├── .github/workflows/        # CI: pytest on 3.12/3.13/3.14
 ├── src/
@@ -88,7 +89,6 @@ trustyfile/
 │   ├── summary.py            # EN/FR verdict + narrative generation
 │   ├── preview.py            # Page render + evidence-box overlay
 │   ├── report.py             # AnalysisResult -> versioned JSON report (download + API)
-│   ├── api.py                # FastAPI: POST /api/v1/analyze (uvicorn :8000, Caddy /api/*)
 │   ├── intake.py             # Shared limits + PDF checks (batch page, API)
 │   ├── pipeline.py           # Shared temp file + 2D-Doc scan/signatures (page, batch, API)
 │   ├── batch.py              # One BatchItem per uploaded file (batch page)
@@ -102,8 +102,8 @@ trustyfile/
 │   ├── i18n.py, translations/  # EN/FR strings
 │   ├── web/                  # The website (display layer)
 │   │   ├── app.py            # FastAPI pages: /, /en, POST /analyse, /r/<token>,
-│   │   │                     # /b/<token>, /demo; mounts the JSON API. Built
-│   │   │                     # next to Streamlit, NOT routed by Caddy yet
+│   │   │                     # /b/<token>, /demo; mounts the JSON API
+│   │   ├── api.py            # JSON API: POST /api/v1/analyze
 │   │   ├── documents.py      # What a page keeps about an upload (StoredDocument,
 │   │   │                     # StoredBatch, StoredPhoto) and how it is produced
 │   │   ├── store.py          # In-memory TTL store behind /r/<token> (15 min,
@@ -140,9 +140,12 @@ trustyfile/
 │   └── extractors/
 │       ├── pdf_extractor.py  # PDF text/image extraction
 │       └── ocr.py            # OCR fallback for flattened PDFs
-├── guides/                   # GENERATED SEO content pages (fr/, en/) — do not
-│                             # hand-edit; edit src/site/, then run
-│                             # python scripts/build_guides.py
+├── public/                   # Files Caddy serves as they are
+│   ├── guides/, tools/       # GENERATED pages (fr/, en/) — do not hand-edit;
+│   │                         # edit src/site/, then run
+│   │                         # python scripts/build_guides.py
+│   ├── static/               # Icons, og image, the sample PDF (demo/)
+│   └── sitemap.xml, llms.txt (generated), robots.txt
 ├── scripts/                  # build_corpus, generate_tampered, eval_harness,
 │                             # build_guides (writes what src/site renders)
 ├── docs/superpowers/         # Specs, plans, research (design history)
@@ -325,11 +328,8 @@ pip install -r requirements-dev.txt
 # Ubuntu/Debian: sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx-dev
 # macOS: brew install tesseract libdmtx
 
-# Run the app
-streamlit run app.py
-
-# Run the new FastAPI + Jinja site (same pages, replaces Streamlit at cutover).
-# Optional keys are read from the environment: IBAN_API_KEY, VIRUSTOTAL_API_KEY
+# Run the site (pages + API). Optional keys are read from the environment:
+# IBAN_API_KEY, VIRUSTOTAL_API_KEY
 uvicorn src.web.app:app --port 8000
 
 # Run tests
@@ -351,9 +351,9 @@ push. Phase 8 (detection depth) is where active work sits.
 **Phase 1 - MVP** — done
 - [x] Project structure, PDF extraction, Modules A/B/C/D/F
 - [x] Scoring system (since replaced by the evidence ledger, see Scoring)
-- [x] Streamlit interface + tampered-sample generator (`scripts/`)
+- [x] Web interface (Streamlit then, FastAPI + Jinja now) + tampered-sample generator (`scripts/`)
 - [x] Deployed — Railway rather than Streamlit Cloud (system deps for
-      tesseract/libdmtx), with Caddy fronting it for crawler/SEO routing
+      tesseract/libdmtx), with Caddy in front serving the static pages
 
 **Phase 2 - MVP+**
 - [ ] Module I: Template matching — **not built**. Neither
@@ -367,13 +367,13 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Module G: External verification (SIREN/SIRET via API, opt-in)
 - [x] Module H: image forensics — ELA only; clone/splicing/JPEG-ghost not done
 - [x] PDF export (print / save as PDF), JSON report download (`src/report.py`)
-- [x] FastAPI endpoint (`src/api.py`: `POST /api/v1/analyze`, same JSON as the download)
-- [x] Batch upload (`src/batch.py` + batch page in `app.py`; up to 10 files, batch JSON envelope)
+- [x] FastAPI endpoint (`src/web/api.py`: `POST /api/v1/analyze`, same JSON as the download)
+- [x] Batch upload (`src/batch.py` + batch page in `src/web/app.py`; up to 10 files, batch JSON envelope)
 - [x] Dark mode UI
 
 **Phase 4 - Security**
 - [x] Digital signature validation: Verify PDF signatures via EU DSS API
-- [x] VirusTotal API integration (in `app.py`, requires API key)
+- [x] VirusTotal API integration (`src/web/virustotal.py`, requires API key)
 - [x] 2D-Doc verification: Decode French government 2D barcodes (libdmtx)
 
 **Phase 5 - Forensics**
@@ -448,7 +448,7 @@ For testing, create documents with:
 
 ## API Response Format
 
-Live: `POST /api/v1/analyze` (`src/api.py`) returns the report built by
+Live: `POST /api/v1/analyze` (`src/web/api.py`) returns the report built by
 `src/report.py:build_report` — the same bytes as the results page's JSON
 download. The schema is pinned by `tests/test_report.py`; bump
 `SCHEMA_VERSION` when a field is renamed, removed or changes meaning.

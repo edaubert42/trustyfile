@@ -10,24 +10,14 @@ app read a slug without importing 800 lines of HTML templating.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
 # Repository root — this file lives in src/site/, so two levels up.
 ROOT = Path(__file__).resolve().parent.parent.parent
-OUTPUT_DIR = ROOT / "guides"
+OUTPUT_DIR = ROOT / "public" / "guides"
 
 SITE = "https://www.trustyfile.com"
-
-# The app's own UI strings. The crawler landing pages are rendered from these so
-# they cannot say anything the Streamlit landing page does not.
-TRANSLATIONS_DIR = ROOT / "src" / "translations"
-
-
-def load_translations(lang: str) -> dict[str, str]:
-    """Load src/translations/<lang>.json — the strings app.py renders via t()."""
-    return json.loads((TRANSLATIONS_DIR / f"{lang}.json").read_text(encoding="utf-8"))
 
 
 # Default `published` / `modified` date for the guides written before pages
@@ -166,8 +156,8 @@ CHROME = {
         "related": "Autres guides",
         "footer_contact": "Contact",
         "updated": "Mis à jour le {date}",
-        # Crawler landing page (seo-fr.html). Metadata only — the visible body
-        # comes from src/translations/fr.json, see render_landing().
+        # Landing page metadata (<head> only). The page itself is rendered by
+        # the web app, see landing_head_args() and src/web/app.py.
         "landing_path": "/",
         "landing_title": "TrustyFile - Vérificateur de documents PDF gratuit",
         "landing_description": (

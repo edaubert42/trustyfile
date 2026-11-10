@@ -2,7 +2,7 @@
 envelope in src/report.py.
 
 Everything runs on bytes and synthetic results — no Streamlit. The committed
-demo invoice (static/demo/facture-exemple.pdf) is the analysed document.
+demo invoice (public/static/demo/facture-exemple.pdf) is the analysed document.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ from src.report import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO_PDF = ROOT / "static" / "demo" / "facture-exemple.pdf"
+DEMO_PDF = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 DEMO_BYTES = DEMO_PDF.read_bytes()
 
 OFFLINE = lambda: TrustyFileAnalyzer(enable_external=False)  # noqa: E731
@@ -266,21 +266,24 @@ def test_batch_report_filename_is_dated():
 
 
 def test_app_accepts_several_files_and_renders_the_batch_page():
-    source = (ROOT / "app.py").read_text()
-    assert "accept_multiple_files=True" in source
+    web = ROOT / "src" / "web"
+    assert 'name="files"' in (web / "templates" / "landing.html").read_text()
+    assert " multiple" in (web / "templates" / "landing.html").read_text()
+    source = (web / "app.py").read_text()
     assert "MAX_BATCH_FILES = 10" in source
-    assert "analyse_document(" in source
     assert "build_batch_report(" in source and "batch_report_filename(" in source
+    assert "analyse_document(" in (web / "documents.py").read_text()
+    page = (web / "templates" / "batch.html").read_text() + (web / "templates" / "results.html").read_text()
     for key in ("batch_open", "batch_back", "batch_download"):
-        assert f't("{key}")' in source, key
+        assert f"t('{key}')" in page, key
     # The title and the "too many files" warning are built by the batch views.
-    views = (ROOT / "src" / "web" / "views" / "batch.py").read_text()
+    views = (web / "views" / "batch.py").read_text()
     for key in ("batch_title", "batch_too_many"):
         assert f't("{key}")' in views, key
 
 
 def test_api_shares_the_intake_limits():
-    import src.api as api_module
+    import src.web.api as api_module
 
     assert api_module.MAX_BYTES is intake.MAX_BYTES or api_module.MAX_BYTES == intake.MAX_BYTES
     assert api_module.MAX_PAGES == intake.MAX_PAGES

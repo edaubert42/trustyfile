@@ -2,7 +2,7 @@
 
 No uvicorn and no network: the analyzer is built without the external checks
 (INSEE, VIES, IBAN) and the VirusTotal lookup is stubbed. The document is the
-committed sample invoice (static/demo/facture-exemple.pdf).
+committed sample invoice (public/static/demo/facture-exemple.pdf).
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from src.intake import MAX_PAGES
 from src.web.store import TTLStore
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO_PDF = ROOT / "static" / "demo" / "facture-exemple.pdf"
+DEMO_PDF = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 
 
 @pytest.fixture
@@ -106,6 +106,30 @@ def test_partial_addresses_redirect_home(client, path):
     response = client.get(path)
     assert response.status_code == 301
     assert response.headers["location"] == "/"
+
+
+def test_trailing_slash_is_one_page_not_two(client):
+    response = client.get("/en/")
+    assert response.status_code == 301
+    assert response.headers["location"] == "/en"
+    assert client.get("/fr/").headers["location"] == "/"
+
+
+def test_head_request_on_the_landing_page(client):
+    assert client.head("/").status_code == 200
+    assert client.head("/en").status_code == 200
+
+
+def test_unknown_address_is_an_honest_404_page(client):
+    """A page for people, a 404 for crawlers; the API keeps answering JSON."""
+    response = client.get("/no-such-page", headers={"accept-language": "en"})
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("text/html")
+    assert "Page not found" in response.text
+    assert "Page introuvable" in client.get("/no-such-page").text
+    api_miss = client.get("/api/v1/no-such-endpoint")
+    assert api_miss.status_code == 404
+    assert api_miss.headers["content-type"].startswith("application/json")
 
 
 def test_static_assets_are_served(client):

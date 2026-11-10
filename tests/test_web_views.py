@@ -18,7 +18,7 @@ from src.web.views import batch as batch_views
 from src.web.views import details, errors, findings, landing, properties, verdict
 from src.web.virustotal import check_virustotal
 
-DEMO = Path(__file__).resolve().parent.parent / "static" / "demo" / "facture-exemple.pdf"
+DEMO = Path(__file__).resolve().parent.parent / "public" / "static" / "demo" / "facture-exemple.pdf"
 HOSTILE = '<img src=x onerror="alert(1)">'
 
 

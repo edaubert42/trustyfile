@@ -6,8 +6,8 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 
-import src.api as api_module
-from src.api import SlidingWindowLimiter, api
+import src.web.api as api_module
+from src.web.api import SlidingWindowLimiter, api
 from src.feedback import (DB_ENV, MAX_COMMENT_CHARS, FeedbackRecord, add_comment,
                           export_csv, save_feedback)
 

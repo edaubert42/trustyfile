@@ -307,12 +307,12 @@ def test_report_filename_uses_the_hash_prefix():
 
 
 def test_results_page_offers_the_report_download():
-    """The button lives in app.py; a source scan is the cheapest guard that it
-    still uses the shared serializer and file name (the Streamlit surface
-    itself is exercised by hand — see the branch notes)."""
-    source = (ROOT / "app.py").read_text()
-    assert "st.download_button(" in source or ".download_button(" in source
+    """A source scan is the cheapest guard that the download still uses the
+    shared serializer and file name (the route itself is exercised in
+    tests/test_web_pages.py)."""
+    web = ROOT / "src" / "web"
+    source = (web / "app.py").read_text()
     assert "report_json(" in source
     assert "report_filename(" in source
-    assert 'mime="application/json"' in source
-    assert 't("download_report")' in source
+    assert 'media_type="application/json"' in source
+    assert "t('download_report')" in (web / "templates" / "results.html").read_text()

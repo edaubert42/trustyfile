@@ -9,7 +9,7 @@ from src.web.views.common import esc
 
 
 def print_header_html(file_name: str, file_hash: str, analysed_at: str,
-                      lang: str | None = None) -> str:
+                      lang: str) -> str:
     """
     Report header that only shows on paper ("Save as PDF").
 
@@ -28,7 +28,7 @@ def print_header_html(file_name: str, file_hash: str, analysed_at: str,
 
 
 def gauge_html(result: AnalysisResult, summary: AnalysisSummary,
-               lang: str | None = None) -> str:
+               lang: str) -> str:
     """
     The circular score gauge with the verdict and the advice under it.
 

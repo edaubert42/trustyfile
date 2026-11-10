@@ -5,7 +5,7 @@ from __future__ import annotations
 from src.i18n import translator
 
 
-def error_card_html(title: str, message: str, lang: str | None = None) -> str:
+def error_card_html(title: str, message: str, lang: str) -> str:
     """
     Full-width error card with a link back to the home page.
 

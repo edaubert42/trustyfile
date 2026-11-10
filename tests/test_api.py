@@ -1,9 +1,9 @@
-"""Programmatic API (roadmap #13): src/api.py.
+"""Programmatic API (roadmap #13): src/web/api.py.
 
 POST /api/v1/analyze takes one PDF and returns the same JSON report the
 results page offers for download (src/report.py). These tests drive the
 FastAPI app in-process through TestClient — no uvicorn, no network — and use
-the committed demo invoice (static/demo/facture-exemple.pdf) as the document.
+the committed demo invoice (public/static/demo/facture-exemple.pdf) as the document.
 """
 
 from __future__ import annotations
@@ -18,12 +18,12 @@ import fitz
 import pytest
 from fastapi.testclient import TestClient
 
-import src.api as api_module
-from src.api import SlidingWindowLimiter, api
+import src.web.api as api_module
+from src.web.api import SlidingWindowLimiter, api
 from src.report import SCHEMA_VERSION
 
 ROOT = Path(__file__).resolve().parent.parent
-DEMO_PDF = ROOT / "static" / "demo" / "facture-exemple.pdf"
+DEMO_PDF = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 
 
 @pytest.fixture
@@ -124,7 +124,7 @@ def test_unknown_lang_is_rejected(client):
 
 
 def test_external_verification_defaults_on_like_the_ui():
-    """app.py runs INSEE/VIES checks by default; the API must give the same
+    """The website runs INSEE/VIES checks by default; the API must give the same
     verdict for the same document unless the caller opts out."""
     # FastAPI wraps the default in a Query(...) marker; the value sits inside it.
     assert inspect.signature(api_module.analyze).parameters["external"].default.default is True
@@ -287,7 +287,7 @@ def test_health_is_not_rate_limited(monkeypatch):
 
 
 def test_saturated_server_answers_503_instead_of_queueing(client):
-    """The API shares one container with Streamlit: when every analysis slot
+    """The API shares one process with the website: when every analysis slot
     is busy, say so immediately rather than pile up CPU work."""
     slots = api_module._analysis_slots
     held = 0
@@ -315,8 +315,10 @@ def test_caddy_proxies_the_api_and_start_sh_boots_it():
     assert re.search(r"handle /api/\* \{.*?reverse_proxy 127\.0\.0\.1:8000", caddy, re.S)
     assert "max_size 11MB" in caddy, "edge body cap just above the app's 10 MB limit"
     start = (ROOT / "start.sh").read_text()
-    assert "uvicorn src.api:api" in start
+    # One process serves the pages and, mounted inside it, the API.
+    assert "uvicorn src.web.app:app" in start
     assert "--port 8000" in start
+    assert "--workers 1" in start, "the page store lives in one process's memory"
 
 
 def test_runtime_requirements_declare_the_api_stack():

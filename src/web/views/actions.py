@@ -5,27 +5,27 @@ from __future__ import annotations
 from src.i18n import translator
 
 
-def feedback_question_html(lang: str | None = None) -> str:
+def feedback_question_html(lang: str) -> str:
     """"Was this result useful?", next to the thumbs."""
     t = translator(lang)
     return f'<span style="color:#c9d1d9; font-size:0.9rem;">{t("feedback_question")}</span>'
 
 
-def feedback_thanks_html(lang: str | None = None) -> str:
+def feedback_thanks_html(lang: str) -> str:
     """Green "thank you" line shown once a vote is recorded."""
     t = translator(lang)
     return (f'<p style="text-align:center; color:#28a745; font-size:0.85rem; margin:0;">'
             f'{t("feedback_thanks")}</p>')
 
 
-def feedback_privacy_html(lang: str | None = None) -> str:
+def feedback_privacy_html(lang: str) -> str:
     """Small grey line: what a vote stores (never the document)."""
     t = translator(lang)
     return (f'<p style="text-align:center; color:#666; font-size:0.7rem; margin:0.2rem 0 0 0;">'
             f'{t("feedback_privacy")}</p>')
 
 
-def new_analysis_link_html(lang: str = "fr") -> str:
+def new_analysis_link_html(lang: str) -> str:
     """Blue "analyse another document" link back to the upload page."""
     t = translator(lang)
     return f"""
@@ -35,7 +35,7 @@ def new_analysis_link_html(lang: str = "fr") -> str:
                 """
 
 
-def print_button_html(lang: str | None = None) -> str:
+def print_button_html(lang: str) -> str:
     """
     "Print" button and its script.
 

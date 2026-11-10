@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# One visitor's pages: the results of an upload live under a random token for
+# 15 minutes (and carry noindex anyway). Nothing here is a page to crawl.
+Disallow: /r/
+Disallow: /b/
+Disallow: /analyse
+
+Sitemap: https://www.trustyfile.com/sitemap.xml

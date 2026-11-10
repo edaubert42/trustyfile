@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.i18n import t
+from src.i18n import translator
 from src.modules.twod_doc import GS, US, parse_twod_doc
 from src.modules.twod_doc_crypto import SignatureCheck
 from src.modules.twod_doc_photo import PhotoScanResult, photo_verdict
@@ -17,6 +17,9 @@ _CODE = parse_twod_doc(
     + US + "SIG"
 )
 
+# These tests read the French strings.
+t = translator("fr")
+
 
 def _decoded(status: str, confirmed: bool = False) -> PhotoScanResult:
     return PhotoScanResult(status="decoded", twod_doc=_CODE,
@@ -24,12 +27,12 @@ def _decoded(status: str, confirmed: bool = False) -> PhotoScanResult:
 
 
 def _render(result: PhotoScanResult) -> str:
-    return photo_result_html(result, *photo_verdict(result))
+    return photo_result_html(result, *photo_verdict(result), "fr")
 
 
 def test_rows_escape_barcode_text():
     # Barcode fields are attacker-controlled: never raw HTML.
-    rows = twod_rows_html(_CODE)
+    rows = twod_rows_html(_CODE, "fr")
     assert "<script>" not in rows
     assert "&lt;script&gt;" in rows
     assert "75001" in rows and "PARIS" in rows
@@ -154,11 +157,11 @@ def test_no_status_at_all_makes_no_claim():
 # --- twod_pdf_panel_html ------------------------------------------------------
 
 def test_no_code_no_panel():
-    assert twod_pdf_panel_html([], []) == ""
+    assert twod_pdf_panel_html([], [], "fr") == ""
 
 
 def test_invalid_code_panel_is_red_and_never_says_verified(twod):
-    html = twod_pdf_panel_html([twod], ["invalid"])
+    html = twod_pdf_panel_html([twod], ["invalid"], "fr")
     assert 'data-level="alert"' in html
     assert t("twod_sig_invalid") in html
     assert t("twod_sig_valid") not in html
@@ -166,17 +169,17 @@ def test_invalid_code_panel_is_red_and_never_says_verified(twod):
 
 
 def test_valid_code_panel_is_green(twod):
-    html = twod_pdf_panel_html([twod], ["valid"])
+    html = twod_pdf_panel_html([twod], ["valid"], "fr")
     assert 'data-level="ok"' in html
     assert t("twod_sig_valid") in html
 
 
 def test_panel_still_shows_the_signed_fields_and_compare_hint(twod):
-    html = twod_pdf_panel_html([twod], ["malformed"])
+    html = twod_pdf_panel_html([twod], ["malformed"], "fr")
     assert "JEAN DUPONT" in html
     assert t("twod_compare") in html
 
 
 def test_one_card_per_code(twod):
-    html = twod_pdf_panel_html([twod, twod], ["valid", "valid"])
+    html = twod_pdf_panel_html([twod, twod], ["valid", "valid"], "fr")
     assert html.count("JEAN DUPONT") == 2

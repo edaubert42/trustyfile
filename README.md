@@ -2,7 +2,6 @@
 
 **Document Fraud Detection Tool** — Like VirusTotal, but for invoices and documents.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://trustyfile.streamlit.app)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -41,7 +40,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 - **VirusTotal lookup** — Check file hash against malware databases (requires API key)
 - **2D-DOC data panel** — View the decoded barcode fields (name, amount, dates) side by side with the document; the cross-check itself is scored by the `twod_doc` module above
 - **Modification history** — View what changed between PDF revisions with content diffs
-- **External verification** — SIRET/SIREN via INSEE, VAT via VIES; requires internet. On by default in the app (`enable_external = True` in `app.py`); pass `enable_external=False` to the analyzer to run fully offline
+- **External verification** — SIRET/SIREN via INSEE, VAT via VIES; requires internet. On by default in the app (`make_analyzer` in `src/web/documents.py`); pass `enable_external=False` to the analyzer to run fully offline
 - **JSON report** — Download the analysis as a versioned JSON file (`src/report.py`), or print the results page as a PDF
 - **API** — `POST /api/v1/analyze` returns the same JSON report for a PDF (see [API](#api))
 - **Batch upload** — drop up to 10 PDFs at once: a table with one verdict per document, each row opening the full results page, and one JSON report for the whole batch
@@ -66,9 +65,8 @@ brew install tesseract libdmtx
 # libdmtx: use WSL, or see https://github.com/dmtx/libdmtx
 ```
 
-Streamlit Community Cloud installs system packages from `packages.txt`, which
-already lists `tesseract-ocr`, `tesseract-ocr-fra`, and `libdmtx0b` — no extra
-setup needed there.
+The deployment (Railway) installs the same system packages through
+`nixpacks.toml`.
 
 ### Installation
 
@@ -88,10 +86,13 @@ pip install -r requirements.txt
 ### Run the app
 
 ```bash
-streamlit run app.py
+uvicorn src.web.app:app --port 8000
 ```
 
-Open http://localhost:8501 in your browser.
+Open http://localhost:8000 in your browser. The site is one FastAPI
+application that renders its pages on the server (Jinja templates) and also
+serves the API. Two optional keys are read from the environment:
+`IBAN_API_KEY` (IBAN verification) and `VIRUSTOTAL_API_KEY` (file-hash lookup).
 
 ## Scoring: the evidence ledger
 
@@ -156,8 +157,17 @@ for module_result in result.modules:
 
 ```
 trustyfile/
-├── app.py                    # Streamlit interface
+├── Caddyfile, start.sh        # Deployment: Caddy in front of one uvicorn process
+├── public/                   # Files served as they are: guides/, tools/ (generated),
+│                             # static/ (icons, sample PDF), sitemap.xml, robots.txt
 ├── src/
+│   ├── web/                  # The website
+│   │   ├── app.py            # Pages: upload, results, batch (FastAPI)
+│   │   ├── api.py            # JSON API (/api/v1/*), mounted in the app
+│   │   ├── store.py          # In-memory results store (15 min, bounded)
+│   │   ├── templates/, static/   # Jinja templates, stylesheet, script
+│   │   └── views/            # Pure functions (data, lang) -> HTML
+│   ├── site/                 # Generator of the guides and tools pages
 │   ├── analyzer.py           # Main orchestrator (per-module crash isolation)
 │   ├── evidence.py           # Evidence ledger — the scoring engine (log-odds)
 │   ├── scoring.py            # Builds the ledger from module flags
@@ -225,12 +235,12 @@ curl -F file=@invoice.pdf "https://www.trustyfile.com/api/v1/analyze?lang=fr"
 | Docs | interactive OpenAPI at `/api/docs`, schema at `/api/openapi.json`, liveness at `/api/v1/health` |
 
 Documents are analysed on a temporary file that is deleted when the answer is
-sent; nothing is retained. Locally: `uvicorn src.api:api --port 8000`.
+sent; nothing is retained. Locally: `uvicorn src.web.app:app --port 8000`.
 
 ## Roadmap
 
 - [x] MVP with 5 core detection modules (metadata, content, visual, fonts, images)
-- [x] Streamlit interface with dark theme
+- [x] Web interface with dark theme (Streamlit at first, now FastAPI + Jinja)
 - [x] PDF structure analysis (incremental saves, modification history)
 - [x] External verification (SIREN/SIRET via INSEE API, VAT validation)
 - [x] Image forensics (ELA, editor detection)

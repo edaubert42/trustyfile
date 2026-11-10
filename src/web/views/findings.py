@@ -12,7 +12,7 @@ from src.web.viewmodel import DocumentView
 from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc
 
 
-def evidence_bars_html(result: AnalysisResult, lang: str | None = None) -> str:
+def evidence_bars_html(result: AnalysisResult, lang: str) -> str:
     """
     Four horizontal bars: how much each family of checks weighed on the score.
 
@@ -106,7 +106,7 @@ def evidence_bars_html(result: AnalysisResult, lang: str | None = None) -> str:
     return bars_html
 
 
-def summary_html(result: AnalysisResult, view: DocumentView, lang: str = "fr") -> str:
+def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
     """
     The "Summary" block: main findings, modification timeline, document type.
 

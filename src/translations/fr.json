@@ -29,6 +29,8 @@
     "back_to_home": "Retour",
     "render_error_title": "L'affichage du résultat a échoué",
     "render_error_message": "Une erreur interne s'est produite pendant l'affichage de l'analyse ; elle a été enregistrée. Réessayez dans quelques instants ou avec un autre document.",
+    "not_found_title": "Page introuvable",
+    "not_found_message": "Cette adresse n'existe pas, ou le résultat qu'elle affichait a expiré.",
 
     "label_name": "Nom",
     "label_stated_date": "Date indiquée",

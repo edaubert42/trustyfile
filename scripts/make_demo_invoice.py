@@ -18,7 +18,7 @@ one the app is meant to catch:
 3. The IBAN's mod-97 check digits are wrong (one digit changed).
 
 Usage:
-    .venv/bin/python scripts/make_demo_invoice.py   # writes static/demo/facture-exemple.pdf
+    .venv/bin/python scripts/make_demo_invoice.py   # writes public/static/demo/facture-exemple.pdf
 
 The file is committed; rerun only when the content changes.
 """
@@ -31,7 +31,7 @@ from pathlib import Path
 import pymupdf
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "static" / "demo" / "facture-exemple.pdf"
+OUT = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 
 # Fictitious issuer. 732 829 320 is the textbook example SIREN (Luhn-valid,
 # not registered), so the INSEE lookup, when enabled, reports it as not found.
