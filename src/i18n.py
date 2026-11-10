@@ -11,8 +11,8 @@ Usage:
     label = t("preview")  # Returns "Aperçu" if lang=fr, "Preview" if lang=en
 """
 
-import streamlit as st
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -88,6 +88,7 @@ def _detect_browser_lang() -> str | None:
         Two-letter code, or None if unavailable or unsupported.
     """
     try:
+        import streamlit as st
         header = st.context.headers.get("Accept-Language", "")
     except Exception:
         # No script run context (bare imports, tests) — no headers to read.
@@ -107,6 +108,10 @@ def get_lang() -> str:
     Returns:
         Two-letter language code ("fr" or "en").
     """
+    # Streamlit is imported here, not at module level: translate() and
+    # translator() are used by code that has nothing to do with Streamlit
+    # (the HTML views, the batch report) and must not drag it in.
+    import streamlit as st
     lang = st.query_params.get("lang")
     if lang in SUPPORTED_LANGS:
         return lang
@@ -140,6 +145,29 @@ def translate(key: str, lang: str) -> str:
         path = Path(__file__).parent / "translations" / f"{lang}.json"
         _cache[lang] = json.loads(path.read_text(encoding="utf-8"))
     return _cache[lang].get(key, key)
+
+
+def translator(lang: str | None = None) -> Callable[[str], str]:
+    """
+    Build a one-argument translate function bound to one language.
+
+    The HTML views translate dozens of keys each; binding the language once
+    keeps their code as short as `t("preview")`.
+
+    Args:
+        lang: "fr" or "en". None means "the current Streamlit request's
+            language" (see get_lang()), for callers not yet given one.
+
+    Returns:
+        A function key -> translated string.
+
+    Example:
+        >>> t = translator("en")
+        >>> t("preview")
+        'Preview'
+    """
+    bound = lang if lang is not None else get_lang()
+    return lambda key: translate(key, bound)
 
 
 def t(key: str) -> str:

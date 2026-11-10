@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import html
 
-from src.i18n import t
+from src.i18n import translator
 from src.modules.twod_doc import TwoDocData, extract_verified_data
 
 
-def twod_rows_html(twod_doc_data: TwoDocData) -> str:
+def twod_rows_html(twod_doc_data: TwoDocData, lang: str | None = None) -> str:
     """Rows (label / value) for one decoded 2D-Doc, as an HTML fragment.
 
     Known fields first (type, identity, address, tax, invoice), then every
@@ -24,10 +24,12 @@ def twod_rows_html(twod_doc_data: TwoDocData) -> str:
 
     Args:
         twod_doc_data: A parsed 2D-Doc (parse_twod_doc output).
+        lang: "fr" or "en"; None uses the current Streamlit request's language.
 
     Returns:
         HTML <div> rows, without the surrounding card.
     """
+    t = translator(lang)
     verified = extract_verified_data(twod_doc_data)
 
     _2d_row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
@@ -168,13 +170,14 @@ _LEVEL_STYLE = {
 }
 
 
-def photo_result_html(result, level: str, key: str) -> str:
+def photo_result_html(result, level: str, key: str, lang: str | None = None) -> str:
     """The photo scan view: verdict banner, then the signed data, then advice.
 
     Args:
         result: PhotoScanResult from twod_doc_photo.scan_photo.
         level, key: photo_verdict(result) — the banner colour and the
             translation key of its message (title is key + "_title").
+        lang: "fr" or "en"; None uses the current Streamlit request's language.
 
     Returns:
         One HTML fragment (rendered with st.markdown(unsafe_allow_html=True)).
@@ -182,6 +185,7 @@ def photo_result_html(result, level: str, key: str) -> str:
         "compare with the paper" warning only under a valid signature, a
         "not guaranteed" caption otherwise.
     """
+    t = translator(lang)
     style = _LEVEL_STYLE[level]
     parts = [
         f'<div id="photo-result" style="max-width:640px; margin:1.5rem auto; padding:0 1rem;">',
@@ -202,7 +206,7 @@ def photo_result_html(result, level: str, key: str) -> str:
 
     if result.status == "decoded" and result.twod_doc is not None:
         try:
-            rows = twod_rows_html(result.twod_doc)
+            rows = twod_rows_html(result.twod_doc, lang)
         except Exception:  # a malformed signed field must not break the page
             rows = (f'<div style="color:#888; font-size:0.75rem;">'
                     f'{html.escape(t("photo_fields_error"))}</div>')
@@ -271,7 +275,8 @@ def pdf_signature_badge(statuses: list[str]) -> tuple[str, str]:
     return "neutral", "twod_sig_unverifiable"
 
 
-def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str]) -> str:
+def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str],
+                        lang: str | None = None) -> str:
     """The 2D-Doc panel of the PDF results page (one card per decoded code).
 
     The panel colour and its badge follow pdf_signature_badge: a forged code
@@ -280,10 +285,12 @@ def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str]) -> str
     Args:
         twod_docs: parsed 2D-Docs found on the page (scan_pdf_for_2d_doc).
         statuses: signature status of each of them (same order).
+        lang: "fr" or "en"; None uses the current Streamlit request's language.
 
     Returns:
         A <details> HTML fragment, or "" when there is no code.
     """
+    t = translator(lang)
     if not twod_docs:
         return ""
 
@@ -293,7 +300,7 @@ def twod_pdf_panel_html(twod_docs: list[TwoDocData], statuses: list[str]) -> str
     cards = ""
     for twod_doc_data in twod_docs:
         try:
-            rows = twod_rows_html(twod_doc_data)
+            rows = twod_rows_html(twod_doc_data, lang)
         except Exception:  # a malformed signed field must not break the page
             rows = (f'<div style="color:#888; font-size:0.75rem;">'
                     f'{html.escape(t("photo_fields_error"))}</div>')

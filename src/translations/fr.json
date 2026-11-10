@@ -23,6 +23,7 @@
     "could_not_render": "Impossible d'afficher l'aperçu PDF : {error}",
     "too_large_title": "Fichier trop volumineux",
     "too_large_message": "Ce fichier fait {size} Mo. TrustyFile accepte les fichiers jusqu'à 10 Mo.",
+    "not_a_pdf_title": "Fichier illisible",
     "too_many_pages_title": "Document trop long",
     "too_many_pages_message": "Ce document contient {count} pages. TrustyFile analyse uniquement les documents de 20 pages maximum.",
     "back_to_home": "Retour",

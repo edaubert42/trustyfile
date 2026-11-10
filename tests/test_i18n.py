@@ -31,10 +31,13 @@ def test_translation_files_have_identical_key_sets():
 def test_every_app_translation_key_exists_in_both_languages():
     """t() falls back to the raw key when a translation is missing, silently.
 
-    Every literal t("key") in app.py must resolve in both files, and every
+    Every literal t("key") in the page's code must resolve in both files, and every
     dynamic family t(f"prefix{...}") must have the same members in both.
     """
-    source = (ROOT / "app.py").read_text(encoding="utf-8")
+    # The page is app.py plus the HTML views it calls (src/web/views/).
+    files = [ROOT / "app.py", ROOT / "src" / "twod_doc_view.py",
+             *sorted((ROOT / "src" / "web" / "views").glob("*.py"))]
+    source = "\n".join(path.read_text(encoding="utf-8") for path in files)
     literal = set(re.findall(r"""\bt\(\s*["']([A-Za-z0-9_]+)["']\s*\)""", source))
     families = set(re.findall(r"""\bt\(f["']([A-Za-z0-9_]+)\{""", source))
     assert literal, "no t() calls matched — the regex is broken, not the app"

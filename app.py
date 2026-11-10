@@ -8,190 +8,37 @@ Run with: streamlit run app.py
 """
 
 import streamlit as st
-import streamlit.components.v1 as components
-import html
 import json
 import logging
 import tempfile
 from contextlib import ExitStack
 from datetime import datetime
 import os
-import re
 from pathlib import Path
-from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
 from src.preview import (
     render_pdf_page, collect_evidence_boxes, collect_numbered_boxes,
-    first_flagged_page, reason_numbers, with_located_regions,
+    first_flagged_page,
 )
+from src.web.viewmodel import build_document_view
+from src.web.views import (
+    actions, details, errors, findings, landing, properties, verdict,
+)
+from src.web.views import batch as batch_views
+from src.web.views.common import esc
+# The landing page lists the verification guides and the checker tools; the
+# same lists feed the crawler-facing copy of the page (one source).
+from src.web.views.links import GUIDES as _GUIDES, TOOLS as _TOOLS
+from src.web.virustotal import check_virustotal
 
-# The landing page lists the verification guides and the checker tools. Their
-# slugs and titles live with the generator (scripts/build_guides.py), which
-# also renders the crawler-facing copy of this landing page — one source, so
-# the two pages list exactly the same links and the crawler never sees a link
-# a human does not.
-try:
-    from scripts.build_guides import GUIDES as _GUIDES, TOOLS as _TOOLS
-except Exception:  # a broken or missing generator must never take the app down
-    _GUIDES = {"fr": [], "en": []}
-    _TOOLS = {"fr": [], "en": []}
-
-# Which checker page can re-run the check behind a flag. Matched on the flag
-# code (CONTENT_INVALID_IBAN, EXTERNAL_SIRET_NOT_FOUND, ...) rather than on a
-# hand-kept list, so a new identifier flag gets its link for free. VAT before
-# SIREN so that CONTENT_SIREN_VAT_MISMATCH lands on the VAT checker, which
-# shows the key the SIREN implies — exactly what that flag is about.
-_TOOL_KIND_BY_CODE_TOKEN = (("IBAN", "iban"), ("SIRET", "siret"), ("VAT", "vat"), ("SIREN", "siren"), ("NIR", "nir"))
-
-
-def tool_url_for_flag(code: str, lang: str) -> str | None:
-    """Site-relative URL of the checker page matching a flag code, if any.
-
-    Example:
-        >>> tool_url_for_flag("CONTENT_INVALID_IBAN", "fr")
-        '/outils/verifier-un-iban'
-        >>> tool_url_for_flag("META_ONLINE_CONVERTER", "fr") is None
-        True
-    """
-    prefix = "/outils/" if lang == "fr" else "/en/tools/"
-    for token, kind in _TOOL_KIND_BY_CODE_TOKEN:
-        if token in code:
-            for tool in _TOOLS.get(lang, []):
-                if tool.kind == kind:
-                    return prefix + tool.slug
-    return None
-
-
-# Which guide explains a flag. Two routes: the flag *family* when the signal
-# is about the file itself (a second revision, a covered value, a stripped
-# Producer, a 2D-Doc signature), the *document type* otherwise — a font
-# change means something different on an invoice than on a tax notice, and
-# each of those has its own guide. Slugs are looked up in GUIDES at call time,
-# so a renamed guide yields no link rather than a dead one.
-_GUIDE_BY_FLAG_PREFIX = {
-    "STRUCT_": "pdf", "OVERLAY_": "pdf", "INVISIBLE_": "pdf", "META_": "pdf", "PROVENANCE_": "pdf",
-    "TWOD_": "twod_doc", "MRZ_": "twod_doc",
-}
-_GUIDE_BY_DOCUMENT_TYPE = {
-    "invoice": "invoice", "tax_document": "tax_notice", "attestation": "proof_of_address",
-    "identity": "twod_doc",
-}
-_GUIDE_SLUGS = {
-    "pdf": {"fr": "savoir-si-un-pdf-a-ete-modifie", "en": "how-to-tell-if-a-pdf-was-modified"},
-    "twod_doc": {"fr": "2d-doc-verifier-un-document-officiel", "en": "2d-doc-verifying-official-documents"},
-    "invoice": {"fr": "verifier-une-facture-falsifiee", "en": "how-to-spot-a-tampered-invoice"},
-    "tax_notice": {"fr": "verifier-un-avis-d-imposition", "en": "how-to-verify-a-french-tax-notice"},
-    "proof_of_address": {"fr": "verifier-un-justificatif-de-domicile", "en": "how-to-verify-a-proof-of-address"},
-}
-# Bookkeeping flags about the analysis itself, not about the document.
-_NO_GUIDE_PREFIXES = ("EXTRACTION_", "MODULE_", "COVERAGE_")
-
-
-def guide_url_for_flag(code: str, lang: str, document_type: str) -> str | None:
-    """Site-relative URL of the guide that explains a flag, if there is one.
-
-    Example:
-        >>> guide_url_for_flag("STRUCT_INCREMENTAL_UPDATES", "fr", "invoice")
-        '/guides/savoir-si-un-pdf-a-ete-modifie'
-        >>> guide_url_for_flag("FONTS_MIXED", "en", "invoice")
-        '/en/guides/how-to-spot-a-tampered-invoice'
-        >>> guide_url_for_flag("COVERAGE_GATE", "fr", "invoice") is None
-        True
-    """
-    if not code or code.startswith(_NO_GUIDE_PREFIXES):
-        return None
-    topic = next((topic for prefix, topic in _GUIDE_BY_FLAG_PREFIX.items() if code.startswith(prefix)), None)
-    if topic is None:
-        topic = _GUIDE_BY_DOCUMENT_TYPE.get(document_type, "pdf")
-    slug = _GUIDE_SLUGS[topic][lang]
-    if slug not in {guide.slug for guide in _GUIDES.get(lang, [])}:
-        return None
-    return ("/guides/" if lang == "fr" else "/en/guides/") + slug
-
-
-def esc(s) -> str:
-    """Escape a value for safe interpolation into unsafe_allow_html markdown.
-
-    PDF metadata (Producer, Creator, editor, signer) and the uploaded
-    filename are attacker-controlled: a malicious PDF can set these fields
-    to arbitrary strings. Because the file-properties block is rendered via
-    st.markdown(..., unsafe_allow_html=True), any unescaped value would be
-    interpreted as raw HTML, enabling stored XSS (e.g. a Producer of
-    "<img src=x onerror=alert(1)>"). Always wrap attacker-controlled values
-    with this helper before interpolating them into HTML, in both element
-    text and attribute (e.g. title="...") positions.
-    """
-    return html.escape(str(s if s is not None else ""), quote=True)
-
-
-# =============================================================================
-# VIRUSTOTAL LOOKUP
-# =============================================================================
-
-def check_virustotal(sha256: str) -> dict | None:
-    """
-    Look up a file hash on VirusTotal.
-
-    Uses the VirusTotal v3 API to check if this file has been scanned before.
-    Returns a dict with the results, or None if the lookup failed.
-
-    Args:
-        sha256: The SHA256 hash of the file
-
-    Returns:
-        dict with keys:
-            - "status": "clean" | "malicious" | "unknown"
-            - "malicious": int (number of engines that flagged the file)
-            - "total": int (total number of engines)
-            - "link": str (URL to the VirusTotal report)
-        or None if the API call failed (no key, network error, etc.)
-    """
+def _virustotal_lookup(sha256: str) -> dict | None:
+    """VirusTotal answer for a file hash, with the API key from Streamlit secrets."""
     try:
-        import requests
         api_key = st.secrets.get("VIRUSTOTAL_API_KEY", "")
-        if not api_key:
-            return None
-
-        url = f"https://www.virustotal.com/api/v3/files/{sha256}"
-        headers = {"x-apikey": api_key}
-        resp = requests.get(url, headers=headers, timeout=10)
-
-        link = f"https://www.virustotal.com/gui/file/{sha256}"
-
-        if resp.status_code == 404:
-            # File was never scanned on VirusTotal
-            return {"status": "unknown", "malicious": 0, "total": 0, "link": link}
-
-        if resp.status_code != 200:
-            return None
-
-        data = resp.json()
-        stats = data["data"]["attributes"]["last_analysis_stats"]
-        malicious = stats.get("malicious", 0) + stats.get("suspicious", 0)
-        total = sum(stats.values())
-
-        if malicious > 0:
-            return {"status": "malicious", "malicious": malicious, "total": total, "link": link}
-        else:
-            return {"status": "clean", "malicious": 0, "total": total, "link": link}
-
     except Exception:
-        return None
+        api_key = ""
+    return check_virustotal(sha256, api_key)
 
-
-# =============================================================================
-# PDF PREVIEW FUNCTIONS
-# =============================================================================
-
-def get_pdf_page_count(pdf_path: str) -> int:
-    """Get the number of pages in a PDF."""
-    import fitz
-    doc = fitz.open(pdf_path)
-    try:
-        count = len(doc)
-    finally:
-        doc.close()
-    return count
 
 
 # =============================================================================
@@ -1241,11 +1088,7 @@ elif st.session_state.get("demo_active") and _DEMO_PDF.exists():
 # and no batch.
 _landing = uploaded_file is None and not batch_files
 if _landing:
-    st.markdown(f"""
-    <p style="color:#666; font-size:0.75rem; text-align:center; margin-top:-0.5rem;">
-        {t("disclaimer_upload")}
-    </p>
-    """, unsafe_allow_html=True)
+    st.markdown(landing.upload_disclaimer_html(_current_lang), unsafe_allow_html=True)
     if _DEMO_PDF.exists():
         _demo_l, _demo_c, _demo_r = st.columns([2, 1.6, 2])
         if _demo_c.button(t("demo_button"), key="demo_button", use_container_width=True):
@@ -1256,144 +1099,15 @@ if _landing:
 if _landing:
     col_left, col_upload, col_right = st.columns([1, 2, 1])
     with col_upload:
-        st.markdown(f"""
-        <div id="landing-content">
-            <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 0.8rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
-                {t("landing_headline")}
-            </p>
-        </div>
-        <div id="landing-tagline">
-            <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">
-                {t("landing_tagline")}
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(landing.headline_html(_current_lang), unsafe_allow_html=True)
 
-    # Guide links. Until 2026-08-27 these existed only on the crawler-only
-    # copy of this page; a human gets the same row now, so the two stay
-    # equivalent (see scripts/build_guides.py render_landing).
-    _guides_prefix = "/guides/" if _current_lang == "fr" else "/en/guides/"
-    _guide_links = " · ".join(
-        f'<a href="{_guides_prefix}{g.slug}" style="color:#888; text-decoration:none;">{html.escape(g.title)}</a>'
-        for g in _GUIDES.get(_current_lang, [])
+    # "How it works" cards, then the guide and tool links. A human gets the
+    # same link rows as the crawler-facing copy of this page (see
+    # scripts/build_guides.py render_landing), so the two stay equivalent.
+    st.markdown(
+        landing.steps_html(_GUIDES.get(_current_lang, []), _TOOLS.get(_current_lang, []), _current_lang),
+        unsafe_allow_html=True,
     )
-    _landing_guides_html = (
-        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:1.8rem auto 0 auto; '
-        'line-height:1.9; max-width:640px;">'
-        f'{t("footer_guides")}{" :" if _current_lang == "fr" else ":"} {_guide_links}</p>'
-    ) if _guide_links else ""
-    # Checker tools (IBAN / SIRET / SIREN), same treatment: a visitor with a
-    # single number to check should not have to upload a document to find them.
-    _tools_prefix = "/outils/" if _current_lang == "fr" else "/en/tools/"
-    _tool_links = " · ".join(
-        f'<a href="{_tools_prefix}{tool.slug}" style="color:#888; text-decoration:none;">{html.escape(tool.title)}</a>'
-        for tool in _TOOLS.get(_current_lang, [])
-    )
-    _landing_tools_html = (
-        '<p style="color:#666; font-size:0.74rem; text-align:center; margin:0.4rem auto 0 auto; '
-        'line-height:1.9; max-width:640px;">'
-        f'{t("footer_tools")}{" :" if _current_lang == "fr" else ":"} {_tool_links}</p>'
-    ) if _tool_links else ""
-
-    # "How it works" steps
-    st.markdown(f"""
-    <style>
-        .steps-row {{
-            display: flex;
-            align-items: stretch;
-            justify-content: center;
-            margin: 2.5rem auto 0 auto;
-            gap: 0;
-        }}
-        .step-card {{
-            width: 180px;
-            flex-shrink: 0;
-            text-align: center;
-            padding: 1.2rem 1rem;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            transition: border-color 0.2s, background 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }}
-        .step-card:hover {{
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(255, 255, 255, 0.15);
-        }}
-        .step-arrow {{
-            color: rgba(255, 255, 255, 0.15);
-            font-size: 1.3rem;
-            padding: 0 0.6rem;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-        }}
-        .step-number {{
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.10);
-            color: #999;
-            font-size: 0.8rem;
-            font-weight: 700;
-            margin-bottom: 0.6rem;
-        }}
-        .step-title {{
-            color: #ddd;
-            font-size: 0.92rem;
-            font-weight: 600;
-            margin-bottom: 0.3rem;
-        }}
-        .step-desc {{
-            color: #777;
-            font-size: 0.76rem;
-            line-height: 1.4;
-        }}
-        @media (max-width: 600px) {{
-            .steps-row {{
-                flex-direction: column;
-                align-items: center;
-                gap: 0;
-            }}
-            .step-card {{
-                width: 220px;
-            }}
-            .step-arrow {{
-                transform: rotate(90deg);
-                padding: 0.3rem 0;
-            }}
-        }}
-    </style>
-    <div class="steps-row">
-        <div class="step-card">
-            <div class="step-number">1</div>
-            <div class="step-title">{t("step1_title")}</div>
-            <div class="step-desc">{t("step1_desc")}</div>
-        </div>
-        <div class="step-arrow">&#x276F;</div>
-        <div class="step-card">
-            <div class="step-number">2</div>
-            <div class="step-title">{t("step2_title")}</div>
-            <div class="step-desc">{t("step2_desc")}</div>
-        </div>
-        <div class="step-arrow">&#x276F;</div>
-        <div class="step-card">
-            <div class="step-number">3</div>
-            <div class="step-title">{t("step3_title")}</div>
-            <div class="step-desc">{t("step3_desc")}</div>
-        </div>
-    </div>
-    {_landing_guides_html}
-    {_landing_tools_html}
-    <p style="color:#555; font-size:0.70rem; text-align:center; margin-top:2rem;">
-        {t("disclaimer_api")}
-    </p>
-    """, unsafe_allow_html=True)
 
 # Hide landing content and minimize uploader when a file is uploaded
 if uploaded_file is not None or batch_files:
@@ -1476,85 +1190,39 @@ if batch_files and uploaded_file is None:
     _batch_rows = [(_f, _md5, _batch_cache[_key]) for _f, _md5, _key in _batch_keys]
 
     st.markdown('<hr style="margin:0 0 0.3rem 0;">', unsafe_allow_html=True)
-    st.markdown(
-        f'<div style="color:white; font-size:1.3rem; font-weight:bold;">'
-        f'{esc(t("batch_title").format(n=len(_batch_rows)))}</div>'
-        f'<div style="color:#888; font-size:0.8rem; margin-bottom:0.6rem;">{esc(t("batch_intro"))}</div>',
-        unsafe_allow_html=True,
-    )
+    st.markdown(batch_views.title_html(len(_batch_rows), _current_lang), unsafe_allow_html=True)
     if _batch_truncated:
-        st.markdown(
-            f'<div style="color:#ffb627; font-size:0.8rem; margin-bottom:0.4rem;">'
-            f'{esc(t("batch_too_many").format(max=MAX_BATCH_FILES))}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(batch_views.too_many_html(MAX_BATCH_FILES, _current_lang), unsafe_allow_html=True)
 
     # Table as columns rather than HTML: each row needs a real Streamlit
     # button, and a widget cannot live inside an st.markdown table.
-    _BATCH_COLS = [3, 1.6, 0.8, 4, 1]
-    _head = st.columns(_BATCH_COLS, vertical_alignment="center")
-    for _col, _key in zip(_head, ("batch_col_file", "batch_col_verdict", "batch_col_score", "batch_col_finding")):
-        _col.markdown(
-            f'<div style="color:#888; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px;">'
-            f'{esc(t(_key))}</div>',
-            unsafe_allow_html=True,
-        )
-
-    def _pill(color: str, label: str) -> str:
-        return (
-            f'<span style="background:{color}; color:white; font-size:0.68rem; font-weight:bold; '
-            f'padding:2px 10px; border-radius:10px; white-space:nowrap;">{esc(label)}</span>'
-        )
+    _head = st.columns(batch_views.COLUMN_WIDTHS, vertical_alignment="center")
+    for _col, _key in zip(_head, batch_views.COLUMN_KEYS):
+        _col.markdown(batch_views.column_heading_html(_key, _current_lang), unsafe_allow_html=True)
 
     for _f, _md5, _item in _batch_rows:
-        _c_name, _c_band, _c_score, _c_finding, _c_open = st.columns(_BATCH_COLS, vertical_alignment="center")
-        _c_name.markdown(
-            f'<div style="color:white; font-size:0.85rem; overflow:hidden; text-overflow:ellipsis; '
-            f'white-space:nowrap;" title="{esc(_f.name)}">{esc(_f.name)}</div>',
-            unsafe_allow_html=True,
-        )
-        if _item.ok:
-            _r = _item.result
-            # Same thresholds and colours as the gauge on the results page.
-            if _r.risk_level == "UNVERIFIABLE":
-                _color, _score_txt = "#6c757d", t("score_not_available")
-            elif _r.trust_score >= 80:
-                _color, _score_txt = "#28a745", str(_r.trust_score)
-            elif _r.trust_score >= 50:
-                _color, _score_txt = "#ffb627", str(_r.trust_score)
-            else:
-                _color, _score_txt = "#ef233c", str(_r.trust_score)
-            _c_band.markdown(_pill(_color, t(f"risk_{_r.risk_level}")), unsafe_allow_html=True)
-            _c_score.markdown(
-                f'<span style="color:{_color}; font-weight:bold; font-size:1rem;">{_score_txt}</span>',
-                unsafe_allow_html=True,
-            )
-            _c_finding.markdown(
-                f'<div style="color:#cdd6f4; font-size:0.8rem;">{esc(_item.summary.verdict)}</div>',
-                unsafe_allow_html=True,
-            )
-            if _c_open.button(t("batch_open"), key=f"batch_open_{_f.file_id}", use_container_width=True):
-                # Seed the single-document cache with this row's analysis: the
-                # results page keys its cache on the content md5, so it renders
-                # straight away instead of analysing the file a second time.
-                st.session_state["batch_open"] = _f.file_id
-                st.session_state["last_file_hash"] = _md5
-                st.session_state["cached_result"] = _item.result
-                st.session_state["cached_summary"] = _item.summary
-                st.session_state["cached_twod_doc"] = _item.twod_doc
-                # Without this the results page would show the signature
-                # badges of whichever document was analysed before.
-                st.session_state["cached_twod_doc_signatures"] = _item.twod_doc_signatures
-                st.session_state["cached_analysed_at"] = _item.analysed_at
-                st.session_state.pop("page_selector", None)
-                st.rerun()
-        else:
-            _c_band.markdown(_pill("#6c757d", t("batch_refused")), unsafe_allow_html=True)
-            _c_score.markdown('<span style="color:#6c757d;">—</span>', unsafe_allow_html=True)
-            _c_finding.markdown(
-                f'<div style="color:#888; font-size:0.8rem;">{esc(t(f"batch_problem_{_item.problem}"))}</div>',
-                unsafe_allow_html=True,
-            )
+        _c_name, _c_band, _c_score, _c_finding, _c_open = st.columns(
+            batch_views.COLUMN_WIDTHS, vertical_alignment="center")
+        _c_name.markdown(batch_views.file_name_html(_f.name), unsafe_allow_html=True)
+        _band_html, _score_html, _finding_html = batch_views.row_cells_html(_item, _current_lang)
+        _c_band.markdown(_band_html, unsafe_allow_html=True)
+        _c_score.markdown(_score_html, unsafe_allow_html=True)
+        _c_finding.markdown(_finding_html, unsafe_allow_html=True)
+        if _item.ok and _c_open.button(t("batch_open"), key=f"batch_open_{_f.file_id}", use_container_width=True):
+            # Seed the single-document cache with this row's analysis: the
+            # results page keys its cache on the content md5, so it renders
+            # straight away instead of analysing the file a second time.
+            st.session_state["batch_open"] = _f.file_id
+            st.session_state["last_file_hash"] = _md5
+            st.session_state["cached_result"] = _item.result
+            st.session_state["cached_summary"] = _item.summary
+            st.session_state["cached_twod_doc"] = _item.twod_doc
+            # Without this the results page would show the signature
+            # badges of whichever document was analysed before.
+            st.session_state["cached_twod_doc_signatures"] = _item.twod_doc_signatures
+            st.session_state["cached_analysed_at"] = _item.analysed_at
+            st.session_state.pop("page_selector", None)
+            st.rerun()
 
     # The whole batch as one JSON file: every row, analysed or not.
     _batch_when = datetime.now()
@@ -1577,12 +1245,9 @@ if batch_files and uploaded_file is None:
 if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
-    from src.scoring import collect_all_flags, count_flags_by_severity
-    from src.summary import generate_rich_summary, get_flag_sentence, next_step_key, top_reasons
+    from src.summary import generate_rich_summary
     from src.report import build_report, report_json, report_filename
-    from src.extractors.pdf_extractor import extract_pdf_data
-    from src.modules.structure import get_modification_history
-    from src.modules.twod_doc import scan_pdf_for_2d_doc, extract_verified_data, PYLIBDMTX_AVAILABLE
+    from src.modules.twod_doc import scan_pdf_for_2d_doc, PYLIBDMTX_AVAILABLE
     from src.pipeline import scan_2d_doc
     from src.twod_doc_view import twod_pdf_panel_html
     import hashlib
@@ -1595,24 +1260,11 @@ if uploaded_file is not None:
     _file_size_mb = len(file_bytes) / (1024 * 1024)
     if _file_size_mb > 10:
         st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
-            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
-            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
-                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("too_large_title")}</div>
-                </div>
-                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("too_large_message").format(size=f"{_file_size_mb:.1f}")}</div>
-            </div>
-            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
-                {t("back_to_home")}
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(errors.error_card_html(
+            t("too_large_title"),
+            t("too_large_message").format(size=f"{_file_size_mb:.1f}"),
+            _current_lang,
+        ), unsafe_allow_html=True)
         mark_page_ready()
         st.stop()
 
@@ -1644,28 +1296,26 @@ if uploaded_file is not None:
 
     # Check page count before analysis — reject documents over 20 pages
     import fitz as _fitz
-    with _fitz.open(stream=file_bytes, filetype="pdf") as _doc:
-        _page_count = len(_doc)
+    try:
+        with _fitz.open(stream=file_bytes, filetype="pdf") as _doc:
+            _page_count = len(_doc)
+    except Exception:
+        # Not a PDF at all (a text file renamed .pdf, a truncated download):
+        # PyMuPDF refuses to open it. Say so with the usual card instead of
+        # letting the exception reach the reader as a raw error box.
+        st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
+        st.markdown(errors.error_card_html(
+            t("not_a_pdf_title"), t("batch_problem_not_a_pdf"), _current_lang,
+        ), unsafe_allow_html=True)
+        mark_page_ready()
+        st.stop()
     if _page_count > 20:
         st.markdown("<hr style='margin-top:0; margin-bottom:0;'>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
-            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
-            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
-                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("too_many_pages_title")}</div>
-                </div>
-                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("too_many_pages_message").format(count=_page_count)}</div>
-            </div>
-            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
-                {t("back_to_home")}
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(errors.error_card_html(
+            t("too_many_pages_title"),
+            t("too_many_pages_message").format(count=_page_count),
+            _current_lang,
+        ), unsafe_allow_html=True)
         mark_page_ready()
         st.stop()
 
@@ -1765,19 +1415,24 @@ if uploaded_file is not None:
                 st.session_state.pop("last_file_hash", None)
                 st.rerun()
 
-        # Get page count for navigation
-        page_count = get_pdf_page_count(tmp_path)
-
-        # The reasons shown next to the verdict, and the number that links
-        # each one to its region on the preview (None when a reason has no
-        # region). Computed BEFORE the two columns because both need them:
-        # the preview draws the numbers, the results list prints them.
-        # Display copies: text findings (VAT, IBAN, SIRET...) get the region
-        # of their value on the page, so they can carry a numbered badge too.
-        # `result` itself is untouched (score and JSON report unchanged).
-        all_flags = with_located_regions(collect_all_flags(result.modules), tmp_path)
-        _reasons = top_reasons(all_flags)
-        _reason_numbers = reason_numbers(_reasons)
+        # Everything the page shows besides the score (page count, findings
+        # with their region on the page, metadata, revision history,
+        # VirusTotal answer) is computed ONCE per document and kept for the
+        # reruns that follow (page change, language switch, thumbs up...).
+        # See src/web/viewmodel.py.
+        _view_key = (file_hash, uploaded_file.name)
+        if st.session_state.get("cached_view_key") != _view_key:
+            st.session_state["cached_view"] = build_document_view(
+                tmp_path, result, uploaded_file.name,
+                virustotal_lookup=_virustotal_lookup,
+            )
+            st.session_state["cached_view_key"] = _view_key
+        view = st.session_state["cached_view"]
+        page_count = view.page_count
+        all_flags = view.all_flags
+        # The reasons shown next to the verdict: the preview draws their
+        # numbers, the results list prints them.
+        _reasons = view.reasons
 
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
@@ -1823,186 +1478,7 @@ if uploaded_file is not None:
                 st.error(t("could_not_render").format(error=e))
 
             # File properties block
-            pdf_data = extract_pdf_data(tmp_path)
-            meta = pdf_data.metadata
-            history = get_modification_history(tmp_path)
-
-            # Check for signature info in structure module flags
-            signature_info = None
-            for module in result.modules:
-                if module.module == "structure":
-                    for flag in module.flags:
-                        if flag.details and "signer" in flag.details:
-                            signature_info = flag.details.get("signer", "Unknown")
-                            break
-
-            def format_date(dt):
-                return dt.strftime("%Y-%m-%d %H:%M") if dt else "—"
-
-            # Extract stated date from first page only (letter/invoice date)
-            # The establishment date is always on the first page
-            from src.modules.content import extract_dates_from_text
-            first_page_text = pdf_data.text_by_page[0] if pdf_data.text_by_page else ""
-            first_page_dates = extract_dates_from_text(first_page_text)
-            doc_dates = [d for d in first_page_dates if d.date_type in ("document", "invoice")]
-            stated_date = doc_dates[0].date if doc_dates else None
-
-            def red_pill(text, tooltip=""):
-                title_attr = f' title="{tooltip}"' if tooltip else ""
-                return (f'<span{title_attr} style="background:#ef233c; color:white; padding:2px 8px; '
-                        f'border-radius:10px; font-size:0.7rem; font-weight:bold; '
-                        f'margin-left:8px; white-space:nowrap; cursor:default;">{text}</span>')
-
-            label_style = "color:#888; font-size:0.8rem; width:120px; flex-shrink:0;"
-            value_style = "color:#eee; font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
-            row_style = "display:flex; align-items:center; padding:6px 0; border-bottom:1px solid #2a2a2a;"
-
-            producer = meta.producer or meta.creator or '—'
-            sig = signature_info or "—"  # same placeholder as the empty dates above
-
-            # Detect editor from XMP toolkit (if different from producer)
-            # The XMP toolkit reveals if a different software modified the PDF
-            editor_name = None
-            if history.get("diffs"):
-                # Use the last diff's to_tool which contains the detection
-                last_diff = history["diffs"][-1]
-                to_tool = last_diff.get("to_tool", "")
-                # If it contains "→ modified with", extract the editor name
-                if "→ modified with" in to_tool:
-                    editor_name = to_tool.split("→ modified with ")[-1]
-
-            # Compute pills for date anomalies
-            mod_pill = ""
-            stated_pill = ""
-
-            # Pill on modification date if gap > 1 day from creation
-            if meta.creation_date and meta.mod_date:
-                mod_gap = seconds_between(meta.mod_date, meta.creation_date)
-                if mod_gap > 86400:
-                    days = int(mod_gap // 86400)
-                    mod_pill = red_pill(
-                        f'<span class="pill-short">{t("pill_days_short").format(days=days)}</span>'
-                        f'<span class="pill-long">{t("pill_days_long").format(days=days)}</span>',
-                        t("pill_mod_tooltip").format(days=days)
-                    )
-
-            # Pill on stated date vs creation date if gap > 7 days
-            if stated_date and meta.creation_date:
-                # stated_date comes from the page text (naive) and creation_date
-                # from PDF metadata (UTC-aware); days_between normalises both.
-                # See src/dates.py for why this keeps going wrong.
-                stated_gap = days_between(stated_date, meta.creation_date)
-                if stated_gap > 7:
-                    stated_pill = red_pill(
-                        f'<span class="pill-short">{t("pill_days_short").format(days=stated_gap)}</span>'
-                        f'<span class="pill-long">{t("pill_days_long").format(days=stated_gap)}</span>',
-                        t("pill_stated_tooltip").format(days=stated_gap)
-                    )
-
-            def label_with_tip(label, tip):
-                return (f'<span class="tf-label" tabindex="0" style="{label_style}">'
-                        f'{label}<span class="tf-tip">{tip}</span></span>')
-
-            stated_row = ""
-            if stated_date:
-                stated_row = f"""
-            <div style="{row_style}">
-                {label_with_tip(t("label_stated_date"), t("tip_stated_date"))}
-                <span style="{value_style} flex-shrink:0;">{stated_date.strftime("%Y-%m-%d")}</span>{stated_pill}
-            </div>
-            """
-
-            file_rows = f"""
-            <div style="{row_style}">
-                <span style="{label_style}">{t("label_name")}</span>
-                <span style="{value_style}" title="{esc(uploaded_file.name)}">{esc(uploaded_file.name)}</span>
-            </div>
-            {stated_row}
-            <div style="{row_style}">
-                {label_with_tip(t("label_creation_date"), t("tip_creation_date"))}
-                <span style="{value_style}" title="{esc(format_date(meta.creation_date))}">{esc(format_date(meta.creation_date))}</span>
-            </div>
-            <div style="{row_style}">
-                {label_with_tip(t("label_modification_date"), t("tip_modification_date"))}
-                <span style="{value_style} flex-shrink:0;" title="{esc(format_date(meta.mod_date))}">{esc(format_date(meta.mod_date))}</span>{mod_pill}
-            </div>
-            <div style="{row_style}">
-                <span style="{label_style}">{t("label_producer")}</span>
-                <span style="{value_style}" title="{esc(producer)}">{esc(producer)}</span>
-            </div>
-            """
-
-            # Show Creator if different from Producer (often contains device/app info)
-            creator = meta.creator or ""
-            if creator and creator.lower() != (meta.producer or "").lower():
-                file_rows += f"""
-            <div style="{row_style}">
-                <span style="{label_style}">{t("label_creator")}</span>
-                <span style="{value_style}" title="{esc(creator)}">{esc(creator)}</span>
-            </div>
-            """
-
-            # Only show Editor line if a different software modified the PDF
-            if editor_name:
-                file_rows += f"""
-            <div style="{row_style}">
-                <span style="{label_style}">{t("label_editor")}</span>
-                <span style="{value_style}" title="{esc(editor_name)}">{esc(editor_name)}</span>
-            </div>
-            """
-
-            file_rows += f"""
-            <div style="{row_style}">
-                <span style="{label_style}">{t("label_signed_by")}</span>
-                <span style="{value_style}" title="{esc(sig)}">{esc(sig)}</span>
-            </div>
-            <div style="display:flex; align-items:center; padding:6px 0;">
-                <span style="{label_style}">{t("label_sha256")}</span>
-                <span style="{value_style} font-size:0.75rem;" title="{esc(result.file_hash)}">{esc(result.file_hash)}</span>
-            </div>
-            """
-
-            # VirusTotal lookup — check the file hash against VT's database
-            vt_result = check_virustotal(result.file_hash)
-            if vt_result is not None:
-                vt_link = vt_result["link"]
-                if vt_result["status"] == "clean":
-                    vt_pill = (
-                        f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
-                        f'<span style="background:#28a745; color:white; padding:3px 10px; '
-                        f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
-                        f'{t("vt_no_threats")}</span></a>'
-                    )
-                elif vt_result["status"] == "malicious":
-                    vt_pill = (
-                        f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
-                        f'<span style="background:#ef233c; color:white; padding:3px 10px; '
-                        f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
-                        f'{t("vt_threats").format(malicious=vt_result["malicious"], total=vt_result["total"])}</span></a>'
-                    )
-                else:
-                    # "unknown" — file not in VT database
-                    vt_pill = (
-                        f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
-                        f'<span style="background:#555; color:#ccc; padding:3px 10px; '
-                        f'border-radius:12px; font-size:0.78rem;">'
-                        f'{t("vt_unknown")}</span></a>'
-                    )
-                file_rows += f"""
-            <div style="display:flex; align-items:center; padding:6px 0;">
-                <span style="{label_style}">{t("label_virustotal")}</span>
-                {vt_pill}
-            </div>
-            """
-
-            st.markdown(f"""
-            <div style="margin-top:0.5rem;">
-                <span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;
-                    letter-spacing:0.5px;">{t("file_properties")}</span>
-                <hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 10px 0;">
-                {file_rows}
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(properties.file_properties_html(view, _current_lang), unsafe_allow_html=True)
 
         # =================================================================
         # RIGHT COLUMN: Analysis Results
@@ -2015,445 +1491,17 @@ if uploaded_file is not None:
             # The script opens every <details> before printing (CSS cannot)
             # and restores the reader's state afterwards.
             _analysed_at = st.session_state.get("cached_analysed_at", "")
-            st.html(f"""
-            <div class="tf-print-only tf-print-keep" style="border-bottom:2px solid #000; padding-bottom:6px; margin-bottom:14px;">
-                <div style="font-size:1.1rem; font-weight:bold;">{t("print_report_title")}</div>
-                <div style="font-size:0.8rem;">{t("print_file")} {esc(uploaded_file.name)}</div>
-                <div style="font-size:0.8rem;">SHA-256 <code>{esc(result.file_hash)}</code></div>
-                <div style="font-size:0.8rem;">{t("print_date")} {_analysed_at} &middot; {t("print_generated_by")} https://www.trustyfile.com</div>
-            </div>
-            """)
+            st.html(verdict.print_header_html(
+                uploaded_file.name, result.file_hash, _analysed_at, _current_lang))
 
-            # Main score gauge (circular arc like HubSpot Website Grader)
-            score = result.trust_score
-            risk_level = result.risk_level
+            # Score gauge, verdict and advice
+            st.markdown(verdict.gauge_html(result, summary, _current_lang), unsafe_allow_html=True)
 
-            # Color based on score. UNVERIFIABLE carries score 0 internally
-            # (the coverage gate fails closed), but a giant bold "0" reads as
-            # "maximally fraudulent" to a user whose scan simply had no text
-            # layer. Show a neutral glyph and a full grey ring instead: "not
-            # measured", not "empty tank".
-            gauge_number = str(score)
-            if risk_level == "UNVERIFIABLE":
-                gauge_color = "#6c757d"   # neutral grey: could not verify (not fraud)
-                gauge_number = t("score_not_available")
-            elif score >= 80:
-                gauge_color = "#28a745"
-            elif score >= 50:
-                gauge_color = "#ffb627"
-            elif score >= 20:
-                gauge_color = "#ef233c"
-            else:
-                gauge_color = "#ef233c"
-
-            # SVG circular gauge (full donut ring)
-            # Uses a circle with stroke-dasharray to fill proportionally
-            # The circle starts at the top (rotated -90°)
-            radius = 80
-            circumference = 2 * 3.14159 * radius  # full circle
-            if risk_level == "UNVERIFIABLE":
-                filled = circumference          # full grey ring: nothing measured
-            else:
-                filled = circumference * (score / 100)
-            size = 220
-            center = size // 2
-
-            # Two lines under the gauge, no more: the verdict, then what to do.
-            # The full score caveat moved to the "see all details" block. One
-            # short reminder stays, and only on a GOOD result: that is where
-            # a reader could over-trust the verdict ("green = authentic"). On
-            # a bad result the next step already says to check by hand.
-            _caveat_html = ""
-            if risk_level != "UNVERIFIABLE" and score >= 80:
-                _caveat_html = (
-                    '<p style="color:#888; font-size:0.75rem; line-height:1.4; max-width:420px; '
-                    f'margin:0 auto 0.4rem auto;">{esc(t("score_caveat_short"))}</p>'
-                )
-
-            # Headline under the gauge. On a SUSPICIOUS result it is the advice
-            # itself ("Do not rely on this document..."): the verdict sentence
-            # names ONE theme (e.g. "identity information is fraudulent") and
-            # can disagree with the first reason listed just below (e.g. an
-            # overwritten amount). The reasons already say what is wrong, so
-            # the headline only says what to do. Other bands keep
-            # verdict + advice. (The JSON report still carries the verdict.)
-            _advice = t(next_step_key(result.band, result.document_type))
-            if result.band == "SUSPICIOUS":
-                _headline = _advice
-                _advice_html = ""
-            else:
-                _headline = summary.verdict
-                _advice_html = (
-                    '<p style="color:#c9d1d9; font-size:0.88rem; line-height:1.5; max-width:420px; '
-                    f'margin:0 auto 0.5rem auto;">{_advice}</p>'
-                )
-
-            st.markdown(f"""
-            <div style="text-align: center; padding: 0;">
-                <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
-                    <!-- Background circle (gray track) -->
-                    <circle cx="{center}" cy="{center}" r="{radius}"
-                        fill="none" stroke="#2a2a2a" stroke-width="14"/>
-                    <!-- Filled arc (score), rotated so it starts from the top -->
-                    <circle cx="{center}" cy="{center}" r="{radius}"
-                        fill="none" stroke="{gauge_color}" stroke-width="14"
-                        stroke-linecap="round"
-                        stroke-dasharray="{filled} {circumference}"
-                        transform="rotate(90 {center} {center})"
-                        style="transition: stroke-dasharray 1s ease;"/>
-                    <!-- Score text -->
-                    <text x="{center}" y="{center - 5}" text-anchor="middle"
-                        font-size="48" font-weight="bold" fill="white">{gauge_number}</text>
-                    <text x="{center}" y="{center + 22}" text-anchor="middle"
-                        font-size="14" fill="{gauge_color}" font-weight="bold">
-                        {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
-                </svg>
-                <p style="color:white; font-size:1.15rem; font-weight:bold; line-height:1.35; max-width:420px; margin:0.1rem auto 0.6rem auto;">
-                    {_headline}
-                </p>
-                {_advice_html}
-                {_caveat_html}
-            </div>
-            """, unsafe_allow_html=True)
-
-            _dt = result.document_type
-
-            # Grouped score bars (4 categories instead of 7 modules)
-            # Map module names to their results for easy lookup
-            module_map = {m.module: m for m in result.modules}
-
-            # Define the 4 groups: (label, list of module names, tooltip)
-            groups = [
-                (t("group_modifications"), ["structure", "overlay"], t("tip_modifications")),
-                (t("group_consistency"), ["content", "arithmetic", "payslip"], t("tip_consistency")),
-                (t("group_tampering"), ["images", "fonts", "visual", "metadata", "forensics"], t("tip_tampering")),
-                (t("group_authenticity"), ["external", "identity", "twod_doc"], t("tip_authenticity")),
-            ]
-
-            # Evidence-ledger contributions (audit item 23): the bars show the
-            # ACTUAL score pressure per group — the same group-capped sums the
-            # aggregation used — not the old (deleted) weighted-average formula.
-            from src.evidence import module_contributions
-            contrib = module_contributions(result.evidence_ledger)
-
-            def _group_net(names: list[str]) -> float:
-                return sum(contrib.get(n, {}).get("tamper", 0.0)
-                           - contrib.get(n, {}).get("genuine", 0.0)
-                           for n in names)
-
-            total_pressure = sum(max(0.0, _group_net(names))
-                                 for _, names, _ in groups) or 0.0
-
-            bars_html = ""
-            for label, member_names, tooltip in groups:
-                # Collect modules that actually ran for this group
-                members = [module_map[name] for name in member_names if name in module_map]
-
-                if not members:
-                    # No modules ran for this group (e.g., external disabled)
-                    # Show a greyed-out bar with N/A
-                    bars_html += f'''
-                    <div style="display:flex; align-items:center; margin-bottom:6px;">
-                        <span style="width:100px; flex-shrink:0;">
-                            <span class="tf-label" tabindex="0" style="color:#555;">{label}<span class="tf-tip">{tooltip}</span></span>
-                        </span>
-                        <div style="flex:1; background:#1a1a1a; border-radius:4px;
-                            height:10px; overflow:hidden;">
-                        </div>
-                        <span style="width:35px; text-align:right; font-size:0.8rem;
-                            color:#555; margin-left:8px;">N/A</span>
-                    </div>'''
-                    continue
-
-                # Net evidence pressure for this group (positive = pushed the
-                # score DOWN; negative = genuine evidence lifted it).
-                net = _group_net(member_names)
-                hard = any(contrib.get(n, {}).get("hard_tamper") for n in member_names)
-
-                # No number next to the bar: the values are log-odds "nats",
-                # an internal unit that means nothing to a reader ("+3.7").
-                # Bar length and colour carry the comparison on their own.
-                if hard:
-                    width, bar_color, value_label = 100, "#ef233c", ""
-                elif net > 0:
-                    width = round(100 * net / total_pressure) if total_pressure else 0
-                    bar_color = "#ef233c" if net >= 1.5 else "#ffb627"
-                    value_label = ""
-                elif net < 0:
-                    width, bar_color, value_label = 25, "#28a745", ""
-                else:
-                    width, bar_color, value_label = 0, "#28a745", ""
-
-                bars_html += f'''
-                <div style="display:flex; align-items:center; margin-bottom:6px;">
-                    <span style="width:100px; flex-shrink:0;">
-                        <span class="tf-label" tabindex="0" style="color:#eee;">{label}<span class="tf-tip">{tooltip}</span></span>
-                    </span>
-                    <div style="flex:1; background:#2a2a2a; border-radius:4px;
-                        height:10px; overflow:hidden;">
-                        <div style="width:{width}%; height:100%;
-                            background:{bar_color}; border-radius:4px;
-                            transition:width 1s ease;"></div>
-                    </div>
-                    <span style="width:35px; text-align:right; font-size:0.8rem;
-                        color:#eee; margin-left:8px; font-weight:bold;">{value_label}</span>
-                </div>'''
-
-            # Flag counts (all_flags was collected above, before the columns)
-            counts = count_flags_by_severity(all_flags)
-
-            _dt_label = t(f"doctype_{_dt}")
-
-            # Summary block — verdict + flag list + document type
-            _sev_colors = {
-                "critical": "#ef233c",
-                "high": "#ff6b35",
-                "medium": "#ffb627",
-                "low": "#555",
-            }
-
-            import html as _html_esc
-            flags_list_html = ""
-            # Verdict first: only the few most severe findings sit next to
-            # the verdict (src/summary.py:top_reasons picks them). The full
-            # list, with severities and raw details, is in the "see all
-            # details" block at the bottom of the page.
-            from src.evidence import GENUINE_CODES
-
-            def _finding_row(flag, number: int | None) -> str:
-                """One line of the findings list, as HTML.
-
-                Left: a numbered red disc when the finding points at a region
-                of the document — the SAME number drawn on the preview
-                (src/preview.py:_draw_number_badge) — otherwise a plain dot
-                whose colour ranks the finding (green = reassuring signal).
-                Right: the finding as one sentence.
-                """
-                safe_sentence = _html_esc.escape(get_flag_sentence(flag, get_lang()))
-                if number is not None:
-                    marker = (
-                        '<span style="background:#ef233c; color:white; width:20px; height:20px; '
-                        'border-radius:50%; flex-shrink:0; font-size:0.72rem; font-weight:bold; '
-                        f'display:inline-flex; align-items:center; justify-content:center;">{number}</span>'
-                    )
-                else:
-                    dot_color = ("#28a745" if flag.code in GENUINE_CODES
-                                 else _sev_colors.get(flag.severity, "#555"))
-                    marker = (
-                        f'<span style="background:{dot_color}; width:9px; height:9px; border-radius:50%; '
-                        'flex-shrink:0; margin:6px 5.5px 0 5.5px;"></span>'
-                    )
-                return (
-                    '<div style="display:flex; align-items:flex-start; gap:10px; padding:7px 0; '
-                    'border-bottom:1px solid #2a2a2a;">'
-                    f'{marker}'
-                    f'<span style="color:#ddd; font-size:0.9rem; line-height:1.4;">{safe_sentence}</span>'
-                    '</div>'
-                )
-
-            for flag, _number in zip(_reasons, _reason_numbers):
-                flags_list_html += _finding_row(flag, _number)
-
-            # "Show more": the other findings unfold right here, in the same
-            # list, instead of sending the reader to the bottom of the page.
-            # The link says how many there are, so a short list never reads
-            # as "that is all there is". `is` comparison: two different flags
-            # can be equal field by field, identity is what "already shown"
-            # means. (Opened automatically when the page is printed.)
-            _other_flags = [f for f in all_flags if not any(f is r for r in _reasons)]
-            if _other_flags:
-                _more_key = "more_findings_one" if len(_other_flags) == 1 else "more_findings_many"
-                flags_list_html += (
-                    '<details>'
-                    '<summary style="cursor:pointer; color:#8ab4f8; font-size:0.85rem; padding:8px 0 0 0;">'
-                    f'{esc(t(_more_key).format(n=len(_other_flags)))}</summary>'
-                    + "".join(_finding_row(f, None) for f in _other_flags) +
-                    '</details>'
-                )
-
-            _secondary_types = {"scientific", "legal_notice", "technical", "unknown"}
-            _banner_html = ""
-            if _dt in _secondary_types:
-                _banner_html = (
-                    f'<div style="padding:8px 14px; margin:8px 0 0.8rem 0;'
-                    f' background:#1a2a3a; border-left:3px solid #4a9ade; border-radius:4px;">'
-                    f'<span style="font-size:0.75rem; color:#ffffff;">{t(f"doctype_banner_{_dt}")}</span>'
-                    f'</div>'
-                )
-
-            _section_title = ('<span style="color:white; font-size:0.95rem; font-weight:bold; '
-                              'text-transform:uppercase; letter-spacing:0.5px;">{}</span>'
-                              '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 8px 0;">')
-            # Modification history, drawn as a vertical timeline: one dot per
-            # step in the life of the file (grey = creation, red = a later
-            # save), joined by a line, with the date on the right and each
-            # change written "old -> new". Comes after the reasons and the
-            # feedback question. Only rendered when the PDF has several
-            # versions with a diff to show.
-            _history_html = ""
-            if history["version_count"] > 1 and history.get("diffs"):
-                import html as html_mod  # for escaping user content
-                from src.history_view import fill_covered_values, pair_changes
-
-                # new text -> text it covers, from the cover-and-retype
-                # findings: lets an "added" line show the value it replaced.
-                _covered_by = {
-                    f.details["replacement"]: f.details["covered"]
-                    for f in all_flags
-                    if f.details and f.details.get("replacement") and f.details.get("covered")
-                }
-
-                max_changes = 3  # changes shown per step; the rest is counted
-                _date_format = "%d/%m/%Y %H:%M" if get_lang() == "fr" else "%Y-%m-%d %H:%M"
-                _created_at = pdf_data.metadata.creation_date
-                _modified_at = pdf_data.metadata.mod_date
-
-                def _timeline_step(title: str, when: str, body_html: str,
-                                   dot_color: str, is_last: bool) -> str:
-                    """One step of the timeline, as HTML.
-
-                    Left: the dot, and under it the line down to the next
-                    step (no line under the last one). Right: the title with
-                    the date pushed to the far right, then the body.
-
-                    Example:
-                        _timeline_step("Modification", "12/03/2026 14:05",
-                                       "<div>...</div>", "#ef233c", True)
-                    """
-                    line_html = ("" if is_last else
-                                 '<div style="width:1px; flex:1; background:#3a3a4e; margin-top:3px;"></div>')
-                    when_html = (f'<span style="color:#888; font-size:0.75rem; white-space:nowrap;">{when}</span>'
-                                 if when else "")
-                    return (
-                        '<div style="display:flex; gap:10px;">'
-                        '<div style="display:flex; flex-direction:column; align-items:center;">'
-                        f'<div style="width:10px; height:10px; border-radius:50%; background:{dot_color};'
-                        ' margin-top:5px; flex-shrink:0;"></div>'
-                        f'{line_html}</div>'
-                        f'<div style="flex:1; min-width:0; padding-bottom:{"0" if is_last else "12px"};">'
-                        '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">'
-                        f'<span style="color:#eee; font-size:0.85rem;">{title}</span>{when_html}</div>'
-                        f'{body_html}</div></div>'
-                    )
-
-                # Step 1: creation. The tool that made the file is the
-                # "from_tool" of the first diff.
-                first_software = history["diffs"][0].get("from_tool", "")
-                _tool_style = "color:#888; font-size:0.75rem;"
-                steps_html = _timeline_step(
-                    t("history_step_created"),
-                    _created_at.strftime(_date_format) if _created_at else "",
-                    (f'<div style="{_tool_style}">{html_mod.escape(first_software)}</div>'
-                     if first_software else ""),
-                    "#888",
-                    is_last=False,
-                )
-
-                # One step per later save.
-                _modification_count = len(history["diffs"])
-                max_visible_modifications = 2  # later saves are folded
-                modification_steps: list[str] = []
-                for position, diff in enumerate(history["diffs"], start=1):
-                    is_last = position == _modification_count
-                    body_html = ""
-
-                    version_software = diff.get("to_tool", "")
-                    if version_software:
-                        body_html += f'<div style="{_tool_style}">{html_mod.escape(version_software)}</div>'
-
-                    # A PDF stores two dates only (creation, last
-                    # modification), so only the LAST save can be dated; it
-                    # also gets "+3min after creation".
-                    when = ""
-                    if is_last and _modified_at:
-                        when = _modified_at.strftime(_date_format)
-                        if _created_at:
-                            delta = _modified_at - _created_at
-                            hours = delta.total_seconds() / 3600
-                            _ac = t("after_creation")
-                            if hours >= 24:
-                                _day = "j" if get_lang() == "fr" else "d"  # jours / days
-                                elapsed = f"+{int(hours // 24)}{_day} {int(hours % 24)}h"
-                            elif hours >= 1:
-                                elapsed = f"+{int(hours)}h{int((hours % 1) * 60)}min"
-                            elif int(hours * 60) > 0:
-                                elapsed = f"+{int(hours * 60)}min"
-                            else:
-                                elapsed = f"+{int(delta.total_seconds())}s"
-                            body_html += f'<div style="{_tool_style}">{elapsed} {_ac}</div>'
-
-                    # Every change of this save, as (old, new) pairs.
-                    pairs = []
-                    for change in diff["changes"] or []:
-                        pairs += pair_changes(change.get("removed", []), change.get("added", []))
-                    pairs = fill_covered_values(pairs, _covered_by)
-
-                    for old, new in pairs[:max_changes]:
-                        old_html = (f'<span style="color:#e06060; text-decoration:line-through;">'
-                                    f'{html_mod.escape(old[:80])}</span>' if old else "")
-                        new_html = (f'<span style="color:#60c060; font-weight:600;">'
-                                    f'{html_mod.escape(new[:80])}</span>' if new else "")
-                        # The arrow only makes sense between two values.
-                        arrow_html = ('<span style="color:#888; margin:0 6px;">&rarr;</span>'
-                                      if old and new else "")
-                        body_html += (f'<div style="font-size:0.82rem; margin-top:4px;">'
-                                      f'{old_html}{arrow_html}{new_html}</div>')
-                    if len(pairs) > max_changes:
-                        body_html += (f'<div style="color:#888; font-size:0.75rem; font-style:italic; margin-top:2px;">'
-                                      f'{t("and_n_more_lines").format(n=len(pairs) - max_changes)}</div>')
-                    if not pairs:
-                        body_html += f'<div style="{_tool_style}">{t("non_text_changes")}</div>'
-
-                    title = (t("history_step_modified") if _modification_count == 1
-                             else t("history_step_modified_n").format(n=position))
-                    modification_steps.append(
-                        _timeline_step(title, when, body_html, "#ef233c", is_last))
-
-                # Preview: a file saved many times would push everything else
-                # down the page. The first saves stay visible, the rest waits
-                # behind a "show N more" line (opened automatically on print).
-                visible_steps = modification_steps[:max_visible_modifications]
-                hidden_steps = modification_steps[max_visible_modifications:]
-                steps_html += "".join(visible_steps)
-                if hidden_steps:
-                    steps_html += (
-                        '<details>'
-                        '<summary style="cursor:pointer; color:#8ab4f8; font-size:0.82rem; padding:2px 0 8px 0;">'
-                        f'{t("history_show_more").format(n=len(hidden_steps))}</summary>'
-                        + "".join(hidden_steps) +
-                        '</details>'
-                    )
-
-                _history_html = (
-                    '<div style="margin:2rem auto 0 auto; max-width:440px;">'
-                    + _section_title.format(t("full_modification_history"))
-                    + steps_html +
-                    '</div>'
-                )
-
-            # Findings first (the verdict itself now sits under the gauge),
-            # then where the evidence comes from, then one discreet line of
-            # context. Same section-title style as "Preview" on the right.
-            _no_findings_html = (f'<p style="color:#28a745; font-size:0.9rem; margin:0;">{t("no_issues")}</p>'
-                                 if not all_flags else "")
-            _summary_html = (
-                '<div style="margin-top:1rem; max-width:440px; margin-left:auto; margin-right:auto;">'
-                + _section_title.format(t("summary")) +
-                f'{_banner_html}'
-                f'{flags_list_html}{_no_findings_html}'
-                '</div>'
-                # History after the reasons: the reader first learns WHAT is
-                # wrong, then sees the proof of how the file changed. The
-                # "where the evidence comes from" bars moved into the detail
-                # fold: the reasons and the numbered badges already say it.
-                + _history_html +
-                f'<p style="text-align:center; font-size:0.72rem; color:#888; margin:1.2rem 0 0 0;">'
-                f'{t("doctype_label")}&nbsp;: <strong style="color:#bbb;">{_dt_label}</strong>'
-                f' &middot; {t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
-            )
-            # _summary_html is rendered AFTER the feedback block below: the
-            # question sits right under the verdict, above "Summary", where
-            # nobody can miss it.
+            # Findings, modification timeline, document type. Built here but
+            # rendered AFTER the feedback block below: the question sits
+            # right under the verdict, above "Summary", where nobody can
+            # miss it.
+            _summary_html = findings.summary_html(result, view, _current_lang)
 
             # --- Feedback: was this result useful? (thumbs up / down) -------
             # Stored by src/feedback.py: always a log line, plus a SQLite row
@@ -2487,8 +1535,7 @@ if uploaded_file is not None:
             with st.container(key="tf_feedback"):
                 with st.container(horizontal=True, horizontal_alignment="center",
                                   vertical_alignment="center", gap="small"):
-                    st.html(f'<span style="color:#c9d1d9; font-size:0.9rem;">{t("feedback_question")}</span>',
-                            width="content")
+                    st.html(actions.feedback_question_html(_current_lang), width="content")
                     st.feedback("thumbs", key=_fb_vote_key, on_change=_record_vote)
                 _vote = st.session_state.get(_fb_vote_key)
                 if _vote == 0 and not st.session_state.get(_fb_sent_key):
@@ -2504,10 +1551,8 @@ if uploaded_file is not None:
                             st.session_state[_fb_sent_key] = True
                             st.rerun()
                 if _vote is not None and (_vote == 1 or st.session_state.get(_fb_sent_key)):
-                    st.html(f'<p style="text-align:center; color:#28a745; font-size:0.85rem; margin:0;">'
-                            f'{t("feedback_thanks")}</p>')
-                st.html(f'<p style="text-align:center; color:#666; font-size:0.7rem; margin:0.2rem 0 0 0;">'
-                        f'{t("feedback_privacy")}</p>')
+                    st.html(actions.feedback_thanks_html(_current_lang))
+                st.html(actions.feedback_privacy_html(_current_lang))
 
             st.markdown(_summary_html, unsafe_allow_html=True)
 
@@ -2527,42 +1572,9 @@ if uploaded_file is not None:
                 # width="content": each action is as wide as its label, so the
                 # container can centre the three as one group (and wrap them
                 # on a phone) instead of stretching each into a third.
-                st.html(f"""
-                <a id="tf-new-analysis" href="?lang={get_lang()}" target="_parent" style="display:inline-block; background:#2563eb; color:white; text-decoration:none; border:1px solid #2563eb; border-radius:6px; padding:7px 14px; font-size:0.85rem; font-weight:600; line-height:1.2;">
-                    {t("analyze_another")}
-                </a>
-                """, width="content")
-                st.html(f"""
-                <div id="tf-print-wrap" style="display:flex; justify-content:center;">
-                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:7px 14px; font-size:0.85rem; line-height:1.2; cursor:pointer;">
-                        {t("print_report")}
-                    </button>
-                </div>
-                <script>
-                (function() {{
-                    const btn = document.getElementById('tf-print');
-                    if (btn && !btn.dataset.bound) {{
-                        btn.dataset.bound = '1';
-                        btn.addEventListener('click', function() {{ window.print(); }});
-                    }}
-                    if (!window.__tfPrintHooks) {{
-                        window.__tfPrintHooks = true;
-                        window.addEventListener('beforeprint', function() {{
-                            document.querySelectorAll('details:not([open])').forEach(function(d) {{
-                                d.dataset.tfAutoOpen = '1';
-                                d.open = true;
-                            }});
-                        }});
-                        window.addEventListener('afterprint', function() {{
-                            document.querySelectorAll('details[data-tf-auto-open]').forEach(function(d) {{
-                                d.open = false;
-                                delete d.dataset.tfAutoOpen;
-                            }});
-                        }});
-                    }}
-                }})();
-                </script>
-                """, unsafe_allow_javascript=True, width="content")
+                st.html(actions.new_analysis_link_html(_current_lang), width="content")
+                st.html(actions.print_button_html(_current_lang),
+                        unsafe_allow_javascript=True, width="content")
                 _report_text = report_json(build_report(
                     result,
                     filename=uploaded_file.name,
@@ -2581,941 +1593,28 @@ if uploaded_file is not None:
                 )
 
 
-
-        # Detected issues. Built as an HTML string and NOT rendered here: it
-        # is folded, together with the "More details" panels, into the single
-        # "see all details" block at the bottom of the page. Starts empty so
-        # that block can test it even when the document has no flag.
-        issues_html = ""
-        if all_flags:
-            import json as json_mod
-            import html as html_mod_flags
-
-            severity_colors = {
-                "critical": "#ef233c",
-                "high": "#ff6b35",
-                "medium": "#ffb627",
-                "low": "#555",
-            }
-
-            # Build all issues as a single HTML block with <details>/<summary>
-            # This lets us put colored pills on the clickable line
-            for flag in all_flags:
-                color = severity_colors.get(flag.severity, "#555")
-                safe_msg = html_mod_flags.escape(get_flag_sentence(flag, get_lang()))
-                safe_code = html_mod_flags.escape(flag.code)
-
-                # Details content — show as readable key/value rows
-                details_content = (
-                    f'<div style="color:#666; font-size:0.75rem; margin-top:6px; margin-bottom:8px;">{safe_code}</div>'
-                )
-                if flag.details:
-                    detail_row = "display:flex; padding:5px 0; border-bottom:1px solid #222;"
-                    detail_key = "color:#888; font-size:0.8rem; width:140px; flex-shrink:0;"
-                    detail_val = "color:#ddd; font-size:0.8rem; word-break:break-word;"
-
-                    rows_html = ""
-                    for key, val in flag.details.items():
-                        safe_key = html_mod_flags.escape(str(key).replace("_", " ").capitalize())
-                        # Format value: lists as comma-separated, dicts as JSON, rest as string
-                        if isinstance(val, list):
-                            safe_val = html_mod_flags.escape(", ".join(str(v) for v in val))
-                        elif isinstance(val, dict):
-                            safe_val = html_mod_flags.escape(json_mod.dumps(val, ensure_ascii=False, default=str))
-                        else:
-                            safe_val = html_mod_flags.escape(str(val))
-                        rows_html += (
-                            f'<div style="{detail_row}">'
-                            f'<span style="{detail_key}">{safe_key}</span>'
-                            f'<span style="{detail_val}">{safe_val}</span>'
-                            f'</div>'
-                        )
-                    details_content += (
-                        f'<div style="background:#111; border-radius:6px; padding:8px 14px; margin-top:4px;">'
-                        f'{rows_html}</div>'
-                    )
-
-                # Identifier flags (IBAN / SIRET / SIREN / VAT) link to the free
-                # checker page: the reader can re-type the number from the
-                # document — or a corrected one — and see the check digit
-                # explained, without uploading anything.
-                tool_url = tool_url_for_flag(flag.code, get_lang())
-                guide_url = guide_url_for_flag(flag.code, get_lang(), result.document_type)
-                if tool_url:
-                    details_content += (
-                        f'<div style="margin-top:8px;"><a href="{tool_url}" target="_blank" rel="noopener" '
-                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
-                        f'{html_mod_flags.escape(t("flag_check_tool"))} &rarr;</a></div>'
-                    )
-                elif guide_url:
-                    # One action per flag: identifier flags get the checker (which
-                    # itself links the guides), every other flag gets the guide
-                    # that explains what was found and what to do next.
-                    details_content += (
-                        f'<div style="margin-top:8px;"><a href="{guide_url}" target="_blank" rel="noopener" '
-                        f'style="color:#8ab4f8; font-size:0.8rem; text-decoration:none;">'
-                        f'{html_mod_flags.escape(t("flag_read_guide"))} &rarr;</a></div>'
-                    )
-
-                issues_html += (
-                    f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-                    f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                    f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                    f'display:flex; align-items:center; gap:10px;">'
-                    f'<span style="background:{color}; color:white; font-size:0.68rem; '
-                    f'font-weight:bold; padding:2px 0; border-radius:10px; '
-                    f'width:70px; text-align:center; flex-shrink:0; '
-                    f'display:inline-block;">{t(f"severity_{flag.severity}")}</span>'
-                    f'<span style="color:#eee; font-size:0.85rem;">{safe_msg}</span>'
-                    f'</summary>'
-                    f'<div style="padding:4px 14px 14px 14px; border-top:1px solid #2a2a2a;">'
-                    f'{details_content}'
-                    f'</div></details>'
-                )
-
-        more_details_html = ""
-
-        # Full modification history (collapsible)
-        if history["version_count"] > 1 and history.get("diffs"):
-            import html as html_mod
-
-            # Reusable styles
-            _card = ("background:#111; border:1px solid #2a2a2a; border-radius:8px; "
-                     "padding:14px 18px; margin-bottom:8px;")
-            _vlabel = "font-size:0.85rem; font-weight:bold; color:white; margin:0 0 8px 0;"
-            _mrow = "display:flex; gap:6px; align-items:center; margin-bottom:4px;"
-            _mkey = "color:#888; font-size:0.78rem; width:70px; flex-shrink:0;"
-            _mval = "color:#ccc; font-size:0.78rem;"
-            _diff = ("background:#0a0a0a; border-radius:6px; padding:10px 14px; "
-                     "margin-top:10px; font-family:monospace; font-size:0.78rem; "
-                     "line-height:1.6; overflow-x:auto;")
-            _badge = ("display:inline-block; background:#2a2a2a; color:#aaa; "
-                      "font-size:0.7rem; padding:2px 8px; border-radius:10px; "
-                      "margin:2px 4px 2px 0;")
-            _arrow = "text-align:center; color:#555; font-size:1.2rem; margin:4px 0;"
-
-            # Build the full content as one HTML string
-            hist_content = ""
-
-            # Version 1: Original
-            first_sw = history["diffs"][0].get("from_tool", "") if history["diffs"] else ""
-            v1_meta = ""
-            if pdf_data.metadata.creation_date:
-                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_date")}</span>'
-                            f'<span style="{_mval}">{pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M")}</span></div>')
-            if first_sw:
-                v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_producer")}</span>'
-                            f'<span style="{_mval}">{html_mod.escape(first_sw)}</span></div>')
-
-            hist_content += (
-                f'<div style="{_card}">'
-                f'<p style="{_vlabel}">{t("version_n").format(n=1)} '
-                f'<span style="background:#28a745; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px; margin-left:6px;">{t("original")}</span></p>'
-                f'{v1_meta}</div>'
-            )
-
-            # Each subsequent version
-            for diff in history["diffs"]:
-                to_v = diff["to_version"]
-                from_sw = diff.get("from_tool", "")
-                to_sw = diff.get("to_tool", "")
-
-                hist_content += f'<div style="{_arrow}">&#9660;</div>'
-
-                v_meta = ""
-                if to_v == history["version_count"] and pdf_data.metadata.mod_date and pdf_data.metadata.creation_date:
-                    delta = pdf_data.metadata.mod_date - pdf_data.metadata.creation_date
-                    hours = delta.total_seconds() / 3600
-                    if hours >= 24:
-                        delta_str = f"+{int(hours // 24)}d {int(hours % 24)}h"
-                    elif hours >= 1:
-                        delta_str = f"+{int(hours)}h{int((hours % 1) * 60)}min"
-                    elif int(hours * 60) > 0:
-                        delta_str = f"+{int(hours * 60)}min"
-                    else:
-                        delta_str = f"+{int(delta.total_seconds())}s"
-                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_date")}</span>'
-                               f'<span style="{_mval}">{pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")} '
-                               f'<span style="color:#e06060;">({delta_str} {t("after_creation")})</span></span></div>')
-
-                if to_sw and to_sw != from_sw:
-                    v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_editor")}</span>'
-                               f'<span style="{_mval}">{html_mod.escape(to_sw)}</span></div>')
-
-                diff_html = ""
-                if diff["changes"]:
-                    for change in diff["changes"]:
-                        diff_html += f'<div style="color:#888; font-size:0.7rem; margin-bottom:4px;">{t("label_page")} {change["page"]}</div>'
-                        for line in change.get("removed", []):
-                            if line.strip():
-                                diff_html += f'<div style="color:#e06060;">- {html_mod.escape(line)}</div>'
-                        for line in change.get("added", []):
-                            if line.strip():
-                                diff_html += f'<div style="color:#60c060;">+ {html_mod.escape(line)}</div>'
-                    diff_html = f'<div style="{_diff}">{diff_html}</div>'
-                else:
-                    diff_html = f'<div style="color:#888; font-size:0.78rem; font-style:italic; margin-top:8px;">{t("no_text_changes")}</div>'
-
-                obj_html = ""
-                obj_changes = diff.get("object_changes", [])
-                if obj_changes:
-                    by_type: dict[str, list] = {}
-                    for oc in obj_changes:
-                        by_type.setdefault(oc.get("type", "unknown"), []).append(oc)
-                    badges = "".join(f'<span style="{_badge}">{obj_t} ({len(items)})</span>' for obj_t, items in by_type.items())
-                    obj_html = f'<div style="margin-top:10px;"><span style="color:#888; font-size:0.7rem;">{t("modified_objects")}</span>{badges}</div>'
-
-                hist_content += (
-                    f'<div style="{_card}">'
-                    f'<p style="{_vlabel}">{t("version_n").format(n=to_v)} '
-                    f'<span style="background:#ef233c; color:white; font-size:0.68rem; font-weight:bold; '
-                    f'padding:2px 10px; border-radius:10px; margin-left:6px;">{t("modified")}</span></p>'
-                    f'{v_meta}{diff_html}{obj_html}</div>'
-                )
-
-            version_count = history["version_count"]
-            more_details_html += (
-                f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-                f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">{t("detailed_modification_history")}</span>'
-                f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{t("n_versions").format(n=version_count)}</span>'
-                f'</summary>'
-                f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
-                f'{hist_content}'
-                f'</div></details>'
-            )
-
-        # Raw analysis data (collapsible)
-        import json as json_mod_raw
-        import html as html_mod_raw
-
-        raw_content = ""
-        for module in result.modules:
-            # Module header with score pill
-            mod_score = module.score
-            if mod_score >= 80:
-                sc_color = "#28a745"
-            elif mod_score >= 50:
-                sc_color = "#ffb627"
-            elif mod_score >= 20:
-                sc_color = "#ef233c"
-            else:
-                sc_color = "#ef233c"
-
-            mod_name = module.module.capitalize()
-            flag_count = len(module.flags)
-
-            # Module card with full raw data
-            flags_html = ""
-            if module.flags:
-                for f in module.flags:
-                    f_color = severity_colors.get(f.severity, "#555")
-                    safe_code = html_mod_raw.escape(f.code)
-                    safe_msg = html_mod_raw.escape(get_flag_sentence(f, get_lang()))
-
-                    # Flag details as key/value rows
-                    details_html = ""
-                    if f.details:
-                        _drow = "display:flex; padding:3px 0; border-bottom:1px solid #151515;"
-                        _dkey = "color:#777; font-size:0.73rem; width:130px; flex-shrink:0;"
-                        _dval = "color:#bbb; font-size:0.73rem; word-break:break-word;"
-
-                        detail_rows = ""
-                        for dk, dv in f.details.items():
-                            safe_dk = html_mod_raw.escape(str(dk).replace("_", " ").capitalize())
-                            if isinstance(dv, list):
-                                safe_dv = html_mod_raw.escape(", ".join(str(v) for v in dv))
-                            elif isinstance(dv, dict):
-                                safe_dv = html_mod_raw.escape(json_mod_raw.dumps(dv, ensure_ascii=False, default=str))
-                            elif isinstance(dv, bool):
-                                safe_dv = f'<span style="color:{"#60c060" if dv else "#e06060"};">{"true" if dv else "false"}</span>'
-                            else:
-                                safe_dv = html_mod_raw.escape(str(dv))
-                            detail_rows += (
-                                f'<div style="{_drow}">'
-                                f'<span style="{_dkey}">{safe_dk}</span>'
-                                f'<span style="{_dval}">{safe_dv}</span></div>'
-                            )
-                        details_html = (
-                            f'<div style="background:#0a0a0a; border-radius:4px; '
-                            f'padding:6px 12px; margin:6px 0 0 0;">{detail_rows}</div>'
-                        )
-
-                    flags_html += (
-                        f'<div style="padding:8px 0; border-bottom:1px solid #1a1a1a;">'
-                        f'<div style="display:flex; align-items:center; gap:8px;">'
-                        f'<span style="background:{f_color}; color:white; font-size:0.62rem; '
-                        f'font-weight:bold; padding:1px 0; border-radius:8px; width:58px; '
-                        f'text-align:center; display:inline-block; flex-shrink:0;">{t(f"severity_{f.severity}")}</span>'
-                        f'<span style="color:#ccc; font-size:0.78rem;">{safe_msg}</span>'
-                        f'</div>'
-                        f'<div style="color:#666; font-size:0.72rem; margin-top:3px; padding-left:66px;">{safe_code}</div>'
-                        f'{f"<div style=padding-left:66px;>{details_html}</div>" if details_html else ""}'
-                        f'</div>'
-                    )
-            else:
-                flags_html = f'<div style="color:#666; font-size:0.78rem; padding:4px 0;">{t("no_flags")}</div>'
-
-            raw_content += (
-                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                f'padding:12px 16px; margin-bottom:8px;">'
-                f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">'
-                f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{mod_name}</span>'
-                f'<span style="background:{sc_color}; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{mod_score}/100</span>'
-                f'</div>'
-                # module.confidence (0.3-1.0, e.g. metadata 0.3 when a PDF has no
-                # metadata) is deliberately not shown here: the evidence ledger
-                # never reads it (flag_to_evidence pins confidence to 1.0), so a
-                # "Fiabilité : 30 %" next to the module score had no bearing on
-                # the verdict and read as a document-reliability figure it is not.
-                f'<div style="display:flex; gap:16px; color:#888; font-size:0.75rem; margin-bottom:8px; '
-                f'padding-bottom:8px; border-bottom:1px solid #1a1a1a;">'
-                f'<span>{t("label_flags")}: {len(module.flags)}</span>'
-                f'</div>'
-                f'{flags_html}'
-                f'</div>'
-            )
-
-        # Analysis Details — collapsible block with per-module raw data
-        module_count = len(result.modules)
-        more_details_html += (
-            f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-            f'border-radius:8px; padding:0; margin-bottom:8px;">'
-            f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-            f'display:flex; align-items:center; gap:10px;">'
-            f'<span style="color:#eee; font-size:0.85rem;">{t("analysis_details")}</span>'
-            f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-            f'padding:2px 10px; border-radius:10px;">{t("n_modules").format(n=module_count)}</span>'
-            f'</summary>'
-            f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
-            f'{raw_content}'
-            f'</div></details>'
-        )
-
-        # More Details — Entities block (verified companies + unverified identifiers)
-        external_module = next((m for m in result.modules if m.module == "external"), None)
-        verified_companies = []
-        if external_module and external_module.details.get("verified_companies"):
-            verified_companies = external_module.details["verified_companies"]
-
-        # Extract identifiers from full document text
-        from src.modules.content import extract_siret, extract_siren, extract_french_vat, extract_rcs
-        import html as html_mod_ent
-
-        full_text = "\n".join(pdf_data.text_by_page) if pdf_data.text_by_page else ""
-        found_sirets = extract_siret(full_text)
-        found_sirens = extract_siren(full_text)
-        found_vats = extract_french_vat(full_text)
-        found_rcs = extract_rcs(full_text)
-
-        # Collect identifiers already covered by verified companies
-        # Include SIRENs derived from verified SIRETs to avoid duplicates
-        verified_sirets = {c.get("siret", "") for c in verified_companies}
-        verified_sirens = {c.get("siren", "") for c in verified_companies}
-        for vs in list(verified_sirets):
-            if vs and len(vs) == 14:
-                verified_sirens.add(vs[:9])
-
-        # Build entities HTML
-        entities_html = ""
-        entity_count = 0
-
-        # 1) Verified companies (with Active/Closed pills)
-        for comp in verified_companies:
-            name = html_mod_ent.escape(comp.get("name") or "Unknown")
-            siren = comp.get("siren") or ""
-            siret = comp.get("siret") or ""
-            address = html_mod_ent.escape(comp.get("address") or "")
-            status = comp.get("status", "")
-            creation = comp.get("creation_date") or ""
-
-            if status == "active":
-                status_pill = (f'<span style="background:#28a745; color:white; font-size:0.62rem; '
-                               f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_active")}</span>')
-            elif status == "closed":
-                status_pill = (f'<span style="background:#ef233c; color:white; font-size:0.62rem; '
-                               f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_closed")}</span>')
-            else:
-                status_pill = ""
-
-            _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-            _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
-            _val = "color:#ccc; font-size:0.75rem;"
-
-            rows = ""
-            if siren:
-                rows += f'<div style="{_row}"><span style="{_key}">SIREN</span><span style="{_val}">{siren}</span></div>'
-            if siret:
-                rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{siret}</span></div>'
-            if address and address != "None, None None":
-                rows += f'<div style="{_row}"><span style="{_key}">{t("label_address")}</span><span style="{_val}">{address}</span></div>'
-            if creation:
-                rows += f'<div style="{_row}"><span style="{_key}">{t("label_creation_date")}</span><span style="{_val}">{creation}</span></div>'
-
-            entities_html += (
-                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                f'padding:12px 16px; margin-bottom:8px;">'
-                f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{name}</span>'
-                f'{status_pill}'
-                f'</div>'
-                f'{rows}'
-                f'</div>'
-            )
-            entity_count += 1
-
-        # 2) Unverified entities: group all identifiers by SIREN into one card per entity
-        not_verified_pill = (f'<span style="background:#555; color:#ccc; font-size:0.62rem; '
-                             f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_not_verified")}</span>')
-        _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-        _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
-        _val = "color:#ccc; font-size:0.75rem;"
-
-        # Build one entity per unique SIREN, attaching all related identifiers
-        # Key = SIREN (9 digits), Value = dict with all identifiers
-        unverified_by_siren: dict[str, dict] = {}
-
-        for siret, is_valid, context in found_sirets:
-            siren_key = siret[:9]
-            if siren_key in verified_sirens or siret in verified_sirets:
-                continue
-            if siren_key not in unverified_by_siren:
-                unverified_by_siren[siren_key] = {"siren": siren_key, "siret": None, "vat": None, "rcs": None}
-            unverified_by_siren[siren_key]["siret"] = siret
-
-        for siren, is_valid, context in found_sirens:
-            if siren in verified_sirens:
-                continue
-            if siren not in unverified_by_siren:
-                unverified_by_siren[siren] = {"siren": siren, "siret": None, "vat": None, "rcs": None}
-
-        for vat, is_valid, context in found_vats:
-            # Extract SIREN from VAT: FR + 2 check digits + 9 digit SIREN
-            vat_siren = vat[4:] if len(vat) == 13 else None
-            if vat_siren and vat_siren in unverified_by_siren:
-                unverified_by_siren[vat_siren]["vat"] = vat
-            elif vat_siren and vat_siren not in verified_sirens:
-                unverified_by_siren[vat_siren] = {"siren": vat_siren, "siret": None, "vat": vat, "rcs": None}
-
-        for rcs_string, context in found_rcs:
-            # Try to match RCS number (9 digits) to a known SIREN
-            rcs_digits = re.sub(r"\D", "", rcs_string)
-            rcs_siren = rcs_digits[:9] if len(rcs_digits) >= 9 else None
-            if rcs_siren and rcs_siren in unverified_by_siren:
-                unverified_by_siren[rcs_siren]["rcs"] = rcs_string
-            elif rcs_siren and rcs_siren not in verified_sirens:
-                unverified_by_siren[rcs_siren] = {"siren": rcs_siren, "siret": None, "vat": None, "rcs": rcs_string}
-
-        # Try to extract company name and address from text for each entity
-        def _extract_entity_name(text: str) -> str | None:
-            """Find company name with legal form (SAS, SARL, etc.) in text."""
-            legal_forms = r"(?:SAS|SARL|EURL|SASU|SCI|SNC|SCOP|SELARL|SEL|SELAFA)"
-            # Pattern 1: "ACME SOLUTIONS SAS" — uppercase words followed by legal form
-            # Must start with uppercase letter, not a digit (avoids matching addresses)
-            patterns = [
-                rf"([A-ZÀ-Ÿ][A-ZÀ-Ÿ\s&\-']+?)\s+({legal_forms})\b",
-                rf"\b({legal_forms})\s+([A-ZÀ-Ÿ][A-ZÀ-Ÿ\s&\-']+?)(?:\s*[-–—,.\n]|\s+(?:au capital|RCS|SIRET|SIREN|TVA|\d))",
-            ]
-            for pat in patterns:
-                m = re.search(pat, text)
-                if m:
-                    groups = m.groups()
-                    # Reconstruct name: put legal form after company name
-                    if re.match(legal_forms, groups[0]):
-                        name = f"{groups[1].strip()} {groups[0]}"
-                    else:
-                        name = f"{groups[0].strip()} {groups[1]}"
-                    name = name.strip()
-                    # Skip if too short (likely a false match) or too long
-                    if len(name) > 60:
-                        name = name[:60].rsplit(" ", 1)[0]
-                    if len(name) > 5:
-                        return name
-            return None
-
-        def _extract_entity_address(text: str) -> str | None:
-            """Find a French postal address in text (street + postal code + city)."""
-            # Pattern: optional street line, then 5-digit postal code + city name
-            # City: letters only (stops before keywords like SIRET, SIREN, TVA, etc.)
-            m = re.search(
-                r"(\d{1,4}[\s,]+(?:rue|avenue|boulevard|bd|av|place|chemin|impasse|allée|route|passage)"
-                r"[^,\n]{3,50}[\s,]+)?(\d{5})\s+([A-ZÀ-Ÿa-zà-ÿ][a-zà-ÿA-ZÀ-Ÿ\s\-]*[a-zà-ÿA-ZÀ-Ÿ])",
-                text, re.IGNORECASE
-            )
-            if m:
-                street = (m.group(1) or "").strip().rstrip(",").strip()
-                postal = m.group(2)
-                # Clean city: stop at known keywords that might follow
-                city = re.split(r"\s+(?:SIRET|SIREN|TVA|RCS|Tel|Fax|Cedex\b)", m.group(3), flags=re.IGNORECASE)[0].strip()
-                if street:
-                    return f"{street}, {postal} {city}"
-                return f"{postal} {city}"
-            return None
-
-        entity_name = _extract_entity_name(full_text)
-        entity_address = _extract_entity_address(full_text)
-
-        for siren_key, idents in unverified_by_siren.items():
-            # Entity label: use company name if found, otherwise "SIREN XXXXXXXXX"
-            label = html_mod_ent.escape(entity_name) if entity_name else f"SIREN {siren_key}"
-
-            rows = ""
-            if idents["siret"]:
-                rows += f'<div style="{_row}"><span style="{_key}">SIRET</span><span style="{_val}">{idents["siret"]}</span></div>'
-            rows += f'<div style="{_row}"><span style="{_key}">SIREN</span><span style="{_val}">{siren_key}</span></div>'
-            if idents["vat"]:
-                rows += f'<div style="{_row}"><span style="{_key}">VAT</span><span style="{_val}">{idents["vat"]}</span></div>'
-            if idents["rcs"]:
-                rows += f'<div style="{_row}"><span style="{_key}">RCS</span><span style="{_val}">{idents["rcs"]}</span></div>'
-            if entity_address:
-                rows += f'<div style="{_row}"><span style="{_key}">{t("label_address")}</span><span style="{_val}">{html_mod_ent.escape(entity_address)}</span></div>'
-
-            entities_html += (
-                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                f'padding:12px 16px; margin-bottom:8px;">'
-                f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{label}</span>'
-                f'{not_verified_pill}'
-                f'</div>'
-                f'{rows}'
-                f'</div>'
-            )
-            entity_count += 1
-
-        # Show Entities panel if any entities were found
-        if entity_count > 0:
-            more_details_html += (
-                f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-                f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">{t("entities")}</span>'
-                f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{t("n_entities").format(n=entity_count)}</span>'
-                f'</summary>'
-                f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
-                f'{entities_html}'
-                f'</div></details>'
-            )
-
-        # Bank Information panel (IBAN verification results)
-        verified_ibans = []
-        if external_module and external_module.details.get("verified_ibans"):
-            verified_ibans = external_module.details["verified_ibans"]
-
-        # Also show IBANs found in text even without API verification
-        from src.modules.content import extract_iban
-        found_ibans = extract_iban(full_text)
-
-        if verified_ibans or found_ibans:
-            bank_html = ""
-            bank_count = 0
-            shown_ibans = set()
-
-            _row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-            _key = "color:#888; font-size:0.75rem; width:80px; flex-shrink:0;"
-            _val = "color:#ccc; font-size:0.75rem;"
-
-            # 1) API-verified IBANs
-            for iban_data in verified_ibans:
-                iban_str = iban_data.get("iban", "")
-                iban_clean = iban_str.replace(" ", "")
-                shown_ibans.add(iban_clean)
-                bank_count += 1
-
-                is_valid = iban_data.get("valid", False)
-                if is_valid:
-                    status_pill = (f'<span style="background:#28a745; color:white; font-size:0.62rem; '
-                                   f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_valid")}</span>')
-                else:
-                    status_pill = (f'<span style="background:#ef233c; color:white; font-size:0.62rem; '
-                                   f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_invalid")}</span>')
-
-                # Format IBAN with spaces for readability (groups of 4)
-                iban_display = " ".join([iban_clean[i:i+4] for i in range(0, len(iban_clean), 4)])
-
-                rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
-                bic = iban_data.get("bic", "")
-                if bic:
-                    rows += f'<div style="{_row}"><span style="{_key}">BIC</span><span style="{_val}">{bic}</span></div>'
-                bank_name = iban_data.get("bank_name") or ""
-                if bank_name:
-                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_bank")}</span><span style="{_val}">{html_mod_ent.escape(bank_name)}</span></div>'
-                branch_name = iban_data.get("branch_name") or ""
-                if branch_name:
-                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_branch")}</span><span style="{_val}">{html_mod_ent.escape(branch_name)}</span></div>'
-                country = iban_data.get("country_code", "")
-                if country:
-                    rows += f'<div style="{_row}"><span style="{_key}">{t("label_country")}</span><span style="{_val}">{country}</span></div>'
-
-                import unicodedata
-                title_raw = unicodedata.normalize("NFD", bank_name)
-                title_raw = "".join(c for c in title_raw if unicodedata.category(c) != "Mn")
-                title = html_mod_ent.escape(title_raw).upper() if bank_name else t("bank_account").upper()
-                bank_html += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:8px;">'
-                    f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">'
-                    f'{title}</span>'
-                    f'{status_pill}'
-                    f'</div>'
-                    f'{rows}'
-                    f'</div>'
-                )
-
-            # 2) IBANs found in text but not API-verified
-            not_verified_pill = (f'<span style="background:#555; color:#ccc; font-size:0.62rem; '
-                                 f'font-weight:bold; padding:2px 8px; border-radius:8px;">{t("status_not_verified")}</span>')
-            for iban_str, is_checksum_valid, context in found_ibans:
-                if iban_str in shown_ibans:
-                    continue
-                shown_ibans.add(iban_str)
-                bank_count += 1
-
-                iban_display = " ".join([iban_str[i:i+4] for i in range(0, len(iban_str), 4)])
-                checksum_note = t("valid_checksum") if is_checksum_valid else t("invalid_checksum")
-
-                rows = f'<div style="{_row}"><span style="{_key}">IBAN</span><span style="{_val}">{iban_display}</span></div>'
-                rows += f'<div style="{_row}"><span style="{_key}">{t("label_country")}</span><span style="{_val}">{iban_str[:2]}</span></div>'
-                rows += f'<div style="{_row}"><span style="{_key}">{t("label_check")}</span><span style="{_val}">{checksum_note}</span></div>'
-
-                bank_html += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:8px;">'
-                    f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">'
-                    f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{t("bank_account")}</span>'
-                    f'{not_verified_pill}'
-                    f'</div>'
-                    f'{rows}'
-                    f'</div>'
-                )
-
-            if bank_count > 0:
-                more_details_html += (
-                    f'<details style="background:#1a1a2e; border:1px solid #2a2a2a; '
-                    f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                    f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                    f'display:flex; align-items:center; gap:10px;">'
-                    f'<span style="color:#eee; font-size:0.85rem;">{t("bank_information")}</span>'
-                    f'<span style="background:#2563eb; color:white; font-size:0.68rem; font-weight:bold; '
-                    f'padding:2px 10px; border-radius:10px;">{t("n_accounts_plural").format(n=bank_count) if bank_count > 1 else t("n_accounts").format(n=bank_count)}</span>'
-                    f'</summary>'
-                    f'<div style="padding:14px; border-top:1px solid #2a2a2a;">'
-                    f'{bank_html}'
-                    f'</div></details>'
-                )
-
-        # 2D-DOC panel: badge and colour follow the signature status
-        # (src/twod_doc_view.py:pdf_signature_badge).
-        more_details_html += twod_pdf_panel_html(twod_doc_results, twod_doc_signatures)
-
-        # MRZ Zone panel (identity documents)
-        identity_mod = next((m for m in result.modules if m.module == "identity"), None)
-        if identity_mod and identity_mod.details.get("mrz_found"):
-            import html as html_mrz
-            from datetime import date as _d
-
-            det = identity_mod.details
-            mrz_format = det.get("mrz_format", "")
-            # Label du type de document selon le format MRZ
-            if mrz_format == "TD3":
-                doc_type_label = t("mrz_type_passport")
-            elif mrz_format == "TD1":
-                doc_type_label = t("mrz_type_id_card")
-            else:
-                doc_type_label = mrz_format
-
-            # --- Badge selon les flags du module identity ---
-            identity_flags = identity_mod.flags
-            has_high = any(f.severity in ("high", "critical") for f in identity_flags)
-            has_medium = any(f.severity == "medium" for f in identity_flags)
-            if has_high:
-                badge_bg = "#ef233c"
-                badge_label = t("mrz_badge_suspect")
-            elif has_medium:
-                badge_bg = "#f59e0b"
-                badge_label = t("mrz_badge_warning")
-            else:
-                badge_bg = "#28a745"
-                badge_label = t("mrz_badge_valid")
-
-            _mrz_row = "display:flex; padding:4px 0; border-bottom:1px solid #151515;"
-            _mrz_key = "color:#888; font-size:0.75rem; width:160px; flex-shrink:0;"
-            _mrz_val = "color:#ccc; font-size:0.75rem;"
-            _mrz_val_bold = "color:white; font-size:0.75rem; font-weight:bold;"
-            _mrz_ok = "color:#28a745; margin-right:4px;"
-            _mrz_warn = "color:#f59e0b; margin-right:4px;"
-            _mrz_bad = "color:#ef233c; margin-right:4px;"
-
-            # --- Champs principaux MRZ ---
-            mrz_rows = ""
-
-            # Nom
-            if det.get("name"):
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_name")}</span>'
-                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(det["name"])}</span>'
-                    f'</div>'
-                )
-
-            # Date de naissance + âge
-            if det.get("date_of_birth"):
-                try:
-                    dob = _d.fromisoformat(det["date_of_birth"])
-                    age = (_d.today() - dob).days // 365
-                    dob_str = f"{dob.strftime('%d/%m/%Y')} ({age} {t('mrz_years')})"
-                except Exception:
-                    dob_str = det["date_of_birth"]
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_dob")}</span>'
-                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(dob_str)}</span>'
-                    f'</div>'
-                )
-
-            # Nationalité
-            if det.get("nationality"):
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_nationality")}</span>'
-                    f'<span style="{_mrz_val}">{html_mrz.escape(det["nationality"])}</span>'
-                    f'</div>'
-                )
-
-            # Sexe
-            if det.get("sex"):
-                sex_map = {"M": t("mrz_sex_male"), "F": t("mrz_sex_female"), "<": t("mrz_sex_unspecified")}
-                sex_label = sex_map.get(det["sex"], det["sex"])
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_sex")}</span>'
-                    f'<span style="{_mrz_val}">{html_mrz.escape(sex_label)}</span>'
-                    f'</div>'
-                )
-
-            # Numéro de document
-            if det.get("doc_number"):
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_doc_number")}</span>'
-                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(det["doc_number"])}</span>'
-                    f'</div>'
-                )
-
-            # Date de délivrance (extraite par OCR pleine page — non encodée dans la MRZ)
-            if det.get("issuance_date"):
-                try:
-                    from datetime import date as _d_iso
-                    issuance_display = _d_iso.fromisoformat(det["issuance_date"]).strftime('%d/%m/%Y')
-                except Exception:
-                    issuance_display = det["issuance_date"]
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_issuance")}</span>'
-                    f'<span style="{_mrz_val}">{html_mrz.escape(issuance_display)}</span>'
-                    f'</div>'
-                )
-
-            # Date d'expiration + badge VALIDE/EXPIRÉ
-            if det.get("expiry_date"):
-                try:
-                    expiry = _d.fromisoformat(det["expiry_date"])
-                    expiry_str = expiry.strftime('%d/%m/%Y')
-                    if expiry >= _d.today():
-                        exp_badge = (
-                            f'<span style="background:#28a745; color:white; font-size:0.65rem; '
-                            f'font-weight:bold; padding:1px 8px; border-radius:8px; margin-left:6px;">'
-                            f'{t("mrz_valid")}</span>'
-                        )
-                    else:
-                        exp_badge = (
-                            f'<span style="background:#ef233c; color:white; font-size:0.65rem; '
-                            f'font-weight:bold; padding:1px 8px; border-radius:8px; margin-left:6px;">'
-                            f'{t("mrz_expired")}</span>'
-                        )
-                except Exception:
-                    expiry_str = det["expiry_date"]
-                    exp_badge = ""
-                mrz_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_expiry")}</span>'
-                    f'<span style="{_mrz_val_bold}">{html_mrz.escape(expiry_str)}{exp_badge}</span>'
-                    f'</div>'
-                )
-
-            # --- Section cohérence MRZ ---
-            coherence = det.get("mrz_coherence", {})
-            coherence_rows = ""
-            if coherence:
-                # Type document
-                dt_valid = coherence.get("doc_type_valid", True)
-                dt_prefix = coherence.get("doc_type_prefix", "")
-                dt_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if dt_valid else f'<span style="{_mrz_warn}">&#9651;</span>'
-                dt_text = t("mrz_type_passport") if mrz_format == "TD3" else t("mrz_type_id_card")
-                coherence_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_coherence_doc_type")}</span>'
-                    f'<span style="{_mrz_val}">{dt_icon}{html_mrz.escape(dt_text)} ({html_mrz.escape(dt_prefix)})</span>'
-                    f'</div>'
-                )
-
-                # Code émetteur
-                issuer = coherence.get("issuer", "")
-                issuer_valid = coherence.get("issuer_format_valid", True)
-                is_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if issuer_valid else f'<span style="{_mrz_warn}">&#9651;</span>'
-                if issuer:
-                    coherence_rows += (
-                        f'<div style="{_mrz_row}">'
-                        f'<span style="{_mrz_key}">{t("mrz_coherence_issuer")}</span>'
-                        f'<span style="{_mrz_val}">{is_icon}{html_mrz.escape(issuer.replace("<", ""))} '
-                        f'({t("mrz_format_valid") if issuer_valid else t("mrz_format_invalid")})</span>'
-                        f'</div>'
-                    )
-
-                # Période de validité
-                validity_years = coherence.get("validity_period_years")
-                validity_ok = coherence.get("validity_plausible", True)
-                if validity_years is not None:
-                    vp_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if validity_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
-                    expected_range = "5–10 " + t("mrz_years") if mrz_format == "TD3" else "10–15 " + t("mrz_years")
-                    coherence_rows += (
-                        f'<div style="{_mrz_row}">'
-                        f'<span style="{_mrz_key}">{t("mrz_coherence_validity")}</span>'
-                        f'<span style="{_mrz_val}">{vp_icon}{validity_years} {t("mrz_years")} '
-                        f'({t("mrz_expected")}: {expected_range})</span>'
-                        f'</div>'
-                    )
-
-            # --- Section authenticité du scan ---
-            photo = det.get("photo_analysis", {})
-            photo_rows = ""
-            if photo.get("ela_run"):
-                ela_ok = not photo.get("is_ela_suspicious", False)
-                ela_ratio_pct = photo.get("suspicious_ratio", 0) * 100
-                ela_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if ela_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
-                ela_text = (
-                    t("mrz_ela_ok").format(pct=f"{ela_ratio_pct:.0f}")
-                    if ela_ok
-                    else t("mrz_ela_suspect").format(pct=f"{ela_ratio_pct:.0f}")
-                )
-                photo_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">ELA</span>'
-                    f'<span style="{_mrz_val}">{ela_icon}{html_mrz.escape(ela_text)}</span>'
-                    f'</div>'
-                )
-
-                noise_ok = photo.get("noise_uniform", True)
-                noise_cv = photo.get("noise_cv", 0)
-                noise_icon = f'<span style="{_mrz_ok}">&#10003;</span>' if noise_ok else f'<span style="{_mrz_warn}">&#9651;</span>'
-                noise_text = (
-                    t("mrz_noise_ok")
-                    if noise_ok
-                    else t("mrz_noise_suspect").format(cv=f"{noise_cv:.2f}")
-                )
-                photo_rows += (
-                    f'<div style="{_mrz_row}">'
-                    f'<span style="{_mrz_key}">{t("mrz_noise")}</span>'
-                    f'<span style="{_mrz_val}">{noise_icon}{html_mrz.escape(noise_text)}</span>'
-                    f'</div>'
-                )
-
-            # --- Assembler le panneau complet ---
-            mrz_inner = (
-                f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                f'padding:12px 16px; margin-bottom:8px;">'
-                f'{mrz_rows}'
-                f'</div>'
-            )
-
-            if coherence_rows:
-                mrz_inner += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:8px;">'
-                    f'<p style="color:#888; font-size:0.72rem; font-weight:bold; margin:0 0 6px 0;">'
-                    f'{t("mrz_coherence_title")}</p>'
-                    f'{coherence_rows}'
-                    f'</div>'
-                )
-
-            if photo_rows:
-                mrz_inner += (
-                    f'<div style="background:#111; border:1px solid #222; border-radius:8px; '
-                    f'padding:12px 16px; margin-bottom:0;">'
-                    f'<p style="color:#888; font-size:0.72rem; font-weight:bold; margin:0 0 6px 0;">'
-                    f'{t("mrz_scan_auth_title")}</p>'
-                    f'{photo_rows}'
-                    f'</div>'
-                )
-
-            more_details_html += (
-                f'<details open style="background:#0a1e3a; border:1px solid #2563eb; '
-                f'border-radius:8px; padding:0; margin-bottom:8px;">'
-                f'<summary style="cursor:pointer; padding:10px 14px; list-style:none; '
-                f'display:flex; align-items:center; gap:10px;">'
-                f'<span style="color:#eee; font-size:0.85rem;">{t("mrz_zone_title")}</span>'
-                f'<span style="background:{badge_bg}; color:white; font-size:0.68rem; font-weight:bold; '
-                f'padding:2px 10px; border-radius:10px;">{badge_label}</span>'
-                f'<span style="color:#888; font-size:0.72rem;">{html_mrz.escape(doc_type_label)}</span>'
-                f'</summary>'
-                f'<div style="padding:14px; border-top:1px solid #2563eb;">'
-                f'{mrz_inner}'
-                f'</div></details>'
-            )
-
         # One fold for everything below the verdict (progressive disclosure):
-        # the page opens on the verdict and the preview only, and a reader who
-        # wants the evidence opens this block. Inside it, each panel is still
-        # its own <details>, so the reader opens one finding at a time.
-        #
-        # Example of what gets rendered:
-        #   ▸ See all details                     <- closed by default
-        #       DETECTED ISSUES   [High] The total was rewritten ...
-        #       MORE DETAILS      ▸ Modification history  ▸ Entities ...
-        #
-        # Printing still shows everything: the beforeprint hook above opens
-        # every <details> on the page, this one included.
-        # The full score caveat lives here now (it used to sit under the gauge).
-        all_details_html = (
-            f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:0.4rem 0 0 0;">'
-            f'{esc(t("score_caveat"))}</p>'
+        # the score caveat, the evidence bars, every finding, then one panel
+        # per kind of evidence. Built by src/web/views/details.py.
+        _more_details_html = (
+            details.history_panel_html(view, _current_lang)
+            + details.modules_panel_html(result, _current_lang)
+            + details.entities_panel_html(result, view.full_text, _current_lang)
+            + details.bank_panel_html(result, view.full_text, _current_lang)
+            # Badge and colour follow the signature status
+            # (src/twod_doc_view.py:pdf_signature_badge).
+            + twod_pdf_panel_html(twod_doc_results, twod_doc_signatures, _current_lang)
+            + details.mrz_panel_html(result, _current_lang)
         )
-        all_details_html += (
-            '<div style="margin-top:1rem; max-width:440px;">'
-            + _section_title.format(t("evidence_breakdown"))
-            + bars_html
-            + '</div>'
+        st.markdown(
+            details.all_details_html(
+                findings.evidence_bars_html(result, _current_lang),
+                details.issues_html(all_flags, result.document_type, _current_lang),
+                _more_details_html,
+                _current_lang,
+            ),
+            unsafe_allow_html=True,
         )
-        if issues_html:
-            all_details_html += (
-                '<div style="margin-top:1rem;">'
-                + _section_title.format(t("detected_issues"))
-                + issues_html
-                + '</div>'
-            )
-        if more_details_html:
-            all_details_html += (
-                '<div style="margin-top:1rem;">'
-                + _section_title.format(t("more_details"))
-                + more_details_html
-                + '</div>'
-            )
-        if all_details_html:
-            st.markdown(
-                '<details class="tf-all-details" style="margin-top:1.5rem; border-top:1px solid #2a2a2a;">'
-                '<summary style="cursor:pointer; padding:12px 0; color:#8ab4f8; '
-                f'font-size:0.95rem; font-weight:600;">{esc(t("show_all_details"))}</summary>'
-                f'{all_details_html}'
-                '</details>',
-                unsafe_allow_html=True,
-            )
 
     except Exception:
         # The analyzer isolates each detection module, but nothing guarded the
@@ -3526,24 +1625,9 @@ if uploaded_file is not None:
         # derive from BaseException, so this clause leaves them alone.
         logging.getLogger(__name__).exception("results rendering failed")
         _page_ctx.close()
-        _page_slot.markdown(f"""
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:30vh; text-align:center; gap:1.5rem;">
-            <div style="font-size:5rem; font-weight:bold; color:white;">Oops...</div>
-            <div style="background:rgba(192,57,43,0.15); border:1px solid rgba(192,57,43,0.5); border-radius:8px; padding:1.2rem 2rem; max-width:420px;">
-                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; margin-bottom:0.5rem;">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                    </svg>
-                    <div style="font-size:1.1rem; font-weight:bold; color:#e05252;">{t("render_error_title")}</div>
-                </div>
-                <div style="color:#aaa; font-size:0.8rem; text-align:center;">{t("render_error_message")}</div>
-            </div>
-            <a href="." style="margin-top:0.5rem; padding:0.6rem 1.5rem; background:#4a90e2; color:white; border-radius:8px; text-decoration:none; font-weight:500;">
-                {t("back_to_home")}
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
+        _page_slot.markdown(errors.error_card_html(
+            t("render_error_title"), t("render_error_message"), _current_lang,
+        ), unsafe_allow_html=True)
     finally:
         _page_ctx.close()
         # The temp file lives for this script run only (see where it is

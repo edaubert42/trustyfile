@@ -75,7 +75,7 @@ trustyfile/
 ├── LICENSE                   # Proprietary — all rights reserved
 ├── requirements.txt          # Runtime deps
 ├── requirements-dev.txt      # + pikepdf/pypdfium2 (tests only, not shipped)
-├── app.py                    # Streamlit entry point
+├── app.py                    # Streamlit entry point (widgets + calls to src/web/views)
 ├── start.sh                  # Streamlit + Caddy boot (Railway)
 ├── Caddyfile                 # Crawler -> static SEO page, users -> Streamlit;
 │                             # /guides served to everyone (anti-cloaking)
@@ -100,6 +100,12 @@ trustyfile/
 │   │                         # clamps renders so hostile page geometry
 │   │                         # cannot exhaust memory
 │   ├── i18n.py, translations/  # EN/FR strings
+│   ├── web/                  # Display layer, free of any web framework
+│   │   ├── viewmodel.py      # DocumentView: per-document data, computed once
+│   │   ├── virustotal.py     # File-hash lookup (optional, network)
+│   │   └── views/            # Pure functions (data, lang) -> HTML string:
+│   │                         # landing, batch, verdict, findings, properties,
+│   │                         # details, actions, errors, links, common
 │   ├── modules/              # 14 detection modules (see Analysis Modules)
 │   │   ├── metadata.py       # Module A
 │   │   ├── content.py        # Module B

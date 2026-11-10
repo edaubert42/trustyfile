@@ -6,6 +6,7 @@ critical flag (CONTENT_FUTURE_DOCUMENT_DATE) invisible to themes because a
 rename never reached summary.py; that class of bug now fails CI.
 """
 import glob
+import os
 import re
 from pathlib import Path
 
@@ -45,6 +46,8 @@ def _emitted_codes() -> set[str]:
     for path in glob.glob(str(SRC / "**" / "*.py"), recursive=True):
         if path.endswith("summary.py"):
             continue  # summary.py QUOTES every code — it is the map, not an emitter
+        if f"{os.sep}web{os.sep}" in path:
+            continue  # src/web/ displays flags (its docstrings quote example codes), it emits none
         if path.endswith("api.py"):
             continue  # api.py's upper-case strings are HTTP error codes (NOT_A_PDF…), not flags
         for m in _CODE_RE.finditer(open(path, encoding="utf-8").read()):

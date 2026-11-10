@@ -271,8 +271,12 @@ def test_app_accepts_several_files_and_renders_the_batch_page():
     assert "MAX_BATCH_FILES = 10" in source
     assert "analyse_document(" in source
     assert "build_batch_report(" in source and "batch_report_filename(" in source
-    for key in ("batch_title", "batch_open", "batch_back", "batch_download", "batch_too_many"):
+    for key in ("batch_open", "batch_back", "batch_download"):
         assert f't("{key}")' in source, key
+    # The title and the "too many files" warning are built by the batch views.
+    views = (ROOT / "src" / "web" / "views" / "batch.py").read_text()
+    for key in ("batch_title", "batch_too_many"):
+        assert f't("{key}")' in views, key
 
 
 def test_api_shares_the_intake_limits():

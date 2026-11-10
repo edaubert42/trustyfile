@@ -32,14 +32,14 @@ ROOT = Path(__file__).resolve().parent.parent
     ],
 )
 def test_identifier_flags_link_to_the_matching_checker(code, lang, expected):
-    import app
+    from src.web.views import links as app
 
     assert app.tool_url_for_flag(code, lang) == expected
 
 
 @pytest.mark.parametrize("code", ["META_ONLINE_CONVERTER", "FONT_MIXED", "STRUCT_JAVASCRIPT", ""])
 def test_other_flags_get_no_link(code):
-    import app
+    from src.web.views import links as app
 
     assert app.tool_url_for_flag(code, "fr") is None
     assert app.tool_url_for_flag(code, "en") is None
@@ -49,9 +49,9 @@ def test_every_identifier_flag_code_in_the_modules_resolves():
     """Scan the detection modules for identifier flag codes; each must map.
 
     A new EXTERNAL_*_IBAN-style code should get its link automatically; this
-    fails if the token table in app.py ever stops covering one.
+    fails if the token table in src/web/views/links.py ever stops covering one.
     """
-    import app
+    from src.web.views import links as app
 
     codes = set()
     for path in (ROOT / "src" / "modules").glob("*.py"):
@@ -64,7 +64,7 @@ def test_every_identifier_flag_code_in_the_modules_resolves():
 
 def test_link_targets_are_generated_pages():
     """The URLs the helper returns exist as generated files under tools/."""
-    import app
+    from src.web.views import links as app
 
     roots = {"/outils/": ROOT / "tools" / "fr", "/en/tools/": ROOT / "tools" / "en"}
     for lang in ("fr", "en"):
@@ -93,20 +93,20 @@ def test_link_targets_are_generated_pages():
     ],
 )
 def test_flags_link_to_the_guide_that_explains_them(code, lang, document_type, expected):
-    import app
+    from src.web.views import links as app
 
     assert app.guide_url_for_flag(code, lang, document_type) == expected
 
 
 @pytest.mark.parametrize("code", ["EXTRACTION_FAILED", "MODULE_ERROR", "COVERAGE_GATE", ""])
 def test_bookkeeping_flags_get_no_guide(code):
-    import app
+    from src.web.views import links as app
 
     assert app.guide_url_for_flag(code, "fr", "invoice") is None
 
 
 def test_every_flag_code_in_the_modules_has_a_tool_or_a_guide():
-    import app
+    from src.web.views import links as app
 
     codes = set()
     for path in (ROOT / "src" / "modules").glob("*.py"):
@@ -121,7 +121,7 @@ def test_every_flag_code_in_the_modules_has_a_tool_or_a_guide():
 
 
 def test_every_mapped_guide_slug_is_a_generated_page():
-    import app
+    from src.web.views import links as app
 
     for topic, by_lang in app._GUIDE_SLUGS.items():
         for lang, slug in by_lang.items():
