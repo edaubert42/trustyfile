@@ -7,12 +7,15 @@ defining its own rendering helper.
 import math
 from typing import Iterator
 
-from src.models import AnalysisResult
+from src.models import AnalysisResult, Flag
 from src.render_safety import safe_zoom
 
 
-def _iter_geometry(result: AnalysisResult) -> Iterator[tuple[int, tuple[float, float, float, float]]]:
-    """Yield (page_index, bbox) for every flag with usable geometry.
+BBox = tuple[float, float, float, float]
+
+
+def _flag_geometry(flag: Flag) -> Iterator[tuple[int, BBox]]:
+    """Yield (page_index, bbox) for every usable region ONE flag reports.
 
     Flags carry geometry in one of two shapes (both display-only additions to
     their modules, never consulted by scoring):
@@ -25,28 +28,86 @@ def _iter_geometry(result: AnalysisResult) -> Iterator[tuple[int, tuple[float, f
     A flag with neither shape, or a malformed bbox, yields nothing — never
     raises. This is decoration over an untrusted-input tool's output; it
     must degrade silently, the same posture as every other display path.
-    Shared by both public functions below so the shape-normalization logic
-    exists exactly once.
+    The shape-normalization logic exists exactly once, here.
     """
+    details = flag.details or {}
+    candidates = details.get("instances")
+    if candidates is None:
+        candidates = [details] if "bbox" in details else []
+    for c in candidates:
+        page = c.get("page")
+        bbox = c.get("bbox")
+        if page is None or bbox is None:
+            continue
+        try:
+            x0, y0, x1, y1 = (float(v) for v in bbox)
+        except (TypeError, ValueError):
+            continue
+        yield page, (x0, y0, x1, y1)
+
+
+def _iter_geometry(result: AnalysisResult) -> Iterator[tuple[int, BBox]]:
+    """Yield (page_index, bbox) for every flag of the result with usable geometry."""
     for module_result in result.modules:
         for flag in module_result.flags:
-            details = flag.details or {}
-            candidates = details.get("instances")
-            if candidates is None:
-                candidates = [details] if "bbox" in details else []
-            for c in candidates:
-                page = c.get("page")
-                bbox = c.get("bbox")
-                if page is None or bbox is None:
-                    continue
-                try:
-                    x0, y0, x1, y1 = (float(v) for v in bbox)
-                except (TypeError, ValueError):
-                    continue
-                yield page, (x0, y0, x1, y1)
+            yield from _flag_geometry(flag)
 
 
-def collect_evidence_boxes(result: AnalysisResult, page_index: int) -> list[tuple[float, float, float, float]]:
+def reason_numbers(reasons: list[Flag]) -> list[int | None]:
+    """Give each reason the number that links it to the preview, if it has one.
+
+    The results page lists a few "reasons" next to the verdict. A reason that
+    points at a region of the document gets a number (1, 2, ...) drawn both in
+    the list and on the preview, so the reader can match them. A reason with
+    no region (a metadata or structure finding) gets None: there is nothing
+    to point at, and a number with no counterpart on the page would confuse.
+
+    Numbers follow the order of `reasons` and have no gaps.
+
+    Args:
+        reasons: The flags shown next to the verdict (src.summary.top_reasons).
+
+    Returns:
+        One entry per reason, same order: its number, or None.
+
+    Example:
+        [overlay flag (has bbox), VAT flag (none), invisible flag (has bbox)]
+        -> [1, None, 2]
+    """
+    numbers: list[int | None] = []
+    next_number = 1
+    for flag in reasons:
+        has_region = any(True for _ in _flag_geometry(flag))
+        if has_region:
+            numbers.append(next_number)
+            next_number += 1
+        else:
+            numbers.append(None)
+    return numbers
+
+
+def collect_numbered_boxes(reasons: list[Flag], page_index: int) -> list[tuple[BBox, int]]:
+    """Regions of the numbered reasons that sit on the given 0-based page.
+
+    Uses the same numbering as reason_numbers, so the "1" drawn on the page is
+    the "1" of the list. A reason covering several regions yields one entry
+    per region, all with the same number.
+
+    Example:
+        reasons numbered [1, None, 2], page 0 holds reason 1's region only
+        -> [((x0, y0, x1, y1), 1)]
+    """
+    numbered: list[tuple[BBox, int]] = []
+    for flag, number in zip(reasons, reason_numbers(reasons)):
+        if number is None:
+            continue
+        for page, bbox in _flag_geometry(flag):
+            if page == page_index:
+                numbered.append((bbox, number))
+    return numbered
+
+
+def collect_evidence_boxes(result: AnalysisResult, page_index: int) -> list[BBox]:
     """Every tamper-region bbox any flag reports for the given 0-based page."""
     return [bbox for page, bbox in _iter_geometry(result) if page == page_index]
 
@@ -104,8 +165,50 @@ def _draw_marker_highlight(page, rect) -> None:
         shape.commit()
 
 
+# Number badge linking a highlighted region to its reason in the list.
+BADGE_RADIUS = 7.0     # pt — readable at the preview's zoom, small next to a line of text
+BADGE_FONT_SIZE = 9.0  # pt
+BADGE_GAP = 2.0        # pt between the highlight and the disc
+BADGE_TEXT_COLOR = (1.0, 1.0, 1.0)
+
+
+def _draw_number_badge(page, rect, number: int) -> None:
+    """Draw a filled disc carrying `number` beside a highlighted region.
+
+    The disc sits just outside the (already padded) highlight, vertically
+    centred on it, and is pushed back inside the page if the region touches an
+    edge — a badge half outside the page would be cut off by the render.
+
+    PyMuPDF notes: `draw_circle` paints a vector disc on the page, and
+    `insert_text` writes at a BASELINE point (bottom-left of the text), which
+    is why the text is shifted left by half its width and down by about a
+    third of the font size to look centred in the disc.
+    """
+    import fitz
+    r = BADGE_RADIUS
+    # Beside the region, on its own line: sitting on a corner covered the
+    # text of the line above (seen on the sample invoice, where the badge hid
+    # the first digit of the VAT amount). Right side first — a tampered value
+    # is usually an amount at the end of its line — left side when the region
+    # touches the right edge of the page.
+    cx = rect.x1 + r + BADGE_GAP
+    if cx + r > page.rect.x1:
+        cx = rect.x0 - r - BADGE_GAP
+    cx = min(max(cx, page.rect.x0 + r), page.rect.x1 - r)
+    cy = (rect.y0 + rect.y1) / 2
+    cy = min(max(cy, page.rect.y0 + r), page.rect.y1 - r)
+    page.draw_circle(fitz.Point(cx, cy), r, color=HIGHLIGHT_COLOR, fill=HIGHLIGHT_COLOR)
+
+    label = str(number)
+    text_width = fitz.get_text_length(label, fontname="helv", fontsize=BADGE_FONT_SIZE)
+    baseline = fitz.Point(cx - text_width / 2, cy + BADGE_FONT_SIZE * 0.35)
+    page.insert_text(baseline, label, fontname="helv", fontsize=BADGE_FONT_SIZE,
+                     color=BADGE_TEXT_COLOR)
+
+
 def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
-                    boxes: list[tuple[float, float, float, float]] | None = None) -> bytes:
+                    boxes: list[BBox] | None = None,
+                    numbered: list[tuple[BBox, int]] | None = None) -> bytes:
     """Render a PDF page as a PNG image, optionally with tamper-region boxes.
 
     Args:
@@ -120,6 +223,11 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
             automatically — no manual coordinate math needed. A malformed
             box is skipped, never raises (display-only decoration over an
             untrusted-input tool's output).
+        numbered: Optional (bbox, number) pairs (see collect_numbered_boxes).
+            Each gets a numbered disc beside it, drawn AFTER the
+            highlights so a neighbouring highlight never covers it. These
+            regions are normally also in `boxes`; a pair whose bbox is not
+            still gets its badge, just without a highlight under it.
 
     Returns:
         PNG image bytes
@@ -137,6 +245,15 @@ def render_pdf_page(pdf_path: str, page_num: int = 0, zoom: float = 1.5,
                 _draw_marker_highlight(page, rect)
             except Exception:
                 continue  # one bad box must not blank the whole preview
+
+        for box, number in (numbered or []):
+            try:
+                x0, y0, x1, y1 = (float(v) for v in box)
+                rect = fitz.Rect(x0 - HIGHLIGHT_PAD, y0 - HIGHLIGHT_PAD,
+                                 x1 + HIGHLIGHT_PAD, y1 + HIGHLIGHT_PAD) & page.rect
+                _draw_number_badge(page, rect, int(number))
+            except Exception:
+                continue  # a badge is decoration: never blank the preview for it
 
         # Create a matrix for zoom — clamped so a hostile page geometry
         # cannot make the preview allocate a multi-gigabyte buffer.

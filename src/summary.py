@@ -1814,3 +1814,50 @@ def get_flag_sentence(flag: Flag, lang: str = "en") -> str:
         A translated sentence, or flag.message as fallback.
     """
     return _flag_to_sentence(flag, lang)
+
+
+# How many findings the results page shows next to the verdict. Everything
+# else stays one click away, in the "see all details" block.
+MAX_TOP_REASONS = 3
+
+
+def top_reasons(flags: list[Flag], limit: int = MAX_TOP_REASONS) -> list[Flag]:
+    """
+    Pick the few findings worth showing next to the verdict.
+
+    A reader cannot weigh eight findings at once, so the results page shows
+    at most `limit` of them and folds the rest away. Returns the Flag objects
+    rather than sentences, so the caller can still link each reason to its
+    highlighted region on the preview.
+
+    Two kinds of flag are never a "reason":
+      - low severity: informational, not worth the reader's first look;
+      - genuine-direction codes (e.g. a valid 2D-Doc signature): they argue
+        FOR the document, so listing them as a problem would mislead.
+
+    Args:
+        flags: Flags sorted most severe first (what collect_all_flags returns).
+            The order is kept, so the result is the most severe findings.
+        limit: Maximum number of reasons to return.
+
+    Returns:
+        Up to `limit` flags, most severe first. Empty when nothing qualifies.
+
+    Example:
+        [critical OVERLAY, high VAT, high SIRET, high IBAN, medium REVISION, low IBAN]
+        -> [critical OVERLAY, high VAT, high SIRET]
+    """
+    # Imported here, like the other users in this file, to avoid an import
+    # cycle between summary and evidence at module load time.
+    from src.evidence import GENUINE_CODES
+
+    reasons: list[Flag] = []
+    for flag in flags:
+        if flag.severity == "low":
+            continue
+        if flag.code in GENUINE_CODES:
+            continue
+        reasons.append(flag)
+        if len(reasons) == limit:
+            break
+    return reasons

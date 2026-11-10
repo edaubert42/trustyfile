@@ -57,10 +57,11 @@
     "risk_UNVERIFIABLE": "UNVERIFIABLE",
     "score_not_available": "—",
     "score_caveat": "A high score means few signs of manipulation; it does not guarantee the document is authentic. A low score deserves a manual check.",
+    "score_caveat_short": "This result does not guarantee the document is authentic.",
     "next_step_label": "What now?",
-    "next_step_GENUINE": "For a large amount, confirm the IBAN with the issuer.",
-    "next_step_REVIEW": "Ask for an explanation or the original before paying.",
-    "next_step_SUSPICIOUS": "Do not pay. Call the issuer on a number you already know.",
+    "next_step_GENUINE": "If the stakes are high, confirm with the issuer.",
+    "next_step_REVIEW": "Ask the issuer for an explanation or the original.",
+    "next_step_SUSPICIOUS": "Do not rely on this document. Ask the issuer for the original.",
     "next_step_UNVERIFIABLE": "Ask for the original PDF, then run the analysis again.",
     "next_step_GENUINE_proof": "If the stakes are high, confirm with the issuing organisation.",
     "next_step_REVIEW_proof": "Ask for the original or check with the issuing organisation.",
@@ -133,6 +134,9 @@
     "feedback_privacy": "We store your opinion and the analysis result, never your document.",
     "detected_issues": "Detected Issues",
     "more_details": "More Details",
+    "show_all_details": "See all details",
+    "more_findings_one": "1 more finding in the details below.",
+    "more_findings_many": "{n} more findings in the details below.",
 
     "full_modification_history": "Modification History",
     "history_intro": "The file was saved again {n} time(s) after it was created. Here is what changed:",
@@ -146,7 +150,7 @@
     "no_text_changes": "No text changes detected",
     "unknown_time": "Unknown time",
     "after_creation": "after creation",
-    "and_n_more_lines": "... and {n} more lines",
+    "and_n_more_lines": "… and {n} more changes",
     "modified_objects": "Modified objects: ",
 
     "analysis_details": "Analysis Details",
@@ -283,5 +287,9 @@
     "doctype_banner_scientific": "This document appears to be a scientific or academic paper. TrustyFile is optimised for invoices, certificates and attestations. Results may not be meaningful for this document type.",
     "doctype_banner_legal_notice": "This document appears to be a legal notice or terms and conditions. TrustyFile is optimised for invoices and administrative documents. Results may not be meaningful for this document type.",
     "doctype_banner_unknown": "The document type could not be determined. TrustyFile is optimised for invoices, certificates and attestations. Interpret these results with caution.",
-    "upload_reconnecting": "Connection interrupted — retrying your upload…"
+    "upload_reconnecting": "Connection interrupted — retrying your upload…",
+    "history_step_created": "Document created",
+    "history_step_modified": "Modification",
+    "history_step_modified_n": "Modification {n}",
+    "history_show_more": "Show {n} more modifications"
 }

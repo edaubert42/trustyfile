@@ -26,12 +26,17 @@ def test_every_band_has_next_step_copy_in_both_languages():
             assert 20 <= len(text) <= MAX_NEXT_STEP_CHARS, (lang, band, len(text))
 
 
-def test_suspicious_copy_tells_the_reader_not_to_pay_or_sign():
-    """The one band where the instruction must be unambiguous."""
+def test_suspicious_copy_tells_the_reader_not_to_rely_on_the_document():
+    """The one band where the instruction must be unambiguous.
+
+    It used to say "Do not pay" for an invoice. Changed 2026-11-10: an invoice
+    is not always something to pay — it can be a proof handed to an insurer —
+    so the advice no longer assumes a payment.
+    """
     fr = json.loads((ROOT / "src" / "translations" / "fr.json").read_text(encoding="utf-8"))
     en = json.loads((ROOT / "src" / "translations" / "en.json").read_text(encoding="utf-8"))
-    assert "Ne payez pas" in fr["next_step_SUSPICIOUS"]
-    assert "Do not pay" in en["next_step_SUSPICIOUS"]
+    assert "Ne vous fiez pas" in fr["next_step_SUSPICIOUS"]
+    assert "Do not rely" in en["next_step_SUSPICIOUS"]
 
 
 # --- Document-type-aware advice (2026-11-04) ---------------------------------

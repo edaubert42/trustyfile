@@ -214,3 +214,49 @@ def test_marker_highlight_is_deterministic(tmp_path):
     first = render_pdf_page(str(p), 0, zoom=2.0, boxes=box)
     second = render_pdf_page(str(p), 0, zoom=2.0, boxes=box)
     assert first == second
+
+
+# --- Numbered reasons (verdict-first results page) --------------------------
+
+def _reason(code: str, details: dict | None = None):
+    from src.models import Flag
+    return Flag(severity="high", code=code, message=code, details=details)
+
+
+def test_reason_numbers_skips_reasons_without_a_region():
+    from src.preview import reason_numbers
+    reasons = [
+        _reason("A", {"page": 0, "bbox": (10, 10, 50, 20)}),
+        _reason("B"),
+        _reason("C", {"instances": [{"page": 1, "bbox": (5, 5, 9, 9)}]}),
+    ]
+    assert reason_numbers(reasons) == [1, None, 2]
+
+
+def test_collect_numbered_boxes_keeps_only_the_requested_page():
+    from src.preview import collect_numbered_boxes
+    reasons = [
+        _reason("A", {"page": 0, "bbox": (10, 10, 50, 20)}),
+        _reason("B"),
+        _reason("C", {"instances": [{"page": 1, "bbox": (5, 5, 9, 9)}]}),
+    ]
+    assert collect_numbered_boxes(reasons, 0) == [((10.0, 10.0, 50.0, 20.0), 1)]
+    assert collect_numbered_boxes(reasons, 1) == [((5.0, 5.0, 9.0, 9.0), 2)]
+
+
+def test_number_badge_changes_the_render_and_bad_input_does_not_raise(tmp_path):
+    import fitz
+    from src.preview import render_pdf_page
+    pdf = tmp_path / "blank.pdf"
+    doc = fitz.open()
+    doc.new_page()
+    doc.save(pdf)
+    doc.close()
+
+    box = (100, 100, 200, 120)
+    plain = render_pdf_page(str(pdf), 0, boxes=[box])
+    badged = render_pdf_page(str(pdf), 0, boxes=[box], numbered=[(box, 1)])
+    assert badged != plain
+
+    # A malformed pair is skipped: the page still renders.
+    assert render_pdf_page(str(pdf), 0, numbered=[("nonsense", 1)])

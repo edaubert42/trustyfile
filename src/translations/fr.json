@@ -57,10 +57,11 @@
     "risk_UNVERIFIABLE": "NON VÉRIFIABLE",
     "score_not_available": "—",
     "score_caveat": "Un score élevé signale peu d'indices de manipulation ; il ne garantit pas l'authenticité du document. Un score bas mérite une vérification manuelle.",
+    "score_caveat_short": "Ce résultat ne garantit pas l'authenticité du document.",
     "next_step_label": "Et maintenant ?",
-    "next_step_GENUINE": "Pour un gros montant, confirmez l'IBAN auprès de l'émetteur.",
-    "next_step_REVIEW": "Demandez une explication ou l'original avant de payer.",
-    "next_step_SUSPICIOUS": "Ne payez pas. Appelez l'émetteur à un numéro que vous connaissez déjà.",
+    "next_step_GENUINE": "En cas d'enjeu important, confirmez auprès de l'émetteur.",
+    "next_step_REVIEW": "Demandez une explication ou l'original à l'émetteur.",
+    "next_step_SUSPICIOUS": "Ne vous fiez pas à ce document. Demandez l'original à l'émetteur.",
     "next_step_UNVERIFIABLE": "Demandez le PDF d'origine, puis relancez l'analyse.",
     "next_step_GENUINE_proof": "En cas d'enjeu important, confirmez auprès de l'organisme émetteur.",
     "next_step_REVIEW_proof": "Demandez l'original ou vérifiez auprès de l'organisme émetteur.",
@@ -133,6 +134,9 @@
     "feedback_privacy": "Nous enregistrons votre avis et le résultat de l'analyse, jamais votre document.",
     "detected_issues": "Problèmes détectés",
     "more_details": "Plus de détails",
+    "show_all_details": "Voir tout le détail",
+    "more_findings_one": "1 autre constat dans le détail ci-dessous.",
+    "more_findings_many": "{n} autres constats dans le détail ci-dessous.",
 
     "full_modification_history": "Historique des modifications",
     "history_intro": "Le fichier a été réenregistré {n} fois après sa création. Voici ce qui a changé :",
@@ -146,7 +150,7 @@
     "no_text_changes": "Aucune modification de texte détectée",
     "unknown_time": "Date inconnue",
     "after_creation": "après la création",
-    "and_n_more_lines": "... et {n} lignes supplémentaires",
+    "and_n_more_lines": "… et {n} autres changements",
     "modified_objects": "Objets modifiés : ",
 
     "analysis_details": "Détails de l'analyse",
@@ -283,5 +287,9 @@
     "doctype_banner_scientific": "Ce document semble être un article scientifique ou académique. TrustyFile est optimisé pour analyser des factures, certificats et attestations. Les résultats peuvent ne pas être pertinents pour ce type de document.",
     "doctype_banner_legal_notice": "Ce document semble être une notice ou des conditions générales. TrustyFile est optimisé pour analyser des factures et documents administratifs. Les résultats peuvent ne pas être pertinents pour ce type de document.",
     "doctype_banner_unknown": "Le type de ce document n'a pas pu être déterminé. TrustyFile est optimisé pour les factures, certificats et attestations. Interprétez les résultats avec prudence.",
-    "upload_reconnecting": "Connexion interrompue — nouvelle tentative d'envoi…"
+    "upload_reconnecting": "Connexion interrompue — nouvelle tentative d'envoi…",
+    "history_step_created": "Création du document",
+    "history_step_modified": "Modification",
+    "history_step_modified_n": "Modification {n}",
+    "history_show_more": "Voir les {n} autres modifications"
 }

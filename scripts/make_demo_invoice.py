@@ -35,6 +35,13 @@ OUT = ROOT / "static" / "demo" / "facture-exemple.pdf"
 
 # Fictitious issuer. 732 829 320 is the textbook example SIREN (Luhn-valid,
 # not registered), so the INSEE lookup, when enabled, reports it as not found.
+# Fixed dates (PDF date syntax: D:YYYYMMDDHHmmSS+HH'mm'), so the file is
+# reproducible and the results page has something to show: created the day of
+# the invoice, modified two days later when the total is retyped. Without
+# them the sample showed "—" for both dates, which a real document rarely does.
+CREATED_AT = "D:20260812093000+02'00'"
+MODIFIED_AT = "D:20260814174500+02'00'"
+
 ORIGINAL_TOTAL = "1 200,00 EUR"
 TAMPERED_TOTAL = "2 200,00 EUR"
 
@@ -83,6 +90,8 @@ def build(out: Path = OUT) -> Path:
         "producer": "Exemple Facturation 3.2",
         "creator": "Exemple Facturation",
         "title": "Facture 2026-0912",
+        "creationDate": CREATED_AT,
+        "modDate": CREATED_AT,  # untouched so far: same as the creation
     })
     doc.save(out, garbage=0, deflate=True)
     doc.close()
@@ -102,6 +111,11 @@ def build(out: Path = OUT) -> Path:
     rect = pymupdf.Rect(*original["bbox"]) + (-1.5, -1.5, 1.5, 1.5)
     page.draw_rect(rect, color=None, fill=(1, 1, 1))
     page.insert_text((AMOUNT_X, total_y), TAMPERED_TOTAL, fontsize=11, fontname="hebo")
+    # An editor updates the modification date when it saves. set_metadata
+    # replaces the whole dictionary, so start from the existing one.
+    metadata = dict(doc.metadata)
+    metadata["modDate"] = MODIFIED_AT
+    doc.set_metadata(metadata)
     doc.save(out, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
     doc.close()
     return out

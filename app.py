@@ -20,7 +20,10 @@ import re
 from pathlib import Path
 from src.dates import days_between, seconds_between
 from src.i18n import t, get_lang
-from src.preview import render_pdf_page, collect_evidence_boxes, first_flagged_page
+from src.preview import (
+    render_pdf_page, collect_evidence_boxes, collect_numbered_boxes,
+    first_flagged_page, reason_numbers,
+)
 
 # The landing page lists the verification guides and the checker tools. Their
 # slugs and titles live with the generator (scripts/build_guides.py), which
@@ -868,11 +871,26 @@ st.markdown(f"""
         border-radius: 6px; padding: 7px 14px; font-size: 0.85rem; min-height: 0;
         line-height: 1.2;
     }}
+    /* Report actions: same 440 px column as the findings. The main action
+       ("analyse another document") takes a full row; the two quiet exports
+       share the row below, half each. Left to wrap freely, the three buttons
+       broke into 2 + 1 with the third one floating alone. */
+    .st-key-tf_report_row {{
+        max-width: 440px; margin: 1.4rem auto 0 auto; gap: 10px !important;
+    }}
+    .st-key-tf_report_row > * {{ flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }}
+    .st-key-tf_report_row > *:first-child {{ flex: 1 1 100% !important; }}
+    .st-key-tf_report_row #tf-new-analysis {{ display: block !important; text-align: center; }}
+    .st-key-tf_report_row #tf-print-wrap, .st-key-tf_report_row #tf-print,
+    .st-key-tf_report_row [data-testid="stDownloadButton"],
+    .st-key-tf_report_row [data-testid="stDownloadButton"] button {{ width: 100% !important; }}
     .st-key-tf_report_row [data-testid="stDownloadButton"] button:hover {{
         color: #ccc; border-color: #4a90e2;
     }}
     /* Feedback comment form: same centred 440 px column as the findings above,
        instead of the full width of the results column. */
+    /* No gap between the question and its privacy line: they read as one. */
+    .st-key-tf_feedback {{ gap: 0 !important; }}
     .st-key-tf_feedback [data-testid="stForm"] {{
         max-width: 440px; margin: 0 auto;
     }}
@@ -1557,7 +1575,7 @@ if uploaded_file is not None:
     # Lazy imports: only load heavy analysis modules when a file is uploaded
     from src.analyzer import TrustyFileAnalyzer
     from src.scoring import collect_all_flags, count_flags_by_severity
-    from src.summary import generate_rich_summary, get_flag_sentence, next_step_key
+    from src.summary import generate_rich_summary, get_flag_sentence, next_step_key, top_reasons
     from src.report import build_report, report_json, report_filename
     from src.extractors.pdf_extractor import extract_pdf_data
     from src.modules.structure import get_modification_history
@@ -1763,6 +1781,14 @@ if uploaded_file is not None:
         # Get page count for navigation
         page_count = get_pdf_page_count(tmp_path)
 
+        # The reasons shown next to the verdict, and the number that links
+        # each one to its region on the preview (None when a reason has no
+        # region). Computed BEFORE the two columns because both need them:
+        # the preview draws the numbers, the results list prints them.
+        all_flags = collect_all_flags(result.modules)
+        _reasons = top_reasons(all_flags)
+        _reason_numbers = reason_numbers(_reasons)
+
         # Two-column layout: Preview | Results
         results_col, preview_col = st.columns([3, 2])
 
@@ -1796,7 +1822,9 @@ if uploaded_file is not None:
             # Render and display the page, with tamper-region highlights
             try:
                 boxes = collect_evidence_boxes(result, page_index)
-                img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0, boxes=boxes)
+                numbered = collect_numbered_boxes(_reasons, page_index)
+                img_bytes = render_pdf_page(tmp_path, page_index, zoom=2.0,
+                                            boxes=boxes, numbered=numbered)
                 st.image(img_bytes, width="stretch")
             except Exception as e:
                 st.error(t("could_not_render").format(error=e))
@@ -2037,6 +2065,36 @@ if uploaded_file is not None:
             size = 220
             center = size // 2
 
+            # Two lines under the gauge, no more: the verdict, then what to do.
+            # The full score caveat moved to the "see all details" block. One
+            # short reminder stays, and only on a GOOD result: that is where
+            # a reader could over-trust the verdict ("green = authentic"). On
+            # a bad result the next step already says to check by hand.
+            _caveat_html = ""
+            if risk_level != "UNVERIFIABLE" and score >= 80:
+                _caveat_html = (
+                    '<p style="color:#888; font-size:0.75rem; line-height:1.4; max-width:420px; '
+                    f'margin:0 auto 0.4rem auto;">{esc(t("score_caveat_short"))}</p>'
+                )
+
+            # Headline under the gauge. On a SUSPICIOUS result it is the advice
+            # itself ("Do not rely on this document..."): the verdict sentence
+            # names ONE theme (e.g. "identity information is fraudulent") and
+            # can disagree with the first reason listed just below (e.g. an
+            # overwritten amount). The reasons already say what is wrong, so
+            # the headline only says what to do. Other bands keep
+            # verdict + advice. (The JSON report still carries the verdict.)
+            _advice = t(next_step_key(result.band, result.document_type))
+            if result.band == "SUSPICIOUS":
+                _headline = _advice
+                _advice_html = ""
+            else:
+                _headline = summary.verdict
+                _advice_html = (
+                    '<p style="color:#c9d1d9; font-size:0.88rem; line-height:1.5; max-width:420px; '
+                    f'margin:0 auto 0.5rem auto;">{_advice}</p>'
+                )
+
             st.markdown(f"""
             <div style="text-align: center; padding: 0;">
                 <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
@@ -2058,14 +2116,10 @@ if uploaded_file is not None:
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
                 <p style="color:white; font-size:1.15rem; font-weight:bold; line-height:1.35; max-width:420px; margin:0.1rem auto 0.6rem auto;">
-                    {summary.verdict}
+                    {_headline}
                 </p>
-                <p style="color:#c9d1d9; font-size:0.88rem; line-height:1.5; max-width:420px; margin:0 auto 0.5rem auto;">
-                    <strong>{t("next_step_label")}</strong> {t(next_step_key(result.band, result.document_type))}
-                </p>
-                <p style="color:#777; font-size:0.72rem; line-height:1.4; max-width:420px; margin:0 auto 0.4rem auto;">
-                    {t("score_caveat")}
-                </p>
+                {_advice_html}
+                {_caveat_html}
             </div>
             """, unsafe_allow_html=True)
 
@@ -2152,8 +2206,7 @@ if uploaded_file is not None:
                         color:#eee; margin-left:8px; font-weight:bold;">{value_label}</span>
                 </div>'''
 
-            # Flag counts
-            all_flags = collect_all_flags(result.modules)
+            # Flag counts (all_flags was collected above, before the columns)
             counts = count_flags_by_severity(all_flags)
 
             _dt_label = t(f"doctype_{_dt}")
@@ -2168,19 +2221,46 @@ if uploaded_file is not None:
 
             import html as _html_esc
             flags_list_html = ""
-            if all_flags:
-                for flag in all_flags:
-                    fc = _sev_colors.get(flag.severity, "#555")
-                    safe_sentence = _html_esc.escape(get_flag_sentence(flag, get_lang()))
-                    flags_list_html += (
-                        f'<div style="display:flex; align-items:center; gap:8px; padding:5px 0; '
-                        f'border-bottom:1px solid #2a2a2a;">'
-                        f'<span style="background:{fc}; color:white; font-size:0.62rem; '
-                        f'font-weight:bold; padding:2px 0; border-radius:8px; width:58px; '
-                        f'text-align:center; display:inline-block; flex-shrink:0;">{t(f"severity_{flag.severity}")}</span>'
-                        f'<span style="color:#ccc; font-size:0.85rem;">{safe_sentence}</span>'
-                        f'</div>'
+            # Verdict first: only the few most severe findings sit next to
+            # the verdict (src/summary.py:top_reasons picks them). The full
+            # list, with severities and raw details, is in the "see all
+            # details" block at the bottom of the page.
+            for flag, _number in zip(_reasons, _reason_numbers):
+                fc = _sev_colors.get(flag.severity, "#555")
+                safe_sentence = _html_esc.escape(get_flag_sentence(flag, get_lang()))
+                if _number is not None:
+                    # This reason points at a region of the document: show
+                    # the SAME numbered red disc that is drawn on the preview
+                    # (src/preview.py:_draw_number_badge), so the two match.
+                    _marker = (
+                        '<span style="background:#ef233c; color:white; width:20px; height:20px; '
+                        'border-radius:50%; flex-shrink:0; font-size:0.72rem; font-weight:bold; '
+                        f'display:inline-flex; align-items:center; justify-content:center;">{_number}</span>'
                     )
+                else:
+                    # No region to point at (metadata, registry lookup...): a
+                    # plain dot, whose colour still ranks the reason.
+                    _marker = (
+                        f'<span style="background:{fc}; width:9px; height:9px; border-radius:50%; '
+                        'flex-shrink:0; margin:6px 5.5px 0 5.5px;"></span>'
+                    )
+                flags_list_html += (
+                    f'<div style="display:flex; align-items:flex-start; gap:10px; padding:7px 0; '
+                    f'border-bottom:1px solid #2a2a2a;">'
+                    f'{_marker}'
+                    f'<span style="color:#ddd; font-size:0.9rem; line-height:1.4;">{safe_sentence}</span>'
+                    f'</div>'
+                )
+
+            # Say how many findings are NOT shown, so a short list never
+            # reads as "that is all there is".
+            _hidden_count = len(all_flags) - len(_reasons)
+            if _hidden_count > 0:
+                _more_key = "more_findings_one" if _hidden_count == 1 else "more_findings_many"
+                flags_list_html += (
+                    f'<p style="color:#888; font-size:0.8rem; margin:8px 0 0 0;">'
+                    f'{esc(t(_more_key).format(n=_hidden_count))}</p>'
+                )
 
             _secondary_types = {"scientific", "legal_notice", "technical", "unknown"}
             _banner_html = ""
@@ -2192,142 +2272,179 @@ if uploaded_file is not None:
                     f'</div>'
                 )
 
-            # Modification history — the most concrete evidence on the page:
-            # it shows WHAT changed between saves ("+ 2 200,00 EUR"). It sits
-            # right under the verdict, as a highlighted card, so the reader
-            # sees the proof before the list of findings. Only rendered when
-            # the PDF has several versions with a diff to show. (It used to
-            # come after the export buttons, below everything else.)
+            _section_title = ('<span style="color:white; font-size:0.95rem; font-weight:bold; '
+                              'text-transform:uppercase; letter-spacing:0.5px;">{}</span>'
+                              '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 8px 0;">')
+            # Modification history, drawn as a vertical timeline: one dot per
+            # step in the life of the file (grey = creation, red = a later
+            # save), joined by a line, with the date on the right and each
+            # change written "old -> new". Comes after the reasons and the
+            # feedback question. Only rendered when the PDF has several
+            # versions with a diff to show.
             _history_html = ""
             if history["version_count"] > 1 and history.get("diffs"):
                 import html as html_mod  # for escaping user content
+                from src.history_view import fill_covered_values, pair_changes
 
-                row_style = "display:flex; align-items:flex-start; padding:6px 0; border-bottom:1px solid #2a2a2a;"
-                label_style = "color:#888; font-size:0.8rem; width:90px; flex-shrink:0;"
-                value_style = "color:#eee; font-size:0.8rem;"
-                max_lines = 5  # Max diff lines to show per version
+                # new text -> text it covers, from the cover-and-retype
+                # findings: lets an "added" line show the value it replaced.
+                _covered_by = {
+                    f.details["replacement"]: f.details["covered"]
+                    for f in all_flags
+                    if f.details and f.details.get("replacement") and f.details.get("covered")
+                }
 
-                history_rows = ""
+                max_changes = 3  # changes shown per step; the rest is counted
+                _date_format = "%d/%m/%Y %H:%M" if get_lang() == "fr" else "%Y-%m-%d %H:%M"
+                _created_at = pdf_data.metadata.creation_date
+                _modified_at = pdf_data.metadata.mod_date
 
-                # Version 1: original creation
-                # Get the software used for version 1 from the first diff's from_tool
-                first_software = ""
-                if history["diffs"]:
-                    first_software = history["diffs"][0].get("from_tool", "")
+                def _timeline_step(title: str, when: str, body_html: str,
+                                   dot_color: str, is_last: bool) -> str:
+                    """One step of the timeline, as HTML.
 
-                # Version 1 is always listed, dated when the PDF says when it
-                # was created: without it a lone "Version 2" had nothing to be
-                # compared against.
-                _v1_when = (pdf_data.metadata.creation_date.strftime("%Y-%m-%d %H:%M") + " — "
-                            if pdf_data.metadata.creation_date else "")
-                software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_producer")}: {html_mod.escape(first_software)}</div>' if first_software else ""
-                history_rows += (
-                    f'<div style="{row_style}">'
-                    f'<span style="{label_style}">{t("version_n").format(n=1)}</span>'
-                    f'<div style="{value_style}">'
-                    f'<div>{_v1_when}{t("original_document")}</div>'
-                    f'{software_html}'
-                    f'</div></div>'
+                    Left: the dot, and under it the line down to the next
+                    step (no line under the last one). Right: the title with
+                    the date pushed to the far right, then the body.
+
+                    Example:
+                        _timeline_step("Modification", "12/03/2026 14:05",
+                                       "<div>...</div>", "#ef233c", True)
+                    """
+                    line_html = ("" if is_last else
+                                 '<div style="width:1px; flex:1; background:#3a3a4e; margin-top:3px;"></div>')
+                    when_html = (f'<span style="color:#888; font-size:0.75rem; white-space:nowrap;">{when}</span>'
+                                 if when else "")
+                    return (
+                        '<div style="display:flex; gap:10px;">'
+                        '<div style="display:flex; flex-direction:column; align-items:center;">'
+                        f'<div style="width:10px; height:10px; border-radius:50%; background:{dot_color};'
+                        ' margin-top:5px; flex-shrink:0;"></div>'
+                        f'{line_html}</div>'
+                        f'<div style="flex:1; min-width:0; padding-bottom:{"0" if is_last else "12px"};">'
+                        '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px;">'
+                        f'<span style="color:#eee; font-size:0.85rem;">{title}</span>{when_html}</div>'
+                        f'{body_html}</div></div>'
+                    )
+
+                # Step 1: creation. The tool that made the file is the
+                # "from_tool" of the first diff.
+                first_software = history["diffs"][0].get("from_tool", "")
+                _tool_style = "color:#888; font-size:0.75rem;"
+                steps_html = _timeline_step(
+                    t("history_step_created"),
+                    _created_at.strftime(_date_format) if _created_at else "",
+                    (f'<div style="{_tool_style}">{html_mod.escape(first_software)}</div>'
+                     if first_software else ""),
+                    "#888",
+                    is_last=False,
                 )
 
-                # Each subsequent version
-                for diff in history["diffs"]:
-                    version_num = diff["to_version"]
+                # One step per later save.
+                _modification_count = len(history["diffs"])
+                max_visible_modifications = 2  # later saves are folded
+                modification_steps: list[str] = []
+                for position, diff in enumerate(history["diffs"], start=1):
+                    is_last = position == _modification_count
+                    body_html = ""
 
-                    # Software used for this version
                     version_software = diff.get("to_tool", "")
+                    if version_software:
+                        body_html += f'<div style="{_tool_style}">{html_mod.escape(version_software)}</div>'
 
-                    # Time info
-                    time_info = ""
-                    if pdf_data.metadata.creation_date and pdf_data.metadata.mod_date:
-                        if version_num == history["version_count"]:
-                            time_info = pdf_data.metadata.mod_date.strftime("%Y-%m-%d %H:%M")
-                            delta = pdf_data.metadata.mod_date - pdf_data.metadata.creation_date
+                    # A PDF stores two dates only (creation, last
+                    # modification), so only the LAST save can be dated; it
+                    # also gets "+3min after creation".
+                    when = ""
+                    if is_last and _modified_at:
+                        when = _modified_at.strftime(_date_format)
+                        if _created_at:
+                            delta = _modified_at - _created_at
                             hours = delta.total_seconds() / 3600
                             _ac = t("after_creation")
                             if hours >= 24:
-                                time_info += f" — +{int(hours // 24)}d {int(hours % 24)}h {_ac}"
+                                _day = "j" if get_lang() == "fr" else "d"  # jours / days
+                                elapsed = f"+{int(hours // 24)}{_day} {int(hours % 24)}h"
                             elif hours >= 1:
-                                time_info += f" — +{int(hours)}h{int((hours % 1) * 60)}min {_ac}"
+                                elapsed = f"+{int(hours)}h{int((hours % 1) * 60)}min"
                             elif int(hours * 60) > 0:
-                                time_info += f" — +{int(hours * 60)}min {_ac}"
+                                elapsed = f"+{int(hours * 60)}min"
                             else:
-                                time_info += f" — +{int(delta.total_seconds())}s {_ac}"
+                                elapsed = f"+{int(delta.total_seconds())}s"
+                            body_html += f'<div style="{_tool_style}">{elapsed} {_ac}</div>'
 
-                    # Build change lines (limited to max_lines)
-                    changes_html = ""
-                    line_count = 0
-                    total_lines = 0
-                    if diff["changes"]:
-                        for change in diff["changes"]:
-                            for line in change.get("removed", []):
-                                if line.strip():
-                                    total_lines += 1
-                                    if line_count < max_lines:
-                                        safe = html_mod.escape(line[:80])
-                                        changes_html += f'<div style="color:#e06060; font-size:0.75rem;">- {safe}</div>'
-                                        line_count += 1
-                            for line in change.get("added", []):
-                                if line.strip():
-                                    total_lines += 1
-                                    if line_count < max_lines:
-                                        safe = html_mod.escape(line[:80])
-                                        changes_html += f'<div style="color:#60c060; font-size:0.75rem;">+ {safe}</div>'
-                                        line_count += 1
+                    # Every change of this save, as (old, new) pairs.
+                    pairs = []
+                    for change in diff["changes"] or []:
+                        pairs += pair_changes(change.get("removed", []), change.get("added", []))
+                    pairs = fill_covered_values(pairs, _covered_by)
 
-                        if total_lines > max_lines:
-                            remaining = total_lines - max_lines
-                            changes_html += f'<div style="color:#888; font-size:0.7rem; font-style:italic;">{t("and_n_more_lines").format(n=remaining)}</div>'
-                    else:
-                        changes_html = f'<div style="color:#888; font-size:0.75rem;">{t("non_text_changes")}</div>'
+                    for old, new in pairs[:max_changes]:
+                        old_html = (f'<span style="color:#e06060; text-decoration:line-through;">'
+                                    f'{html_mod.escape(old[:80])}</span>' if old else "")
+                        new_html = (f'<span style="color:#60c060; font-weight:600;">'
+                                    f'{html_mod.escape(new[:80])}</span>' if new else "")
+                        # The arrow only makes sense between two values.
+                        arrow_html = ('<span style="color:#888; margin:0 6px;">&rarr;</span>'
+                                      if old and new else "")
+                        body_html += (f'<div style="font-size:0.82rem; margin-top:4px;">'
+                                      f'{old_html}{arrow_html}{new_html}</div>')
+                    if len(pairs) > max_changes:
+                        body_html += (f'<div style="color:#888; font-size:0.75rem; font-style:italic; margin-top:2px;">'
+                                      f'{t("and_n_more_lines").format(n=len(pairs) - max_changes)}</div>')
+                    if not pairs:
+                        body_html += f'<div style="{_tool_style}">{t("non_text_changes")}</div>'
 
-                    software_html = f'<div style="color:#888; font-size:0.7rem;">{t("label_editor")}: {html_mod.escape(version_software)}</div>' if version_software else ""
-                    history_rows += (
-                        f'<div style="{row_style}">'
-                        f'<span style="{label_style}">{t("version_n").format(n=version_num)}</span>'
-                        f'<div style="{value_style}">'
-                        f'{f"<div>{time_info}</div>" if time_info else ""}'
-                        f'{software_html}'
-                        f'{changes_html}'
-                        f'</div></div>'
+                    title = (t("history_step_modified") if _modification_count == 1
+                             else t("history_step_modified_n").format(n=position))
+                    modification_steps.append(
+                        _timeline_step(title, when, body_html, "#ef233c", is_last))
+
+                # Preview: a file saved many times would push everything else
+                # down the page. The first saves stay visible, the rest waits
+                # behind a "show N more" line (opened automatically on print).
+                visible_steps = modification_steps[:max_visible_modifications]
+                hidden_steps = modification_steps[max_visible_modifications:]
+                steps_html += "".join(visible_steps)
+                if hidden_steps:
+                    steps_html += (
+                        '<details>'
+                        '<summary style="cursor:pointer; color:#8ab4f8; font-size:0.82rem; padding:2px 0 8px 0;">'
+                        f'{t("history_show_more").format(n=len(hidden_steps))}</summary>'
+                        + "".join(hidden_steps) +
+                        '</details>'
                     )
 
                 _history_html = (
-                    '<div style="margin:0.6rem auto 0 auto; max-width:440px; background:#1a1a2e;'
-                    ' border:1px solid #2a2a3e; border-left:3px solid #ff6b35; border-radius:8px;'
-                    ' padding:10px 14px;">'
-                    f'<span style="color:white; font-size:0.95rem; font-weight:bold; text-transform:uppercase;'
-                    f' letter-spacing:0.5px;">{t("full_modification_history")}</span>'
-                    f'<p style="color:#c9d1d9; font-size:0.82rem; margin:4px 0 6px 0;">'
-                    f'{t("history_intro").format(n=history["version_count"] - 1)}</p>'
-                    f'{history_rows}'
+                    '<div style="margin:2rem auto 0 auto; max-width:440px;">'
+                    + _section_title.format(t("full_modification_history"))
+                    + steps_html +
                     '</div>'
                 )
 
             # Findings first (the verdict itself now sits under the gauge),
             # then where the evidence comes from, then one discreet line of
             # context. Same section-title style as "Preview" on the right.
-            _section_title = ('<span style="color:white; font-size:0.95rem; font-weight:bold; '
-                              'text-transform:uppercase; letter-spacing:0.5px;">{}</span>'
-                              '<hr style="border:none; border-top:1px solid #2a2a2a; margin:6px 0 8px 0;">')
             _no_findings_html = (f'<p style="color:#28a745; font-size:0.9rem; margin:0;">{t("no_issues")}</p>'
                                  if not all_flags else "")
             _summary_html = (
-                _history_html +
                 '<div style="margin-top:1rem; max-width:440px; margin-left:auto; margin-right:auto;">'
                 + _section_title.format(t("summary")) +
                 f'{_banner_html}'
                 f'{flags_list_html}{_no_findings_html}'
                 '</div>'
-                '<div style="margin-top:1.4rem; max-width:440px; margin-left:auto; margin-right:auto;">'
-                + _section_title.format(t("evidence_breakdown")) +
-                f'{bars_html}'
-                '</div>'
-                f'<p style="text-align:center; font-size:0.72rem; color:#888; margin:0.8rem 0 0.6rem 0;">'
+                # History after the reasons: the reader first learns WHAT is
+                # wrong, then sees the proof of how the file changed. The
+                # "where the evidence comes from" bars moved into the detail
+                # fold: the reasons and the numbered badges already say it.
+                + _history_html +
+                f'<p style="text-align:center; font-size:0.72rem; color:#888; margin:1.2rem 0 0 0;">'
                 f'{t("doctype_label")}&nbsp;: <strong style="color:#bbb;">{_dt_label}</strong>'
                 f' &middot; {t("analysis_completed").format(ms=result.analysis_time_ms)}</p>'
             )
-            st.markdown(_summary_html, unsafe_allow_html=True)
+            # _summary_html is rendered AFTER the feedback block below: the
+            # question sits right under the verdict, above "Summary", where
+            # nobody can miss it.
 
             # --- Feedback: was this result useful? (thumbs up / down) -------
             # Stored by src/feedback.py: always a log line, plus a SQLite row
@@ -2380,8 +2497,10 @@ if uploaded_file is not None:
                 if _vote is not None and (_vote == 1 or st.session_state.get(_fb_sent_key)):
                     st.html(f'<p style="text-align:center; color:#28a745; font-size:0.85rem; margin:0;">'
                             f'{t("feedback_thanks")}</p>')
-                st.html(f'<p style="text-align:center; color:#666; font-size:0.7rem; margin:0.2rem 0 0.6rem 0;">'
+                st.html(f'<p style="text-align:center; color:#666; font-size:0.7rem; margin:0.2rem 0 0 0;">'
                         f'{t("feedback_privacy")}</p>')
+
+            st.markdown(_summary_html, unsafe_allow_html=True)
 
             # Report actions at the END of the column: exporting is the last
             # thing a reader does, so it no longer sits above the verdict. One
@@ -2454,13 +2573,14 @@ if uploaded_file is not None:
 
 
 
-        # Detected issues
+        # Detected issues. Built as an HTML string and NOT rendered here: it
+        # is folded, together with the "More details" panels, into the single
+        # "see all details" block at the bottom of the page. Starts empty so
+        # that block can test it even when the document has no flag.
+        issues_html = ""
         if all_flags:
             import json as json_mod
             import html as html_mod_flags
-
-            st.markdown("---")
-            st.markdown(f"## {t('detected_issues')}")
 
             severity_colors = {
                 "critical": "#ef233c",
@@ -2471,7 +2591,6 @@ if uploaded_file is not None:
 
             # Build all issues as a single HTML block with <details>/<summary>
             # This lets us put colored pills on the clickable line
-            issues_html = ""
             for flag in all_flags:
                 color = severity_colors.get(flag.severity, "#555")
                 safe_msg = html_mod_flags.escape(get_flag_sentence(flag, get_lang()))
@@ -2544,11 +2663,6 @@ if uploaded_file is not None:
                     f'{details_content}'
                     f'</div></details>'
                 )
-
-            st.markdown(issues_html, unsafe_allow_html=True)
-
-        st.markdown("---")
-        st.markdown(f"## {t('more_details')}")
 
         more_details_html = ""
 
@@ -3347,9 +3461,52 @@ if uploaded_file is not None:
                 f'</div></details>'
             )
 
-        # Render all More Details sections in a single st.markdown
+        # One fold for everything below the verdict (progressive disclosure):
+        # the page opens on the verdict and the preview only, and a reader who
+        # wants the evidence opens this block. Inside it, each panel is still
+        # its own <details>, so the reader opens one finding at a time.
+        #
+        # Example of what gets rendered:
+        #   ▸ See all details                     <- closed by default
+        #       DETECTED ISSUES   [High] The total was rewritten ...
+        #       MORE DETAILS      ▸ Modification history  ▸ Entities ...
+        #
+        # Printing still shows everything: the beforeprint hook above opens
+        # every <details> on the page, this one included.
+        # The full score caveat lives here now (it used to sit under the gauge).
+        all_details_html = (
+            f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:0.4rem 0 0 0;">'
+            f'{esc(t("score_caveat"))}</p>'
+        )
+        all_details_html += (
+            '<div style="margin-top:1rem; max-width:440px;">'
+            + _section_title.format(t("evidence_breakdown"))
+            + bars_html
+            + '</div>'
+        )
+        if issues_html:
+            all_details_html += (
+                '<div style="margin-top:1rem;">'
+                + _section_title.format(t("detected_issues"))
+                + issues_html
+                + '</div>'
+            )
         if more_details_html:
-            st.markdown(more_details_html, unsafe_allow_html=True)
+            all_details_html += (
+                '<div style="margin-top:1rem;">'
+                + _section_title.format(t("more_details"))
+                + more_details_html
+                + '</div>'
+            )
+        if all_details_html:
+            st.markdown(
+                '<details class="tf-all-details" style="margin-top:1.5rem; border-top:1px solid #2a2a2a;">'
+                '<summary style="cursor:pointer; padding:12px 0; color:#8ab4f8; '
+                f'font-size:0.95rem; font-weight:600;">{esc(t("show_all_details"))}</summary>'
+                f'{all_details_html}'
+                '</details>',
+                unsafe_allow_html=True,
+            )
 
     except Exception:
         # The analyzer isolates each detection module, but nothing guarded the
