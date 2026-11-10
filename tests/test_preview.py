@@ -260,3 +260,36 @@ def test_number_badge_changes_the_render_and_bad_input_does_not_raise(tmp_path):
 
     # A malformed pair is skipped: the page still renders.
     assert render_pdf_page(str(pdf), 0, numbered=[("nonsense", 1)])
+
+
+def test_text_finding_gets_a_region_even_when_the_page_prints_spaces(tmp_path):
+    """The flag stores FR40732829320, the page prints "FR40 732 829 320"."""
+    import fitz
+    from src.models import Flag
+    from src.preview import reason_numbers, with_located_regions
+
+    pdf = tmp_path / "doc.pdf"
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), "TVA : FR40 732 829 320")
+    doc.save(pdf)
+    doc.close()
+
+    vat = Flag(severity="high", code="CONTENT_INVALID_VAT", message="m",
+               details={"vat": "FR40732829320"})
+    absent = Flag(severity="high", code="CONTENT_INVALID_IBAN", message="m",
+                  details={"iban": "FR7600000000000000000000000"})
+    located = with_located_regions([vat, absent], str(pdf))
+
+    assert located[0].details["instances"][0]["page"] == 0
+    assert vat.details == {"vat": "FR40732829320"}  # the original is untouched
+    assert located[1] is absent                      # not on the page: unchanged
+    assert reason_numbers(located) == [1, None]
+
+
+def test_locating_regions_never_raises_on_a_missing_file():
+    from src.models import Flag
+    from src.preview import with_located_regions
+
+    flag = Flag(severity="high", code="CONTENT_INVALID_VAT", message="m",
+                details={"vat": "FR40732829320"})
+    assert with_located_regions([flag], "/nonexistent.pdf") == [flag]

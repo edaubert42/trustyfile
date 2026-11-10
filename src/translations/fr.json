@@ -135,8 +135,8 @@
     "detected_issues": "Problèmes détectés",
     "more_details": "Plus de détails",
     "show_all_details": "Voir tout le détail",
-    "more_findings_one": "1 autre constat dans le détail ci-dessous.",
-    "more_findings_many": "{n} autres constats dans le détail ci-dessous.",
+    "more_findings_one": "Voir 1 autre constat",
+    "more_findings_many": "Voir les {n} autres constats",
 
     "full_modification_history": "Historique des modifications",
     "history_intro": "Le fichier a été réenregistré {n} fois après sa création. Voici ce qui a changé :",

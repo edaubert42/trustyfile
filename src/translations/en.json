@@ -135,8 +135,8 @@
     "detected_issues": "Detected Issues",
     "more_details": "More Details",
     "show_all_details": "See all details",
-    "more_findings_one": "1 more finding in the details below.",
-    "more_findings_many": "{n} more findings in the details below.",
+    "more_findings_one": "Show 1 more finding",
+    "more_findings_many": "Show {n} more findings",
 
     "full_modification_history": "Modification History",
     "history_intro": "The file was saved again {n} time(s) after it was created. Here is what changed:",
