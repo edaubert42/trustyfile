@@ -6,7 +6,7 @@
 
     "landing_headline": "Have a doubt? Verify.",
     "landing_tagline": "Analyze your PDF documents in seconds and detect any trace of modification.",
-    "disclaimer_upload": "Your document is processed temporarily, for the duration of the analysis, and is not retained. Only the file hash and company identifiers (SIRET, VAT) may be sent to verification APIs. PDF (up to 10 MB and 20 pages) or a photo of a 2D-Doc code.",
+    "disclaimer_upload": "PDF (up to 10 MB and 20 pages) or a photo of a 2D-Doc code. Your document is not retained.",
     "disclaimer_api": "Only the file hash and company identifiers may be sent to external APIs (VirusTotal, INSEE, EU DSS) for document verification.",
     "browse_file": "Browse file",
     "drop_pdf_here": "Drop your PDF or a photo here",
