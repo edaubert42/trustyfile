@@ -97,8 +97,21 @@ class TestLaPosteException:
         assert validate_siret_checksum("55208131700003") is False
 
 
+def _checksums_as_commonjs(tmp_path: Path) -> Path:
+    """Copy tools/checksums.js under a .cjs name so Node loads it as CommonJS.
+
+    Node picks the module system of a .js file from the nearest package.json,
+    even one outside the repo: a parent folder declaring "type": "module"
+    makes it load the file as an ES module, where `module.exports` does not
+    exist and the require() below gets nothing. A .cjs name is unambiguous.
+    """
+    copy = tmp_path / "checksums.cjs"
+    copy.write_text(CHECKSUMS_JS.read_text(encoding="utf-8"), encoding="utf-8")
+    return copy
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
-def test_javascript_validator_agrees_with_the_contract():
+def test_javascript_validator_agrees_with_the_contract(tmp_path):
     """Run tools/checksums.js over the same vectors under Node."""
     assert CHECKSUMS_JS.exists(), "run scripts/build_guides.py to generate tools/checksums.js"
     harness = """
@@ -112,7 +125,7 @@ def test_javascript_validator_agrees_with_the_contract():
         process.stdout.write(JSON.stringify(out));
     """
     completed = subprocess.run(
-        ["node", "-e", harness, str(CHECKSUMS_JS), str(VECTORS_PATH)],
+        ["node", "-e", harness, str(_checksums_as_commonjs(tmp_path)), str(VECTORS_PATH)],
         capture_output=True, text=True, timeout=30, check=True,
     )
     results = json.loads(completed.stdout)
@@ -131,7 +144,7 @@ def test_javascript_validator_agrees_with_the_contract():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
-def test_javascript_iban_details_are_consistent():
+def test_javascript_iban_details_are_consistent(tmp_path):
     """The extras the IBAN page shows (country, length, RIB key) are sane."""
     harness = """
         const c = require(process.argv[1]);
@@ -142,7 +155,7 @@ def test_javascript_iban_details_are_consistent():
         process.stdout.write(JSON.stringify({a, b, s, v}));
     """
     out = json.loads(subprocess.run(
-        ["node", "-e", harness, str(CHECKSUMS_JS)], capture_output=True, text=True, timeout=30, check=True,
+        ["node", "-e", harness, str(_checksums_as_commonjs(tmp_path))], capture_output=True, text=True, timeout=30, check=True,
     ).stdout)
     assert out["a"]["country"] == "FR" and out["a"]["lengthOk"] is True and out["a"]["ribKeyOk"] is True
     assert out["a"]["formatted"] == "FR76 3000 6000 0112 3456 7890 189"

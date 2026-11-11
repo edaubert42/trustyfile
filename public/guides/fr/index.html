@@ -198,7 +198,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
                         "name": "Est-ce que TrustyFile stocke mes documents ?",
                         "acceptedAnswer": {
                                 "@type": "Answer",
-                                "text": "Non. Votre document est traité temporairement, le temps de l'analyse, et n'est pas conservé. Seuls le hash du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être transmis à des API de vérification (INSEE, VIES, VirusTotal)."
+                                "text": "Non. Votre document est analysé, puis n'est pas conservé. Seuls le hash du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être envoyés à des API externes (VirusTotal, INSEE, VIES) pour vérifier le document."
                         }
                 },
                 {
@@ -326,7 +326,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <dt>Que vérifie TrustyFile exactement ?</dt>
         <dd>Les métadonnées du PDF (logiciel producteur, dates, convertisseurs en ligne), la cohérence des dates et des montants, les polices, les images embarquées (collages, résolutions, EXIF), la structure interne du fichier (révisions successives, objets supprimés, JavaScript), le texte masqué ou recouvert, les codes 2D-Doc et leur signature, et les identifiants d&#x27;entreprise (SIRET, SIREN, TVA, IBAN).</dd>
         <dt>Est-ce que TrustyFile stocke mes documents ?</dt>
-        <dd>Non. Votre document est traité temporairement, le temps de l&#x27;analyse, et n&#x27;est pas conservé. Seuls le hash du fichier et les identifiants d&#x27;entreprise (SIRET, TVA) peuvent être transmis à des API de vérification (INSEE, VIES, VirusTotal).</dd>
+        <dd>Non. Votre document est analysé, puis n&#x27;est pas conservé. Seuls le hash du fichier et les identifiants d&#x27;entreprise (SIRET, TVA) peuvent être envoyés à des API externes (VirusTotal, INSEE, VIES) pour vérifier le document.</dd>
         <dt>TrustyFile peut-il certifier qu&#x27;un document est authentique ?</dt>
         <dd>Non. TrustyFile est un outil d&#x27;aide à la décision, pas une autorité de certification : il calcule un score de risque à partir d&#x27;indices techniques. Un score élevé signale peu de traces de manipulation mais ne prouve pas l&#x27;authenticité ; un score bas mérite une vérification manuelle. Un document scanné puis aplati fournit peu de signal : dans ce cas TrustyFile le déclare non vérifiable plutôt que de le noter favorablement par défaut.</dd>
         <dt>TrustyFile est-il gratuit ?</dt>

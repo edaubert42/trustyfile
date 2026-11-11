@@ -261,10 +261,10 @@ CHROME = {
             ),
             (
                 "Est-ce que TrustyFile stocke mes documents ?",
-                "Non. Votre document est traité temporairement, le temps de l'analyse, "
-                "et n'est pas conservé. Seuls le hash du fichier et les identifiants "
-                "d'entreprise (SIRET, TVA) peuvent être transmis à des API de "
-                "vérification (INSEE, VIES, VirusTotal).",
+                "Non. Votre document est analysé, puis n'est pas conservé. Seuls le "
+                "hash du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent "
+                "être envoyés à des API externes (VirusTotal, INSEE, VIES) pour "
+                "vérifier le document.",
             ),
             (
                 "TrustyFile peut-il certifier qu'un document est authentique ?",
@@ -422,10 +422,9 @@ CHROME = {
             ),
             (
                 "Does TrustyFile store my documents?",
-                "No. Your document is processed temporarily, for the duration of the "
-                "analysis, and is not retained. Only the file hash and company "
-                "identifiers (SIRET, VAT) may be sent to verification APIs (INSEE, VIES, "
-                "VirusTotal).",
+                "No. Your document is analysed, then not retained. Only the file hash "
+                "and company identifiers (SIRET, VAT) may be sent to external APIs "
+                "(VirusTotal, INSEE, VIES) to verify the document.",
             ),
             (
                 "Can TrustyFile certify that a document is authentic?",

@@ -198,7 +198,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
                         "name": "Does TrustyFile store my documents?",
                         "acceptedAnswer": {
                                 "@type": "Answer",
-                                "text": "No. Your document is processed temporarily, for the duration of the analysis, and is not retained. Only the file hash and company identifiers (SIRET, VAT) may be sent to verification APIs (INSEE, VIES, VirusTotal)."
+                                "text": "No. Your document is analysed, then not retained. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs (VirusTotal, INSEE, VIES) to verify the document."
                         }
                 },
                 {
@@ -326,7 +326,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <dt>What exactly does TrustyFile check?</dt>
         <dd>PDF metadata (producer software, dates, online converters), date and amount consistency, fonts, embedded images (pasting, resolution, EXIF), the file&#x27;s internal structure (successive revisions, deleted objects, JavaScript), hidden or covered text, 2D-Doc barcodes and their signature, and company identifiers (SIRET, SIREN, VAT, IBAN).</dd>
         <dt>Does TrustyFile store my documents?</dt>
-        <dd>No. Your document is processed temporarily, for the duration of the analysis, and is not retained. Only the file hash and company identifiers (SIRET, VAT) may be sent to verification APIs (INSEE, VIES, VirusTotal).</dd>
+        <dd>No. Your document is analysed, then not retained. Only the file hash and company identifiers (SIRET, VAT) may be sent to external APIs (VirusTotal, INSEE, VIES) to verify the document.</dd>
         <dt>Can TrustyFile certify that a document is authentic?</dt>
         <dd>No. TrustyFile is a decision-support tool, not a certification authority: it computes a risk score from technical indicators. A high score means few signs of manipulation but does not prove authenticity; a low score deserves a manual check. A scanned, flattened document yields little signal: in that case TrustyFile reports it as unverifiable rather than scoring it well by default.</dd>
         <dt>Is TrustyFile free?</dt>
