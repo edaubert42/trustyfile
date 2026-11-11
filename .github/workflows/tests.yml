@@ -37,19 +37,28 @@ jobs:
       # churns across Ubuntu releases (libdmtx0b -> libdmtx0t64 in 24.04);
       # the -dev name is stable and pulls the runtime lib in.
       #
-      # The runners fetch from an Azure-only mirror (azure.archive.ubuntu.com).
-      # On 2026-11-11 that name stopped resolving for hours: apt exited 100 and
-      # no test ran. With Railway's "Wait for CI", that alone blocks every
-      # deploy. Each failed lookup costs apt ~20 s, per package and per mirror,
-      # so waiting for apt to give up took 6-10 minutes: check the name once,
-      # up front, and switch to the public archive straight away if it is dead.
+      # On 2026-11-11 the runners' own DNS stopped resolving the Ubuntu archive
+      # names for hours (azure.archive.ubuntu.com, archive.ubuntu.com and
+      # security.ubuntu.com alike, while they resolved fine everywhere else):
+      # apt exited 100 and no test ran. With Railway's "Wait for CI", that
+      # alone blocks every deploy. Each failed lookup also costs apt ~20 s per
+      # package and mirror, so waiting for apt to give up took 6-10 minutes.
+      # So: check each name once, up front (5 s ceiling), and when the runner
+      # cannot resolve it, ask Google's DNS-over-HTTPS by IP (no system DNS
+      # involved) and pin the answer in /etc/hosts.
       - name: Install system dependencies
         timeout-minutes: 10
         run: |
-          if ! timeout 5 getent hosts azure.archive.ubuntu.com >/dev/null; then
-            echo "::warning::azure.archive.ubuntu.com does not resolve, using archive.ubuntu.com"
-            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
-          fi
+          for host in azure.archive.ubuntu.com archive.ubuntu.com security.ubuntu.com; do
+            if ! timeout 5 getent hosts "$host" >/dev/null; then
+              ip=$(curl -s --max-time 5 "https://8.8.8.8/resolve?name=$host&type=A" | python3 -c \
+                "import json,sys; a=[x['data'] for x in json.load(sys.stdin).get('Answer',[]) if x['type']==1]; print(a[0] if a else '')")
+              if [ -n "$ip" ]; then
+                echo "$ip $host" | sudo tee -a /etc/hosts
+                echo "::warning::$host did not resolve on the runner, pinned to $ip via DNS-over-HTTPS"
+              fi
+            fi
+          done
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             tesseract-ocr tesseract-ocr-fra libdmtx-dev
