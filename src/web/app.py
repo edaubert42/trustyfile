@@ -419,7 +419,7 @@ def _results_blocks(document: StoredDocument, lang: str) -> dict:
         "feedback_thanks": actions.feedback_thanks_html(lang),
         "feedback_privacy": actions.feedback_privacy_html(lang),
         "summary": findings.summary_html(result, view, lang),
-        "new_analysis": actions.new_analysis_link_html(lang),
+        "new_analysis": actions.new_analysis_link_html(lang, demo=document.demo),
         "print_button": actions.print_button_html(lang),
         "properties": properties.file_properties_html(view, lang),
         "all_details": details.all_details_html(
@@ -454,7 +454,6 @@ def _results_page(request: Request, token: str, document: StoredDocument, lang: 
         lang,
         token=token,
         demo=document.demo,
-        home_url=_url("/", lang=lang),
         batch_url=batch_url,
         page_count=page_count,
         page_number=page_number,

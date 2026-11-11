@@ -6,14 +6,7 @@
             <a class="tf-btn-tertiary" href="{{ batch_url }}">{{ t('batch_back') }}</a>
 {% endif %}
 {% if demo %}
-            <div class="tf-cols">
-                <div class="tf-col" style="--w:80%">
-                    <div class="tf-el"><div class="md"><div style="background:#1a1a2e; border:1px solid #2563eb; border-radius:8px; padding:8px 14px; color:#cdd6f4; font-size:0.82rem;">{{ t('demo_banner') }}</div></div></div>
-                </div>
-                <div class="tf-col" style="--w:20%">
-                    <a class="tf-btn" href="{{ home_url }}">{{ t('demo_exit') }}</a>
-                </div>
-            </div>
+            <p class="tf-demo-note">{{ t('demo_banner') }}</p>
 {% endif %}
             <div class="tf-cols tf-results-cols">
                 <div class="tf-col tf-stack" style="--w:60%">

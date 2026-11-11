@@ -303,6 +303,24 @@ def test_demo_page_shows_the_sample_document(client):
     assert client.get("/r/demo/page/1.png").status_code == 200
 
 
+def test_landing_invites_to_the_sample_report(client):
+    page = client.get("/?lang=fr").text
+    assert "Envie de voir le résultat ?" in page
+    assert 'href="/demo?lang=fr"' in page
+
+
+def test_sample_report_has_one_link_to_analyse_your_own_document(client):
+    page = client.get("/demo?lang=fr").text
+    assert page.count("Analyser mon document") == 1
+    assert "Analyser un autre document" not in page
+
+
+def test_real_report_offers_to_analyse_another_document(client):
+    page = client.get(_analysed(client) + "?lang=fr").text
+    assert "Analyser un autre document" in page
+    assert "Analyser mon document" not in page
+
+
 # --------------------------------------------------------------------------
 # Feedback
 # --------------------------------------------------------------------------

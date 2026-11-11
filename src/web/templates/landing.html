@@ -18,16 +18,13 @@
             {# Without JavaScript the file input above stays visible and this button sends the form. #}
             <noscript><button type="submit" class="tf-btn tf-noscript-submit">{{ t('browse_file') }}</button></noscript>
         </form>
-        <div class="tf-el"><div class="md">{{ disclaimer }}</div></div>
 {% if demo_available %}
-        <div class="tf-cols">
-            <div class="tf-col" style="--w:35.7143%"></div>
-            <div class="tf-col" style="--w:28.5714%">
-                <a class="tf-btn tf-splash-link" href="/demo?lang={{ lang }}">{{ t('demo_button') }}</a>
-            </div>
-            <div class="tf-col" style="--w:35.7143%"></div>
+        <div class="tf-demo-invite">
+            <span class="tf-demo-question">{{ t('demo_question') }}</span>
+            <a class="tf-demo-cta tf-splash-link" href="/demo?lang={{ lang }}">{{ t('demo_button') }}<span class="tf-demo-arrow" aria-hidden="true">→</span></a>
         </div>
 {% endif %}
+        <div class="tf-el"><div class="md">{{ disclaimer }}</div></div>
         <div class="tf-cols">
             <div class="tf-col" style="--w:25%"></div>
             <div class="tf-col" style="--w:50%"><div class="tf-el"><div class="md">{{ headline }}</div></div></div>
