@@ -18,8 +18,12 @@ put it there. The key is not a secret: it is public by design.
 USAGE (after a deploy, so the pages and the key file are live)
 -----
     python scripts/indexnow.py --since 2026-11-11   # pages changed since a date
+    python scripts/indexnow.py --since-commit <sha>  # pages changed since a commit
     python scripts/indexnow.py --all                # every page in the sitemap
     add --dry-run to print the list without sending anything
+
+.github/workflows/indexnow.yml runs --since-commit on its own after every
+production deploy, with the commit of the previous production deploy.
 
 Submit what changed, not everything on every deploy: IndexNow asks for changed
 URLs only, and an engine may start ignoring a site that pings for nothing.
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
@@ -63,6 +68,64 @@ def changed_urls(since: str | None) -> list[str]:
         return [e.loc for e in entries]
     # ISO dates compare correctly as strings: "2026-11-11" >= "2026-09-03".
     return [e.loc for e in entries if e.lastmod >= since]
+
+
+# Generated page file (under public/) -> its URL path. Pages served by the app
+# itself (the landing pages) have no file here and are never submitted by
+# --since-commit: their changes come from code, not from the generator.
+_PAGE_DIRS = {
+    "public/guides/fr/": "/guides/",
+    "public/guides/en/": "/en/guides/",
+    "public/tools/fr/": "/outils/",
+    "public/tools/en/": "/en/tools/",
+}
+
+
+def url_for_page_file(path: str) -> str | None:
+    """The public URL of a generated page file, or None if it is not a page.
+
+    Example:
+        url_for_page_file("public/guides/fr/detecter-un-faux-rib.html")
+        -> "https://www.trustyfile.com/guides/detecter-un-faux-rib"
+        url_for_page_file("public/guides/en/index.html")
+        -> "https://www.trustyfile.com/en/guides/"
+        url_for_page_file("public/sitemap.xml") -> None
+    """
+    for prefix, url_path in _PAGE_DIRS.items():
+        if path.startswith(prefix) and path.endswith(".html"):
+            slug = path[len(prefix):-len(".html")]
+            if "/" in slug:
+                return None
+            return SITE + url_path + ("" if slug == "index" else slug)
+    return None
+
+
+def urls_changed_since_commit(commit: str) -> list[str]:
+    """Sitemap URLs whose page changed in substance since `commit`.
+
+    Two filters, both needed:
+      - the page file under public/ differs between `commit` and HEAD (a
+        deploy that touched no page sends nothing);
+      - its lastmod is on or after the commit's date (a page regenerated only
+        because the shared CSS or the related-guides cards moved keeps its
+        date, so it is not re-announced as new).
+
+    Args:
+        commit: the commit the previous production deploy ran.
+
+    Returns:
+        The URLs, in sitemap order.
+    """
+    diff = subprocess.run(
+        ["git", "diff", "--name-only", commit, "HEAD", "--", "public/"],
+        capture_output=True, text=True, check=True,
+    ).stdout.split()
+    touched = {url for url in map(url_for_page_file, diff) if url}
+    commit_date = subprocess.run(
+        ["git", "show", "-s", "--format=%cs", commit],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return [e.loc for e in sitemap_entries() if e.loc in touched and e.lastmod >= commit_date]
 
 
 def build_payload(urls: list[str]) -> dict:
@@ -100,11 +163,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     which = parser.add_mutually_exclusive_group(required=True)
     which.add_argument("--since", help="ISO date: submit pages modified on or after it")
+    which.add_argument("--since-commit", help="commit SHA: submit pages changed since it")
     which.add_argument("--all", action="store_true", help="submit every sitemap URL")
     parser.add_argument("--dry-run", action="store_true", help="list, do not send")
     args = parser.parse_args()
 
-    urls = changed_urls(None if args.all else args.since)
+    if args.since_commit:
+        urls = urls_changed_since_commit(args.since_commit)
+    else:
+        urls = changed_urls(None if args.all else args.since)
     print(f"{len(urls)} URL(s)")
     for url in urls:
         print("  " + url)

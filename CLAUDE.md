@@ -151,7 +151,8 @@ trustyfile/
 │   └── <key>.txt             # IndexNow ownership key (see scripts/indexnow.py)
 ├── scripts/                  # build_corpus, generate_tampered, eval_harness,
 │                             # build_guides (writes what src/site renders),
-│                             # indexnow (ping Bing & co. after a content deploy;
+│                             # indexnow (ping Bing & co.; runs by itself after each
+│                             # production deploy via .github/workflows/indexnow.yml;
 │                             # GEO notes: docs/superpowers/research/2026-11-11-geo-ai-search.md)
 ├── docs/superpowers/         # Specs, plans, research (design history)
 ├── tests/                    # 43 files, ~888 tests

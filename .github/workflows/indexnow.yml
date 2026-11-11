@@ -1,0 +1,64 @@
+name: indexnow
+
+# After each production deploy, tell Bing & co. (IndexNow) which pages changed.
+#
+# Railway reports every deploy to GitHub as a "deployment" (environment
+# "trustyfile / production" or "trustyfile / staging") and marks it success
+# once the new version serves traffic: that status is the trigger. Running it
+# here rather than in start.sh matters: the service sleeps when idle and boots
+# again on the next visit, which would re-send the same pings on every wake-up.
+#
+# Only pages whose file changed since the previous successful production
+# deploy are sent (scripts/indexnow.py --since-commit). A code-only deploy
+# sends nothing.
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  ping:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'trustyfile / production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          fetch-depth: 0   # the script diffs against an older commit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # The commit of the last production deploy that went live before this
+      # one. A failed or superseded deploy in between never served its pages,
+      # so it is skipped.
+      - name: Find the previous successful production deploy
+        id: prev
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CURRENT: ${{ github.event.deployment.id }}
+        run: |
+          ids=$(gh api "repos/$REPO/deployments?environment=trustyfile%20%2F%20production&per_page=20" \
+                  --jq ".[] | select(.id != $CURRENT) | .id")
+          for id in $ids; do
+            state=$(gh api "repos/$REPO/deployments/$id/statuses?per_page=1" --jq '.[0].state')
+            if [ "$state" = "success" ] || [ "$state" = "inactive" ]; then
+              sha=$(gh api "repos/$REPO/deployments/$id" --jq '.sha')
+              echo "previous deploy $id ($state) ran $sha"
+              echo "sha=$sha" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "::warning::no previous production deploy found, nothing sent"
+
+      - name: Ping IndexNow
+        if: steps.prev.outputs.sha != ''
+        run: python scripts/indexnow.py --since-commit "${{ steps.prev.outputs.sha }}"

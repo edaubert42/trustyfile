@@ -229,6 +229,26 @@ def test_indexnow_key_file_is_published_and_routed():
     assert indexnow.build_payload(["u"])["keyLocation"] == f"{content.SITE}/{indexnow.KEY}.txt"
 
 
+def test_indexnow_maps_every_generated_page_to_its_sitemap_url():
+    """--since-commit finds pages by their file under public/: every generated
+    guide and tool must map back to its own sitemap URL, or a change to it
+    would never be announced after a deploy."""
+    from scripts import indexnow
+
+    sitemap = {entry.loc for entry in render.sitemap_entries()}
+    mapped = {
+        indexnow.url_for_page_file(path.relative_to(ROOT).as_posix())
+        for folder in ("guides", "tools")
+        for path in (ROOT / "public" / folder).rglob("*.html")
+    }
+    # Every page file maps to a URL the sitemap lists...
+    assert mapped <= sitemap, mapped - sitemap
+    # ...and every guide/tool URL of the sitemap has its file (the landing
+    # pages "/" and "/en" are rendered by the app, not generated).
+    assert sitemap - mapped == {f"{content.SITE}/", f"{content.SITE}/en"}
+    assert indexnow.url_for_page_file("public/sitemap.xml") is None
+
+
 def test_no_key_points_no_box():
     """A guide without key points renders no empty box."""
     guide = dataclasses.replace(content.GUIDES["en"][0], key_points=[])

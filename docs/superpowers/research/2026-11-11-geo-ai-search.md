@@ -31,6 +31,11 @@ generated answers.
 
 ## After each content deploy
 
+Nothing to do: .github/workflows/indexnow.yml runs when Railway reports a
+production deploy live, and sends the pages whose file changed since the
+previous production deploy (`scripts/indexnow.py --since-commit`). By hand,
+if ever needed:
+
     python scripts/indexnow.py --since <date of the change>
 
 Bump `modified=` on any guide you rewrite: it drives the sitemap lastmod,
