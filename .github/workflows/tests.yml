@@ -46,7 +46,7 @@ jobs:
       - name: Install system dependencies
         timeout-minutes: 10
         run: |
-          if ! timeout 10 getent hosts azure.archive.ubuntu.com >/dev/null; then
+          if ! timeout 5 getent hosts azure.archive.ubuntu.com >/dev/null; then
             echo "::warning::azure.archive.ubuntu.com does not resolve, using archive.ubuntu.com"
             echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
           fi
