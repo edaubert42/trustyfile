@@ -37,16 +37,25 @@ jobs:
       # churns across Ubuntu releases (libdmtx0b -> libdmtx0t64 in 24.04);
       # the -dev name is stable and pulls the runtime lib in.
       #
-      # On 2026-11-11 the runners' own DNS stopped resolving the Ubuntu archive
-      # names for hours (azure.archive.ubuntu.com, archive.ubuntu.com and
-      # security.ubuntu.com alike, while they resolved fine everywhere else):
-      # apt exited 100 and no test ran. With Railway's "Wait for CI", that
-      # alone blocks every deploy. Each failed lookup also costs apt ~20 s per
-      # package and mirror, so waiting for apt to give up took 6-10 minutes.
-      # So: check each name once, up front (5 s ceiling), and when the runner
-      # cannot resolve it, ask Google's DNS-over-HTTPS by IP (no system DNS
-      # involved) and pin the answer in /etc/hosts.
-      - name: Install system dependencies
+      # The .deb files are cached (actions/cache), keyed on the runner image:
+      # a warm run installs them with dpkg in seconds and never talks to the
+      # Ubuntu archive, so an archive or DNS outage no longer blocks CI (and,
+      # through Railway's "Wait for CI", every deploy). A new runner image
+      # changes the key, so the packages are fetched again for it.
+      - name: Restore cached system packages
+        id: apt-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-debs
+          key: apt-${{ env.ImageOS }}-${{ env.ImageVersion }}-tesseract-fra-dmtx-v1
+
+      # Cold cache only. On 2026-11-11 the runners' own DNS stopped resolving
+      # the Ubuntu archive names for hours (they resolved fine elsewhere), and
+      # each failed lookup cost apt ~20 s per package and mirror. So check each
+      # name once (5 s ceiling) and, when the runner cannot resolve it, ask
+      # Google's DNS-over-HTTPS by IP (no system DNS involved) and pin it.
+      - name: Download system packages (cache miss)
+        if: steps.apt-cache.outputs.cache-hit != 'true'
         timeout-minutes: 10
         run: |
           for host in azure.archive.ubuntu.com archive.ubuntu.com security.ubuntu.com; do
@@ -59,9 +68,17 @@ jobs:
               fi
             fi
           done
+          mkdir -p ~/apt-debs/partial
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get install -y --no-install-recommends --download-only \
+            -o Dir::Cache::archives="$HOME/apt-debs" \
             tesseract-ocr tesseract-ocr-fra libdmtx-dev
+          sudo rm -rf ~/apt-debs/partial ~/apt-debs/lock
+          sudo chown -R "$USER" ~/apt-debs
+          ls ~/apt-debs
+
+      - name: Install system packages
+        run: sudo dpkg -i ~/apt-debs/*.deb
 
       - name: Install Python dependencies
         run: |
