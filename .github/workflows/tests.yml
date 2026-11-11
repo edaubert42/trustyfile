@@ -40,20 +40,19 @@ jobs:
       # The runners fetch from an Azure-only mirror (azure.archive.ubuntu.com).
       # On 2026-11-11 that name stopped resolving for hours: apt exited 100 and
       # no test ran. With Railway's "Wait for CI", that alone blocks every
-      # deploy, so: retry, then fall back to the public archive.
+      # deploy. Each failed lookup costs apt ~20 s, per package and per mirror,
+      # so waiting for apt to give up took 6-10 minutes: check the name once,
+      # up front, and switch to the public archive straight away if it is dead.
       - name: Install system dependencies
-        timeout-minutes: 15
+        timeout-minutes: 10
         run: |
-          install_deps() {
-            sudo apt-get -o Acquire::Retries=3 update &&
-            sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-              tesseract-ocr tesseract-ocr-fra libdmtx-dev
-          }
-          if ! install_deps; then
-            echo "::warning::Azure apt mirror unreachable, falling back to archive.ubuntu.com"
+          if ! timeout 10 getent hosts azure.archive.ubuntu.com >/dev/null; then
+            echo "::warning::azure.archive.ubuntu.com does not resolve, using archive.ubuntu.com"
             echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
-            install_deps
           fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            tesseract-ocr tesseract-ocr-fra libdmtx-dev
 
       - name: Install Python dependencies
         run: |
