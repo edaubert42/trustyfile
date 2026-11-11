@@ -81,12 +81,13 @@ dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
-form.tool input {
+form.tool input, form.tool textarea {
     flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
     border: 1px solid #c8ccd8; border-radius: 8px;
     font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
 }
-form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
 form.tool button {
     padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
     background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
@@ -194,6 +195,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
         <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
+    <a class="card" href="/outils/calculer-une-cle-rib">
+        <h3>Calculer une clé RIB et vérifier un RIB</h3>
+        <p>Calculez la clé d&#x27;un RIB à partir du code banque, du guichet et du compte, ou vérifiez un RIB complet et obtenez son IBAN. Gratuit, dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
         <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
@@ -209,6 +215,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
         <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
+    <a class="card" href="/outils/verifier-une-mrz">
+        <h3>Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport</h3>
+        <p>Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
         <h3>Vérifier un bulletin de salaire</h3>
@@ -221,7 +232,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p class="more">Lire le guide &rarr;</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
-    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.", "valid_nir": "Clé de contrôle valide", "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé", "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}", "nir_male": "Homme", "nir_female": "Femme", "nir_temporary": "Numéro provisoire", "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}", "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "nir"}</script>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.", "valid_nir": "Clé de contrôle valide", "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé", "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}", "nir_male": "Homme", "nir_female": "Femme", "nir_temporary": "Numéro provisoire", "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}", "format_rib": "Format inattendu : un RIB s'écrit code banque (5 chiffres), code guichet (5 chiffres), numéro de compte (11 chiffres ou lettres) et clé (2 chiffres). Sans la clé, l'outil la calcule.", "valid_rib": "Clé RIB valide", "invalid_rib": "Clé RIB invalide : le numéro de compte, le guichet ou la banque a été mal recopié ou modifié", "computed_rib": "Clé RIB calculée : {key}", "rib_parts": "Banque {bank} · Guichet {branch} · Compte {account}", "rib_key_expected": "Clé attendue pour ce compte : {expected}", "rib_iban": "IBAN correspondant : {iban}", "reminder_rib": "Une clé valide prouve seulement que le RIB est bien formé — pas que le compte existe, ni qu'il appartient à la personne ou à l'entreprise qui vous l'a transmis.", "format_mrz": "Format non reconnu : collez les 2 lignes (passeport, 44 caractères chacune ; ancienne carte d'identité, 36) ou les 3 lignes (carte d'identité depuis 2021, 30 caractères), uniquement des lettres, des chiffres et des chevrons <.", "valid_mrz": "Tous les chiffres de contrôle sont valides", "invalid_mrz": "Au moins un chiffre de contrôle est faux : la MRZ a été mal recopiée, mal lue ou modifiée", "mrz_format_TD3": "Format : passeport (2 lignes de 44 caractères)", "mrz_format_TD1": "Format : carte d'identité au format carte bancaire (3 lignes de 30 caractères)", "mrz_format_TD2": "Format : document d'identité à 2 lignes de 36 caractères", "mrz_format_FR1988": "Format : carte d'identité française délivrée de 1988 à 2021 (2 lignes de 36 caractères)", "mrz_field_number": "Numéro du document", "mrz_field_birth": "Date de naissance", "mrz_field_expiry": "Date d'expiration", "mrz_field_personal": "Données complémentaires", "mrz_field_composite": "Contrôle global", "reminder_mrz": "Des chiffres de contrôle valides prouvent seulement que la MRZ est cohérente : l'algorithme est public, un faussaire soigneux sait les recalculer. Comparez aussi la MRZ avec le nom et les dates imprimés sur le document.", "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "nir"}</script>
     <script>
 // TrustyFile checksum validators. Generated by scripts/build_guides.py —
 // mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
@@ -334,8 +345,89 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
              formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
   }
 
+  // RIB key of bank (5) + branch (5) + account (11). Mirrors content.py's rib_key.
+  function ribKey(bga) {
+    var account = bga.slice(10).replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    return 97 - (mod97(bga.slice(0, 10) + account) * 100) % 97;
+  }
+  // French IBAN for a full BBAN (23 characters): check digits = 98 - (BBAN + "FR00" mod 97).
+  function frenchIban(bban) {
+    var numeric = (bban + 'FR00').replace(/[A-Z]/g, function (ch) { return String(ch.charCodeAt(0) - 55); });
+    var check = 98 - mod97(numeric);
+    return ('FR' + (check < 10 ? '0' : '') + check + bban).replace(/(.{4})/g, '$1 ').trim();
+  }
+  // French RIB: 23 characters is checked (is_valid_rib); 21 (no key yet) gets its key computed.
+  function ribCheck(text) {
+    var rib = stripSeparators(text).toUpperCase();
+    var m = /^(\d{5})(\d{5})([0-9A-Z]{11})(\d{2})?$/.exec(rib);
+    if (!m) { return { ok: false, reason: 'format', value: rib }; }
+    var key = ribKey(m[1] + m[2] + m[3]);
+    var keyText = (key < 10 ? '0' : '') + key;
+    var full = m[1] + m[2] + m[3] + keyText;
+    var base = { value: rib, bank: m[1], branch: m[2], account: m[3], expectedKey: keyText, iban: frenchIban(full) };
+    if (!m[4]) { base.ok = false; base.reason = 'compute'; return base; }
+    base.ok = m[4] === keyText;
+    base.reason = base.ok ? null : 'checksum';
+    base.key = m[4];
+    return base;
+  }
+
+  // ICAO 9303 check digit: weights 7-3-1, A=10 ... Z=35, '<' = 0.
+  function mrzDigit(data) {
+    var total = 0, weights = [7, 3, 1];
+    for (var i = 0; i < data.length; i++) {
+      var c = data.charCodeAt(i);
+      var v = c >= 65 ? c - 55 : (c >= 48 && c <= 57 ? c - 48 : 0);
+      total += v * weights[i % 3];
+    }
+    return total % 10;
+  }
+  // MRZ of a passport (TD3), an ID card (TD1, TD2) or the French card of 1988-2021,
+  // told apart by length once whitespace is removed. Mirrors identity.py's mrz_text_checks.
+  function mrzCheck(text) {
+    var mrz = String(text == null ? '' : text).replace(/\s/g, '').toUpperCase();
+    if (!/^[A-Z0-9<]+$/.test(mrz)) { return { ok: false, reason: 'format', value: mrz }; }
+    var fmt, l1, l2, f, birth, expiry = null;
+    if (mrz.length === 88) {
+      fmt = 'TD3'; l1 = mrz.slice(0, 44); l2 = mrz.slice(44);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]], ['personal', l2.slice(28, 42), l2[42]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43), l2[43]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else if (mrz.length === 90) {
+      fmt = 'TD1'; l1 = mrz.slice(0, 30); l2 = mrz.slice(30, 60);
+      f = [['number', l1.slice(5, 14), l1[14]], ['birth', l2.slice(0, 6), l2[6]],
+           ['expiry', l2.slice(8, 14), l2[14]],
+           ['composite', l1.slice(5, 30) + l2.slice(0, 7) + l2.slice(8, 15) + l2.slice(18, 29), l2[29]]];
+      birth = l2.slice(0, 6); expiry = l2.slice(8, 14);
+    } else if (mrz.length === 72 && mrz.indexOf('IDFRA') === 0) {
+      fmt = 'FR1988'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 12), l2[12]], ['birth', l2.slice(27, 33), l2[33]],
+           ['composite', l1 + l2.slice(0, 35), l2[35]]];
+      birth = l2.slice(27, 33);
+    } else if (mrz.length === 72) {
+      fmt = 'TD2'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 35), l2[35]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else {
+      return { ok: false, reason: 'format', value: mrz };
+    }
+    var checks = f.map(function (x) {
+      var c = x[2], d = mrzDigit(x[1]);
+      return { field: x[0], ok: c === '<' ? d === 0 : (/^\d$/.test(c) && d === +c) };
+    });
+    var ok = checks.every(function (c) { return c.ok; });
+    return { ok: ok, reason: ok ? null : 'checksum', value: mrz, format: fmt, checks: checks,
+             birth: birth, expiry: expiry };
+  }
+
   var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
-              nirCheck: nirCheck };
+              nirCheck: nirCheck, ribCheck: ribCheck, mrzCheck: mrzCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);
@@ -347,8 +439,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
   var input = document.getElementById('tf-input');
   var out = document.getElementById('tf-result');
   var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
-                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck }[kind];
-  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15 }[kind];
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck, rib: TFChecks.ribCheck,
+                mrz: TFChecks.mrzCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15, rib: 21, mrz: 72 }[kind];
+  // YYMMDD -> DD/MM/YY, as the MRZ stores dates.
+  function mrzDate(d) { return d.slice(4, 6) + '/' + d.slice(2, 4) + '/' + d.slice(0, 2); }
 
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -362,6 +457,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     if (!r.value) { out.className = 'result'; out.innerHTML = ''; return; }
     var cls, title, lines = [];
     if (r.reason === 'format') { cls = 'ko'; title = M['format_' + kind]; }
+    else if (r.reason === 'compute') { cls = 'ok'; title = fmt(M.computed_rib, { key: r.expectedKey }); }
     else if (r.ok) { cls = 'ok'; title = M['valid_' + kind]; }
     else { cls = 'ko'; title = M['invalid_' + kind]; }
     if (kind === 'iban' && r.reason !== 'format') {
@@ -391,6 +487,20 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
       var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
       lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
       if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'rib' && r.reason !== 'format') {
+      lines.push(fmt(M.rib_parts, { bank: r.bank, branch: r.branch, account: r.account }));
+      if (r.reason === 'checksum') { lines.push(fmt(M.rib_key_expected, { expected: r.expectedKey })); }
+      else { lines.push(fmt(M.rib_iban, { iban: r.iban })); }
+    }
+    if (kind === 'mrz' && r.reason !== 'format') {
+      lines.push(M['mrz_format_' + r.format]);
+      r.checks.forEach(function (c) {
+        var label = M['mrz_field_' + c.field];
+        if (c.field === 'birth') { label += ' (' + mrzDate(r.birth) + ')'; }
+        if (c.field === 'expiry') { label += ' (' + mrzDate(r.expiry) + ')'; }
+        lines.push((c.ok ? '✓ ' : '✗ ') + label);
+      });
     }
     var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
     out.className = 'result show ' + cls;

@@ -293,10 +293,23 @@ def test_tool_counterparts_are_reciprocal():
 def test_tool_messages_exist_in_both_languages():
     fr, en = content.CHROME["fr"]["tool_i18n"], content.CHROME["en"]["tool_i18n"]
     assert set(fr) == set(en), set(fr) ^ set(en)
-    for kind in ("iban", "siret", "siren", "vat", "nir"):
+    kinds = {"iban", "siret", "siren", "vat", "nir", "rib", "mrz"}
+    for kind in kinds:
         for prefix in ("format_", "valid_", "invalid_"):
             assert prefix + kind in fr
-    assert {tool.kind for tools in content.TOOLS.values() for tool in tools} == {"iban", "siret", "siren", "vat", "nir"}
+    assert {tool.kind for tools in content.TOOLS.values() for tool in tools} == kinds
+    # The MRZ page names the format and each field it checked.
+    for fmt in ("TD3", "TD1", "TD2", "FR1988"):
+        assert "mrz_format_" + fmt in fr
+    for field in ("number", "birth", "expiry", "personal", "composite"):
+        assert "mrz_field_" + field in fr
+
+
+def test_mrz_tool_takes_several_lines():
+    """An MRZ is 2 or 3 lines: its page needs a textarea, the others an input."""
+    for tool in content.TOOLS["fr"]:
+        page = render.render_tool("fr", tool)
+        assert ('<textarea id="tf-input"' in page) is (tool.kind == "mrz"), tool.slug
 
 
 @pytest.mark.parametrize("lang", ["fr", "en"])

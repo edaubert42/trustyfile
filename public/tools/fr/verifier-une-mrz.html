@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport</title>
+    <meta name="description" content="Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/outils/verifier-une-mrz">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/verifier-une-mrz">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/mrz-checker">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/verifier-une-mrz">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport">
+    <meta property="og:description" content="Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.">
+    <meta property="og:url" content="https://www.trustyfile.com/outils/verifier-une-mrz">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport">
+    <meta name="twitter:description" content="Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input, form.tool textarea {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Vérifier la MRZ d'une carte d'identité ou d'un passeport",
+        "url": "https://www.trustyfile.com/outils/verifier-une-mrz",
+        "description": "Contrôlez gratuitement les chiffres de contrôle de la MRZ d'un passeport ou d'une carte d'identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.",
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "EUR"
+        },
+        "inLanguage": "fr",
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Outils gratuits",
+                        "item": "https://www.trustyfile.com/guides/#outils"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Vérifier la MRZ d'une carte d'identité ou d'un passeport"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/tools/mrz-checker">English</a>
+    </nav>
+
+    <h1>Vérifier une MRZ</h1>
+    <p class="intro">Collez les lignes de la bande MRZ, la zone de caractères <code>&lt;&lt;&lt;</code> en bas d'un passeport ou au dos d'une carte d'identité. L'outil reconnaît le format et vérifie chaque chiffre de contrôle. Tout se calcule dans votre navigateur : rien n'est envoyé nulle part.</p>
+    <form class="tool" id="tf-form" autocomplete="off">
+        <textarea id="tf-input" rows="3" spellcheck="false" placeholder="P&lt;UTOERIKSSON&lt;&lt;ANNA&lt;MARIA&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;
+L898902C36UTO7408122F1204159ZE184226B&lt;&lt;&lt;&lt;&lt;10" aria-label="Vérifier une MRZ"></textarea>
+        <button type="submit">Vérifier</button>
+    </form>
+    <div id="tf-result" class="result" role="status" aria-live="polite"></div>
+    <p class="privacy">Le calcul se fait dans votre navigateur : le numéro saisi n&#x27;est envoyé à aucun serveur.</p>
+    <h2 id="qu-est-ce-que-la-mrz">Qu&#x27;est-ce que la MRZ ?</h2>
+    <p>La MRZ (machine readable zone, zone de lecture automatique) reprend les informations essentielles du document sous une forme lisible par les machines : type de document, pays, nom, numéro, date de naissance, sexe, date d'expiration. Son format est fixé par la norme internationale OACI 9303.</p>
+    <p>Plusieurs champs sont suivis d'un chiffre de contrôle calculé à partir de ce champ, et un dernier chiffre contrôle l'ensemble. Une erreur de recopie ou une modification maladroite les fait échouer.</p>
+    <h2 id="les-formats-reconnus">Les formats reconnus</h2>
+    <ul>
+        <li><strong>Passeport</strong> : 2 lignes de 44 caractères.</li>
+        <li><strong>Carte d'identité française depuis 2021</strong>, et la plupart des cartes européennes : 3 lignes de 30 caractères.</li>
+        <li><strong>Carte d'identité française de 1988 à 2021</strong> : 2 lignes de 36 caractères, dans un format propre à la France.</li>
+        <li><strong>Autres documents à 2 lignes de 36 caractères</strong> (format OACI TD2).</li>
+    </ul>
+    <h2 id="le-calcul-d-un-chiffre-de-controle">Le calcul d&#x27;un chiffre de contrôle</h2>
+    <ul>
+        <li>Chaque caractère reçoit une valeur : les chiffres gardent la leur, A vaut 10, B 11 … Z 35, et le chevron &lt; vaut 0.</li>
+        <li>On multiplie ces valeurs, dans l'ordre, par 7, 3, 1, 7, 3, 1…</li>
+        <li>Le chiffre de contrôle est le dernier chiffre de la somme (le reste de la division par 10).</li>
+    </ul>
+    <h2 id="ce-que-le-controle-prouve-et-ce-qu-il-ne-prouve-pas">Ce que le contrôle prouve, et ce qu&#x27;il ne prouve pas</h2>
+    <p>Des chiffres faux sur un document numérique sont un signal fort : la MRZ a été mal recopiée ou modifiée. Sur une photo ou un scan, vérifiez d'abord que vous avez bien lu chaque caractère, car un 0 et un O, ou un 8 et un B, se confondent facilement.</p>
+    <p>Des chiffres justes ne prouvent pas que le document est authentique : l'algorithme est public. Le contrôle le plus utile consiste à comparer la MRZ avec la partie imprimée : nom, date de naissance et date d'expiration doivent être identiques. Un faussaire qui modifie le nom ou la date imprimés oublie souvent la MRZ.</p>
+    <ul>
+        <li><a href="/guides/verifier-une-carte-d-identite">Vérifier une carte d'identité ou un passeport</a> : tous les contrôles, MRZ comprise.</li>
+    </ul>
+    <h2>Autres outils</h2>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/calculer-une-cle-rib">
+        <h3>Calculer une clé RIB et vérifier un RIB</h3>
+        <p>Calculez la clé d&#x27;un RIB à partir du code banque, du guichet et du compte, ou vérifiez un RIB complet et obtenez son IBAN. Gratuit, dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siret">
+        <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-siren">
+        <h3>Vérifier un SIREN et retrouver le numéro de TVA</h3>
+        <p>Vérifiez la clé de Luhn d&#x27;un numéro SIREN (9 chiffres) et obtenez le numéro de TVA intracommunautaire qui lui correspond. Calcul dans votre navigateur, sans envoi.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-tva">
+        <h3>Vérifier un numéro de TVA intracommunautaire français</h3>
+        <p>Vérifiez la clé d&#x27;un numéro de TVA français (FR + clé + SIREN) et sa cohérence avec le SIREN. Calcul dans votre navigateur, sans envoi ; pour l&#x27;existence du numéro, VIES.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
+        <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
+        <p>Vérifiez la clé de contrôle d&#x27;un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n&#x27;est envoyé.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/verifier-une-carte-d-identite">
+        <h3>Vérifier une carte d&#x27;identité ou un passeport</h3>
+        <p>Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Format inattendu : un IBAN commence par deux lettres (pays) et deux chiffres (clé), suivis de 11 à 30 caractères.", "valid_iban": "Clé de contrôle valide (mod 97)", "invalid_iban": "Clé de contrôle invalide : ce numéro n'est pas un IBAN correctement formé — chiffre erroné, caractère manquant ou numéro inventé.", "country": "Pays : {country}", "length_ok": "Longueur conforme pour {country} ({n} caractères)", "length_ko": "Longueur inhabituelle pour {country} : {n} caractères au lieu de {expected}", "length_unknown": "Longueur non vérifiée : pays hors de la table de référence", "rib_ok": "Clé RIB valide (IBAN français)", "rib_ko": "Clé RIB invalide : les deux derniers chiffres ne correspondent pas au compte", "format_siret": "Un SIRET compte exactement 14 chiffres", "valid_siret": "Clé de contrôle valide", "invalid_siret": "Clé de contrôle invalide : ce numéro n'est pas un SIRET correctement formé", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "Établissement La Poste : règle spécifique appliquée (somme des chiffres multiple de 5)", "format_siren": "Un SIREN compte exactement 9 chiffres", "valid_siren": "Clé de contrôle valide", "invalid_siren": "Clé de contrôle invalide : ce numéro n'est pas un SIREN correctement formé", "vat_hint": "Numéro de TVA intracommunautaire correspondant : FR{key} {siren}", "format_vat": "Format inattendu : un numéro de TVA français s'écrit FR, deux chiffres de clé, puis les 9 chiffres du SIREN. Les clés comportant des lettres (rares) ne sont pas vérifiées par cet outil.", "valid_vat": "Clé de contrôle valide : la clé correspond au SIREN", "invalid_vat": "Clé de contrôle invalide : ce numéro de TVA n'est pas cohérent", "vat_parts": "Clé {key} · SIREN {siren}", "vat_siren_ko": "Le SIREN contenu dans le numéro échoue lui-même à la formule de Luhn : le numéro est mal recopié ou inventé", "vat_key_expected": "Le SIREN est bien formé mais sa clé de TVA devrait être {expected}", "format_nir": "Format inattendu : un numéro de sécurité sociale compte 13 chiffres (le département peut s'écrire 2A ou 2B) suivis d'une clé à deux chiffres, soit 15 caractères.", "valid_nir": "Clé de contrôle valide", "invalid_nir": "Clé de contrôle invalide : ce numéro n'est pas un NIR correctement formé — chiffre erroné ou numéro inventé", "nir_parts": "{sex} · naissance {month}/{year} · département ou pays {dept}", "nir_male": "Homme", "nir_female": "Femme", "nir_temporary": "Numéro provisoire", "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}", "format_rib": "Format inattendu : un RIB s'écrit code banque (5 chiffres), code guichet (5 chiffres), numéro de compte (11 chiffres ou lettres) et clé (2 chiffres). Sans la clé, l'outil la calcule.", "valid_rib": "Clé RIB valide", "invalid_rib": "Clé RIB invalide : le numéro de compte, le guichet ou la banque a été mal recopié ou modifié", "computed_rib": "Clé RIB calculée : {key}", "rib_parts": "Banque {bank} · Guichet {branch} · Compte {account}", "rib_key_expected": "Clé attendue pour ce compte : {expected}", "rib_iban": "IBAN correspondant : {iban}", "reminder_rib": "Une clé valide prouve seulement que le RIB est bien formé — pas que le compte existe, ni qu'il appartient à la personne ou à l'entreprise qui vous l'a transmis.", "format_mrz": "Format non reconnu : collez les 2 lignes (passeport, 44 caractères chacune ; ancienne carte d'identité, 36) ou les 3 lignes (carte d'identité depuis 2021, 30 caractères), uniquement des lettres, des chiffres et des chevrons <.", "valid_mrz": "Tous les chiffres de contrôle sont valides", "invalid_mrz": "Au moins un chiffre de contrôle est faux : la MRZ a été mal recopiée, mal lue ou modifiée", "mrz_format_TD3": "Format : passeport (2 lignes de 44 caractères)", "mrz_format_TD1": "Format : carte d'identité au format carte bancaire (3 lignes de 30 caractères)", "mrz_format_TD2": "Format : document d'identité à 2 lignes de 36 caractères", "mrz_format_FR1988": "Format : carte d'identité française délivrée de 1988 à 2021 (2 lignes de 36 caractères)", "mrz_field_number": "Numéro du document", "mrz_field_birth": "Date de naissance", "mrz_field_expiry": "Date d'expiration", "mrz_field_personal": "Données complémentaires", "mrz_field_composite": "Contrôle global", "reminder_mrz": "Des chiffres de contrôle valides prouvent seulement que la MRZ est cohérente : l'algorithme est public, un faussaire soigneux sait les recalculer. Comparez aussi la MRZ avec le nom et les dates imprimés sur le document.", "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.", "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.", "kind": "mrz"}</script>
+    <script>
+// TrustyFile checksum validators. Generated by scripts/build_guides.py —
+// mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
+(function (root) {
+  'use strict';
+  var LA_POSTE_SIREN = '356000000';
+  var IBAN_LENGTHS = { AT: 20, BE: 16, CH: 21, DE: 22, ES: 24, FR: 27, GB: 22, IE: 22,
+                       IT: 27, LU: 20, MC: 27, NL: 18, PL: 28, PT: 25 };
+
+  function stripSeparators(text) { return String(text == null ? '' : text).replace(/[\s.\-]/g, ''); }
+
+  // Luhn as content.py applies it: for 14 digits the doubled positions are the
+  // even indexes from the left (0, 2, ... 12); for 9 digits the odd ones (1, 3, 5, 7).
+  function luhnOk(digits, doubleEvenIndexes) {
+    var total = 0;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits.charCodeAt(i) - 48;
+      if ((i % 2 === 0) === doubleEvenIndexes) { d *= 2; if (d > 9) { d -= 9; } }
+      total += d;
+    }
+    return total % 10 === 0;
+  }
+  function digitSum(digits) {
+    var s = 0;
+    for (var i = 0; i < digits.length; i++) { s += digits.charCodeAt(i) - 48; }
+    return s;
+  }
+  // Remainder of a long decimal string divided by 97, digit by digit (no BigInt needed).
+  function mod97(digits) {
+    var m = 0;
+    for (var i = 0; i < digits.length; i++) { m = (m * 10 + (digits.charCodeAt(i) - 48)) % 97; }
+    return m;
+  }
+
+  function sirenCheck(text) {
+    var siren = stripSeparators(text);
+    if (!/^\d{9}$/.test(siren)) { return { ok: false, reason: 'format', value: siren }; }
+    var ok = luhnOk(siren, false);
+    // French VAT key, as content.py's validate_french_vat computes it.
+    var key = (12 + 3 * mod97(siren)) % 97;
+    return { ok: ok, reason: ok ? null : 'checksum', value: siren, vatKey: (key < 10 ? '0' : '') + key };
+  }
+
+  function siretCheck(text) {
+    var siret = stripSeparators(text);
+    if (!/^\d{14}$/.test(siret)) { return { ok: false, reason: 'format', value: siret }; }
+    var luhn = luhnOk(siret, true);
+    var laPoste = siret.indexOf(LA_POSTE_SIREN) === 0;
+    var ok = luhn || (laPoste && digitSum(siret) % 5 === 0);
+    return { ok: ok, reason: ok ? null : 'checksum', value: siret,
+             siren: siret.slice(0, 9), nic: siret.slice(9), laPoste: laPoste && ok && !luhn };
+  }
+
+  // French RIB key: bank (5) branch (5) account (11) key (2). Letters in the
+  // account map to digits (A,J=1 B,K,S=2 ... I,R,Z=9); key = 97 - (BGC x 100 mod 97).
+  function ribKeyOk(bban) {
+    var account = bban.slice(10, 21).toUpperCase().replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    var remainder = (mod97(bban.slice(0, 10) + account) * 100) % 97;
+    return (97 - remainder) === parseInt(bban.slice(21, 23), 10);
+  }
+
+  function ibanCheck(text) {
+    var iban = stripSeparators(text).toUpperCase();
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) { return { ok: false, reason: 'format', value: iban }; }
+    var rearranged = iban.slice(4) + iban.slice(0, 4);
+    var numeric = '';
+    for (var i = 0; i < rearranged.length; i++) {
+      var c = rearranged.charCodeAt(i);
+      numeric += c >= 65 ? String(c - 55) : rearranged.charAt(i);   // A=10 ... Z=35
+    }
+    var ok = mod97(numeric) === 1;
+    var country = iban.slice(0, 2);
+    var expected = IBAN_LENGTHS[country] || null;
+    return { ok: ok, reason: ok ? null : 'checksum', value: iban, country: country,
+             expectedLength: expected, lengthOk: expected ? iban.length === expected : null,
+             formatted: iban.replace(/(.{4})/g, '$1 ').trim(),
+             ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
+  }
+
+  // French VAT number: FR + two-digit key + SIREN; key = (12 + 3 x (SIREN mod 97)) mod 97,
+  // as content.py's validate_french_vat computes it. Keys with letters (another
+  // algorithm) are a format failure here, never a guess.
+  function vatCheck(text) {
+    var vat = stripSeparators(text).toUpperCase();
+    if (!/^FR\d{11}$/.test(vat)) { return { ok: false, reason: 'format', value: vat }; }
+    var key = vat.slice(2, 4), siren = vat.slice(4);
+    var sirenOk = luhnOk(siren, false);
+    var expected = (12 + 3 * mod97(siren)) % 97;
+    var expectedKey = (expected < 10 ? '0' : '') + expected;
+    var ok = sirenOk && key === expectedKey;
+    return { ok: ok, reason: ok ? null : 'checksum', value: vat, key: key, siren: siren,
+             sirenOk: sirenOk, expectedKey: expectedKey };
+  }
+
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  // RIB key of bank (5) + branch (5) + account (11). Mirrors content.py's rib_key.
+  function ribKey(bga) {
+    var account = bga.slice(10).replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    return 97 - (mod97(bga.slice(0, 10) + account) * 100) % 97;
+  }
+  // French IBAN for a full BBAN (23 characters): check digits = 98 - (BBAN + "FR00" mod 97).
+  function frenchIban(bban) {
+    var numeric = (bban + 'FR00').replace(/[A-Z]/g, function (ch) { return String(ch.charCodeAt(0) - 55); });
+    var check = 98 - mod97(numeric);
+    return ('FR' + (check < 10 ? '0' : '') + check + bban).replace(/(.{4})/g, '$1 ').trim();
+  }
+  // French RIB: 23 characters is checked (is_valid_rib); 21 (no key yet) gets its key computed.
+  function ribCheck(text) {
+    var rib = stripSeparators(text).toUpperCase();
+    var m = /^(\d{5})(\d{5})([0-9A-Z]{11})(\d{2})?$/.exec(rib);
+    if (!m) { return { ok: false, reason: 'format', value: rib }; }
+    var key = ribKey(m[1] + m[2] + m[3]);
+    var keyText = (key < 10 ? '0' : '') + key;
+    var full = m[1] + m[2] + m[3] + keyText;
+    var base = { value: rib, bank: m[1], branch: m[2], account: m[3], expectedKey: keyText, iban: frenchIban(full) };
+    if (!m[4]) { base.ok = false; base.reason = 'compute'; return base; }
+    base.ok = m[4] === keyText;
+    base.reason = base.ok ? null : 'checksum';
+    base.key = m[4];
+    return base;
+  }
+
+  // ICAO 9303 check digit: weights 7-3-1, A=10 ... Z=35, '<' = 0.
+  function mrzDigit(data) {
+    var total = 0, weights = [7, 3, 1];
+    for (var i = 0; i < data.length; i++) {
+      var c = data.charCodeAt(i);
+      var v = c >= 65 ? c - 55 : (c >= 48 && c <= 57 ? c - 48 : 0);
+      total += v * weights[i % 3];
+    }
+    return total % 10;
+  }
+  // MRZ of a passport (TD3), an ID card (TD1, TD2) or the French card of 1988-2021,
+  // told apart by length once whitespace is removed. Mirrors identity.py's mrz_text_checks.
+  function mrzCheck(text) {
+    var mrz = String(text == null ? '' : text).replace(/\s/g, '').toUpperCase();
+    if (!/^[A-Z0-9<]+$/.test(mrz)) { return { ok: false, reason: 'format', value: mrz }; }
+    var fmt, l1, l2, f, birth, expiry = null;
+    if (mrz.length === 88) {
+      fmt = 'TD3'; l1 = mrz.slice(0, 44); l2 = mrz.slice(44);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]], ['personal', l2.slice(28, 42), l2[42]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43), l2[43]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else if (mrz.length === 90) {
+      fmt = 'TD1'; l1 = mrz.slice(0, 30); l2 = mrz.slice(30, 60);
+      f = [['number', l1.slice(5, 14), l1[14]], ['birth', l2.slice(0, 6), l2[6]],
+           ['expiry', l2.slice(8, 14), l2[14]],
+           ['composite', l1.slice(5, 30) + l2.slice(0, 7) + l2.slice(8, 15) + l2.slice(18, 29), l2[29]]];
+      birth = l2.slice(0, 6); expiry = l2.slice(8, 14);
+    } else if (mrz.length === 72 && mrz.indexOf('IDFRA') === 0) {
+      fmt = 'FR1988'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 12), l2[12]], ['birth', l2.slice(27, 33), l2[33]],
+           ['composite', l1 + l2.slice(0, 35), l2[35]]];
+      birth = l2.slice(27, 33);
+    } else if (mrz.length === 72) {
+      fmt = 'TD2'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 35), l2[35]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else {
+      return { ok: false, reason: 'format', value: mrz };
+    }
+    var checks = f.map(function (x) {
+      var c = x[2], d = mrzDigit(x[1]);
+      return { field: x[0], ok: c === '<' ? d === 0 : (/^\d$/.test(c) && d === +c) };
+    });
+    var ok = checks.every(function (c) { return c.ok; });
+    return { ok: ok, reason: ok ? null : 'checksum', value: mrz, format: fmt, checks: checks,
+             birth: birth, expiry: expiry };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck, ribCheck: ribCheck, mrzCheck: mrzCheck };
+  root.TFChecks = api;
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+})(typeof window !== 'undefined' ? window : this);
+(function () {
+  'use strict';
+  var M = JSON.parse(document.getElementById('tf-i18n').textContent);
+  var kind = M.kind;
+  var form = document.getElementById('tf-form');
+  var input = document.getElementById('tf-input');
+  var out = document.getElementById('tf-result');
+  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck, rib: TFChecks.ribCheck,
+                mrz: TFChecks.mrzCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15, rib: 21, mrz: 72 }[kind];
+  // YYMMDD -> DD/MM/YY, as the MRZ stores dates.
+  function mrzDate(d) { return d.slice(4, 6) + '/' + d.slice(2, 4) + '/' + d.slice(0, 2); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(template, values) {
+    return template.replace(/\{(\w+)\}/g, function (_, k) { return values[k] == null ? '' : values[k]; });
+  }
+  function render(r) {
+    if (!r.value) { out.className = 'result'; out.innerHTML = ''; return; }
+    var cls, title, lines = [];
+    if (r.reason === 'format') { cls = 'ko'; title = M['format_' + kind]; }
+    else if (r.reason === 'compute') { cls = 'ok'; title = fmt(M.computed_rib, { key: r.expectedKey }); }
+    else if (r.ok) { cls = 'ok'; title = M['valid_' + kind]; }
+    else { cls = 'ko'; title = M['invalid_' + kind]; }
+    if (kind === 'iban' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      lines.push(fmt(M.country, { country: r.country }));
+      if (r.expectedLength) {
+        lines.push(fmt(r.lengthOk ? M.length_ok : M.length_ko,
+                       { country: r.country, n: r.value.length, expected: r.expectedLength }));
+        if (r.ok && !r.lengthOk) { cls = 'warn'; }
+      } else {
+        lines.push(M.length_unknown);
+      }
+      if (r.ribKeyOk !== null) { lines.push(r.ribKeyOk ? M.rib_ok : M.rib_ko); if (r.ok && !r.ribKeyOk) { cls = 'warn'; } }
+    }
+    if (kind === 'siret' && r.reason !== 'format') {
+      lines.push(fmt(M.siren_part, { siren: r.siren, nic: r.nic }));
+      if (r.laPoste) { lines.push(M.la_poste); }
+    }
+    if (kind === 'siren' && r.ok) { lines.push(fmt(M.vat_hint, { key: r.vatKey, siren: r.value })); }
+    if (kind === 'vat' && r.reason !== 'format') {
+      lines.push(fmt(M.vat_parts, { key: r.key, siren: r.siren }));
+      if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
+      else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'rib' && r.reason !== 'format') {
+      lines.push(fmt(M.rib_parts, { bank: r.bank, branch: r.branch, account: r.account }));
+      if (r.reason === 'checksum') { lines.push(fmt(M.rib_key_expected, { expected: r.expectedKey })); }
+      else { lines.push(fmt(M.rib_iban, { iban: r.iban })); }
+    }
+    if (kind === 'mrz' && r.reason !== 'format') {
+      lines.push(M['mrz_format_' + r.format]);
+      r.checks.forEach(function (c) {
+        var label = M['mrz_field_' + c.field];
+        if (c.field === 'birth') { label += ' (' + mrzDate(r.birth) + ')'; }
+        if (c.field === 'expiry') { label += ' (' + mrzDate(r.expiry) + ')'; }
+        lines.push((c.ok ? '✓ ' : '✗ ') + label);
+      });
+    }
+    var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
+    out.className = 'result show ' + cls;
+    out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
+  }
+  function run() { render(check(input.value)); }
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+  input.addEventListener('input', function () {
+    var compact = input.value.replace(/[\s.\-]/g, '');
+    if (compact.length >= minLength) { run(); }
+    else { out.className = 'result'; out.innerHTML = ''; }
+  });
+})();
+    </script>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

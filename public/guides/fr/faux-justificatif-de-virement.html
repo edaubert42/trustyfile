@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faux justificatif de virement : comment le repérer</title>
+    <meta name="description" content="Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/faux-justificatif-de-virement">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/faux-justificatif-de-virement">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-spot-a-fake-payment-proof">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/faux-justificatif-de-virement">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Faux justificatif de virement : comment le repérer">
+    <meta property="og:description" content="Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/faux-justificatif-de-virement">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Faux justificatif de virement : comment le repérer">
+    <meta name="twitter:description" content="Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input, form.tool textarea {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Faux justificatif de virement : comment le repérer",
+        "description": "Capture d'écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.",
+        "inLanguage": "fr",
+        "datePublished": "2026-11-11",
+        "dateModified": "2026-11-11",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/faux-justificatif-de-virement"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Faux justificatif de virement : comment le repérer"
+                }
+        ]
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Une capture d'écran de virement est-elle une preuve de paiement ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Elle sort de l'application de l'acheteur et peut être modifiée ou fabriquée en quelques minutes. La seule preuve est le crédit visible sur votre propre compte."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Comment être sûr qu'un virement est bien arrivé ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Ouvrez vous-même l'application de votre banque, sans passer par un lien reçu, et vérifiez que l'opération figure au crédit de votre compte. Un virement instantané arrive en quelques secondes."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un virement peut-il être annulé après l'envoi du justificatif ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Oui, s'il est programmé ou différé : il peut être annulé tant qu'il n'est pas exécuté. Un virement instantané est en revanche définitif en quelques secondes."
+                        }
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/how-to-spot-a-fake-payment-proof">English</a>
+    </nav>
+
+    <h1>Faux justificatif de virement : comment ne pas se faire avoir</h1>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
+    <p class="intro">Vous vendez une voiture, un téléphone ou un meuble, et l'acheteur envoie une « preuve de virement » pour repartir avec l'objet tout de suite. C'est l'une des arnaques les plus répandues entre particuliers, et elle repose sur une confusion simple : un justificatif n'est pas de l'argent sur votre compte.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Un justificatif de virement prouve au mieux qu&#x27;un ordre a été saisi, jamais que l&#x27;argent est arrivé : seule votre propre banque fait foi.</li>
+            <li>Ne remettez l&#x27;objet qu&#x27;une fois le montant crédité sur votre compte, vérifié vous-même dans l&#x27;application de votre banque, jamais via un lien reçu par message.</li>
+            <li>Depuis le 9 octobre 2025, les banques de la zone euro doivent proposer le virement instantané au prix d&#x27;un virement classique : l&#x27;argent peut arriver en quelques secondes.</li>
+            <li>Un e-mail annonçant un paiement « bloqué » ou « en attente » jusqu&#x27;à ce que vous envoyiez l&#x27;objet ou payiez des frais est une arnaque : aucune banque ne fonctionne ainsi.</li>
+        </ul>
+    </aside>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#ce-qu-un-justificatif-prouve-vraiment">Ce qu&#x27;un justificatif prouve vraiment</a></li>
+        <li><a href="#les-scenarios-les-plus-courants">Les scénarios les plus courants</a></li>
+        <li><a href="#la-seule-verification-qui-compte">La seule vérification qui compte</a></li>
+        <li><a href="#les-indices-de-falsification-sur-le-document">Les indices de falsification sur le document</a></li>
+        <li><a href="#ce-que-change-la-verification-du-beneficiaire">Ce que change la vérification du bénéficiaire</a></li>
+        <li><a href="#si-vous-avez-ete-victime">Si vous avez été victime</a></li>
+    </ol>
+    <h2 id="ce-qu-un-justificatif-prouve-vraiment">Ce qu&#x27;un justificatif prouve vraiment</h2>
+    <p>Le document que l'acheteur vous montre, capture d'écran ou PDF, sort de son application à lui. Au mieux, il prouve qu'un ordre de virement a été saisi. Un virement programmé ou différé peut encore être annulé avant son exécution, et un justificatif peut aussi être modifié, ou fabriqué de toutes pièces, en quelques minutes.</p>
+    <p>La seule preuve de paiement est le crédit sur votre compte, constaté par vous.</p>
+    <h2 id="les-scenarios-les-plus-courants">Les scénarios les plus courants</h2>
+    <ul>
+        <li><strong>La capture « virement effectué »</strong>, envoyée au moment de récupérer l'objet, avec une excuse pour le délai : « ça met deux ou trois jours ».</li>
+        <li><strong>Le faux e-mail de la banque</strong> ou d'un service de paiement, qui annonce des fonds « en attente de validation » jusqu'à ce que vous envoyiez un numéro de suivi ou régliez des frais.</li>
+        <li><strong>Le trop-perçu</strong> : l'acheteur affirme avoir envoyé plus que le prix et demande que vous lui remboursiez la différence.</li>
+        <li><strong>Le lien de « réception du paiement »</strong> qui mène vers une fausse page de votre banque et vous demande vos identifiants ou les données de votre carte.</li>
+    </ul>
+    <h2 id="la-seule-verification-qui-compte">La seule vérification qui compte</h2>
+    <ul>
+        <li>Ouvrez vous-même l'application ou le site de votre banque, jamais à partir d'un lien reçu.</li>
+        <li>Vérifiez que l'opération apparaît bien au crédit de votre compte et que le solde a augmenté.</li>
+        <li>Proposez un virement instantané : l'acheteur qui est de bonne foi peut payer en quelques secondes, devant vous.</li>
+        <li>Tant que l'argent n'est pas sur votre compte, l'objet ne part pas, quelle que soit l'urgence invoquée.</li>
+    </ul>
+    <h2 id="les-indices-de-falsification-sur-le-document">Les indices de falsification sur le document</h2>
+    <p>Ils servent à confirmer un doute, jamais à lever l'obligation de vérifier votre compte :</p>
+    <ul>
+        <li><strong>L'IBAN du bénéficiaire</strong> n'est pas exactement le vôtre, ou il est tronqué là où il devrait apparaître en entier.</li>
+        <li><strong>Le montant ou le nom</strong> sont dans une police légèrement différente du reste, mal alignés, ou posés sur un fond qui ne correspond pas.</li>
+        <li><strong>La date et l'heure</strong> ne collent pas avec votre échange, ou un virement classique est annoncé « exécuté » un dimanche alors qu'il est en principe traité les jours ouvrés.</li>
+        <li><strong>Le PDF</strong> a été produit par un éditeur de PDF ou un convertisseur en ligne, pas par le site d'une banque (<a href="/guides/savoir-si-un-pdf-a-ete-modifie">comment le savoir</a>).</li>
+    </ul>
+    <h2 id="ce-que-change-la-verification-du-beneficiaire">Ce que change la vérification du bénéficiaire</h2>
+    <p>Depuis le 9 octobre 2025, la banque de celui qui paie vérifie, avant chaque virement en euros, que le nom saisi correspond bien au titulaire de l'IBAN. Ce contrôle protège celui qui envoie l'argent contre une erreur ou un faux RIB. Il ne protège pas le vendeur contre un faux justificatif : là encore, seul votre compte fait foi.</p>
+    <h2 id="si-vous-avez-ete-victime">Si vous avez été victime</h2>
+    <ul>
+        <li>Gardez tout : annonce, messages, justificatif reçu, coordonnées de l'acheteur, numéro de suivi si l'objet est parti.</li>
+        <li>Signalez le compte de l'acheteur à la plateforme de petites annonces.</li>
+        <li>Portez plainte. Pour une escroquerie commise sur internet, la plainte peut se déposer en ligne (plateforme THESEE, accessible depuis service-public.fr).</li>
+        <li>Si vous avez saisi vos identifiants bancaires ou votre carte sur une fausse page, appelez votre banque immédiatement.</li>
+    </ul>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Une capture d&#x27;écran de virement est-elle une preuve de paiement ?</dt>
+        <dd>Non. Elle sort de l&#x27;application de l&#x27;acheteur et peut être modifiée ou fabriquée en quelques minutes. La seule preuve est le crédit visible sur votre propre compte.</dd>
+        <dt>Comment être sûr qu&#x27;un virement est bien arrivé ?</dt>
+        <dd>Ouvrez vous-même l&#x27;application de votre banque, sans passer par un lien reçu, et vérifiez que l&#x27;opération figure au crédit de votre compte. Un virement instantané arrive en quelques secondes.</dd>
+        <dt>Un virement peut-il être annulé après l&#x27;envoi du justificatif ?</dt>
+        <dd>Oui, s&#x27;il est programmé ou différé : il peut être annulé tant qu&#x27;il n&#x27;est pas exécuté. Un virement instantané est en revanche définitif en quelques secondes.</dd>
+    </dl>
+    <h2>Outils gratuits</h2>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
+        <h3>Vérifier un justificatif de domicile</h3>
+        <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
+    </a>
+    <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
+        <h3>Savoir si un PDF a été modifié</h3>
+        <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
+    </a>
+    <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
+        <h3>2D-Doc : vérifier un document officiel français</h3>
+        <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-releve-bancaire">
+        <h3>Vérifier un relevé bancaire : repérer un faux</h3>
+        <p>Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-carte-d-identite">
+        <h3>Vérifier une carte d&#x27;identité ou un passeport</h3>
+        <p>Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

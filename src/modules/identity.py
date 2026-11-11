@@ -349,6 +349,101 @@ def mrz_check_digit(data: str) -> int:
 
 
 # =============================================================================
+# CONTRÔLE D'UNE MRZ COLLÉE À LA MAIN (page /outils/verifier-une-mrz)
+# =============================================================================
+
+def mrz_text_checks(text: str) -> tuple[str, list[tuple[str, bool]]] | None:
+    """Check digits of an MRZ typed or pasted by a person, any common format.
+
+    The format is told apart by the total length once whitespace is removed
+    (line breaks included, so the lines can be pasted joined or not):
+      - 88 = TD3, passport (2 x 44)
+      - 90 = TD1, ID card since 2021 in France (3 x 30)
+      - 72 starting "IDFRA" = the French ID card issued 1988-2021 (2 x 36),
+        whose layout is French, not ICAO
+      - 72 otherwise = TD2 (2 x 36)
+
+    A check character "<" counts as 0, as ICAO 9303 allows when the field it
+    covers is empty. Mirrors `mrzCheck` in tools/checksums.js; both are held
+    to tests/fixtures/checksum_vectors.json.
+
+    Args:
+        text: the MRZ lines, e.g. "P<UTOERIKSSON<<ANNA<MARIA<<<...\\nL898902C36UTO...".
+
+    Returns:
+        (format, [(field, ok), ...]) with format in {"TD3", "TD1", "TD2",
+        "FR1988"} and field in {"number", "birth", "expiry", "personal",
+        "composite"}; None when the text is not an MRZ of a known shape.
+
+    Example:
+        >>> mrz_text_checks("IDFRADOUEL" + "<" * 20 + "932013"
+        ...                 "0506932020438CHRISTIANE<<NI2906209F3")[0]
+        'FR1988'
+    """
+    mrz = re.sub(r"\s", "", text or "").upper()
+    if not re.fullmatch(r"[A-Z0-9<]+", mrz):
+        return None
+
+    def ok(data: str, check: str) -> bool:
+        if check == "<":
+            return mrz_check_digit(data) == 0
+        return check.isdigit() and mrz_check_digit(data) == int(check)
+
+    # Each format: the fields as (name, data, check character).
+    if len(mrz) == 88:
+        fmt, l2 = "TD3", mrz[44:]
+        fields = [
+            ("number", l2[0:9], l2[9]),
+            ("birth", l2[13:19], l2[19]),
+            ("expiry", l2[21:27], l2[27]),
+            ("personal", l2[28:42], l2[42]),
+            ("composite", l2[0:10] + l2[13:20] + l2[21:43], l2[43]),
+        ]
+    elif len(mrz) == 90:
+        fmt, l1, l2 = "TD1", mrz[:30], mrz[30:60]
+        fields = [
+            ("number", l1[5:14], l1[14]),
+            ("birth", l2[0:6], l2[6]),
+            ("expiry", l2[8:14], l2[14]),
+            ("composite", l1[5:30] + l2[0:7] + l2[8:15] + l2[18:29], l2[29]),
+        ]
+    elif len(mrz) == 72 and mrz.startswith("IDFRA"):
+        # Old French card: number (12) + check on line 2, birth date at 27-32,
+        # and a final check over all of line 1 plus line 2 up to it.
+        fmt, l1, l2 = "FR1988", mrz[:36], mrz[36:]
+        fields = [
+            ("number", l2[0:12], l2[12]),
+            ("birth", l2[27:33], l2[33]),
+            ("composite", l1 + l2[0:35], l2[35]),
+        ]
+    elif len(mrz) == 72:
+        fmt, l2 = "TD2", mrz[36:]
+        fields = [
+            ("number", l2[0:9], l2[9]),
+            ("birth", l2[13:19], l2[19]),
+            ("expiry", l2[21:27], l2[27]),
+            ("composite", l2[0:10] + l2[13:20] + l2[21:35], l2[35]),
+        ]
+    else:
+        return None
+    return fmt, [(name, ok(data, check)) for name, data, check in fields]
+
+
+def is_valid_mrz(text: str) -> bool:
+    """True when `text` is an MRZ of a known format whose every check digit holds.
+
+    See mrz_text_checks for the formats.
+
+    Example:
+        >>> is_valid_mrz("P<UTOERIKSSON<<ANNA<MARIA" + "<" * 19 +
+        ...              "L898902C36UTO7408122F1204159ZE184226B<<<<<10")
+        True
+    """
+    result = mrz_text_checks(text)
+    return result is not None and all(passed for _, passed in result[1])
+
+
+# =============================================================================
 # PARSING DES DATES MRZ
 # =============================================================================
 

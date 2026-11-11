@@ -81,12 +81,13 @@ dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
-form.tool input {
+form.tool input, form.tool textarea {
     flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
     border: 1px solid #c8ccd8; border-radius: 8px;
     font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
 }
-form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
 form.tool button {
     padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
     background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
@@ -267,6 +268,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p class="more">Open the tool &rarr;</p>
     </a>
     <h2>More guides</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-rental-application">
+        <h3>How to Spot a Fake Rental Application in France</h3>
+        <p>Pay slips, tax notice, ID: how to check a French rental application document by document, and the papers a landlord is not allowed to ask for.</p>
+    </a>
     <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
         <h3>How to spot a tampered invoice</h3>
         <p>Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.</p>
@@ -286,6 +291,18 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-a-pay-slip">
         <h3>How to verify a pay slip</h3>
         <p>Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-bank-statement">
+        <h3>How to Verify a Bank Statement and Spot a Fake</h3>
+        <p>Fake bank statements in loan files and private sales: balances, the software that made the PDF, the IBAN, salary credits — the checks that expose an edited statement.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-payment-proof">
+        <h3>Fake Bank Transfer Proof: How to Spot It</h3>
+        <p>Selling to a stranger: a transfer screenshot, a fake bank email, a payment &quot;on hold&quot;. Why a payment proof proves nothing, and the one check that counts.</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-an-id-card-or-passport">
+        <h3>How to Verify an ID Card or Passport Copy</h3>
+        <p>An ID card or passport copy in an application: the MRZ and its check digits, consistency with the printed data, validity dates, edits to the file.</p>
     </a>
     <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
         <h3>How to spot a fake IBAN on an invoice</h3>

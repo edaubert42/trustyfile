@@ -81,12 +81,13 @@ dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
-form.tool input {
+form.tool input, form.tool textarea {
     flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
     border: 1px solid #c8ccd8; border-radius: 8px;
     font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
 }
-form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
 form.tool button {
     padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
     background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
@@ -117,6 +118,12 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "hasPart": [
                 {
                         "@type": "Article",
+                        "headline": "Repérer un faux dossier de location",
+                        "description": "Bulletins de salaire, avis d'imposition, pièce d'identité : vérifier un dossier de location pièce par pièce, et les documents qu'un bailleur ne peut pas demander.",
+                        "url": "https://www.trustyfile.com/guides/reperer-un-faux-dossier-de-location"
+                },
+                {
+                        "@type": "Article",
                         "headline": "Vérifier si une facture a été falsifiée",
                         "description": "Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.",
                         "url": "https://www.trustyfile.com/guides/verifier-une-facture-falsifiee"
@@ -144,6 +151,24 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
                         "headline": "Vérifier un bulletin de salaire",
                         "description": "Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.",
                         "url": "https://www.trustyfile.com/guides/verifier-un-bulletin-de-salaire"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Vérifier un relevé bancaire : repérer un faux",
+                        "description": "Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d'origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.",
+                        "url": "https://www.trustyfile.com/guides/verifier-un-releve-bancaire"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Faux justificatif de virement : comment le repérer",
+                        "description": "Capture d'écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.",
+                        "url": "https://www.trustyfile.com/guides/faux-justificatif-de-virement"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Vérifier une carte d'identité ou un passeport",
+                        "description": "Copie de carte d'identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.",
+                        "url": "https://www.trustyfile.com/guides/verifier-une-carte-d-identite"
                 },
                 {
                         "@type": "Article",
@@ -252,6 +277,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h1>Guides de vérification documentaire</h1>
     <p class="intro">Comment reconnaître un document falsifié, quels indices techniques regarder, et ce qu'une vérification automatique peut ou ne peut pas prouver. Chaque guide traite une question précise.</p>
     <h2 id="individuals">Particuliers et dossiers de location</h2>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
     <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
         <h3>Vérifier un justificatif de domicile</h3>
         <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
@@ -260,6 +290,21 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
         <h3>Vérifier un bulletin de salaire</h3>
         <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-releve-bancaire">
+        <h3>Vérifier un relevé bancaire : repérer un faux</h3>
+        <p>Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/faux-justificatif-de-virement">
+        <h3>Faux justificatif de virement : comment le repérer</h3>
+        <p>Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.</p>
+        <p class="more">Lire le guide &rarr;</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-carte-d-identite">
+        <h3>Vérifier une carte d&#x27;identité ou un passeport</h3>
+        <p>Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.</p>
         <p class="more">Lire le guide &rarr;</p>
     </a>
     <a class="card" href="/guides/verifier-un-avis-d-imposition">
@@ -316,6 +361,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
         <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
+    <a class="card" href="/outils/calculer-une-cle-rib">
+        <h3>Calculer une clé RIB et vérifier un RIB</h3>
+        <p>Calculez la clé d&#x27;un RIB à partir du code banque, du guichet et du compte, ou vérifiez un RIB complet et obtenez son IBAN. Gratuit, dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
         <p>Vérifiez la clé de contrôle d&#x27;un numéro SIRET (14 chiffres, formule de Luhn), y compris la règle spécifique aux établissements de La Poste. Calcul local, sans envoi.</p>
@@ -334,6 +384,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
         <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
         <p>Vérifiez la clé de contrôle d&#x27;un numéro de sécurité sociale français (13 chiffres et une clé, Corse 2A/2B comprise). Le numéro reste dans votre navigateur : rien n&#x27;est envoyé.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <a class="card" href="/outils/verifier-une-mrz">
+        <h3>Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport</h3>
+        <p>Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.</p>
         <p class="more">Ouvrir l'outil &rarr;</p>
     </a>
     <h2>Questions fréquentes</h2>

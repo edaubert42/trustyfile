@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifier un relevé bancaire : repérer un faux</title>
+    <meta name="description" content="Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/verifier-un-releve-bancaire">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-un-releve-bancaire">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-a-bank-statement">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-un-releve-bancaire">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Vérifier un relevé bancaire : repérer un faux">
+    <meta property="og:description" content="Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/verifier-un-releve-bancaire">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vérifier un relevé bancaire : repérer un faux">
+    <meta name="twitter:description" content="Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input, form.tool textarea {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Vérifier un relevé bancaire : repérer un faux",
+        "description": "Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d'origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.",
+        "inLanguage": "fr",
+        "datePublished": "2026-11-11",
+        "dateModified": "2026-11-11",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/verifier-un-releve-bancaire"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Vérifier un relevé bancaire : repérer un faux"
+                }
+        ]
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment savoir si un relevé bancaire est faux ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Refaites le calcul des soldes, vérifiez le logiciel qui a produit le PDF, la clé de l'IBAN et la cohérence du code banque, puis cherchez les retouches sur le nom, le salaire et les soldes."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un propriétaire peut-il demander des relevés bancaires ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. En France, le relevé de compte et l'attestation de bonne tenue de compte font partie des pièces qu'un bailleur ne peut pas exiger d'un candidat locataire ni de sa caution."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Peut-on vérifier une capture d'écran de relevé ou de virement ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Presque pas : une image ne garde ni métadonnées ni polices. Seule la cohérence des chiffres se contrôle. Demandez le PDF de l'espace client."
+                        }
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/how-to-verify-a-bank-statement">English</a>
+    </nav>
+
+    <h1>Comment vérifier un relevé bancaire</h1>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
+    <p class="intro">Un relevé de compte retouché sert à gonfler des revenus, à masquer un découvert ou à prouver un paiement qui n'a jamais eu lieu. C'est un document facile à imiter visuellement, mais difficile à falsifier proprement : il est fait de chiffres qui doivent tous tomber juste les uns par rapport aux autres.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Refaites le calcul du relevé : solde précédent, plus les crédits, moins les débits, doit donner exactement le nouveau solde.</li>
+            <li>Un relevé téléchargé depuis l&#x27;espace client est produit par le système de la banque ; un PDF issu de Word, Canva ou d&#x27;un convertisseur en ligne contredit ce qu&#x27;il prétend être.</li>
+            <li>Le code banque (les 5 chiffres après la clé de l&#x27;IBAN français) désigne un établissement précis : il doit correspondre au nom de la banque affiché sur le relevé.</li>
+            <li>En France, un bailleur n&#x27;a pas le droit de demander un relevé bancaire à un candidat locataire ou à sa caution (loi du 6 juillet 1989, article 22-2).</li>
+        </ul>
+    </aside>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#qui-peut-demander-un-releve-bancaire">Qui peut demander un relevé bancaire ?</a></li>
+        <li><a href="#refaire-les-comptes">Refaire les comptes</a></li>
+        <li><a href="#identifier-le-logiciel-qui-a-produit-le-pdf">Identifier le logiciel qui a produit le PDF</a></li>
+        <li><a href="#examiner-les-zones-sensibles">Examiner les zones sensibles</a></li>
+        <li><a href="#croiser-avec-les-autres-pieces">Croiser avec les autres pièces</a></li>
+        <li><a href="#scan-et-capture-d-ecran-non-verifiables">Scan et capture d&#x27;écran : non vérifiables</a></li>
+    </ol>
+    <h2 id="qui-peut-demander-un-releve-bancaire">Qui peut demander un relevé bancaire ?</h2>
+    <p>Les relevés de compte circulent surtout dans les demandes de crédit, chez les courtiers, entre professionnels qui vérifient une capacité de paiement, et dans les ventes entre particuliers où l'acheteur « prouve » un virement.</p>
+    <p>Pour une location, c'est différent : le relevé de compte et l'attestation de bonne tenue de compte figurent parmi les pièces qu'un bailleur ne peut pas exiger d'un candidat ni de sa caution (loi du 6 juillet 1989, article 22-2, et décret n° 2015-1437). Pour vérifier les revenus d'un locataire, ce sont les <a href="/guides/verifier-un-bulletin-de-salaire">bulletins de salaire</a> et l'<a href="/guides/verifier-un-avis-d-imposition">avis d'imposition</a> qui comptent.</p>
+    <h2 id="refaire-les-comptes">Refaire les comptes</h2>
+    <p>Un relevé est une suite d'additions. Le faussaire qui modifie un montant oublie souvent de corriger tout ce qui en dépend :</p>
+    <ul>
+        <li><strong>Solde précédent + crédits − débits = nouveau solde</strong> : la règle de base, à vérifier au centime.</li>
+        <li><strong>Les totaux de colonnes</strong> : le total des débits et celui des crédits, en bas de page, doivent correspondre à la somme des lignes.</li>
+        <li><strong>Le solde d'un relevé à l'autre</strong> : le solde final d'un mois est le solde initial du suivant. Demander deux ou trois relevés consécutifs rend la retouche beaucoup plus difficile.</li>
+        <li><strong>Le solde courant ligne par ligne</strong>, quand la banque l'affiche : une seule ligne modifiée décale toutes les suivantes.</li>
+    </ul>
+    <h2 id="identifier-le-logiciel-qui-a-produit-le-pdf">Identifier le logiciel qui a produit le PDF</h2>
+    <p>Un relevé téléchargé depuis l'espace client sort du système documentaire de la banque : même producteur PDF, mêmes polices, même structure d'un mois sur l'autre. Des métadonnées qui annoncent un traitement de texte, un éditeur de PDF ou un convertisseur en ligne contredisent cette origine.</p>
+    <p>Méfiance aussi envers les modèles de relevés vendus en ligne : ils imitent la mise en page d'une banque, pas son empreinte technique. Les indices sont détaillés dans <a href="/guides/savoir-si-un-pdf-a-ete-modifie">notre guide sur les PDF modifiés</a>.</p>
+    <h2 id="examiner-les-zones-sensibles">Examiner les zones sensibles</h2>
+    <p>La fraude courante ne fabrique pas un relevé entier : elle retouche un relevé authentique. Les indices se concentrent sur le nom du titulaire, l'adresse, la ligne du salaire et les soldes : police différente au milieu d'une colonne, chiffres mal alignés, rectangle blanc posé sur l'ancienne valeur, révision ajoutée au fichier après sa création.</p>
+    <h2 id="croiser-avec-les-autres-pieces">Croiser avec les autres pièces</h2>
+    <ul>
+        <li><strong>L'IBAN</strong> : sa clé doit être valide, et le code banque doit désigner la banque dont le logo figure sur le relevé (<a href="/outils/verifier-un-iban">vérifier un IBAN</a>).</li>
+        <li><strong>Le virement de salaire</strong> : son montant doit correspondre au net à payer du bulletin du même mois, et le libellé à l'employeur qui y figure.</li>
+        <li><strong>Le titulaire et l'adresse</strong> : identiques à ceux des autres pièces du dossier.</li>
+    </ul>
+    <h2 id="scan-et-capture-d-ecran-non-verifiables">Scan et capture d&#x27;écran : non vérifiables</h2>
+    <p>Un relevé scanné, photographié ou capturé à l'écran ne conserve ni métadonnées, ni polices, ni historique de révisions. Seul le calcul des soldes reste possible, et l'absence d'anomalie ne prouve alors rien.</p>
+    <p>Quand l'enjeu est réel, préférez le PDF téléchargé depuis l'espace client, ou une solution d'accès aux comptes agréée (DSP2), où les données viennent directement de la banque, sans document intermédiaire à falsifier.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment savoir si un relevé bancaire est faux ?</dt>
+        <dd>Refaites le calcul des soldes, vérifiez le logiciel qui a produit le PDF, la clé de l&#x27;IBAN et la cohérence du code banque, puis cherchez les retouches sur le nom, le salaire et les soldes.</dd>
+        <dt>Un propriétaire peut-il demander des relevés bancaires ?</dt>
+        <dd>Non. En France, le relevé de compte et l&#x27;attestation de bonne tenue de compte font partie des pièces qu&#x27;un bailleur ne peut pas exiger d&#x27;un candidat locataire ni de sa caution.</dd>
+        <dt>Peut-on vérifier une capture d&#x27;écran de relevé ou de virement ?</dt>
+        <dd>Presque pas : une image ne garde ni métadonnées ni polices. Seule la cohérence des chiffres se contrôle. Demandez le PDF de l&#x27;espace client.</dd>
+    </dl>
+    <h2>Outils gratuits</h2>
+    <a class="card" href="/outils/verifier-un-iban">
+        <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
+        <p>Vérifiez gratuitement la clé de contrôle d&#x27;un IBAN (mod 97), sa longueur selon le pays et la clé RIB d&#x27;un IBAN français. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
+        <h3>Vérifier un justificatif de domicile</h3>
+        <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
+    </a>
+    <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
+        <h3>Savoir si un PDF a été modifié</h3>
+        <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
+    </a>
+    <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
+        <h3>2D-Doc : vérifier un document officiel français</h3>
+        <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/faux-justificatif-de-virement">
+        <h3>Faux justificatif de virement : comment le repérer</h3>
+        <p>Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-carte-d-identite">
+        <h3>Vérifier une carte d&#x27;identité ou un passeport</h3>
+        <p>Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

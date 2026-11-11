@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>French RIB Key Calculator and RIB Checker</title>
+    <meta name="description" content="Compute the key of a French RIB from its bank, branch and account codes, or check a full RIB and get the matching IBAN. Free; the calculation stays in your browser.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/en/tools/rib-key-calculator">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/tools/rib-key-calculator">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/outils/calculer-une-cle-rib">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/outils/calculer-une-cle-rib">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="French RIB Key Calculator and RIB Checker">
+    <meta property="og:description" content="Compute the key of a French RIB from its bank, branch and account codes, or check a full RIB and get the matching IBAN. Free; the calculation stays in your browser.">
+    <meta property="og:url" content="https://www.trustyfile.com/en/tools/rib-key-calculator">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="French RIB Key Calculator and RIB Checker">
+    <meta name="twitter:description" content="Compute the key of a French RIB from its bank, branch and account codes, or check a full RIB and get the matching IBAN. Free; the calculation stays in your browser.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input, form.tool textarea {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "French RIB Key Calculator and RIB Checker",
+        "url": "https://www.trustyfile.com/en/tools/rib-key-calculator",
+        "description": "Compute the key of a French RIB from its bank, branch and account codes, or check a full RIB and get the matching IBAN. Free; the calculation stays in your browser.",
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "isAccessibleForFree": true,
+        "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "EUR"
+        },
+        "inLanguage": "en",
+        "publisher": {
+                "@type": "Organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/en"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Free tools",
+                        "item": "https://www.trustyfile.com/en/guides/#outils"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "French RIB Key Calculator and RIB Checker"
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/en">Home</a>
+        <span class="sep">/</span>
+        <a href="/en/guides/">Guides</a>
+        <a class="lang" href="/outils/calculer-une-cle-rib">Français</a>
+    </nav>
+
+    <h1>French RIB key calculator</h1>
+    <p class="intro">Enter the bank code, branch code and account number to get the RIB key, or a full RIB to check it. The tool also gives the matching French IBAN. Everything runs in your browser: the number is sent nowhere.</p>
+    <form class="tool" id="tf-form" autocomplete="off">
+        <input id="tf-input" type="text" spellcheck="false" placeholder="30006 00001 12345678901 89" aria-label="French RIB key calculator">
+        <button type="submit">Check</button>
+    </form>
+    <div id="tf-result" class="result" role="status" aria-live="polite"></div>
+    <p class="privacy">The calculation runs in your browser: the number you type is not sent to any server.</p>
+    <h2 id="the-four-parts-of-a-rib">The four parts of a RIB</h2>
+    <p>A RIB (relevé d'identité bancaire) is the French bank-details slip. It predates the IBAN and lives on inside it.</p>
+    <ul>
+        <li><strong>Bank code</strong> (5 digits): the bank, e.g. 30006 in the example above.</li>
+        <li><strong>Branch code</strong> (5 digits): the branch holding the account.</li>
+        <li><strong>Account number</strong> (11 characters): digits, sometimes letters.</li>
+        <li><strong>RIB key</strong> (2 digits): computed from the other three, it catches typing mistakes.</li>
+    </ul>
+    <h2 id="how-the-key-is-computed">How the key is computed</h2>
+    <ul>
+        <li>Replace each letter in the account number with a digit: A and J are 1, B, K and S are 2, C, L and T are 3, and so on up to I, R and Z, which are 9.</li>
+        <li>Join bank, branch and account into a 21-digit number, then multiply it by 100.</li>
+        <li>Take the remainder of the division by 97.</li>
+        <li>The key is 97 minus that remainder. Example: 30006 00001 12345678901 gives the key 89.</li>
+    </ul>
+    <h2 id="what-the-key-proves-and-what-it-does-not">What the key proves, and what it does not</h2>
+    <p>A valid key means the RIB is well-formed: one mistyped digit or two swapped digits almost always break it.</p>
+    <p>It says nothing about whether the account exists or whose it is. A fake RIB sent by a fraudster has a perfectly valid key: the account is simply theirs. Before a first payment to new bank details, confirm them by phone on a number you already knew.</p>
+    <ul>
+        <li><a href="/en/guides/how-to-spot-a-fake-iban">How to spot a fake IBAN</a>: the tells to look for in the document itself.</li>
+        <li><a href="/en/tools/iban-checker">IBAN checker</a>: if you have the IBAN rather than the RIB.</li>
+    </ul>
+    <h2 id="rib-and-iban-the-same-account">RIB and IBAN: the same account</h2>
+    <p>A French IBAN contains the whole RIB, preceded by FR and two IBAN check digits: FR76 3000 6000 0112 3456 7890 189 contains the RIB 30006 00001 12345678901 89. The two checks are independent: an IBAN can pass its own check and still carry a wrong RIB key.</p>
+    <h2>Other tools</h2>
+    <a class="card" href="/en/tools/iban-checker">
+        <h3>IBAN checker: validate the check digits and the length</h3>
+        <p>Free IBAN checker: validates the mod-97 check digits, the expected length for the country and, for French IBANs, the RIB key. Everything runs in your browser.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/siret-checker">
+        <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
+        <p>Free SIRET checker: validates the 14-digit French establishment number with the Luhn formula, including the special rule for La Poste establishments. Runs locally.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/siren-checker">
+        <h3>SIREN checker: Luhn check and matching French VAT number</h3>
+        <p>Free SIREN checker: validates the 9-digit French company number with the Luhn formula and derives the intra-EU VAT number it implies. Runs in your browser, nothing is sent.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/vat-number-checker">
+        <h3>French VAT number checker: key and SIREN consistency</h3>
+        <p>Free French VAT number checker: validates the two-digit key against the SIREN it precedes and the SIREN&#x27;s own Luhn digit. Runs in your browser; use VIES for registration.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/french-social-security-number-checker">
+        <h3>French social security number (NIR) key checker</h3>
+        <p>Check the two-digit key of a French social security number (13 digits plus key, Corsica&#x27;s 2A/2B included). The number stays in your browser: nothing is sent anywhere.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/mrz-checker">
+        <h3>MRZ Checker for Passports and ID Cards</h3>
+        <p>Check the check digits in the MRZ of a passport or an ID card, including both French ID card formats. Free; the calculation stays in your browser.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <h2>More guides</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-iban">
+        <h3>How to spot a fake IBAN on an invoice</h3>
+        <p>Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-bank-statement">
+        <h3>How to Verify a Bank Statement and Spot a Fake</h3>
+        <p>Fake bank statements in loan files and private sales: balances, the software that made the PDF, the IBAN, salary credits — the checks that expose an edited statement.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
+    <script type="application/json" id="tf-i18n">{"format_iban": "Unexpected format: an IBAN starts with two letters (country) and two digits (check), followed by 11 to 30 characters.", "valid_iban": "Check digits valid (mod 97)", "invalid_iban": "Check digits invalid: this is not a well-formed IBAN — a wrong digit, a missing character or a made-up number.", "country": "Country: {country}", "length_ok": "Length matches {country} ({n} characters)", "length_ko": "Unusual length for {country}: {n} characters instead of {expected}", "length_unknown": "Length not checked: country outside the reference table", "rib_ok": "RIB key valid (French IBAN)", "rib_ko": "RIB key invalid: the last two digits do not match the account", "format_siret": "A SIRET has exactly 14 digits", "valid_siret": "Check digit valid", "invalid_siret": "Check digit invalid: this is not a well-formed SIRET", "siren_part": "SIREN {siren} · NIC {nic}", "la_poste": "La Poste establishment: specific rule applied (digit sum is a multiple of 5)", "format_siren": "A SIREN has exactly 9 digits", "valid_siren": "Check digit valid", "invalid_siren": "Check digit invalid: this is not a well-formed SIREN", "vat_hint": "Matching intra-EU VAT number: FR{key} {siren}", "format_vat": "Unexpected format: a French VAT number is FR, a two-digit key, then the 9 digits of the SIREN. Keys containing letters (rare) are not checked by this tool.", "valid_vat": "Check key valid: the key matches the SIREN", "invalid_vat": "Check key invalid: this VAT number is not self-consistent", "vat_parts": "Key {key} · SIREN {siren}", "vat_siren_ko": "The SIREN inside the number fails the Luhn formula itself: the number was miscopied or made up", "vat_key_expected": "The SIREN is well-formed but its VAT key should be {expected}", "format_nir": "Unexpected format: a French social security number is 13 digits (the département may read 2A or 2B) followed by a two-digit key — 15 characters.", "valid_nir": "Check key valid", "invalid_nir": "Check key invalid: this is not a well-formed NIR — a wrong digit or a made-up number", "nir_parts": "{sex} · born {month}/{year} · département or country {dept}", "nir_male": "Male", "nir_female": "Female", "nir_temporary": "Provisional number", "nir_key_expected": "Expected key for these 13 digits: {expected}", "format_rib": "Unexpected format: a French RIB is a bank code (5 digits), a branch code (5 digits), an account number (11 digits or letters) and a key (2 digits). Leave the key out and the tool computes it.", "valid_rib": "Valid RIB key", "invalid_rib": "Invalid RIB key: the account, branch or bank code was mistyped or altered", "computed_rib": "Computed RIB key: {key}", "rib_parts": "Bank {bank} · Branch {branch} · Account {account}", "rib_key_expected": "Expected key for this account: {expected}", "rib_iban": "Matching IBAN: {iban}", "reminder_rib": "A valid key only proves the RIB is well-formed — not that the account exists, nor that it belongs to the person or company who sent it.", "format_mrz": "Format not recognised: paste the 2 lines (passport, 44 characters each; old French ID card, 36) or the 3 lines (card-size ID, 30 characters), using only letters, digits and < chevrons.", "valid_mrz": "Every check digit is valid", "invalid_mrz": "At least one check digit is wrong: the MRZ was mistyped, misread or altered", "mrz_format_TD3": "Format: passport (2 lines of 44 characters)", "mrz_format_TD1": "Format: card-size ID document (3 lines of 30 characters)", "mrz_format_TD2": "Format: ID document with 2 lines of 36 characters", "mrz_format_FR1988": "Format: French ID card issued 1988-2021 (2 lines of 36 characters)", "mrz_field_number": "Document number", "mrz_field_birth": "Date of birth", "mrz_field_expiry": "Expiry date", "mrz_field_personal": "Optional data", "mrz_field_composite": "Overall check", "reminder_mrz": "Valid check digits only prove the MRZ is consistent: the algorithm is public, and a careful forger can recompute them. Compare the MRZ with the name and dates printed on the document too.", "reminder_nir": "A valid key only proves the number is well-formed — not that it was ever assigned, nor that it belongs to the person named on the document.", "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.", "kind": "rib"}</script>
+    <script>
+// TrustyFile checksum validators. Generated by scripts/build_guides.py —
+// mirrors src/modules/content.py; both are held to tests/fixtures/checksum_vectors.json.
+(function (root) {
+  'use strict';
+  var LA_POSTE_SIREN = '356000000';
+  var IBAN_LENGTHS = { AT: 20, BE: 16, CH: 21, DE: 22, ES: 24, FR: 27, GB: 22, IE: 22,
+                       IT: 27, LU: 20, MC: 27, NL: 18, PL: 28, PT: 25 };
+
+  function stripSeparators(text) { return String(text == null ? '' : text).replace(/[\s.\-]/g, ''); }
+
+  // Luhn as content.py applies it: for 14 digits the doubled positions are the
+  // even indexes from the left (0, 2, ... 12); for 9 digits the odd ones (1, 3, 5, 7).
+  function luhnOk(digits, doubleEvenIndexes) {
+    var total = 0;
+    for (var i = 0; i < digits.length; i++) {
+      var d = digits.charCodeAt(i) - 48;
+      if ((i % 2 === 0) === doubleEvenIndexes) { d *= 2; if (d > 9) { d -= 9; } }
+      total += d;
+    }
+    return total % 10 === 0;
+  }
+  function digitSum(digits) {
+    var s = 0;
+    for (var i = 0; i < digits.length; i++) { s += digits.charCodeAt(i) - 48; }
+    return s;
+  }
+  // Remainder of a long decimal string divided by 97, digit by digit (no BigInt needed).
+  function mod97(digits) {
+    var m = 0;
+    for (var i = 0; i < digits.length; i++) { m = (m * 10 + (digits.charCodeAt(i) - 48)) % 97; }
+    return m;
+  }
+
+  function sirenCheck(text) {
+    var siren = stripSeparators(text);
+    if (!/^\d{9}$/.test(siren)) { return { ok: false, reason: 'format', value: siren }; }
+    var ok = luhnOk(siren, false);
+    // French VAT key, as content.py's validate_french_vat computes it.
+    var key = (12 + 3 * mod97(siren)) % 97;
+    return { ok: ok, reason: ok ? null : 'checksum', value: siren, vatKey: (key < 10 ? '0' : '') + key };
+  }
+
+  function siretCheck(text) {
+    var siret = stripSeparators(text);
+    if (!/^\d{14}$/.test(siret)) { return { ok: false, reason: 'format', value: siret }; }
+    var luhn = luhnOk(siret, true);
+    var laPoste = siret.indexOf(LA_POSTE_SIREN) === 0;
+    var ok = luhn || (laPoste && digitSum(siret) % 5 === 0);
+    return { ok: ok, reason: ok ? null : 'checksum', value: siret,
+             siren: siret.slice(0, 9), nic: siret.slice(9), laPoste: laPoste && ok && !luhn };
+  }
+
+  // French RIB key: bank (5) branch (5) account (11) key (2). Letters in the
+  // account map to digits (A,J=1 B,K,S=2 ... I,R,Z=9); key = 97 - (BGC x 100 mod 97).
+  function ribKeyOk(bban) {
+    var account = bban.slice(10, 21).toUpperCase().replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    var remainder = (mod97(bban.slice(0, 10) + account) * 100) % 97;
+    return (97 - remainder) === parseInt(bban.slice(21, 23), 10);
+  }
+
+  function ibanCheck(text) {
+    var iban = stripSeparators(text).toUpperCase();
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) { return { ok: false, reason: 'format', value: iban }; }
+    var rearranged = iban.slice(4) + iban.slice(0, 4);
+    var numeric = '';
+    for (var i = 0; i < rearranged.length; i++) {
+      var c = rearranged.charCodeAt(i);
+      numeric += c >= 65 ? String(c - 55) : rearranged.charAt(i);   // A=10 ... Z=35
+    }
+    var ok = mod97(numeric) === 1;
+    var country = iban.slice(0, 2);
+    var expected = IBAN_LENGTHS[country] || null;
+    return { ok: ok, reason: ok ? null : 'checksum', value: iban, country: country,
+             expectedLength: expected, lengthOk: expected ? iban.length === expected : null,
+             formatted: iban.replace(/(.{4})/g, '$1 ').trim(),
+             ribKeyOk: (country === 'FR' && iban.length === 27) ? ribKeyOk(iban.slice(4)) : null };
+  }
+
+  // French VAT number: FR + two-digit key + SIREN; key = (12 + 3 x (SIREN mod 97)) mod 97,
+  // as content.py's validate_french_vat computes it. Keys with letters (another
+  // algorithm) are a format failure here, never a guess.
+  function vatCheck(text) {
+    var vat = stripSeparators(text).toUpperCase();
+    if (!/^FR\d{11}$/.test(vat)) { return { ok: false, reason: 'format', value: vat }; }
+    var key = vat.slice(2, 4), siren = vat.slice(4);
+    var sirenOk = luhnOk(siren, false);
+    var expected = (12 + 3 * mod97(siren)) % 97;
+    var expectedKey = (expected < 10 ? '0' : '') + expected;
+    var ok = sirenOk && key === expectedKey;
+    return { ok: ok, reason: ok ? null : 'checksum', value: vat, key: key, siren: siren,
+             sirenOk: sirenOk, expectedKey: expectedKey };
+  }
+
+  // French social security number (NIR): 13 characters + 2-digit key; key = 97 - (13 digits mod 97),
+  // Corsica's 2A / 2B read as 19 / 18 (INSEE). Mirrors content.py's is_valid_nir.
+  function nirCheck(text) {
+    var nir = stripSeparators(text).toUpperCase();
+    if (!/^[1-8]\d{4}(?:\d{2}|2A|2B)\d{8}$/.test(nir)) { return { ok: false, reason: 'format', value: nir }; }
+    var dept = nir.slice(5, 7);
+    var digits = nir.slice(0, 5) + (dept === '2A' ? '19' : (dept === '2B' ? '18' : dept)) + nir.slice(7, 13);
+    var expected = 97 - mod97(digits);
+    var ok = expected === parseInt(nir.slice(13, 15), 10);
+    return { ok: ok, reason: ok ? null : 'checksum', value: nir, sex: nir.charAt(0),
+             year: nir.slice(1, 3), month: nir.slice(3, 5), dept: dept,
+             expectedKey: (expected < 10 ? '0' : '') + expected,
+             formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
+  }
+
+  // RIB key of bank (5) + branch (5) + account (11). Mirrors content.py's rib_key.
+  function ribKey(bga) {
+    var account = bga.slice(10).replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    return 97 - (mod97(bga.slice(0, 10) + account) * 100) % 97;
+  }
+  // French IBAN for a full BBAN (23 characters): check digits = 98 - (BBAN + "FR00" mod 97).
+  function frenchIban(bban) {
+    var numeric = (bban + 'FR00').replace(/[A-Z]/g, function (ch) { return String(ch.charCodeAt(0) - 55); });
+    var check = 98 - mod97(numeric);
+    return ('FR' + (check < 10 ? '0' : '') + check + bban).replace(/(.{4})/g, '$1 ').trim();
+  }
+  // French RIB: 23 characters is checked (is_valid_rib); 21 (no key yet) gets its key computed.
+  function ribCheck(text) {
+    var rib = stripSeparators(text).toUpperCase();
+    var m = /^(\d{5})(\d{5})([0-9A-Z]{11})(\d{2})?$/.exec(rib);
+    if (!m) { return { ok: false, reason: 'format', value: rib }; }
+    var key = ribKey(m[1] + m[2] + m[3]);
+    var keyText = (key < 10 ? '0' : '') + key;
+    var full = m[1] + m[2] + m[3] + keyText;
+    var base = { value: rib, bank: m[1], branch: m[2], account: m[3], expectedKey: keyText, iban: frenchIban(full) };
+    if (!m[4]) { base.ok = false; base.reason = 'compute'; return base; }
+    base.ok = m[4] === keyText;
+    base.reason = base.ok ? null : 'checksum';
+    base.key = m[4];
+    return base;
+  }
+
+  // ICAO 9303 check digit: weights 7-3-1, A=10 ... Z=35, '<' = 0.
+  function mrzDigit(data) {
+    var total = 0, weights = [7, 3, 1];
+    for (var i = 0; i < data.length; i++) {
+      var c = data.charCodeAt(i);
+      var v = c >= 65 ? c - 55 : (c >= 48 && c <= 57 ? c - 48 : 0);
+      total += v * weights[i % 3];
+    }
+    return total % 10;
+  }
+  // MRZ of a passport (TD3), an ID card (TD1, TD2) or the French card of 1988-2021,
+  // told apart by length once whitespace is removed. Mirrors identity.py's mrz_text_checks.
+  function mrzCheck(text) {
+    var mrz = String(text == null ? '' : text).replace(/\s/g, '').toUpperCase();
+    if (!/^[A-Z0-9<]+$/.test(mrz)) { return { ok: false, reason: 'format', value: mrz }; }
+    var fmt, l1, l2, f, birth, expiry = null;
+    if (mrz.length === 88) {
+      fmt = 'TD3'; l1 = mrz.slice(0, 44); l2 = mrz.slice(44);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]], ['personal', l2.slice(28, 42), l2[42]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43), l2[43]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else if (mrz.length === 90) {
+      fmt = 'TD1'; l1 = mrz.slice(0, 30); l2 = mrz.slice(30, 60);
+      f = [['number', l1.slice(5, 14), l1[14]], ['birth', l2.slice(0, 6), l2[6]],
+           ['expiry', l2.slice(8, 14), l2[14]],
+           ['composite', l1.slice(5, 30) + l2.slice(0, 7) + l2.slice(8, 15) + l2.slice(18, 29), l2[29]]];
+      birth = l2.slice(0, 6); expiry = l2.slice(8, 14);
+    } else if (mrz.length === 72 && mrz.indexOf('IDFRA') === 0) {
+      fmt = 'FR1988'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 12), l2[12]], ['birth', l2.slice(27, 33), l2[33]],
+           ['composite', l1 + l2.slice(0, 35), l2[35]]];
+      birth = l2.slice(27, 33);
+    } else if (mrz.length === 72) {
+      fmt = 'TD2'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 35), l2[35]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else {
+      return { ok: false, reason: 'format', value: mrz };
+    }
+    var checks = f.map(function (x) {
+      var c = x[2], d = mrzDigit(x[1]);
+      return { field: x[0], ok: c === '<' ? d === 0 : (/^\d$/.test(c) && d === +c) };
+    });
+    var ok = checks.every(function (c) { return c.ok; });
+    return { ok: ok, reason: ok ? null : 'checksum', value: mrz, format: fmt, checks: checks,
+             birth: birth, expiry: expiry };
+  }
+
+  var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
+              nirCheck: nirCheck, ribCheck: ribCheck, mrzCheck: mrzCheck };
+  root.TFChecks = api;
+  if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
+})(typeof window !== 'undefined' ? window : this);
+(function () {
+  'use strict';
+  var M = JSON.parse(document.getElementById('tf-i18n').textContent);
+  var kind = M.kind;
+  var form = document.getElementById('tf-form');
+  var input = document.getElementById('tf-input');
+  var out = document.getElementById('tf-result');
+  var check = { iban: TFChecks.ibanCheck, siret: TFChecks.siretCheck, siren: TFChecks.sirenCheck,
+                vat: TFChecks.vatCheck, nir: TFChecks.nirCheck, rib: TFChecks.ribCheck,
+                mrz: TFChecks.mrzCheck }[kind];
+  var minLength = { iban: 15, siret: 14, siren: 9, vat: 13, nir: 15, rib: 21, mrz: 72 }[kind];
+  // YYMMDD -> DD/MM/YY, as the MRZ stores dates.
+  function mrzDate(d) { return d.slice(4, 6) + '/' + d.slice(2, 4) + '/' + d.slice(0, 2); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmt(template, values) {
+    return template.replace(/\{(\w+)\}/g, function (_, k) { return values[k] == null ? '' : values[k]; });
+  }
+  function render(r) {
+    if (!r.value) { out.className = 'result'; out.innerHTML = ''; return; }
+    var cls, title, lines = [];
+    if (r.reason === 'format') { cls = 'ko'; title = M['format_' + kind]; }
+    else if (r.reason === 'compute') { cls = 'ok'; title = fmt(M.computed_rib, { key: r.expectedKey }); }
+    else if (r.ok) { cls = 'ok'; title = M['valid_' + kind]; }
+    else { cls = 'ko'; title = M['invalid_' + kind]; }
+    if (kind === 'iban' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      lines.push(fmt(M.country, { country: r.country }));
+      if (r.expectedLength) {
+        lines.push(fmt(r.lengthOk ? M.length_ok : M.length_ko,
+                       { country: r.country, n: r.value.length, expected: r.expectedLength }));
+        if (r.ok && !r.lengthOk) { cls = 'warn'; }
+      } else {
+        lines.push(M.length_unknown);
+      }
+      if (r.ribKeyOk !== null) { lines.push(r.ribKeyOk ? M.rib_ok : M.rib_ko); if (r.ok && !r.ribKeyOk) { cls = 'warn'; } }
+    }
+    if (kind === 'siret' && r.reason !== 'format') {
+      lines.push(fmt(M.siren_part, { siren: r.siren, nic: r.nic }));
+      if (r.laPoste) { lines.push(M.la_poste); }
+    }
+    if (kind === 'siren' && r.ok) { lines.push(fmt(M.vat_hint, { key: r.vatKey, siren: r.value })); }
+    if (kind === 'vat' && r.reason !== 'format') {
+      lines.push(fmt(M.vat_parts, { key: r.key, siren: r.siren }));
+      if (!r.sirenOk) { lines.push(M.vat_siren_ko); }
+      else if (!r.ok) { lines.push(fmt(M.vat_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'nir' && r.reason !== 'format') {
+      lines.push(r.formatted);
+      var sexLabel = r.sex === '1' ? M.nir_male : (r.sex === '2' ? M.nir_female : M.nir_temporary);
+      lines.push(fmt(M.nir_parts, { sex: sexLabel, month: r.month, year: r.year, dept: r.dept }));
+      if (!r.ok) { lines.push(fmt(M.nir_key_expected, { expected: r.expectedKey })); }
+    }
+    if (kind === 'rib' && r.reason !== 'format') {
+      lines.push(fmt(M.rib_parts, { bank: r.bank, branch: r.branch, account: r.account }));
+      if (r.reason === 'checksum') { lines.push(fmt(M.rib_key_expected, { expected: r.expectedKey })); }
+      else { lines.push(fmt(M.rib_iban, { iban: r.iban })); }
+    }
+    if (kind === 'mrz' && r.reason !== 'format') {
+      lines.push(M['mrz_format_' + r.format]);
+      r.checks.forEach(function (c) {
+        var label = M['mrz_field_' + c.field];
+        if (c.field === 'birth') { label += ' (' + mrzDate(r.birth) + ')'; }
+        if (c.field === 'expiry') { label += ' (' + mrzDate(r.expiry) + ')'; }
+        lines.push((c.ok ? '✓ ' : '✗ ') + label);
+      });
+    }
+    var items = lines.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('');
+    out.className = 'result show ' + cls;
+    out.innerHTML = '<p class="verdict">' + esc(title) + '</p>' + (items ? '<ul>' + items + '</ul>' : '') +
+                    '<p class="fine">' + esc(M['reminder_' + kind] || M.reminder) + '</p>';
+  }
+  function run() { render(check(input.value)); }
+  form.addEventListener('submit', function (e) { e.preventDefault(); run(); });
+  input.addEventListener('input', function () {
+    var compact = input.value.replace(/[\s.\-]/g, '');
+    if (compact.length >= minLength) { run(); }
+    else { out.className = 'result'; out.innerHTML = ''; }
+  });
+})();
+    </script>
+    <footer>
+        <p><a href="https://www.trustyfile.com/en">TrustyFile</a>
+        &middot; <a href="/en/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

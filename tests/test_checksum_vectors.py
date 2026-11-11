@@ -26,11 +26,13 @@ from src.modules.content import (
     is_valid_french_vat,
     is_valid_iban,
     is_valid_nir,
+    is_valid_rib,
     is_valid_siren,
     is_valid_siret,
     validate_rib_key,
     validate_siret_checksum,
 )
+from src.modules.identity import is_valid_mrz
 
 ROOT = Path(__file__).resolve().parent.parent
 VECTORS_PATH = ROOT / "tests" / "fixtures" / "checksum_vectors.json"
@@ -43,6 +45,8 @@ PYTHON_VALIDATORS = {
     "siren": is_valid_siren,
     "vat": is_valid_french_vat,
     "nir": is_valid_nir,
+    "rib": is_valid_rib,
+    "mrz": is_valid_mrz,
 }
 
 
@@ -117,7 +121,7 @@ def test_javascript_validator_agrees_with_the_contract(tmp_path):
     harness = """
         const checks = require(process.argv[1]);
         const vectors = JSON.parse(require('fs').readFileSync(process.argv[2], 'utf8')).vectors;
-        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck, vat: checks.vatCheck, nir: checks.nirCheck };
+        const fn = { iban: checks.ibanCheck, siret: checks.siretCheck, siren: checks.sirenCheck, vat: checks.vatCheck, nir: checks.nirCheck, rib: checks.ribCheck, mrz: checks.mrzCheck };
         const out = vectors.map(v => {
           const r = fn[v.kind](v.input);
           return { kind: v.kind, input: v.input, valid: r.ok, rib_ok: r.ribKeyOk === undefined ? 'absent' : r.ribKeyOk };
@@ -164,3 +168,26 @@ def test_javascript_iban_details_are_consistent(tmp_path):
     assert out["s"]["vatKey"] == "03"
     # The VAT page explains a wrong key by showing the one the SIREN implies.
     assert out["v"]["ok"] is False and out["v"]["sirenOk"] is True and out["v"]["expectedKey"] == "03"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_javascript_rib_and_mrz_details_are_consistent(tmp_path):
+    """What the RIB and MRZ pages show beyond valid/invalid: computed key, IBAN, format."""
+    harness = """
+        const c = require(process.argv[1]);
+        const compute = c.ribCheck('30006 00001 12345678901');
+        const wrong = c.ribCheck('30006 00001 12345678901 88');
+        const td1 = c.mrzCheck('IDFRAX4RTBPFW46<<<<<<<<<<<<<<<\\n9007138F3002119FRA<<<<<<<<<<<6\\nMARTIN<<MAELYS<GAELLE<MARIE<<<');
+        const old = c.mrzCheck('IDFRADOUEL<<<<<<<<<<<<<<<<<<<<932013 0506932020438CHRISTIANE<<NI2906209F3');
+        process.stdout.write(JSON.stringify({compute, wrong, td1, old}));
+    """
+    out = json.loads(subprocess.run(
+        ["node", "-e", harness, str(_checksums_as_commonjs(tmp_path))], capture_output=True, text=True, timeout=30, check=True,
+    ).stdout)
+    # 21 characters: the calculator gives the key and the IBAN it completes.
+    assert out["compute"]["reason"] == "compute" and out["compute"]["expectedKey"] == "89"
+    assert out["compute"]["iban"] == "FR76 3000 6000 0112 3456 7890 189"
+    assert out["wrong"]["reason"] == "checksum" and out["wrong"]["expectedKey"] == "89"
+    assert out["td1"]["format"] == "TD1" and out["td1"]["birth"] == "900713" and out["td1"]["expiry"] == "300211"
+    assert out["old"]["format"] == "FR1988" and out["old"]["expiry"] is None
+    assert [ch["field"] for ch in out["old"]["checks"]] == ["number", "birth", "composite"]

@@ -1508,16 +1508,53 @@ def validate_rib_key(text: str) -> bool | None:
     if not (iban.startswith("FR") and len(iban) == 27):
         return None
     bban = iban[4:]
+    expected = rib_key(bban[:21])
+    if expected is None or not re.fullmatch(r"[0-9]{2}", bban[21:23]):
+        return False
+    return expected == int(bban[21:23])
+
+
+def rib_key(bank_branch_account: str) -> int | None:
+    """Compute the French RIB key of bank (5) + branch (5) + account (11).
+
+    key = 97 - ((bank branch account) x 100 mod 97), with letters in the
+    account mapped to digits the RIB way (A,J=1 B,K,S=2 C,L,T=3 ... I,R,Z=9).
+    Mirrors `ribKey` in tools/checksums.js (the RIB key calculator page).
+
+    Returns None when the input is not 10 digits followed by 11 digits or
+    letters.
+
+    Example:
+        >>> rib_key("300060000112345678901")
+        89
+    """
+    if not re.fullmatch(r"[0-9]{10}[0-9A-Z]{11}", bank_branch_account):
+        return None
 
     def rib_digit(ch: str) -> str:
         n = ord(ch) - 64  # A=1 ... Z=26
         return str(n if n < 10 else n - 9 if n < 19 else n - 17)
 
-    account = "".join(rib_digit(c) if "A" <= c <= "Z" else c for c in bban[10:21])
-    digits = bban[:10] + account
-    if not re.fullmatch(r"[0-9]{21}", digits) or not re.fullmatch(r"[0-9]{2}", bban[21:23]):
+    account = "".join(rib_digit(c) if "A" <= c <= "Z" else c for c in bank_branch_account[10:])
+    return 97 - (int(bank_branch_account[:10] + account) * 100) % 97
+
+
+def is_valid_rib(text: str) -> bool:
+    """Validate a French RIB as a user would paste it: bank, branch, account, key.
+
+    23 characters once spaces are stripped. 21 characters (no key yet) is not
+    a RIB: the calculator page computes the key for it instead.
+
+    Example:
+        >>> is_valid_rib("30006 00001 12345678901 89")
+        True
+        >>> is_valid_rib("30006 00001 12345678901 88")
+        False
+    """
+    rib = _strip_separators(text).upper()
+    if not re.fullmatch(r"[0-9]{10}[0-9A-Z]{11}[0-9]{2}", rib):
         return False
-    return 97 - (int(digits) * 100) % 97 == int(bban[21:23])
+    return rib_key(rib[:21]) == int(rib[21:])
 
 
 def validate_siret_checksum(siret: str) -> bool:

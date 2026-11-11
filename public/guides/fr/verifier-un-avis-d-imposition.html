@@ -81,12 +81,13 @@ dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
-form.tool input {
+form.tool input, form.tool textarea {
     flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
     border: 1px solid #c8ccd8; border-radius: 8px;
     font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
 }
-form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
 form.tool button {
     padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
     background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
@@ -259,6 +260,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <dd>Oui : SVAIR ne compare pas les montants. Un revenu fiscal de référence gonflé sur un avis authentique et à jour passe ce contrôle ; c&#x27;est le code 2D-Doc qui l&#x27;attrape.</dd>
     </dl>
     <h2>Autres guides</h2>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+    </a>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
         <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
@@ -278,6 +283,18 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
         <h3>Vérifier un bulletin de salaire</h3>
         <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-releve-bancaire">
+        <h3>Vérifier un relevé bancaire : repérer un faux</h3>
+        <p>Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.</p>
+    </a>
+    <a class="card" href="/guides/faux-justificatif-de-virement">
+        <h3>Faux justificatif de virement : comment le repérer</h3>
+        <p>Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-carte-d-identite">
+        <h3>Vérifier une carte d&#x27;identité ou un passeport</h3>
+        <p>Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.</p>
     </a>
     <a class="card" href="/guides/detecter-un-faux-rib">
         <h3>Détecter un faux RIB ou un IBAN falsifié</h3>

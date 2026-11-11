@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vérifier une carte d&#x27;identité ou un passeport</title>
+    <meta name="description" content="Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/verifier-une-carte-d-identite">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/verifier-une-carte-d-identite">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-to-verify-an-id-card-or-passport">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/verifier-une-carte-d-identite">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Vérifier une carte d&#x27;identité ou un passeport">
+    <meta property="og:description" content="Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/verifier-une-carte-d-identite">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Vérifier une carte d&#x27;identité ou un passeport">
+    <meta name="twitter:description" content="Copie de carte d&#x27;identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input, form.tool textarea {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Vérifier une carte d'identité ou un passeport",
+        "description": "Copie de carte d'identité ou de passeport dans un dossier : MRZ et chiffres de contrôle, cohérence avec la partie imprimée, dates de validité, retouches du fichier.",
+        "inLanguage": "fr",
+        "datePublished": "2026-11-11",
+        "dateModified": "2026-11-11",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/verifier-une-carte-d-identite"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Vérifier une carte d'identité ou un passeport"
+                }
+        ]
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier une carte d'identité à partir d'une copie ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Vérifiez les chiffres de contrôle de la MRZ, comparez la MRZ avec le nom, la date de naissance et le numéro imprimés, contrôlez la date de validité, puis l'origine du fichier s'il s'agit d'un PDF."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Une carte d'identité périmée est-elle forcément invalide ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Pas toujours. Une carte délivrée à un majeur entre le 2 janvier 2004 et le 31 décembre 2013 reste valable 15 ans, même si la date imprimée indique 10 ans."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Une MRZ valide prouve-t-elle que la pièce est authentique ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. L'algorithme des chiffres de contrôle est public. Une MRZ valide prouve seulement sa cohérence interne ; elle doit aussi correspondre à la partie imprimée."
+                        }
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/how-to-verify-an-id-card-or-passport">English</a>
+    </nav>
+
+    <h1>Comment vérifier une carte d&#x27;identité ou un passeport</h1>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
+    <p class="intro">Dans un dossier de location, une ouverture de compte ou une vente, on reçoit presque toujours une copie de la pièce d'identité, en photo ou en PDF. Une copie ne laisse pas contrôler les sécurités physiques (hologramme, encres, gravure laser). Il reste trois choses à vérifier : la MRZ, la cohérence des informations et l'origine du fichier.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Sur une copie de pièce d&#x27;identité, le contrôle le plus utile est la MRZ : ses chiffres de contrôle doivent être justes et ses données identiques à celles imprimées sur la pièce.</li>
+            <li>La carte d&#x27;identité française existe en deux formats : l&#x27;ancienne (1988-2021) porte une MRZ de 2 lignes de 36 caractères, la nouvelle au format carte bancaire 3 lignes de 30.</li>
+            <li>Des chiffres de contrôle justes ne prouvent pas l&#x27;authenticité, car l&#x27;algorithme est public ; des chiffres faux sur un document numérique sont en revanche un signal fort.</li>
+            <li>Pour protéger votre propre pièce, ajoutez un filigrane avec le service gratuit de l&#x27;État FiligraneFacile avant de l&#x27;envoyer.</li>
+        </ul>
+    </aside>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#lire-et-verifier-la-mrz">Lire et vérifier la MRZ</a></li>
+        <li><a href="#comparer-la-mrz-et-la-partie-imprimee">Comparer la MRZ et la partie imprimée</a></li>
+        <li><a href="#verifier-les-dates-de-validite">Vérifier les dates de validité</a></li>
+        <li><a href="#examiner-le-fichier-lui-meme">Examiner le fichier lui-même</a></li>
+        <li><a href="#proteger-votre-propre-piece-d-identite">Protéger votre propre pièce d&#x27;identité</a></li>
+        <li><a href="#ce-que-fait-trustyfile">Ce que fait TrustyFile</a></li>
+    </ol>
+    <h2 id="lire-et-verifier-la-mrz">Lire et vérifier la MRZ</h2>
+    <p>La MRZ est la bande de caractères terminée par des chevrons (&lt;&lt;&lt;), en bas de la page photo d'un passeport ou au dos de la carte d'identité. Elle reprend le type de document, le pays, le nom, le numéro, la date de naissance, le sexe et la date d'expiration, et plusieurs champs sont suivis d'un chiffre de contrôle (norme OACI 9303).</p>
+    <p>Recopiez les lignes dans notre <a href="/outils/verifier-une-mrz">vérificateur de MRZ</a> : il reconnaît le format (passeport, nouvelle carte, ancienne carte française) et contrôle chaque chiffre. Sur une photo, relisez les caractères ambigus : 0 et O, 8 et B, 1 et I.</p>
+    <h2 id="comparer-la-mrz-et-la-partie-imprimee">Comparer la MRZ et la partie imprimée</h2>
+    <p>C'est le contrôle le plus révélateur. Le faussaire qui change le nom ou la date de naissance dans la partie visible oublie souvent de refaire la MRZ, ou la refait sans recalculer les chiffres de contrôle. Vérifiez que correspondent :</p>
+    <ul>
+        <li>le nom et les prénoms (sans accents dans la MRZ) ;</li>
+        <li>la date de naissance, notée AAMMJJ dans la MRZ ;</li>
+        <li>le numéro du document ;</li>
+        <li>la date d'expiration, sauf sur l'ancienne carte française dont la MRZ n'en contient pas.</li>
+    </ul>
+    <h2 id="verifier-les-dates-de-validite">Vérifier les dates de validité</h2>
+    <p>Un passeport d'adulte est valable 10 ans, la nouvelle carte d'identité aussi. Attention à l'ancienne carte : si elle a été délivrée à un majeur entre le 2 janvier 2004 et le 31 décembre 2013, elle reste valable 15 ans, même si la date imprimée n'en indique que 10. Une carte « périmée » de moins de cinq ans n'est donc pas forcément un faux.</p>
+    <h2 id="examiner-le-fichier-lui-meme">Examiner le fichier lui-même</h2>
+    <p>Quand la copie est un PDF, son origine se lit dans ses métadonnées et sa structure : un fichier passé par un éditeur d'image ou de PDF, une photo d'identité collée dont la résolution diffère du reste, une police qui change sur le nom ou la date, une révision ajoutée après coup. Les indices sont détaillés dans <a href="/guides/savoir-si-un-pdf-a-ete-modifie">notre guide sur les PDF modifiés</a>.</p>
+    <h2 id="proteger-votre-propre-piece-d-identite">Protéger votre propre pièce d&#x27;identité</h2>
+    <p>Une copie envoyée pour une location peut resservir à une usurpation d'identité. Le service gratuit de l'État FiligraneFacile (filigrane.beta.gouv.fr) ajoute sur le document un filigrane précisant son destinataire et son usage, par exemple « Document exclusivement destiné à la location immobilière ».</p>
+    <h2 id="ce-que-fait-trustyfile">Ce que fait TrustyFile</h2>
+    <p>Sur une pièce d'identité au format numérique, TrustyFile lit la MRZ et vérifie ses chiffres de contrôle. Sur un scan ou une photo, où la lecture automatique introduit des erreurs, il ne contrôle que la structure de la MRZ, et cela pour ne pas accuser à tort un document authentique.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment vérifier une carte d&#x27;identité à partir d&#x27;une copie ?</dt>
+        <dd>Vérifiez les chiffres de contrôle de la MRZ, comparez la MRZ avec le nom, la date de naissance et le numéro imprimés, contrôlez la date de validité, puis l&#x27;origine du fichier s&#x27;il s&#x27;agit d&#x27;un PDF.</dd>
+        <dt>Une carte d&#x27;identité périmée est-elle forcément invalide ?</dt>
+        <dd>Pas toujours. Une carte délivrée à un majeur entre le 2 janvier 2004 et le 31 décembre 2013 reste valable 15 ans, même si la date imprimée indique 10 ans.</dd>
+        <dt>Une MRZ valide prouve-t-elle que la pièce est authentique ?</dt>
+        <dd>Non. L&#x27;algorithme des chiffres de contrôle est public. Une MRZ valide prouve seulement sa cohérence interne ; elle doit aussi correspondre à la partie imprimée.</dd>
+    </dl>
+    <h2>Outils gratuits</h2>
+    <a class="card" href="/outils/verifier-une-mrz">
+        <h3>Vérifier la MRZ d&#x27;une carte d&#x27;identité ou d&#x27;un passeport</h3>
+        <p>Contrôlez gratuitement les chiffres de contrôle de la MRZ d&#x27;un passeport ou d&#x27;une carte d&#x27;identité, ancienne ou nouvelle. Le calcul reste dans votre navigateur.</p>
+        <p class="more">Ouvrir l'outil &rarr;</p>
+    </a>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
+        <h3>Repérer un faux dossier de location</h3>
+        <p>Bulletins de salaire, avis d&#x27;imposition, pièce d&#x27;identité : vérifier un dossier de location pièce par pièce, et les documents qu&#x27;un bailleur ne peut pas demander.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
+        <h3>Vérifier un justificatif de domicile</h3>
+        <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
+    </a>
+    <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
+        <h3>Savoir si un PDF a été modifié</h3>
+        <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
+    </a>
+    <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
+        <h3>2D-Doc : vérifier un document officiel français</h3>
+        <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-releve-bancaire">
+        <h3>Vérifier un relevé bancaire : repérer un faux</h3>
+        <p>Faux relevé de compte dans un dossier de crédit ou de vente : soldes, logiciel d&#x27;origine, IBAN, virements de salaire — les contrôles qui révèlent un relevé retouché.</p>
+    </a>
+    <a class="card" href="/guides/faux-justificatif-de-virement">
+        <h3>Faux justificatif de virement : comment le repérer</h3>
+        <p>Capture d&#x27;écran de virement, faux e-mail de la banque, paiement « en attente » : pourquoi un justificatif ne prouve rien, et la seule vérification qui compte.</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

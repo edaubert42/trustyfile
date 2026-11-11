@@ -664,7 +664,13 @@ def render_tool(lang: str, tool: Tool) -> str:
         f"    <h1>{esc(tool.heading)}</h1>",
         f'    <p class="intro">{tool.intro}</p>',
         '    <form class="tool" id="tf-form" autocomplete="off">',
-        f'        <input id="tf-input" type="text" spellcheck="false" placeholder="{esc(tool.placeholder)}" aria-label="{esc(tool.heading)}">',
+        # An MRZ is two or three lines, so it gets a textarea; every other
+        # number fits on one line.
+        (
+            f'        <textarea id="tf-input" rows="3" spellcheck="false" placeholder="{esc(tool.placeholder)}" aria-label="{esc(tool.heading)}"></textarea>'
+            if tool.kind == "mrz"
+            else f'        <input id="tf-input" type="text" spellcheck="false" placeholder="{esc(tool.placeholder)}" aria-label="{esc(tool.heading)}">'
+        ),
         f'        <button type="submit">{esc(chrome["tool_button"])}</button>',
         "    </form>",
         '    <div id="tf-result" class="result" role="status" aria-live="polite"></div>',

@@ -251,6 +251,27 @@ CHROME = {
             "nir_female": "Femme",
             "nir_temporary": "Numéro provisoire",
             "nir_key_expected": "Clé attendue pour ces 13 chiffres : {expected}",
+            "format_rib": "Format inattendu : un RIB s'écrit code banque (5 chiffres), code guichet (5 chiffres), numéro de compte (11 chiffres ou lettres) et clé (2 chiffres). Sans la clé, l'outil la calcule.",
+            "valid_rib": "Clé RIB valide",
+            "invalid_rib": "Clé RIB invalide : le numéro de compte, le guichet ou la banque a été mal recopié ou modifié",
+            "computed_rib": "Clé RIB calculée : {key}",
+            "rib_parts": "Banque {bank} · Guichet {branch} · Compte {account}",
+            "rib_key_expected": "Clé attendue pour ce compte : {expected}",
+            "rib_iban": "IBAN correspondant : {iban}",
+            "reminder_rib": "Une clé valide prouve seulement que le RIB est bien formé — pas que le compte existe, ni qu'il appartient à la personne ou à l'entreprise qui vous l'a transmis.",
+            "format_mrz": "Format non reconnu : collez les 2 lignes (passeport, 44 caractères chacune ; ancienne carte d'identité, 36) ou les 3 lignes (carte d'identité depuis 2021, 30 caractères), uniquement des lettres, des chiffres et des chevrons <.",
+            "valid_mrz": "Tous les chiffres de contrôle sont valides",
+            "invalid_mrz": "Au moins un chiffre de contrôle est faux : la MRZ a été mal recopiée, mal lue ou modifiée",
+            "mrz_format_TD3": "Format : passeport (2 lignes de 44 caractères)",
+            "mrz_format_TD1": "Format : carte d'identité au format carte bancaire (3 lignes de 30 caractères)",
+            "mrz_format_TD2": "Format : document d'identité à 2 lignes de 36 caractères",
+            "mrz_format_FR1988": "Format : carte d'identité française délivrée de 1988 à 2021 (2 lignes de 36 caractères)",
+            "mrz_field_number": "Numéro du document",
+            "mrz_field_birth": "Date de naissance",
+            "mrz_field_expiry": "Date d'expiration",
+            "mrz_field_personal": "Données complémentaires",
+            "mrz_field_composite": "Contrôle global",
+            "reminder_mrz": "Des chiffres de contrôle valides prouvent seulement que la MRZ est cohérente : l'algorithme est public, un faussaire soigneux sait les recalculer. Comparez aussi la MRZ avec le nom et les dates imprimés sur le document.",
             "reminder_nir": "Une clé valide prouve seulement que le numéro est bien formé — pas qu'il a été attribué, ni qu'il appartient à la personne nommée sur le document.",
             "reminder": "Une clé valide prouve seulement que le numéro est bien formé — pas que le compte ou l'entreprise existe, ni qu'il appartient à l'émetteur du document.",
         },
@@ -417,6 +438,27 @@ CHROME = {
             "nir_female": "Female",
             "nir_temporary": "Provisional number",
             "nir_key_expected": "Expected key for these 13 digits: {expected}",
+            "format_rib": "Unexpected format: a French RIB is a bank code (5 digits), a branch code (5 digits), an account number (11 digits or letters) and a key (2 digits). Leave the key out and the tool computes it.",
+            "valid_rib": "Valid RIB key",
+            "invalid_rib": "Invalid RIB key: the account, branch or bank code was mistyped or altered",
+            "computed_rib": "Computed RIB key: {key}",
+            "rib_parts": "Bank {bank} · Branch {branch} · Account {account}",
+            "rib_key_expected": "Expected key for this account: {expected}",
+            "rib_iban": "Matching IBAN: {iban}",
+            "reminder_rib": "A valid key only proves the RIB is well-formed — not that the account exists, nor that it belongs to the person or company who sent it.",
+            "format_mrz": "Format not recognised: paste the 2 lines (passport, 44 characters each; old French ID card, 36) or the 3 lines (card-size ID, 30 characters), using only letters, digits and < chevrons.",
+            "valid_mrz": "Every check digit is valid",
+            "invalid_mrz": "At least one check digit is wrong: the MRZ was mistyped, misread or altered",
+            "mrz_format_TD3": "Format: passport (2 lines of 44 characters)",
+            "mrz_format_TD1": "Format: card-size ID document (3 lines of 30 characters)",
+            "mrz_format_TD2": "Format: ID document with 2 lines of 36 characters",
+            "mrz_format_FR1988": "Format: French ID card issued 1988-2021 (2 lines of 36 characters)",
+            "mrz_field_number": "Document number",
+            "mrz_field_birth": "Date of birth",
+            "mrz_field_expiry": "Expiry date",
+            "mrz_field_personal": "Optional data",
+            "mrz_field_composite": "Overall check",
+            "reminder_mrz": "Valid check digits only prove the MRZ is consistent: the algorithm is public, and a careful forger can recompute them. Compare the MRZ with the name and dates printed on the document too.",
             "reminder_nir": "A valid key only proves the number is well-formed — not that it was ever assigned, nor that it belongs to the person named on the document.",
             "reminder": "A valid check digit only proves the number is well-formed — not that the account or company exists, nor that it belongs to whoever issued the document.",
         },
@@ -469,6 +511,182 @@ CHROME = {
 
 GUIDES: dict[str, list[Guide]] = {
     "fr": [
+        Guide(
+            slug="reperer-un-faux-dossier-de-location",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["verifier-une-mrz", "verifier-un-numero-de-securite-sociale", "verifier-un-siret"],
+            counterpart="how-to-spot-a-fake-rental-application",
+            title="Repérer un faux dossier de location",
+            description=(
+                "Bulletins de salaire, avis d'imposition, pièce d'identité : "
+                "vérifier un dossier de location pièce par pièce, et les documents "
+                "qu'un bailleur ne peut pas demander."
+            ),
+            heading="Comment repérer un faux dossier de location",
+            intro=(
+                "Un faux dossier de location ne se voit presque jamais d'un coup "
+                "d'œil : il est fait de vraies pièces retouchées, souvent juste "
+                "assez pour franchir le seuil de revenus demandé. La méthode fiable "
+                "consiste à vérifier chaque pièce avec ses propres contrôles, puis à "
+                "croiser les pièces entre elles."
+            ),
+            key_points=[
+                (
+                    "Un faux dossier de location repose le plus souvent sur des "
+                    "bulletins de salaire, un avis d'imposition ou un justificatif de "
+                    "domicile retouchés : chaque pièce a ses propres contrôles."
+                ),
+                (
+                    "L'avis d'imposition se vérifie sur le service officiel SVAIR des "
+                    "impôts, avec le numéro fiscal et la référence de l'avis : c'est "
+                    "le contrôle le plus fiable du dossier."
+                ),
+                (
+                    "Croisez les pièces : même nom et même adresse partout, un salaire "
+                    "cohérent avec le revenu déclaré, un employeur qui existe au "
+                    "registre des entreprises."
+                ),
+                (
+                    "Un bailleur ne peut demander que les pièces de la liste fixée par "
+                    "le décret n° 2015-1437 : relevés bancaires et attestation de bonne "
+                    "tenue de compte en sont exclus."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Les pièces qu'un bailleur peut demander",
+                    paragraphs=[
+                        "La liste est fermée : le décret n° 2015-1437 fixe ce "
+                        "qu'un bailleur peut exiger d'un candidat et de sa "
+                        "caution. On y trouve une pièce d'identité, un justificatif "
+                        "de domicile, des justificatifs d'activité professionnelle "
+                        "(contrat de travail, attestation de l'employeur, extrait "
+                        "Kbis pour un indépendant) et des justificatifs de "
+                        "ressources (derniers bulletins de salaire, dernier avis "
+                        "d'imposition).",
+                        "Tout ce qui n'y figure pas est interdit, notamment les "
+                        "relevés de compte, l'attestation de bonne tenue de compte, "
+                        "la carte Vitale, l'extrait de casier judiciaire, le "
+                        "dossier médical ou un chèque de réservation.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier chaque pièce",
+                    bullets=[
+                        "<strong>Bulletins de salaire</strong> : code 2D-Doc, "
+                        "logiciel de paie, calculs et cumuls (<a href=\"/guides/"
+                        "verifier-un-bulletin-de-salaire\">notre guide</a>).",
+                        "<strong>Avis d'imposition</strong> : vérification SVAIR et "
+                        "code 2D-Doc (<a href=\"/guides/verifier-un-avis-d-imposition"
+                        "\">notre guide</a>).",
+                        "<strong>Justificatif de domicile</strong> : facture "
+                        "d'énergie ou quittance retouchée au nom du candidat "
+                        "(<a href=\"/guides/verifier-un-justificatif-de-domicile\">"
+                        "notre guide</a>).",
+                        "<strong>Pièce d'identité</strong> : MRZ et cohérence avec "
+                        "les autres pièces (<a href=\"/guides/verifier-une-carte-d-"
+                        "identite\">notre guide</a>).",
+                        "<strong>Indépendant</strong> : extrait Kbis récent et SIRET "
+                        "actif (<a href=\"/guides/verifier-un-extrait-kbis\">notre "
+                        "guide</a>).",
+                    ],
+                ),
+                Section(
+                    heading="Croiser les pièces entre elles",
+                    paragraphs=[
+                        "Une pièce falsifiée peut être soignée ; un dossier entier "
+                        "cohérent est beaucoup plus difficile à fabriquer. Les "
+                        "contradictions les plus fréquentes :",
+                    ],
+                    bullets=[
+                        "<strong>Le nom et l'adresse</strong> diffèrent d'une pièce "
+                        "à l'autre, ou l'adresse du justificatif ne correspond pas "
+                        "à celle de l'avis d'imposition.",
+                        "<strong>Le salaire</strong> des bulletins, ramené à "
+                        "l'année, est sans rapport avec le revenu de l'avis "
+                        "d'imposition, en tenant compte du décalage d'un an.",
+                        "<strong>L'employeur</strong> : son SIRET n'existe pas, "
+                        "désigne une autre entreprise, ou l'entreprise est fermée "
+                        "(<a href=\"/outils/verifier-un-siret\">vérifier un "
+                        "SIRET</a>).",
+                        "<strong>Les dates</strong> : une ancienneté sur les "
+                        "bulletins incompatible avec la date d'embauche du contrat, "
+                        "des bulletins de trois mois strictement identiques sauf la "
+                        "période.",
+                    ],
+                ),
+                Section(
+                    heading="Les signaux d'alerte",
+                    bullets=[
+                        "Des pièces envoyées uniquement en photo ou en scan alors "
+                        "qu'elles existent en PDF : une copie aplatie efface la "
+                        "plupart des traces de retouche.",
+                        "Des PDF produits par un convertisseur en ligne ou un "
+                        "éditeur de PDF, là où l'on attend un logiciel de paie ou "
+                        "le site des impôts.",
+                        "Des revenus pile au-dessus du seuil demandé, souvent trois "
+                        "fois le loyer.",
+                        "Un numéro de téléphone de l'employeur fourni dans le "
+                        "dossier : appelez plutôt le standard trouvé par vous-même.",
+                    ],
+                ),
+                Section(
+                    heading="DossierFacile : utile, mais pas une preuve",
+                    paragraphs=[
+                        "DossierFacile est le service gratuit de l'État pour "
+                        "constituer un dossier de location. Ses équipes contrôlent "
+                        "la lisibilité, la cohérence et la conformité des pièces à "
+                        "la liste autorisée, et les documents sont transmis avec un "
+                        "filigrane. Le service ne certifie pas pour autant "
+                        "l'authenticité des pièces : les contrôles ci-dessus "
+                        "gardent tout leur sens.",
+                    ],
+                ),
+                Section(
+                    heading="Ce que risque l'auteur d'un faux",
+                    paragraphs=[
+                        "Fabriquer ou modifier un document et s'en servir relève du "
+                        "faux et usage de faux (article 441-1 du code pénal), puni "
+                        "de trois ans d'emprisonnement et de 45 000 euros d'amende. "
+                        "Conservez les pièces reçues et les échanges si vous "
+                        "envisagez de porter plainte.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier tout le dossier d'un coup",
+                    paragraphs=[
+                        "TrustyFile accepte jusqu'à dix fichiers à la fois : "
+                        "déposez toutes les pièces PDF du dossier et chacune reçoit "
+                        "son analyse (retouches, révisions, logiciel d'origine, "
+                        "code 2D-Doc, identifiants d'entreprise).",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Comment savoir si un dossier de location est faux ?",
+                    "Vérifiez chaque pièce avec ses propres contrôles (SVAIR pour l'avis "
+                    "d'imposition, 2D-Doc et calculs pour les bulletins de salaire, MRZ "
+                    "pour la pièce d'identité), puis croisez noms, adresses, revenus et "
+                    "employeur d'une pièce à l'autre.",
+                ),
+                (
+                    "Quels documents un propriétaire n'a-t-il pas le droit de demander ?",
+                    "Tout ce qui ne figure pas dans la liste du décret n° 2015-1437, "
+                    "notamment les relevés de compte, l'attestation de bonne tenue de "
+                    "compte, la carte Vitale, l'extrait de casier judiciaire, le dossier "
+                    "médical ou un chèque de réservation.",
+                ),
+                (
+                    "DossierFacile garantit-il qu'un dossier est authentique ?",
+                    "Non. DossierFacile contrôle la lisibilité, la cohérence et la "
+                    "conformité des pièces, mais ne certifie pas leur authenticité. "
+                    "Vérifier l'avis d'imposition sur SVAIR reste utile.",
+                ),
+            ],
+        ),
         Guide(
             slug="verifier-une-facture-falsifiee",
             audience="business",
@@ -1209,6 +1427,470 @@ GUIDES: dict[str, list[Guide]] = {
                     "Très peu : un scan perd la couche texte, les polices et les "
                     "métadonnées. Demandez le PDF téléchargé depuis l'espace RH du "
                     "salarié.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="verifier-un-releve-bancaire",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["verifier-un-iban"],
+            counterpart="how-to-verify-a-bank-statement",
+            title="Vérifier un relevé bancaire : repérer un faux",
+            description=(
+                "Faux relevé de compte dans un dossier de crédit ou de vente : "
+                "soldes, logiciel d'origine, IBAN, virements de salaire — les "
+                "contrôles qui révèlent un relevé retouché."
+            ),
+            heading="Comment vérifier un relevé bancaire",
+            intro=(
+                "Un relevé de compte retouché sert à gonfler des revenus, à "
+                "masquer un découvert ou à prouver un paiement qui n'a jamais eu "
+                "lieu. C'est un document facile à imiter visuellement, mais "
+                "difficile à falsifier proprement : il est fait de chiffres qui "
+                "doivent tous tomber juste les uns par rapport aux autres."
+            ),
+            key_points=[
+                (
+                    "Refaites le calcul du relevé : solde précédent, plus les crédits, "
+                    "moins les débits, doit donner exactement le nouveau solde."
+                ),
+                (
+                    "Un relevé téléchargé depuis l'espace client est produit par le "
+                    "système de la banque ; un PDF issu de Word, Canva ou d'un "
+                    "convertisseur en ligne contredit ce qu'il prétend être."
+                ),
+                (
+                    "Le code banque (les 5 chiffres après la clé de l'IBAN français) "
+                    "désigne un établissement précis : il doit correspondre au nom de "
+                    "la banque affiché sur le relevé."
+                ),
+                (
+                    "En France, un bailleur n'a pas le droit de demander un relevé "
+                    "bancaire à un candidat locataire ou à sa caution (loi du 6 juillet "
+                    "1989, article 22-2)."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Qui peut demander un relevé bancaire ?",
+                    paragraphs=[
+                        "Les relevés de compte circulent surtout dans les demandes "
+                        "de crédit, chez les courtiers, entre professionnels qui "
+                        "vérifient une capacité de paiement, et dans les ventes "
+                        "entre particuliers où l'acheteur « prouve » un virement.",
+                        "Pour une location, c'est différent : le relevé de compte "
+                        "et l'attestation de bonne tenue de compte figurent parmi "
+                        "les pièces qu'un bailleur ne peut pas exiger d'un candidat "
+                        "ni de sa caution (loi du 6 juillet 1989, article 22-2, et "
+                        "décret n° 2015-1437). Pour vérifier les revenus d'un "
+                        "locataire, ce sont les <a href=\"/guides/verifier-un-bulletin-"
+                        "de-salaire\">bulletins de salaire</a> et l'<a href=\"/guides/"
+                        "verifier-un-avis-d-imposition\">avis d'imposition</a> qui "
+                        "comptent.",
+                    ],
+                ),
+                Section(
+                    heading="Refaire les comptes",
+                    paragraphs=[
+                        "Un relevé est une suite d'additions. Le faussaire qui "
+                        "modifie un montant oublie souvent de corriger tout ce qui "
+                        "en dépend :",
+                    ],
+                    bullets=[
+                        "<strong>Solde précédent + crédits − débits = nouveau "
+                        "solde</strong> : la règle de base, à vérifier au centime.",
+                        "<strong>Les totaux de colonnes</strong> : le total des "
+                        "débits et celui des crédits, en bas de page, doivent "
+                        "correspondre à la somme des lignes.",
+                        "<strong>Le solde d'un relevé à l'autre</strong> : le solde "
+                        "final d'un mois est le solde initial du suivant. Demander "
+                        "deux ou trois relevés consécutifs rend la retouche "
+                        "beaucoup plus difficile.",
+                        "<strong>Le solde courant ligne par ligne</strong>, quand la "
+                        "banque l'affiche : une seule ligne modifiée décale toutes "
+                        "les suivantes.",
+                    ],
+                ),
+                Section(
+                    heading="Identifier le logiciel qui a produit le PDF",
+                    paragraphs=[
+                        "Un relevé téléchargé depuis l'espace client sort du "
+                        "système documentaire de la banque : même producteur PDF, "
+                        "mêmes polices, même structure d'un mois sur l'autre. Des "
+                        "métadonnées qui annoncent un traitement de texte, un "
+                        "éditeur de PDF ou un convertisseur en ligne contredisent "
+                        "cette origine.",
+                        "Méfiance aussi envers les modèles de relevés vendus en "
+                        "ligne : ils imitent la mise en page d'une banque, pas son "
+                        "empreinte technique. Les indices sont détaillés dans "
+                        "<a href=\"/guides/savoir-si-un-pdf-a-ete-modifie\">notre "
+                        "guide sur les PDF modifiés</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Examiner les zones sensibles",
+                    paragraphs=[
+                        "La fraude courante ne fabrique pas un relevé entier : elle "
+                        "retouche un relevé authentique. Les indices se concentrent "
+                        "sur le nom du titulaire, l'adresse, la ligne du salaire et "
+                        "les soldes : police différente au milieu d'une colonne, "
+                        "chiffres mal alignés, rectangle blanc posé sur l'ancienne "
+                        "valeur, révision ajoutée au fichier après sa création.",
+                    ],
+                ),
+                Section(
+                    heading="Croiser avec les autres pièces",
+                    bullets=[
+                        "<strong>L'IBAN</strong> : sa clé doit être valide, et le "
+                        "code banque doit désigner la banque dont le logo figure "
+                        "sur le relevé (<a href=\"/outils/verifier-un-iban\">"
+                        "vérifier un IBAN</a>).",
+                        "<strong>Le virement de salaire</strong> : son montant doit "
+                        "correspondre au net à payer du bulletin du même mois, et "
+                        "le libellé à l'employeur qui y figure.",
+                        "<strong>Le titulaire et l'adresse</strong> : identiques à "
+                        "ceux des autres pièces du dossier.",
+                    ],
+                ),
+                Section(
+                    heading="Scan et capture d'écran : non vérifiables",
+                    paragraphs=[
+                        "Un relevé scanné, photographié ou capturé à l'écran ne "
+                        "conserve ni métadonnées, ni polices, ni historique de "
+                        "révisions. Seul le calcul des soldes reste possible, et "
+                        "l'absence d'anomalie ne prouve alors rien.",
+                        "Quand l'enjeu est réel, préférez le PDF téléchargé depuis "
+                        "l'espace client, ou une solution d'accès aux comptes "
+                        "agréée (DSP2), où les données viennent directement de la "
+                        "banque, sans document intermédiaire à falsifier.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Comment savoir si un relevé bancaire est faux ?",
+                    "Refaites le calcul des soldes, vérifiez le logiciel qui a produit le "
+                    "PDF, la clé de l'IBAN et la cohérence du code banque, puis cherchez "
+                    "les retouches sur le nom, le salaire et les soldes.",
+                ),
+                (
+                    "Un propriétaire peut-il demander des relevés bancaires ?",
+                    "Non. En France, le relevé de compte et l'attestation de bonne tenue "
+                    "de compte font partie des pièces qu'un bailleur ne peut pas exiger "
+                    "d'un candidat locataire ni de sa caution.",
+                ),
+                (
+                    "Peut-on vérifier une capture d'écran de relevé ou de virement ?",
+                    "Presque pas : une image ne garde ni métadonnées ni polices. Seule la "
+                    "cohérence des chiffres se contrôle. Demandez le PDF de l'espace "
+                    "client.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="faux-justificatif-de-virement",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["verifier-un-iban"],
+            counterpart="how-to-spot-a-fake-payment-proof",
+            title="Faux justificatif de virement : comment le repérer",
+            description=(
+                "Capture d'écran de virement, faux e-mail de la banque, paiement « en "
+                "attente » : pourquoi un justificatif ne prouve rien, et la seule "
+                "vérification qui compte."
+            ),
+            heading="Faux justificatif de virement : comment ne pas se faire avoir",
+            intro=(
+                "Vous vendez une voiture, un téléphone ou un meuble, et l'acheteur "
+                "envoie une « preuve de virement » pour repartir avec l'objet tout "
+                "de suite. C'est l'une des arnaques les plus répandues entre "
+                "particuliers, et elle repose sur une confusion simple : un "
+                "justificatif n'est pas de l'argent sur votre compte."
+            ),
+            key_points=[
+                (
+                    "Un justificatif de virement prouve au mieux qu'un ordre a été "
+                    "saisi, jamais que l'argent est arrivé : seule votre propre banque "
+                    "fait foi."
+                ),
+                (
+                    "Ne remettez l'objet qu'une fois le montant crédité sur votre "
+                    "compte, vérifié vous-même dans l'application de votre banque, "
+                    "jamais via un lien reçu par message."
+                ),
+                (
+                    "Depuis le 9 octobre 2025, les banques de la zone euro doivent "
+                    "proposer le virement instantané au prix d'un virement classique : "
+                    "l'argent peut arriver en quelques secondes."
+                ),
+                (
+                    "Un e-mail annonçant un paiement « bloqué » ou « en attente » "
+                    "jusqu'à ce que vous envoyiez l'objet ou payiez des frais est une "
+                    "arnaque : aucune banque ne fonctionne ainsi."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Ce qu'un justificatif prouve vraiment",
+                    paragraphs=[
+                        "Le document que l'acheteur vous montre, capture d'écran "
+                        "ou PDF, sort de son application à lui. Au mieux, il "
+                        "prouve qu'un ordre de virement a été saisi. Un virement "
+                        "programmé ou différé peut encore être annulé avant son "
+                        "exécution, et un justificatif peut aussi être modifié, ou "
+                        "fabriqué de toutes pièces, en quelques minutes.",
+                        "La seule preuve de paiement est le crédit sur votre "
+                        "compte, constaté par vous.",
+                    ],
+                ),
+                Section(
+                    heading="Les scénarios les plus courants",
+                    bullets=[
+                        "<strong>La capture « virement effectué »</strong>, envoyée "
+                        "au moment de récupérer l'objet, avec une excuse pour le "
+                        "délai : « ça met deux ou trois jours ».",
+                        "<strong>Le faux e-mail de la banque</strong> ou d'un "
+                        "service de paiement, qui annonce des fonds « en attente de "
+                        "validation » jusqu'à ce que vous envoyiez un numéro de "
+                        "suivi ou régliez des frais.",
+                        "<strong>Le trop-perçu</strong> : l'acheteur affirme avoir "
+                        "envoyé plus que le prix et demande que vous lui remboursiez "
+                        "la différence.",
+                        "<strong>Le lien de « réception du paiement »</strong> qui "
+                        "mène vers une fausse page de votre banque et vous demande "
+                        "vos identifiants ou les données de votre carte.",
+                    ],
+                ),
+                Section(
+                    heading="La seule vérification qui compte",
+                    bullets=[
+                        "Ouvrez vous-même l'application ou le site de votre "
+                        "banque, jamais à partir d'un lien reçu.",
+                        "Vérifiez que l'opération apparaît bien au crédit de votre "
+                        "compte et que le solde a augmenté.",
+                        "Proposez un virement instantané : l'acheteur qui est de "
+                        "bonne foi peut payer en quelques secondes, devant vous.",
+                        "Tant que l'argent n'est pas sur votre compte, l'objet ne "
+                        "part pas, quelle que soit l'urgence invoquée.",
+                    ],
+                ),
+                Section(
+                    heading="Les indices de falsification sur le document",
+                    paragraphs=[
+                        "Ils servent à confirmer un doute, jamais à lever "
+                        "l'obligation de vérifier votre compte :",
+                    ],
+                    bullets=[
+                        "<strong>L'IBAN du bénéficiaire</strong> n'est pas "
+                        "exactement le vôtre, ou il est tronqué là où il devrait "
+                        "apparaître en entier.",
+                        "<strong>Le montant ou le nom</strong> sont dans une police "
+                        "légèrement différente du reste, mal alignés, ou posés sur "
+                        "un fond qui ne correspond pas.",
+                        "<strong>La date et l'heure</strong> ne collent pas avec "
+                        "votre échange, ou un virement classique est annoncé "
+                        "« exécuté » un dimanche alors qu'il est en principe traité "
+                        "les jours ouvrés.",
+                        "<strong>Le PDF</strong> a été produit par un éditeur de "
+                        "PDF ou un convertisseur en ligne, pas par le site d'une "
+                        "banque (<a href=\"/guides/savoir-si-un-pdf-a-ete-modifie\">"
+                        "comment le savoir</a>).",
+                    ],
+                ),
+                Section(
+                    heading="Ce que change la vérification du bénéficiaire",
+                    paragraphs=[
+                        "Depuis le 9 octobre 2025, la banque de celui qui paie "
+                        "vérifie, avant chaque virement en euros, que le nom saisi "
+                        "correspond bien au titulaire de l'IBAN. Ce contrôle "
+                        "protège celui qui envoie l'argent contre une erreur ou un "
+                        "faux RIB. Il ne protège pas le vendeur contre un faux "
+                        "justificatif : là encore, seul votre compte fait foi.",
+                    ],
+                ),
+                Section(
+                    heading="Si vous avez été victime",
+                    bullets=[
+                        "Gardez tout : annonce, messages, justificatif reçu, "
+                        "coordonnées de l'acheteur, numéro de suivi si l'objet est "
+                        "parti.",
+                        "Signalez le compte de l'acheteur à la plateforme de "
+                        "petites annonces.",
+                        "Portez plainte. Pour une escroquerie commise sur internet, "
+                        "la plainte peut se déposer en ligne (plateforme THESEE, "
+                        "accessible depuis service-public.fr).",
+                        "Si vous avez saisi vos identifiants bancaires ou votre "
+                        "carte sur une fausse page, appelez votre banque "
+                        "immédiatement.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Une capture d'écran de virement est-elle une preuve de paiement ?",
+                    "Non. Elle sort de l'application de l'acheteur et peut être modifiée "
+                    "ou fabriquée en quelques minutes. La seule preuve est le crédit "
+                    "visible sur votre propre compte.",
+                ),
+                (
+                    "Comment être sûr qu'un virement est bien arrivé ?",
+                    "Ouvrez vous-même l'application de votre banque, sans passer par un "
+                    "lien reçu, et vérifiez que l'opération figure au crédit de votre "
+                    "compte. Un virement instantané arrive en quelques secondes.",
+                ),
+                (
+                    "Un virement peut-il être annulé après l'envoi du justificatif ?",
+                    "Oui, s'il est programmé ou différé : il peut être annulé tant qu'il "
+                    "n'est pas exécuté. Un virement instantané est en revanche définitif "
+                    "en quelques secondes.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="verifier-une-carte-d-identite",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["verifier-une-mrz"],
+            counterpart="how-to-verify-an-id-card-or-passport",
+            title="Vérifier une carte d'identité ou un passeport",
+            description=(
+                "Copie de carte d'identité ou de passeport dans un dossier : MRZ et "
+                "chiffres de contrôle, cohérence avec la partie imprimée, dates de "
+                "validité, retouches du fichier."
+            ),
+            heading="Comment vérifier une carte d'identité ou un passeport",
+            intro=(
+                "Dans un dossier de location, une ouverture de compte ou une vente, "
+                "on reçoit presque toujours une copie de la pièce d'identité, en "
+                "photo ou en PDF. Une copie ne laisse pas contrôler les sécurités "
+                "physiques (hologramme, encres, gravure laser). Il reste trois "
+                "choses à vérifier : la MRZ, la cohérence des informations et "
+                "l'origine du fichier."
+            ),
+            key_points=[
+                (
+                    "Sur une copie de pièce d'identité, le contrôle le plus utile est "
+                    "la MRZ : ses chiffres de contrôle doivent être justes et ses "
+                    "données identiques à celles imprimées sur la pièce."
+                ),
+                (
+                    "La carte d'identité française existe en deux formats : "
+                    "l'ancienne (1988-2021) porte une MRZ de 2 lignes de 36 "
+                    "caractères, la nouvelle au format carte bancaire 3 lignes de 30."
+                ),
+                (
+                    "Des chiffres de contrôle justes ne prouvent pas l'authenticité, "
+                    "car l'algorithme est public ; des chiffres faux sur un document "
+                    "numérique sont en revanche un signal fort."
+                ),
+                (
+                    "Pour protéger votre propre pièce, ajoutez un filigrane avec le "
+                    "service gratuit de l'État FiligraneFacile avant de l'envoyer."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Lire et vérifier la MRZ",
+                    paragraphs=[
+                        "La MRZ est la bande de caractères terminée par des "
+                        "chevrons (&lt;&lt;&lt;), en bas de la page photo d'un "
+                        "passeport ou au dos de la carte d'identité. Elle reprend le "
+                        "type de document, le pays, le nom, le numéro, la date de "
+                        "naissance, le sexe et la date d'expiration, et plusieurs "
+                        "champs sont suivis d'un chiffre de contrôle (norme OACI "
+                        "9303).",
+                        "Recopiez les lignes dans notre <a href=\"/outils/"
+                        "verifier-une-mrz\">vérificateur de MRZ</a> : il reconnaît "
+                        "le format (passeport, nouvelle carte, ancienne carte "
+                        "française) et contrôle chaque chiffre. Sur une photo, "
+                        "relisez les caractères ambigus : 0 et O, 8 et B, 1 et I.",
+                    ],
+                ),
+                Section(
+                    heading="Comparer la MRZ et la partie imprimée",
+                    paragraphs=[
+                        "C'est le contrôle le plus révélateur. Le faussaire qui "
+                        "change le nom ou la date de naissance dans la partie "
+                        "visible oublie souvent de refaire la MRZ, ou la refait "
+                        "sans recalculer les chiffres de contrôle. Vérifiez que "
+                        "correspondent :",
+                    ],
+                    bullets=[
+                        "le nom et les prénoms (sans accents dans la MRZ) ;",
+                        "la date de naissance, notée AAMMJJ dans la MRZ ;",
+                        "le numéro du document ;",
+                        "la date d'expiration, sauf sur l'ancienne carte française "
+                        "dont la MRZ n'en contient pas.",
+                    ],
+                ),
+                Section(
+                    heading="Vérifier les dates de validité",
+                    paragraphs=[
+                        "Un passeport d'adulte est valable 10 ans, la nouvelle "
+                        "carte d'identité aussi. Attention à l'ancienne carte : si "
+                        "elle a été délivrée à un majeur entre le 2 janvier 2004 et "
+                        "le 31 décembre 2013, elle reste valable 15 ans, même si la "
+                        "date imprimée n'en indique que 10. Une carte « périmée » de "
+                        "moins de cinq ans n'est donc pas forcément un faux.",
+                    ],
+                ),
+                Section(
+                    heading="Examiner le fichier lui-même",
+                    paragraphs=[
+                        "Quand la copie est un PDF, son origine se lit dans ses "
+                        "métadonnées et sa structure : un fichier passé par un "
+                        "éditeur d'image ou de PDF, une photo d'identité collée "
+                        "dont la résolution diffère du reste, une police qui "
+                        "change sur le nom ou la date, une révision ajoutée après "
+                        "coup. Les indices sont détaillés dans <a href=\"/guides/"
+                        "savoir-si-un-pdf-a-ete-modifie\">notre guide sur les PDF "
+                        "modifiés</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Protéger votre propre pièce d'identité",
+                    paragraphs=[
+                        "Une copie envoyée pour une location peut resservir à une "
+                        "usurpation d'identité. Le service gratuit de l'État "
+                        "FiligraneFacile (filigrane.beta.gouv.fr) ajoute sur le "
+                        "document un filigrane précisant son destinataire et son "
+                        "usage, par exemple « Document exclusivement destiné à la "
+                        "location immobilière ».",
+                    ],
+                ),
+                Section(
+                    heading="Ce que fait TrustyFile",
+                    paragraphs=[
+                        "Sur une pièce d'identité au format numérique, TrustyFile "
+                        "lit la MRZ et vérifie ses chiffres de contrôle. Sur un "
+                        "scan ou une photo, où la lecture automatique introduit "
+                        "des erreurs, il ne contrôle que la structure de la MRZ, et "
+                        "cela pour ne pas accuser à tort un document authentique.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Comment vérifier une carte d'identité à partir d'une copie ?",
+                    "Vérifiez les chiffres de contrôle de la MRZ, comparez la MRZ avec "
+                    "le nom, la date de naissance et le numéro imprimés, contrôlez la "
+                    "date de validité, puis l'origine du fichier s'il s'agit d'un PDF.",
+                ),
+                (
+                    "Une carte d'identité périmée est-elle forcément invalide ?",
+                    "Pas toujours. Une carte délivrée à un majeur entre le 2 janvier "
+                    "2004 et le 31 décembre 2013 reste valable 15 ans, même si la date "
+                    "imprimée indique 10 ans.",
+                ),
+                (
+                    "Une MRZ valide prouve-t-elle que la pièce est authentique ?",
+                    "Non. L'algorithme des chiffres de contrôle est public. Une MRZ "
+                    "valide prouve seulement sa cohérence interne ; elle doit aussi "
+                    "correspondre à la partie imprimée.",
                 ),
             ],
         ),
@@ -2291,6 +2973,173 @@ GUIDES: dict[str, list[Guide]] = {
     ],
     "en": [
         Guide(
+            slug="how-to-spot-a-fake-rental-application",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["mrz-checker", "french-social-security-number-checker", "siret-checker"],
+            counterpart="reperer-un-faux-dossier-de-location",
+            title="How to Spot a Fake Rental Application in France",
+            description=(
+                "Pay slips, tax notice, ID: how to check a French rental "
+                "application document by document, and the papers a landlord is "
+                "not allowed to ask for."
+            ),
+            heading="How to spot a fake rental application",
+            intro=(
+                "A fake rental application almost never shows at a glance: it is "
+                "made of genuine documents, edited just enough to clear the income "
+                "threshold. The reliable method is to check each document with its "
+                "own checks, then cross-check the documents against each other."
+            ),
+            key_points=[
+                (
+                    "A fake French rental application usually rests on edited pay "
+                    "slips, an edited tax notice or an edited proof of address: each "
+                    "document has its own checks."
+                ),
+                (
+                    "The tax notice can be checked on the tax office's official SVAIR "
+                    "service, with the tax number and the notice reference: it is the "
+                    "most reliable check in the file."
+                ),
+                (
+                    "Cross-check the documents: the same name and address everywhere, "
+                    "a salary consistent with the declared income, an employer that "
+                    "exists in the business register."
+                ),
+                (
+                    "A landlord in France may only ask for the documents listed in "
+                    "decree no. 2015-1437: bank statements and certificates of good "
+                    "account standing are excluded."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="What a landlord may ask for",
+                    paragraphs=[
+                        "The list is closed: decree no. 2015-1437 sets what a "
+                        "landlord may require from an applicant and their "
+                        "guarantor. It includes an ID document, a proof of address, "
+                        "proof of occupation (employment contract, employer "
+                        "certificate, Kbis extract for the self-employed) and proof "
+                        "of income (latest pay slips, latest tax notice).",
+                        "Anything not on the list is forbidden, including bank "
+                        "statements, certificates of good account standing, the "
+                        "health insurance card, a criminal record extract, medical "
+                        "records or a holding deposit cheque.",
+                    ],
+                ),
+                Section(
+                    heading="Check each document",
+                    bullets=[
+                        "<strong>Pay slips</strong>: 2D-Doc code, payroll software, "
+                        "arithmetic and year-to-date totals (<a href=\"/en/guides/"
+                        "how-to-verify-a-pay-slip\">our guide</a>).",
+                        "<strong>Tax notice</strong>: SVAIR check and 2D-Doc code "
+                        "(<a href=\"/en/guides/how-to-verify-a-french-tax-notice\">"
+                        "our guide</a>).",
+                        "<strong>Proof of address</strong>: an energy bill or rent "
+                        "receipt edited to the applicant's name (<a href=\"/en/"
+                        "guides/how-to-verify-a-proof-of-address\">our guide</a>).",
+                        "<strong>ID document</strong>: the MRZ and its consistency "
+                        "with the other documents (<a href=\"/en/guides/how-to-"
+                        "verify-an-id-card-or-passport\">our guide</a>).",
+                        "<strong>Self-employed</strong>: a recent Kbis extract and "
+                        "an active SIRET (<a href=\"/en/guides/how-to-verify-a-kbis-"
+                        "extract\">our guide</a>).",
+                    ],
+                ),
+                Section(
+                    heading="Cross-check the documents",
+                    paragraphs=[
+                        "One forged document can be careful; a whole consistent "
+                        "file is much harder to fabricate. The most common "
+                        "contradictions:",
+                    ],
+                    bullets=[
+                        "<strong>Name and address</strong> differ from one document "
+                        "to the next, or the proof of address does not match the "
+                        "address on the tax notice.",
+                        "<strong>The salary</strong> on the pay slips, over a year, "
+                        "bears no relation to the income on the tax notice, "
+                        "allowing for the one-year lag.",
+                        "<strong>The employer</strong>: its SIRET does not exist, "
+                        "belongs to another company, or the company has closed "
+                        "(<a href=\"/en/tools/siret-checker\">check a SIRET</a>).",
+                        "<strong>The dates</strong>: seniority on the pay slips "
+                        "that contradicts the hiring date in the contract, or three "
+                        "months of pay slips identical except for the period.",
+                    ],
+                ),
+                Section(
+                    heading="Warning signs",
+                    bullets=[
+                        "Documents sent only as photos or scans when they exist as "
+                        "PDFs: a flattened copy erases most traces of editing.",
+                        "PDFs made by an online converter or a PDF editor, where "
+                        "payroll software or the tax website is expected.",
+                        "Income just above the threshold asked for, often three "
+                        "times the rent.",
+                        "An employer phone number supplied in the file: call the "
+                        "switchboard you found yourself instead.",
+                    ],
+                ),
+                Section(
+                    heading="DossierFacile: useful, not proof",
+                    paragraphs=[
+                        "DossierFacile is the French state's free service for "
+                        "putting a rental application together. Its staff check "
+                        "that documents are legible, consistent and on the "
+                        "authorised list, and files are shared with a watermark. It "
+                        "does not certify that the documents are authentic, so the "
+                        "checks above still matter.",
+                    ],
+                ),
+                Section(
+                    heading="What a forger risks",
+                    paragraphs=[
+                        "Making or altering a document and using it is forgery "
+                        "under French law (article 441-1 of the criminal code), "
+                        "punishable by three years in prison and a 45,000 euro "
+                        "fine. Keep the documents and messages you received if you "
+                        "plan to file a complaint.",
+                    ],
+                ),
+                Section(
+                    heading="Check the whole file at once",
+                    paragraphs=[
+                        "TrustyFile takes up to ten files at a time: drop every PDF "
+                        "in the application and each one gets its own analysis "
+                        "(edits, revisions, originating software, 2D-Doc code, "
+                        "company identifiers).",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "How can I tell if a rental application is fake?",
+                    "Check each document with its own checks (SVAIR for the tax notice, "
+                    "2D-Doc and arithmetic for pay slips, the MRZ for the ID), then "
+                    "cross-check names, addresses, income and employer across the "
+                    "documents.",
+                ),
+                (
+                    "Which documents may a landlord in France not ask for?",
+                    "Anything not listed in decree no. 2015-1437, including bank "
+                    "statements, certificates of good account standing, the health "
+                    "insurance card, a criminal record extract, medical records or a "
+                    "holding deposit cheque.",
+                ),
+                (
+                    "Does DossierFacile guarantee that an application is genuine?",
+                    "No. DossierFacile checks that documents are legible, consistent "
+                    "and on the authorised list, but does not certify that they are "
+                    "authentic. Checking the tax notice on SVAIR is still worth it.",
+                ),
+            ],
+        ),
+        Guide(
             slug="how-to-spot-a-tampered-invoice",
             audience="business",
             modified="2026-11-11",
@@ -3003,6 +3852,452 @@ GUIDES: dict[str, list[Guide]] = {
                     "Can a scanned pay slip be verified?",
                     "Barely: a scan loses the text layer, the fonts and the metadata. "
                     "Ask for the PDF the employee downloads from their HR portal.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-verify-a-bank-statement",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["iban-checker"],
+            counterpart="verifier-un-releve-bancaire",
+            title="How to Verify a Bank Statement and Spot a Fake",
+            description=(
+                "Fake bank statements in loan files and private sales: balances, "
+                "the software that made the PDF, the IBAN, salary credits — the "
+                "checks that expose an edited statement."
+            ),
+            heading="How to verify a bank statement",
+            intro=(
+                "An edited bank statement inflates income, hides an overdraft or "
+                "proves a payment that never happened. It is easy to imitate "
+                "visually and hard to forge cleanly: it is made of figures that "
+                "all have to add up against each other."
+            ),
+            key_points=[
+                (
+                    "Redo the statement's arithmetic: the opening balance, plus "
+                    "credits, minus debits, must give the closing balance exactly."
+                ),
+                (
+                    "A statement downloaded from online banking is produced by the "
+                    "bank's own system; a PDF made in Word, Canva or an online "
+                    "converter contradicts what it claims to be."
+                ),
+                (
+                    "In a French IBAN, the bank code (the 5 digits after the check "
+                    "digits) identifies one specific bank: it must match the bank "
+                    "named on the statement."
+                ),
+                (
+                    "In France, a landlord may not ask a prospective tenant or their "
+                    "guarantor for bank statements (law of 6 July 1989, article 22-2)."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Who asks for bank statements?",
+                    paragraphs=[
+                        "Bank statements mostly change hands in loan "
+                        "applications, at mortgage brokers, between businesses "
+                        "checking a customer's ability to pay, and in private "
+                        "sales where the buyer \"proves\" a transfer.",
+                        "Renting in France is different: bank statements and "
+                        "certificates of good account standing are among the "
+                        "documents a landlord may not require from an applicant "
+                        "or their guarantor (law of 6 July 1989, article 22-2, "
+                        "and decree no. 2015-1437). To check a tenant's income, "
+                        "use the <a href=\"/en/guides/how-to-verify-a-pay-slip\">"
+                        "pay slips</a> and the <a href=\"/en/guides/how-to-verify-"
+                        "a-french-tax-notice\">tax notice</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Redo the arithmetic",
+                    paragraphs=[
+                        "A statement is a chain of additions. Whoever changes one "
+                        "amount usually forgets to fix everything that depends on "
+                        "it:",
+                    ],
+                    bullets=[
+                        "<strong>Opening balance + credits − debits = closing "
+                        "balance</strong>: the basic rule, to the cent.",
+                        "<strong>Column totals</strong>: the debit and credit "
+                        "totals at the bottom of the page must equal the sum of "
+                        "the lines.",
+                        "<strong>From one statement to the next</strong>: one "
+                        "month's closing balance is the next month's opening "
+                        "balance. Asking for two or three consecutive statements "
+                        "makes an edit much harder.",
+                        "<strong>The running balance</strong>, when the bank "
+                        "prints one: a single edited line shifts every line after "
+                        "it.",
+                    ],
+                ),
+                Section(
+                    heading="Identify the software that made the PDF",
+                    paragraphs=[
+                        "A statement downloaded from online banking comes out of "
+                        "the bank's document system: same PDF producer, same "
+                        "fonts, same structure month after month. Metadata naming "
+                        "a word processor, a PDF editor or an online converter "
+                        "contradicts that origin.",
+                        "Be wary of statement templates sold online too: they "
+                        "copy a bank's layout, not its technical fingerprint. The "
+                        "tells are covered in <a href=\"/en/guides/how-to-tell-if-"
+                        "a-pdf-was-modified\">our guide to modified PDFs</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Look at the sensitive areas",
+                    paragraphs=[
+                        "Most fraud does not build a whole statement: it edits a "
+                        "genuine one. The tells cluster around the account "
+                        "holder's name, the address, the salary line and the "
+                        "balances: a different font in the middle of a column, "
+                        "misaligned figures, a white box laid over the old value, "
+                        "a revision added to the file after it was created.",
+                    ],
+                ),
+                Section(
+                    heading="Cross-check against the other documents",
+                    bullets=[
+                        "<strong>The IBAN</strong>: its check digits must be "
+                        "valid, and the bank code must match the bank whose logo "
+                        "is on the statement (<a href=\"/en/tools/iban-checker\">"
+                        "check an IBAN</a>).",
+                        "<strong>The salary credit</strong>: its amount must match "
+                        "the net pay on the same month's pay slip, and its label "
+                        "the employer named there.",
+                        "<strong>The account holder and address</strong>: the "
+                        "same as on the rest of the file.",
+                    ],
+                ),
+                Section(
+                    heading="Scans and screenshots: unverifiable",
+                    paragraphs=[
+                        "A scanned, photographed or screenshotted statement keeps "
+                        "no metadata, no fonts and no revision history. Only the "
+                        "balance arithmetic can still be checked, and finding "
+                        "nothing wrong then proves nothing.",
+                        "When the stakes are real, ask for the PDF downloaded "
+                        "from online banking, or use a licensed account-access "
+                        "service (PSD2), where the data comes straight from the "
+                        "bank with no document in between to forge.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "How can I tell if a bank statement is fake?",
+                    "Redo the balance arithmetic, check which software produced the "
+                    "PDF, validate the IBAN and its bank code, then look for edits "
+                    "around the name, the salary line and the balances.",
+                ),
+                (
+                    "Can a landlord in France ask for bank statements?",
+                    "No. Bank statements and certificates of good account standing are "
+                    "among the documents a landlord may not require from a "
+                    "prospective tenant or their guarantor.",
+                ),
+                (
+                    "Can a screenshot of a statement or transfer be verified?",
+                    "Barely: an image keeps no metadata and no fonts. Only the "
+                    "consistency of the figures can be checked. Ask for the PDF from "
+                    "online banking.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-spot-a-fake-payment-proof",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["iban-checker"],
+            counterpart="faux-justificatif-de-virement",
+            title="Fake Bank Transfer Proof: How to Spot It",
+            description=(
+                "Selling to a stranger: a transfer screenshot, a fake bank email, a "
+                "payment \"on hold\". Why a payment proof proves nothing, and the "
+                "one check that counts."
+            ),
+            heading="Fake bank transfer proof: how not to get caught",
+            intro=(
+                "You are selling a car, a phone or a sofa, and the buyer sends "
+                "\"proof of transfer\" so they can leave with the item right away. "
+                "It is one of the most common scams between private sellers and "
+                "buyers, and it rests on one simple confusion: a payment proof is "
+                "not money in your account."
+            ),
+            key_points=[
+                (
+                    "A bank transfer proof shows at best that an order was entered, "
+                    "never that the money arrived: only your own bank's records count."
+                ),
+                (
+                    "Hand the item over only once the amount is credited to your "
+                    "account, checked yourself in your bank's app, never through a "
+                    "link you were sent."
+                ),
+                (
+                    "Since 9 October 2025, banks in the euro area must offer instant "
+                    "transfers at the price of a regular transfer: the money can "
+                    "arrive in seconds."
+                ),
+                (
+                    "An email saying a payment is \"blocked\" or \"on hold\" until "
+                    "you ship the item or pay a fee is a scam: no bank works that way."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="What a payment proof really proves",
+                    paragraphs=[
+                        "The document the buyer shows you, a screenshot or a PDF, "
+                        "comes out of their own banking app. At best it proves a "
+                        "transfer order was entered. A scheduled or deferred "
+                        "transfer can still be cancelled before it runs, and a "
+                        "proof can be edited, or made up from scratch, in a few "
+                        "minutes.",
+                        "The only proof of payment is the credit on your account, "
+                        "seen by you.",
+                    ],
+                ),
+                Section(
+                    heading="The most common scenarios",
+                    bullets=[
+                        "<strong>The \"transfer sent\" screenshot</strong>, sent "
+                        "when collecting the item, with an excuse for the delay: "
+                        "\"it takes two or three days\".",
+                        "<strong>The fake email from a bank</strong> or a payment "
+                        "service, announcing funds \"pending validation\" until you "
+                        "send a tracking number or pay a fee.",
+                        "<strong>The overpayment</strong>: the buyer claims to have "
+                        "sent more than the price and asks you to refund the "
+                        "difference.",
+                        "<strong>The \"receive your payment\" link</strong> leading "
+                        "to a fake page of your bank that asks for your login or "
+                        "card details.",
+                    ],
+                ),
+                Section(
+                    heading="The one check that counts",
+                    bullets=[
+                        "Open your bank's app or website yourself, never from a "
+                        "link you received.",
+                        "Check that the transaction appears as a credit on your "
+                        "account and that the balance went up.",
+                        "Suggest an instant transfer: a buyer acting in good faith "
+                        "can pay in seconds, in front of you.",
+                        "Until the money is in your account, the item does not "
+                        "leave, whatever the urgency.",
+                    ],
+                ),
+                Section(
+                    heading="Signs of forgery on the document",
+                    paragraphs=[
+                        "They confirm a doubt; they never replace checking your "
+                        "account:",
+                    ],
+                    bullets=[
+                        "<strong>The payee IBAN</strong> is not exactly yours, or "
+                        "it is cut short where it should appear in full.",
+                        "<strong>The amount or the name</strong> is in a slightly "
+                        "different font, misaligned, or laid on a background that "
+                        "does not match.",
+                        "<strong>The date and time</strong> do not fit your "
+                        "conversation, or a regular transfer is shown as "
+                        "\"executed\" on a Sunday, when such transfers are normally "
+                        "processed on business days.",
+                        "<strong>The PDF</strong> was produced by a PDF editor or "
+                        "an online converter, not by a bank's website (<a href=\"/"
+                        "en/guides/how-to-tell-if-a-pdf-was-modified\">how to "
+                        "tell</a>).",
+                    ],
+                ),
+                Section(
+                    heading="What Verification of Payee changes",
+                    paragraphs=[
+                        "Since 9 October 2025, the payer's bank checks, before "
+                        "every euro transfer, that the name entered matches the "
+                        "IBAN's holder. That protects whoever sends the money "
+                        "against a mistake or fake bank details. It does not "
+                        "protect the seller against a fake proof: again, only your "
+                        "account counts.",
+                    ],
+                ),
+                Section(
+                    heading="If you have been scammed",
+                    bullets=[
+                        "Keep everything: the ad, the messages, the proof you "
+                        "received, the buyer's details, the tracking number if the "
+                        "item was shipped.",
+                        "Report the buyer's account to the listings platform.",
+                        "File a police report. In France, a complaint about an "
+                        "online scam can be filed online (the THESEE platform, "
+                        "reached from service-public.fr).",
+                        "If you typed your bank login or card details on a fake "
+                        "page, call your bank at once.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Is a screenshot of a bank transfer proof of payment?",
+                    "No. It comes out of the buyer's app and can be edited or made up "
+                    "in minutes. The only proof is the credit showing on your own "
+                    "account.",
+                ),
+                (
+                    "How can I be sure a bank transfer has arrived?",
+                    "Open your bank's app yourself, not through a link you received, "
+                    "and check that the transaction appears as a credit on your "
+                    "account. An instant transfer arrives in seconds.",
+                ),
+                (
+                    "Can a transfer be cancelled after the proof was sent?",
+                    "Yes, if it was scheduled or deferred: it can be cancelled until it "
+                    "runs. An instant transfer, on the other hand, is final within "
+                    "seconds.",
+                ),
+            ],
+        ),
+        Guide(
+            slug="how-to-verify-an-id-card-or-passport",
+            audience="individuals",
+            published="2026-11-11",
+            modified="2026-11-11",
+            tools=["mrz-checker"],
+            counterpart="verifier-une-carte-d-identite",
+            title="How to Verify an ID Card or Passport Copy",
+            description=(
+                "An ID card or passport copy in an application: the MRZ and its "
+                "check digits, consistency with the printed data, validity dates, "
+                "edits to the file."
+            ),
+            heading="How to verify an ID card or passport",
+            intro=(
+                "In a rental application, an account opening or a sale, what you "
+                "receive is almost always a copy of the ID, as a photo or a PDF. A "
+                "copy does not let you check the physical security features "
+                "(hologram, inks, laser engraving). Three things remain to check: "
+                "the MRZ, the consistency of the data and the origin of the file."
+            ),
+            key_points=[
+                (
+                    "On a copy of an ID document, the most useful check is the MRZ: "
+                    "its check digits must be right and its data identical to what is "
+                    "printed on the document."
+                ),
+                (
+                    "The French ID card comes in two formats: the old one (1988-2021) "
+                    "has a 2-line MRZ of 36 characters, the new card-size one 3 lines "
+                    "of 30."
+                ),
+                (
+                    "Right check digits do not prove authenticity, since the "
+                    "algorithm is public; wrong check digits on a digital document "
+                    "are a strong signal."
+                ),
+                (
+                    "To protect your own ID, add a watermark with the French state's "
+                    "free FiligraneFacile service before sending it."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Read and check the MRZ",
+                    paragraphs=[
+                        "The MRZ is the band of characters ending in chevrons "
+                        "(&lt;&lt;&lt;), at the bottom of a passport's photo page or "
+                        "on the back of an ID card. It repeats the document type, "
+                        "country, name, number, date of birth, sex and expiry date, "
+                        "and several fields are followed by a check digit (ICAO "
+                        "9303).",
+                        "Copy the lines into our <a href=\"/en/tools/mrz-checker\">"
+                        "MRZ checker</a>: it recognises the format (passport, new "
+                        "card, old French card) and checks every digit. On a photo, "
+                        "re-read the ambiguous characters: 0 and O, 8 and B, 1 and I.",
+                    ],
+                ),
+                Section(
+                    heading="Compare the MRZ with the printed data",
+                    paragraphs=[
+                        "This is the most telling check. A forger who changes the "
+                        "name or date of birth in the visible part often forgets to "
+                        "redo the MRZ, or redoes it without recomputing the check "
+                        "digits. Make sure these match:",
+                    ],
+                    bullets=[
+                        "surname and given names (without accents in the MRZ);",
+                        "the date of birth, written YYMMDD in the MRZ;",
+                        "the document number;",
+                        "the expiry date, except on the old French card, whose MRZ "
+                        "has none.",
+                    ],
+                ),
+                Section(
+                    heading="Check the validity dates",
+                    paragraphs=[
+                        "An adult passport is valid for 10 years, and so is the new "
+                        "French ID card. Beware of the old card: if it was issued "
+                        "to an adult between 2 January 2004 and 31 December 2013, "
+                        "it stays valid for 15 years, even though the printed date "
+                        "says 10. A card \"expired\" for less than five years is "
+                        "therefore not necessarily fake.",
+                    ],
+                ),
+                Section(
+                    heading="Look at the file itself",
+                    paragraphs=[
+                        "When the copy is a PDF, its origin shows in its metadata "
+                        "and structure: a file run through an image or PDF editor, "
+                        "a pasted ID photo whose resolution differs from the rest, "
+                        "a font that changes on the name or the date, a revision "
+                        "added afterwards. The tells are covered in <a href=\"/en/"
+                        "guides/how-to-tell-if-a-pdf-was-modified\">our guide to "
+                        "modified PDFs</a>.",
+                    ],
+                ),
+                Section(
+                    heading="Protect your own ID",
+                    paragraphs=[
+                        "A copy sent for a rental can be reused for identity theft. "
+                        "The French state's free FiligraneFacile service "
+                        "(filigrane.beta.gouv.fr) adds a watermark naming who the "
+                        "document is for and why, for example \"For a rental "
+                        "application only\".",
+                    ],
+                ),
+                Section(
+                    heading="What TrustyFile does",
+                    paragraphs=[
+                        "On a digital ID document, TrustyFile reads the MRZ and "
+                        "checks its check digits. On a scan or a photo, where "
+                        "automatic reading introduces errors, it checks only the "
+                        "MRZ's structure, so as not to wrongly accuse a genuine "
+                        "document.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "How do I verify an ID card from a copy?",
+                    "Check the MRZ check digits, compare the MRZ with the printed name, "
+                    "date of birth and number, check the validity date, then the "
+                    "file's origin if it is a PDF.",
+                ),
+                (
+                    "Is an expired French ID card necessarily invalid?",
+                    "Not always. A card issued to an adult between 2 January 2004 and "
+                    "31 December 2013 stays valid for 15 years, even though the printed "
+                    "date says 10.",
+                ),
+                (
+                    "Does a valid MRZ prove the ID is genuine?",
+                    "No. The check-digit algorithm is public. A valid MRZ only proves "
+                    "it is internally consistent; it must also match the printed data.",
                 ),
             ],
         ),
@@ -4136,6 +5431,84 @@ TOOLS: dict[str, list[Tool]] = {
             ],
         ),
         Tool(
+            slug="calculer-une-cle-rib",
+            guides=["detecter-un-faux-rib", "verifier-un-releve-bancaire"],
+            kind="rib",
+            counterpart="rib-key-calculator",
+            modified="2026-11-11",
+            title="Calculer une clé RIB et vérifier un RIB",
+            description=(
+                "Calculez la clé d'un RIB à partir du code banque, du guichet et du "
+                "compte, ou vérifiez un RIB complet et obtenez son IBAN. Gratuit, "
+                "dans votre navigateur."
+            ),
+            heading="Calculer une clé RIB",
+            intro=(
+                "Saisissez le code banque, le code guichet et le numéro de compte "
+                "pour obtenir la clé RIB, ou un RIB complet pour la vérifier. "
+                "L'outil donne aussi l'IBAN français correspondant. Tout se calcule "
+                "dans votre navigateur : le numéro n'est envoyé nulle part."
+            ),
+            placeholder="30006 00001 12345678901 89",
+            sections=[
+                Section(
+                    "Les quatre parties d'un RIB",
+                    bullets=[
+                        "<strong>Code banque</strong> (5 chiffres) : l'établissement, "
+                        "par exemple 30006 pour l'exemple ci-dessus.",
+                        "<strong>Code guichet</strong> (5 chiffres) : l'agence qui "
+                        "tient le compte.",
+                        "<strong>Numéro de compte</strong> (11 caractères) : des "
+                        "chiffres, parfois des lettres.",
+                        "<strong>Clé RIB</strong> (2 chiffres) : calculée à partir "
+                        "des trois autres, elle détecte une faute de frappe.",
+                    ],
+                ),
+                Section(
+                    "Comment la clé est calculée",
+                    bullets=[
+                        "Remplacer chaque lettre du numéro de compte par un chiffre : "
+                        "A et J valent 1, B, K et S valent 2, C, L et T valent 3, et "
+                        "ainsi de suite jusqu'à I, R et Z qui valent 9.",
+                        "Accoler banque, guichet et compte en un nombre de 21 "
+                        "chiffres, puis le multiplier par 100.",
+                        "Calculer le reste de la division par 97.",
+                        "La clé vaut 97 moins ce reste. Exemple : 30006 00001 "
+                        "12345678901 donne la clé 89.",
+                    ],
+                ),
+                Section(
+                    "Ce que la clé prouve, et ce qu'elle ne prouve pas",
+                    paragraphs=[
+                        "Une clé valide signifie que le RIB est bien formé : un "
+                        "chiffre mal recopié ou deux chiffres inversés la font "
+                        "presque toujours échouer.",
+                        "Elle ne dit pas si le compte existe, ni à qui il "
+                        "appartient. Un faux RIB envoyé par un escroc a une clé "
+                        "parfaitement valide : c'est simplement son compte à lui. "
+                        "Avant un premier virement vers un nouveau RIB, confirmez-le "
+                        "par téléphone à un numéro que vous connaissiez déjà.",
+                    ],
+                    bullets=[
+                        '<a href="/guides/detecter-un-faux-rib">Détecter un faux RIB</a> : '
+                        "les indices à chercher dans le document lui-même.",
+                        '<a href="/outils/verifier-un-iban">Vérifier un IBAN</a> : si vous '
+                        "avez l'IBAN plutôt que le RIB.",
+                    ],
+                ),
+                Section(
+                    "RIB et IBAN : le même compte",
+                    paragraphs=[
+                        "L'IBAN français reprend le RIB en entier, précédé de FR et "
+                        "de deux chiffres de contrôle propres à l'IBAN : FR76 3000 "
+                        "6000 0112 3456 7890 189 contient le RIB 30006 00001 "
+                        "12345678901 89. Les deux contrôles sont indépendants : un "
+                        "IBAN peut avoir une clé IBAN juste et une clé RIB fausse.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
             slug="verifier-un-siret",
             guides=["verifier-une-facture-falsifiee", "verifier-un-extrait-kbis", "verifier-une-attestation-de-vigilance-urssaf"],
             kind="siret",
@@ -4421,6 +5794,94 @@ TOOLS: dict[str, list[Tool]] = {
                 ),
             ],
         ),
+        Tool(
+            slug="verifier-une-mrz",
+            guides=["verifier-une-carte-d-identite", "reperer-un-faux-dossier-de-location"],
+            kind="mrz",
+            counterpart="mrz-checker",
+            modified="2026-11-11",
+            title="Vérifier la MRZ d'une carte d'identité ou d'un passeport",
+            description=(
+                "Contrôlez gratuitement les chiffres de contrôle de la MRZ d'un "
+                "passeport ou d'une carte d'identité, ancienne ou nouvelle. Le "
+                "calcul reste dans votre navigateur."
+            ),
+            heading="Vérifier une MRZ",
+            intro=(
+                "Collez les lignes de la bande MRZ, la zone de caractères "
+                "<code>&lt;&lt;&lt;</code> en bas d'un passeport ou au dos d'une "
+                "carte d'identité. L'outil reconnaît le format et vérifie chaque "
+                "chiffre de contrôle. Tout se calcule dans votre navigateur : rien "
+                "n'est envoyé nulle part."
+            ),
+            placeholder=(
+                "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n"
+                "L898902C36UTO7408122F1204159ZE184226B<<<<<10"
+            ),
+            sections=[
+                Section(
+                    "Qu'est-ce que la MRZ ?",
+                    paragraphs=[
+                        "La MRZ (machine readable zone, zone de lecture "
+                        "automatique) reprend les informations essentielles du "
+                        "document sous une forme lisible par les machines : type de "
+                        "document, pays, nom, numéro, date de naissance, sexe, date "
+                        "d'expiration. Son format est fixé par la norme "
+                        "internationale OACI 9303.",
+                        "Plusieurs champs sont suivis d'un chiffre de contrôle "
+                        "calculé à partir de ce champ, et un dernier chiffre "
+                        "contrôle l'ensemble. Une erreur de recopie ou une "
+                        "modification maladroite les fait échouer.",
+                    ],
+                ),
+                Section(
+                    "Les formats reconnus",
+                    bullets=[
+                        "<strong>Passeport</strong> : 2 lignes de 44 caractères.",
+                        "<strong>Carte d'identité française depuis 2021</strong>, et "
+                        "la plupart des cartes européennes : 3 lignes de 30 "
+                        "caractères.",
+                        "<strong>Carte d'identité française de 1988 à 2021</strong> : "
+                        "2 lignes de 36 caractères, dans un format propre à la "
+                        "France.",
+                        "<strong>Autres documents à 2 lignes de 36 caractères</strong> "
+                        "(format OACI TD2).",
+                    ],
+                ),
+                Section(
+                    "Le calcul d'un chiffre de contrôle",
+                    bullets=[
+                        "Chaque caractère reçoit une valeur : les chiffres gardent la "
+                        "leur, A vaut 10, B 11 … Z 35, et le chevron &lt; vaut 0.",
+                        "On multiplie ces valeurs, dans l'ordre, par 7, 3, 1, 7, 3, "
+                        "1…",
+                        "Le chiffre de contrôle est le dernier chiffre de la somme "
+                        "(le reste de la division par 10).",
+                    ],
+                ),
+                Section(
+                    "Ce que le contrôle prouve, et ce qu'il ne prouve pas",
+                    paragraphs=[
+                        "Des chiffres faux sur un document numérique sont un signal "
+                        "fort : la MRZ a été mal recopiée ou modifiée. Sur une photo "
+                        "ou un scan, vérifiez d'abord que vous avez bien lu chaque "
+                        "caractère, car un 0 et un O, ou un 8 et un B, se confondent "
+                        "facilement.",
+                        "Des chiffres justes ne prouvent pas que le document est "
+                        "authentique : l'algorithme est public. Le contrôle le plus "
+                        "utile consiste à comparer la MRZ avec la partie imprimée : "
+                        "nom, date de naissance et date d'expiration doivent être "
+                        "identiques. Un faussaire qui modifie le nom ou la date "
+                        "imprimés oublie souvent la MRZ.",
+                    ],
+                    bullets=[
+                        '<a href="/guides/verifier-une-carte-d-identite">Vérifier une '
+                        "carte d'identité ou un passeport</a> : tous les contrôles, "
+                        "MRZ comprise.",
+                    ],
+                ),
+            ],
+        ),
     ],
     "en": [
         Tool(
@@ -4502,6 +5963,88 @@ TOOLS: dict[str, list[Tool]] = {
                         "looks for what a valid IBAN will never tell you: a covered "
                         "amount, a revision added afterwards, hidden text, a company "
                         "identifier the registry does not know.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="rib-key-calculator",
+            guides=["how-to-spot-a-fake-iban", "how-to-verify-a-bank-statement"],
+            kind="rib",
+            counterpart="calculer-une-cle-rib",
+            modified="2026-11-11",
+            title="French RIB Key Calculator and RIB Checker",
+            description=(
+                "Compute the key of a French RIB from its bank, branch and account "
+                "codes, or check a full RIB and get the matching IBAN. Free; the "
+                "calculation stays in your browser."
+            ),
+            heading="French RIB key calculator",
+            intro=(
+                "Enter the bank code, branch code and account number to get the RIB "
+                "key, or a full RIB to check it. The tool also gives the matching "
+                "French IBAN. Everything runs in your browser: the number is sent "
+                "nowhere."
+            ),
+            placeholder="30006 00001 12345678901 89",
+            sections=[
+                Section(
+                    "The four parts of a RIB",
+                    paragraphs=[
+                        "A RIB (relevé d'identité bancaire) is the French "
+                        "bank-details slip. It predates the IBAN and lives on "
+                        "inside it.",
+                    ],
+                    bullets=[
+                        "<strong>Bank code</strong> (5 digits): the bank, e.g. "
+                        "30006 in the example above.",
+                        "<strong>Branch code</strong> (5 digits): the branch "
+                        "holding the account.",
+                        "<strong>Account number</strong> (11 characters): digits, "
+                        "sometimes letters.",
+                        "<strong>RIB key</strong> (2 digits): computed from the "
+                        "other three, it catches typing mistakes.",
+                    ],
+                ),
+                Section(
+                    "How the key is computed",
+                    bullets=[
+                        "Replace each letter in the account number with a digit: A "
+                        "and J are 1, B, K and S are 2, C, L and T are 3, and so on "
+                        "up to I, R and Z, which are 9.",
+                        "Join bank, branch and account into a 21-digit number, then "
+                        "multiply it by 100.",
+                        "Take the remainder of the division by 97.",
+                        "The key is 97 minus that remainder. Example: 30006 00001 "
+                        "12345678901 gives the key 89.",
+                    ],
+                ),
+                Section(
+                    "What the key proves, and what it does not",
+                    paragraphs=[
+                        "A valid key means the RIB is well-formed: one mistyped "
+                        "digit or two swapped digits almost always break it.",
+                        "It says nothing about whether the account exists or whose "
+                        "it is. A fake RIB sent by a fraudster has a perfectly "
+                        "valid key: the account is simply theirs. Before a first "
+                        "payment to new bank details, confirm them by phone on a "
+                        "number you already knew.",
+                    ],
+                    bullets=[
+                        '<a href="/en/guides/how-to-spot-a-fake-iban">How to spot a fake '
+                        "IBAN</a>: the tells to look for in the document itself.",
+                        '<a href="/en/tools/iban-checker">IBAN checker</a>: if you have '
+                        "the IBAN rather than the RIB.",
+                    ],
+                ),
+                Section(
+                    "RIB and IBAN: the same account",
+                    paragraphs=[
+                        "A French IBAN contains the whole RIB, preceded by FR and "
+                        "two IBAN check digits: FR76 3000 6000 0112 3456 7890 189 "
+                        "contains the RIB 30006 00001 12345678901 89. The two checks "
+                        "are independent: an IBAN can pass its own check and still "
+                        "carry a wrong RIB key.",
                     ],
                 ),
             ],
@@ -4777,6 +6320,85 @@ TOOLS: dict[str, list[Tool]] = {
                         "covered text, inconsistent fonts, online-generator metadata, "
                         "arithmetic consistency. A modern fake pay slip almost always has a "
                         "valid NIR key — and almost always one of these other defects.",
+                    ],
+                ),
+            ],
+        ),
+        Tool(
+            slug="mrz-checker",
+            guides=["how-to-verify-an-id-card-or-passport", "how-to-spot-a-fake-rental-application"],
+            kind="mrz",
+            counterpart="verifier-une-mrz",
+            modified="2026-11-11",
+            title="MRZ Checker for Passports and ID Cards",
+            description=(
+                "Check the check digits in the MRZ of a passport or an ID card, "
+                "including both French ID card formats. Free; the calculation "
+                "stays in your browser."
+            ),
+            heading="MRZ checker",
+            intro=(
+                "Paste the lines of the MRZ, the band of <code>&lt;&lt;&lt;</code> "
+                "characters at the bottom of a passport or on the back of an ID "
+                "card. The tool recognises the format and checks every check digit. "
+                "Everything runs in your browser: nothing is sent anywhere."
+            ),
+            placeholder=(
+                "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n"
+                "L898902C36UTO7408122F1204159ZE184226B<<<<<10"
+            ),
+            sections=[
+                Section(
+                    "What is the MRZ?",
+                    paragraphs=[
+                        "The MRZ (machine readable zone) repeats the document's key "
+                        "data in a form machines can read: document type, country, "
+                        "name, number, date of birth, sex, expiry date. Its format "
+                        "is set by the international standard ICAO 9303.",
+                        "Several fields are followed by a check digit computed from "
+                        "that field, and a final digit checks the whole. A copying "
+                        "mistake or a clumsy edit breaks them.",
+                    ],
+                ),
+                Section(
+                    "Supported formats",
+                    bullets=[
+                        "<strong>Passport</strong>: 2 lines of 44 characters.",
+                        "<strong>French ID card since 2021</strong>, and most "
+                        "European ID cards: 3 lines of 30 characters.",
+                        "<strong>French ID card issued 1988-2021</strong>: 2 lines of "
+                        "36 characters, in a France-specific layout.",
+                        "<strong>Other documents with 2 lines of 36 characters</strong> "
+                        "(ICAO TD2).",
+                    ],
+                ),
+                Section(
+                    "How a check digit is computed",
+                    bullets=[
+                        "Each character gets a value: digits keep theirs, A is 10, B "
+                        "11 … Z 35, and the &lt; chevron is 0.",
+                        "Multiply those values, in order, by 7, 3, 1, 7, 3, 1…",
+                        "The check digit is the last digit of the sum (the remainder "
+                        "of the division by 10).",
+                    ],
+                ),
+                Section(
+                    "What the check proves, and what it does not",
+                    paragraphs=[
+                        "Wrong digits on a digital document are a strong signal: the "
+                        "MRZ was mistyped or edited. On a photo or a scan, first make "
+                        "sure you read every character right: 0 and O, or 8 and B, "
+                        "are easy to confuse.",
+                        "Right digits do not prove the document is genuine: the "
+                        "algorithm is public. The most useful check is to compare "
+                        "the MRZ with the printed part: name, date of birth and "
+                        "expiry date must match. A forger who edits the printed name "
+                        "or date often forgets the MRZ.",
+                    ],
+                    bullets=[
+                        '<a href="/en/guides/how-to-verify-an-id-card-or-passport">How to '
+                        "verify an ID card or passport</a>: every check, the MRZ "
+                        "included.",
                     ],
                 ),
             ],

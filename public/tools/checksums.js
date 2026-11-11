@@ -109,8 +109,89 @@
              formatted: nir.replace(/^(.)(..)(..)(..)(...)(...)(..)$/, '$1 $2 $3 $4 $5 $6 $7') };
   }
 
+  // RIB key of bank (5) + branch (5) + account (11). Mirrors content.py's rib_key.
+  function ribKey(bga) {
+    var account = bga.slice(10).replace(/[A-Z]/g, function (ch) {
+      var n = ch.charCodeAt(0) - 64;
+      return String(n < 10 ? n : (n < 19 ? n - 9 : n - 17));
+    });
+    return 97 - (mod97(bga.slice(0, 10) + account) * 100) % 97;
+  }
+  // French IBAN for a full BBAN (23 characters): check digits = 98 - (BBAN + "FR00" mod 97).
+  function frenchIban(bban) {
+    var numeric = (bban + 'FR00').replace(/[A-Z]/g, function (ch) { return String(ch.charCodeAt(0) - 55); });
+    var check = 98 - mod97(numeric);
+    return ('FR' + (check < 10 ? '0' : '') + check + bban).replace(/(.{4})/g, '$1 ').trim();
+  }
+  // French RIB: 23 characters is checked (is_valid_rib); 21 (no key yet) gets its key computed.
+  function ribCheck(text) {
+    var rib = stripSeparators(text).toUpperCase();
+    var m = /^(\d{5})(\d{5})([0-9A-Z]{11})(\d{2})?$/.exec(rib);
+    if (!m) { return { ok: false, reason: 'format', value: rib }; }
+    var key = ribKey(m[1] + m[2] + m[3]);
+    var keyText = (key < 10 ? '0' : '') + key;
+    var full = m[1] + m[2] + m[3] + keyText;
+    var base = { value: rib, bank: m[1], branch: m[2], account: m[3], expectedKey: keyText, iban: frenchIban(full) };
+    if (!m[4]) { base.ok = false; base.reason = 'compute'; return base; }
+    base.ok = m[4] === keyText;
+    base.reason = base.ok ? null : 'checksum';
+    base.key = m[4];
+    return base;
+  }
+
+  // ICAO 9303 check digit: weights 7-3-1, A=10 ... Z=35, '<' = 0.
+  function mrzDigit(data) {
+    var total = 0, weights = [7, 3, 1];
+    for (var i = 0; i < data.length; i++) {
+      var c = data.charCodeAt(i);
+      var v = c >= 65 ? c - 55 : (c >= 48 && c <= 57 ? c - 48 : 0);
+      total += v * weights[i % 3];
+    }
+    return total % 10;
+  }
+  // MRZ of a passport (TD3), an ID card (TD1, TD2) or the French card of 1988-2021,
+  // told apart by length once whitespace is removed. Mirrors identity.py's mrz_text_checks.
+  function mrzCheck(text) {
+    var mrz = String(text == null ? '' : text).replace(/\s/g, '').toUpperCase();
+    if (!/^[A-Z0-9<]+$/.test(mrz)) { return { ok: false, reason: 'format', value: mrz }; }
+    var fmt, l1, l2, f, birth, expiry = null;
+    if (mrz.length === 88) {
+      fmt = 'TD3'; l1 = mrz.slice(0, 44); l2 = mrz.slice(44);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]], ['personal', l2.slice(28, 42), l2[42]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 43), l2[43]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else if (mrz.length === 90) {
+      fmt = 'TD1'; l1 = mrz.slice(0, 30); l2 = mrz.slice(30, 60);
+      f = [['number', l1.slice(5, 14), l1[14]], ['birth', l2.slice(0, 6), l2[6]],
+           ['expiry', l2.slice(8, 14), l2[14]],
+           ['composite', l1.slice(5, 30) + l2.slice(0, 7) + l2.slice(8, 15) + l2.slice(18, 29), l2[29]]];
+      birth = l2.slice(0, 6); expiry = l2.slice(8, 14);
+    } else if (mrz.length === 72 && mrz.indexOf('IDFRA') === 0) {
+      fmt = 'FR1988'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 12), l2[12]], ['birth', l2.slice(27, 33), l2[33]],
+           ['composite', l1 + l2.slice(0, 35), l2[35]]];
+      birth = l2.slice(27, 33);
+    } else if (mrz.length === 72) {
+      fmt = 'TD2'; l1 = mrz.slice(0, 36); l2 = mrz.slice(36);
+      f = [['number', l2.slice(0, 9), l2[9]], ['birth', l2.slice(13, 19), l2[19]],
+           ['expiry', l2.slice(21, 27), l2[27]],
+           ['composite', l2.slice(0, 10) + l2.slice(13, 20) + l2.slice(21, 35), l2[35]]];
+      birth = l2.slice(13, 19); expiry = l2.slice(21, 27);
+    } else {
+      return { ok: false, reason: 'format', value: mrz };
+    }
+    var checks = f.map(function (x) {
+      var c = x[2], d = mrzDigit(x[1]);
+      return { field: x[0], ok: c === '<' ? d === 0 : (/^\d$/.test(c) && d === +c) };
+    });
+    var ok = checks.every(function (c) { return c.ok; });
+    return { ok: ok, reason: ok ? null : 'checksum', value: mrz, format: fmt, checks: checks,
+             birth: birth, expiry: expiry };
+  }
+
   var api = { ibanCheck: ibanCheck, siretCheck: siretCheck, sirenCheck: sirenCheck, vatCheck: vatCheck,
-              nirCheck: nirCheck };
+              nirCheck: nirCheck, ribCheck: ribCheck, mrzCheck: mrzCheck };
   root.TFChecks = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }
 })(typeof window !== 'undefined' ? window : this);

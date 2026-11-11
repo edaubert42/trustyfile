@@ -81,12 +81,13 @@ dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
 dl.faq dd { margin: 0.3rem 0 0; color: #555; }
 /* Checker tools */
 form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
-form.tool input {
+form.tool input, form.tool textarea {
     flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
     border: 1px solid #c8ccd8; border-radius: 8px;
     font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
 }
-form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool textarea { font-size: 0.95rem; resize: vertical; white-space: pre; overflow-x: auto; }
+form.tool input:focus, form.tool textarea:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
 form.tool button {
     padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
     background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
@@ -117,6 +118,12 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "hasPart": [
                 {
                         "@type": "Article",
+                        "headline": "How to Spot a Fake Rental Application in France",
+                        "description": "Pay slips, tax notice, ID: how to check a French rental application document by document, and the papers a landlord is not allowed to ask for.",
+                        "url": "https://www.trustyfile.com/en/guides/how-to-spot-a-fake-rental-application"
+                },
+                {
+                        "@type": "Article",
                         "headline": "How to spot a tampered invoice",
                         "description": "Edited amounts, altered dates, swapped bank details: the technical evidence that gives away a tampered invoice PDF, and how to check for it.",
                         "url": "https://www.trustyfile.com/en/guides/how-to-spot-a-tampered-invoice"
@@ -144,6 +151,24 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
                         "headline": "How to verify a pay slip",
                         "description": "Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.",
                         "url": "https://www.trustyfile.com/en/guides/how-to-verify-a-pay-slip"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "How to Verify a Bank Statement and Spot a Fake",
+                        "description": "Fake bank statements in loan files and private sales: balances, the software that made the PDF, the IBAN, salary credits — the checks that expose an edited statement.",
+                        "url": "https://www.trustyfile.com/en/guides/how-to-verify-a-bank-statement"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "Fake Bank Transfer Proof: How to Spot It",
+                        "description": "Selling to a stranger: a transfer screenshot, a fake bank email, a payment \"on hold\". Why a payment proof proves nothing, and the one check that counts.",
+                        "url": "https://www.trustyfile.com/en/guides/how-to-spot-a-fake-payment-proof"
+                },
+                {
+                        "@type": "Article",
+                        "headline": "How to Verify an ID Card or Passport Copy",
+                        "description": "An ID card or passport copy in an application: the MRZ and its check digits, consistency with the printed data, validity dates, edits to the file.",
+                        "url": "https://www.trustyfile.com/en/guides/how-to-verify-an-id-card-or-passport"
                 },
                 {
                         "@type": "Article",
@@ -252,6 +277,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h1>Document verification guides</h1>
     <p class="intro">How to recognise a forged document, which technical signals to look at, and what an automated check can and cannot prove. Each guide answers one question.</p>
     <h2 id="individuals">Individuals and rental files</h2>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-rental-application">
+        <h3>How to Spot a Fake Rental Application in France</h3>
+        <p>Pay slips, tax notice, ID: how to check a French rental application document by document, and the papers a landlord is not allowed to ask for.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
     <a class="card" href="/en/guides/how-to-verify-a-proof-of-address">
         <h3>How to verify a proof of address</h3>
         <p>Utility, telecom and internet bills used as proof of address: the technical checks that reveal an edited document, and when the checks simply cannot apply.</p>
@@ -260,6 +290,21 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-a-pay-slip">
         <h3>How to verify a pay slip</h3>
         <p>Fake pay slips in rental files and loan applications: payroll software fingerprints, arithmetic checks and the French 2D-Doc barcode that expose an edited document.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-a-bank-statement">
+        <h3>How to Verify a Bank Statement and Spot a Fake</h3>
+        <p>Fake bank statements in loan files and private sales: balances, the software that made the PDF, the IBAN, salary credits — the checks that expose an edited statement.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-spot-a-fake-payment-proof">
+        <h3>Fake Bank Transfer Proof: How to Spot It</h3>
+        <p>Selling to a stranger: a transfer screenshot, a fake bank email, a payment &quot;on hold&quot;. Why a payment proof proves nothing, and the one check that counts.</p>
+        <p class="more">Read the guide &rarr;</p>
+    </a>
+    <a class="card" href="/en/guides/how-to-verify-an-id-card-or-passport">
+        <h3>How to Verify an ID Card or Passport Copy</h3>
+        <p>An ID card or passport copy in an application: the MRZ and its check digits, consistency with the printed data, validity dates, edits to the file.</p>
         <p class="more">Read the guide &rarr;</p>
     </a>
     <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
@@ -316,6 +361,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <p>Free IBAN checker: validates the mod-97 check digits, the expected length for the country and, for French IBANs, the RIB key. Everything runs in your browser.</p>
         <p class="more">Open the tool &rarr;</p>
     </a>
+    <a class="card" href="/en/tools/rib-key-calculator">
+        <h3>French RIB Key Calculator and RIB Checker</h3>
+        <p>Compute the key of a French RIB from its bank, branch and account codes, or check a full RIB and get the matching IBAN. Free; the calculation stays in your browser.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
     <a class="card" href="/en/tools/siret-checker">
         <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
         <p>Free SIRET checker: validates the 14-digit French establishment number with the Luhn formula, including the special rule for La Poste establishments. Runs locally.</p>
@@ -334,6 +384,11 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/tools/french-social-security-number-checker">
         <h3>French social security number (NIR) key checker</h3>
         <p>Check the two-digit key of a French social security number (13 digits plus key, Corsica&#x27;s 2A/2B included). The number stays in your browser: nothing is sent anywhere.</p>
+        <p class="more">Open the tool &rarr;</p>
+    </a>
+    <a class="card" href="/en/tools/mrz-checker">
+        <h3>MRZ Checker for Passports and ID Cards</h3>
+        <p>Check the check digits in the MRZ of a passport or an ID card, including both French ID card formats. Free; the calculation stays in your browser.</p>
         <p class="more">Open the tool &rarr;</p>
     </a>
     <h2>Frequently asked questions</h2>
