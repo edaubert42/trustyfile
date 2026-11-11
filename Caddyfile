@@ -181,6 +181,15 @@ handle /logo.png {
 	file_server
 }
 
+# Leftover from the Streamlit era (dropped 2026-11): a browser tab still open
+# on the old app polls /_stcore/health and /_stcore/host-config every ~3 s,
+# forever, to reconnect (also under /en/_stcore/...). Answer it here so those
+# polls never reach the app and stop flooding its access log.
+@streamlit path_regexp ^/([a-z]{2}/)?_stcore/
+handle @streamlit {
+	respond 404
+}
+
 # Everything else is the app: the landing pages (/, /en), the results of an
 # upload (/r/<token>, /b/<token>), the sample document (/demo). An unknown
 # path gets an honest 404 from the app, for every visitor.
