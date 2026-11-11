@@ -1,24 +1,69 @@
 # TrustyFile
 
-**Document Fraud Detection Tool** — Like VirusTotal, but for invoices and documents.
+**Detects tampered invoices, payslips and official documents. Upload a PDF, get a trust score and the evidence behind it.**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+**[▶ Try it live at trustyfile.com](https://www.trustyfile.com)**: no account needed, and one click runs the sample invoice.
+
+[![tests](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml/badge.svg)](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml)
+[![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Jinja-009688.svg)](https://fastapi.tiangolo.com/)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 ![TrustyFile Demo](docs/demo.gif)
 
 *The sample invoice from the landing page ("Try it with an example", also at
-[`/demo`](https://www.trustyfile.com/demo)): a total retyped over the original
-in a later revision, an invalid VAT number. Regenerate the GIF with
+[`/demo`](https://www.trustyfile.com/demo)). Its total was retyped over the original
+in a later revision, and its VAT number is invalid. Regenerate the GIF with
 `python scripts/record_demo.py`.*
+
+## Why it exists
+
+Invoice and document fraud is cheap to commit. A PDF editor is enough to change an
+amount or an IBAN, and the result looks perfect on screen. TrustyFile reads what the
+eye cannot see: the file's revision history, text hidden under a white box, font
+subsets, producer fingerprints, checksums, and signed barcodes. It explains each
+finding in plain English or French, and draws a box around the spot on the page.
+
+## Engineering highlights
+
+- **14 independent detection modules** feed one **evidence ledger** that combines
+  findings in log-odds space. Correlated symptoms of a single edit do not stack.
+  Any real tamper evidence discards the "looks genuine" evidence, so a forged
+  document cannot buy its way to a good score.
+- **Fails closed.** A document the analyzer cannot actually see (no text layer,
+  crashed modules) is reported as UNVERIFIABLE instead of passing by default.
+- **Cryptography, not only heuristics.** French 2D-Doc barcodes are verified
+  with ECDSA against government certificates bundled offline. A valid signature
+  is the only finding allowed to guarantee a high score.
+- **Built for hostile input.** Every page render is clamped against crafted page
+  geometry (`render_safety.py`). Embedded XML goes through `defusedxml`, which
+  blocks XXE attacks. A broken PDF degrades to a partial result instead of crashing.
+- **Measured on real documents.** 1,600+ pytest tests include false-positive
+  regressions taken from real invoices and corpus band gates. CI runs the suite
+  on Python 3.12, 3.13 and 3.14.
+- **Privacy by design.** Uploads are analysed on a temporary file and never
+  written to permanent storage. Results live in a bounded in-memory store for
+  15 minutes.
+- **Shipped.** FastAPI with server-rendered Jinja pages, a JSON API, batch upload,
+  and EN/FR. It runs on Railway behind Caddy, and a test gate runs in the build.
+
+```mermaid
+flowchart LR
+    U[PDF / photo] --> I[intake<br/>limits, PDF checks]
+    I --> A[analyzer<br/>14 modules, crash-isolated]
+    A --> E[evidence ledger<br/>log-odds, hard caps/floors]
+    E --> S[score + band<br/>GENUINE / REVIEW / SUSPICIOUS / UNVERIFIABLE]
+    S --> W[web page<br/>verdict, boxes on preview]
+    S --> J[JSON report<br/>download + API]
+```
 
 ## What is TrustyFile?
 
-TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **14 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
+TrustyFile analyzes PDF documents (invoices, receipts, payslips, contracts) to detect signs of tampering or fraud. It runs **14 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
 
 **Use cases:**
 - Accounting teams verifying supplier invoices
-- Banks checking loan documents
+- Landlords and banks checking payslips and tax notices
 - Insurance companies analyzing claims
 - Anyone who receives PDFs and wants to verify authenticity
 
