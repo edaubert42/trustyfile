@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Record a demo GIF of TrustyFile analyzing a suspicious PDF.
+Record a demo GIF of TrustyFile analyzing the sample invoice.
 
 Uses Playwright to:
 1. Start the website (uvicorn src.web.app:app) as a subprocess
 2. Open headless Chromium and navigate to the app
-3. Upload the demo suspicious PDF
+3. Upload the sample invoice served on the site (/demo)
 4. Wait for analysis to complete
 5. Scroll through results
 6. Save video and convert to GIF with ffmpeg
@@ -29,7 +29,9 @@ from pathlib import Path
 
 # Project root
 ROOT = Path(__file__).resolve().parent.parent
-DEMO_PDF = ROOT / "samples" / "suspicious" / "demo_suspicious.pdf"
+# The sample invoice the landing page offers ("Try it with an example"),
+# committed with the site, so the demo needs nothing from samples/.
+DEMO_PDF = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 OUTPUT_GIF = ROOT / "docs" / "demo.gif"
 OUTPUT_WEBM = ROOT / "docs" / "demo.webm"
 APP_PORT = 8502  # Use a non-default port to avoid conflicts
@@ -96,7 +98,7 @@ def record_demo(video_only: bool = False):
     # Ensure the demo PDF exists
     if not DEMO_PDF.exists():
         print(f"Demo PDF not found at {DEMO_PDF}")
-        print("Run: python scripts/generate_demo_pdf.py")
+        print("Run: python scripts/make_demo_invoice.py")
         sys.exit(1)
 
     # Ensure output directory exists
@@ -147,9 +149,9 @@ def record_demo(video_only: bool = False):
             )
             page = context.new_page()
 
-            # Navigate to the app, in English (the script waits for "Summary")
+            # Navigate to the app, in English (the README is in English)
             print("Navigating to app...")
-            page.goto(f"{app_url}/?lang=en", wait_until="networkidle")
+            page.goto(f"{app_url}/en", wait_until="networkidle")
             time.sleep(2)
 
             # -----------------------------------------------------------------
@@ -163,12 +165,9 @@ def record_demo(video_only: bool = False):
             file_input.set_input_files(str(DEMO_PDF))
 
             # Wait for analysis to complete: the loading overlay shows until
-            # the results page arrives, with its "Summary" heading.
+            # the results page arrives; the feedback block exists only there.
             print("Waiting for analysis to complete...")
-            page.wait_for_selector(
-                'text=/^summary$/i',
-                timeout=60000,
-            )
+            page.wait_for_selector("#tf-feedback", timeout=60000)
             # Give the UI time to render all results
             time.sleep(3)
 
