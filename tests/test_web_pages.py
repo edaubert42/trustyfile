@@ -305,7 +305,7 @@ def test_demo_page_shows_the_sample_document(client):
 
 def test_landing_invites_to_the_sample_report(client):
     page = client.get("/?lang=fr").text
-    assert "Envie de voir le résultat ?" in page
+    assert "Essayez avec un exemple" in page
     assert 'href="/demo?lang=fr"' in page
 
 

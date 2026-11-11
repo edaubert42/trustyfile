@@ -344,14 +344,7 @@ h2 { margin-top: -0.5rem !important; padding-top: 0 !important; }
 /* Invitation to the sample report, right under the upload zone. Tinted rather
    than solid at rest so it draws the eye without outranking the upload; it
    fills in on hover and the arrow moves to say "this goes somewhere". */
-.tf-demo-invite {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    text-align: center;
-}
-.tf-demo-question { color: #bbb; font-size: 0.95rem; }
+.tf-demo-invite { display: flex; justify-content: center; }
 .tf-demo-cta {
     display: inline-flex;
     align-items: center;
