@@ -56,7 +56,7 @@
     "risk_UNVERIFIABLE": "UNVERIFIABLE",
     "score_not_available": "—",
     "score_caveat": "A high score means few signs of manipulation; it does not guarantee the document is authentic. A low score deserves a manual check.",
-    "score_caveat_short": "This result does not guarantee the document is authentic.",
+    "score_caveat_short": "This result does not guarantee the document is authentic, TrustyFile can make mistakes.",
     "next_step_label": "What now?",
     "next_step_GENUINE": "If the stakes are high, confirm with the issuer.",
     "next_step_REVIEW": "Ask the issuer for an explanation or the original.",

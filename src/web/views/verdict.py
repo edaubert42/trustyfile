@@ -94,9 +94,15 @@ def gauge_html(result: AnalysisResult, summary: AnalysisSummary,
     # overwritten amount). The reasons already say what is wrong, so
     # the headline only says what to do. Other bands keep
     # verdict + advice. (The JSON report still carries the verdict.)
+    #
+    # On a GENUINE result the caveat replaces the advice: "confirm with the
+    # issuer if it matters" only repeated what the caveat already implies.
     _advice = t(next_step_key(result.band, result.document_type))
     if result.band == "SUSPICIOUS":
         _headline = _advice
+        _advice_html = ""
+    elif result.band == "GENUINE":
+        _headline = summary.verdict
         _advice_html = ""
     else:
         _headline = summary.verdict
