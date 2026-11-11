@@ -7,6 +7,9 @@
 
 -r requirements.txt
 
+pytest>=8.0.0,<10        # Test framework (green on 9.1.1)
+pytest-cov>=4.1.0,<8     # Coverage reports (green on 7.1.0)
+
 # Alternative PDF engines used to generate and cross-check provenance
 # signatures (tests/test_provenance.py, scripts/collect_provenance_samples.py).
 #

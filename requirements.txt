@@ -38,10 +38,6 @@ python-dateutil>=2.8.2,<3    # Date parsing utilities
 defusedxml>=0.7.1,<0.8   # Hardened XML: blocks XXE + billion-laughs (Module arithmetic)
 cryptography>=43,<50     # 2D-Doc ECDSA signature verification (twod_doc_crypto)
 
-# Testing
-pytest>=8.0.0,<10        # Test framework (green on 9.1.1)
-pytest-cov>=4.1.0,<8     # Coverage reports (green on 7.1.0)
-
 # Website and API (src/web/app.py): one uvicorn process on :8000 behind Caddy.
 # Starlette comes with FastAPI, which pins the range it supports.
 fastapi>=0.115,<1                # green on 0.141.1

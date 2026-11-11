@@ -10,111 +10,96 @@ on:
   workflow_dispatch:
 
 jobs:
-  pytest:
+  # Everything runs inside the image built from the Dockerfile, the same
+  # recipe Railway builds production from: same Debian, same Python, same
+  # system libraries, same Caddy. The runner itself installs nothing.
+  image:
+    name: image (${{ matrix.label }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     strategy:
-      # Don't let one version's failure cancel the others — we want the full
-      # picture, especially to tell "3.14 only" breakage from a real regression.
-      # 3.13 is what production runs (Railpack's default); 3.14 is the next
-      # upgrade. The site is an app, not a library: older versions run nowhere.
+      # Don't let one version's failure cancel the other: we want to tell
+      # "3.14 only" breakage from a real regression.
       fail-fast: false
       matrix:
-        python-version: ["3.13", "3.14"]
+        include:
+          # Exactly what production runs: the Dockerfile's default Python.
+          - label: production
+            python-image: ""
+            smoke: true
+          # The next upgrade. Same Dockerfile, only the base image changes.
+          - label: python 3.14
+            python-image: python:3.14.10-slim-trixie
+            smoke: false
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: docker/setup-buildx-action@v3
+
+      # Layers are cached in the GitHub Actions cache, one scope per Python:
+      # a code-only change rebuilds the last few layers, not apt and pip.
+      # A warm cache also means the Debian archive is not contacted at all.
+      - name: Build the test image
+        uses: docker/build-push-action@v6
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
+          context: .
+          target: test
+          load: true
+          tags: trustyfile:test
+          build-args: ${{ matrix.python-image && format('PYTHON_IMAGE={0}', matrix.python-image) || '' }}
+          cache-from: type=gha,scope=${{ matrix.label }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.label }}
 
-      # System libraries the Python wrappers bind to:
-      #   tesseract-ocr(-fra) -> pytesseract (OCR fallback, French docs)
-      #   libdmtx-dev         -> pylibdmtx (2D-Doc DataMatrix decoding)
-      # libdmtx-dev rather than the runtime package because the runtime name
-      # churns across Ubuntu releases (libdmtx0b -> libdmtx0t64 in 24.04);
-      # the -dev name is stable and pulls the runtime lib in.
-      #
-      # The .deb files are cached (actions/cache), keyed on the runner image:
-      # a warm run installs them with dpkg in seconds and never talks to the
-      # Ubuntu archive, so an archive or DNS outage no longer blocks CI (and,
-      # through Railway's "Wait for CI", every deploy). A new runner image
-      # changes the key, so the packages are fetched again for it.
-      # ImageOS / ImageVersion are shell variables on the hosted runners, not
-      # part of the ${{ env }} context: read them in a step.
-      - name: Cache key for system packages
-        id: apt-key
-        run: echo "key=apt-${ImageOS}-${ImageVersion}-tesseract-fra-dmtx-v1" >> "$GITHUB_OUTPUT"
+      # NOTE: ~760 tests, not the ~888 that run locally. The corpus-driven
+      # gates (test_corpus_bands, test_coverage_gate, test_overlay_*)
+      # parametrize over samples/, which never enters the build context
+      # (.dockerignore) because it holds real documents. With no corpus the
+      # parametrize list is empty, so those cases generate silently rather
+      # than reporting as skips. Green here is not full cover.
+      - name: Run the test suite in the image
+        run: docker run --rm trustyfile:test
 
-      - name: Restore cached system packages
-        id: apt-cache
-        uses: actions/cache@v4
+      # The image Railway deploys (last stage of the Dockerfile). Its layers
+      # are the test image's minus the test ones, so this is a cache hit.
+      - name: Build the production image
+        if: matrix.smoke
+        uses: docker/build-push-action@v6
         with:
-          path: ~/apt-debs
-          key: ${{ steps.apt-key.outputs.key }}
+          context: .
+          target: runtime
+          load: true
+          tags: trustyfile:runtime
+          cache-from: type=gha,scope=${{ matrix.label }}
 
-      # Cold cache only. On 2026-11-11 the runners' own DNS stopped resolving
-      # the Ubuntu archive names for hours (they resolved fine elsewhere), and
-      # each failed lookup cost apt ~20 s per package and mirror. So check each
-      # name once (5 s ceiling) and, when the runner cannot resolve it, ask
-      # Google's DNS-over-HTTPS by IP (no system DNS involved) and pin it.
-      - name: Download system packages (cache miss)
-        if: steps.apt-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 10
+      # Boot the production image the way Railway does (CMD = start.sh) and
+      # hit it from outside: Caddy starts and parses the Caddyfile, serves
+      # the static pages, proxies the app, the API analyses the sample PDF.
+      # Then check the system libraries some tests silently skip without.
+      - name: Smoke test the production image
+        if: matrix.smoke
         run: |
-          for host in azure.archive.ubuntu.com archive.ubuntu.com security.ubuntu.com; do
-            if ! timeout 5 getent hosts "$host" >/dev/null; then
-              ip=$(curl -s --max-time 5 "https://8.8.8.8/resolve?name=$host&type=A" | python3 -c \
-                "import json,sys; a=[x['data'] for x in json.load(sys.stdin).get('Answer',[]) if x['type']==1]; print(a[0] if a else '')" \
-                2>/dev/null) || ip=""   # a failed lookup must not end the step (bash -e)
-              if [ -n "$ip" ]; then
-                echo "$ip $host" | sudo tee -a /etc/hosts
-                echo "::warning::$host did not resolve on the runner, pinned to $ip via DNS-over-HTTPS"
-              fi
-            fi
+          docker run -d --name site -p 8080:8080 trustyfile:runtime
+          for _ in $(seq 30); do
+            curl -fsS -o /dev/null http://127.0.0.1:8080/ && break
+            sleep 1
           done
-          mkdir -p ~/apt-debs/partial
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends --download-only \
-            -o Dir::Cache::archives="$HOME/apt-debs" \
-            tesseract-ocr tesseract-ocr-fra libdmtx-dev
-          sudo rm -rf ~/apt-debs/partial ~/apt-debs/lock
-          sudo chown -R "$USER" ~/apt-debs
-          ls ~/apt-debs
+          curl -fsS -o /dev/null http://127.0.0.1:8080/
+          curl -fsS -o /dev/null http://127.0.0.1:8080/en
+          curl -fsS -o /dev/null http://127.0.0.1:8080/guides/
+          curl -fsS -o /dev/null http://127.0.0.1:8080/robots.txt
+          curl -fsS -F file=@public/static/demo/facture-exemple.pdf \
+            http://127.0.0.1:8080/api/v1/analyze -o report.json
+          python3 -c "import json; r = json.load(open('report.json')); print('band:', r['band'], 'score:', r['trust_score'])"
 
-      - name: Install system packages
-        run: sudo dpkg -i ~/apt-debs/*.deb
+          # OCR: the tesseract binary, with French
+          docker exec site tesseract --list-langs | grep -qx fra
+          # 2D-Doc: libdmtx loads and round-trips a DataMatrix
+          docker exec site python -c "from pylibdmtx import pylibdmtx as d; from PIL import Image; e = d.encode(b'DC04'); img = Image.frombytes('RGB', (e.width, e.height), e.pixels); assert d.decode(img)[0].data == b'DC04'"
+          # Nothing private or test-only in the production image
+          docker exec site sh -c 'test ! -e /app/samples && test ! -e /app/tests && test ! -e /app/.git'
 
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-
-      # NOTE: this is ~760 tests, not the ~888 that run locally. The corpus-
-      # driven gates (test_corpus_bands, test_coverage_gate, test_overlay_*)
-      # parametrize over samples/, which is gitignored because it holds real
-      # documents. With no corpus the parametrize list is empty, so those cases
-      # generate silently rather than reporting as skips. The zero-FP corpus
-      # gates therefore still only run locally — green here is not full cover.
-      - name: Run test suite
-        run: pytest tests/ -q
-
-  # The Caddyfile is the only piece of the deployment nothing else checks:
-  # start.sh downloads Caddy at boot and a Caddyfile that does not parse
-  # takes the whole site down with it (the pytest job never touches it).
-  # Same download URL as start.sh, so this validates with the binary that
-  # will actually run it.
-  caddyfile:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Validate Caddyfile
-        env:
-          PORT: "8080"
-        run: |
-          curl -sSL "https://caddyserver.com/api/download?os=linux&arch=amd64" -o caddy
-          chmod +x caddy
-          ./caddy validate --config Caddyfile --adapter caddyfile
+      - name: Container logs
+        if: always() && matrix.smoke
+        run: docker logs site 2>&1 | tail -50 || true

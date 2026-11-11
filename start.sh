@@ -2,28 +2,14 @@
 # Start the app in the background on port 8000 (internal only)
 # Then start Caddy in the foreground on $PORT (exposed to internet)
 
-# Caddy: one exact release, checked against its published SHA-512, installed
-# under its own name and always called by that path.
-#
-# Why not whatever `caddy` is on PATH: an image can ship its own, older Caddy
-# (staging did, 2026-11-10: it rejected `trusted_proxies` in the Caddyfile,
-# an option every release since 2.6.3 accepts, and the site crash-looped).
-# Why not nixPkgs: adding caddy there built fine while the binary was absent
-# from the runtime image PATH, which took the site down.
-# To upgrade: change both values below (the checksum is in the release's
-# caddy_<version>_checksums.txt on GitHub).
-CADDY_VERSION="2.11.9"
-CADDY_SHA512="0e85544340290a16ce4bfb76fe7d65e9de1bf3a6e67f5ccfff30b30d27ea4c73e078077b7bf3e58ae60b6b12e44327705287059c775bca5782e8ee85ea7edd75"
-CADDY="/usr/local/bin/caddy-${CADDY_VERSION}"
-
+# Caddy: the release the Dockerfile copies into the image, called by its full
+# path, never looked up on PATH. Two past outages came from a caddy other than
+# the expected one (an older one in the image, 2026-11-10) or none at all
+# (nixPkgs, commit e86a8f1). Failing here, loudly, beats a crash loop.
+CADDY="/usr/local/bin/caddy"
 if [ ! -x "$CADDY" ]; then
-    echo "Installing Caddy ${CADDY_VERSION}..."
-    # In Python, not curl: curl is absent from the runtime image. The script
-    # refuses a download that is not byte for byte the release.
-    if ! python3 scripts/install_caddy.py "$CADDY_VERSION" "$CADDY_SHA512" "$CADDY"; then
-        echo "Caddy ${CADDY_VERSION}: install failed, not starting." >&2
-        exit 1
-    fi
+    echo "Caddy not found at $CADDY: the image was not built from the Dockerfile." >&2
+    exit 1
 fi
 "$CADDY" version
 

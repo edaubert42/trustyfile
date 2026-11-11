@@ -1,0 +1,28 @@
+# Everything listed here never leaves this machine for a docker build.
+
+# Real documents (the corpus). Must NEVER enter an image.
+samples/
+
+# Local state, secrets, caches
+.git/
+.env
+.env.*
+*.db
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.streamlit/
+.superpowers/
+.claude/
+.playwright-mcp/
+node_modules/
+
+# Not needed to run or test the site
+docs/
+.github/
+.vscode/
+.idea/
