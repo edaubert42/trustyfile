@@ -53,7 +53,7 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 
 ## Tech Stack
 
-- **Language**: Python 3.11+ (CI gates 3.12/3.13/3.14; Railway runs Railpack's default, 3.13)
+- **Language**: Python 3.11+ (CI gates 3.13/3.14; Railway runs Railpack's default, 3.13)
 - **PDF Parsing**: PyMuPDF (fitz) - preferred over PyPDF2 for speed and robustness
 - **Text Extraction**: pytesseract (OCR fallback only — the text layer is read
   via PyMuPDF; pdfplumber was dropped and is neither installed nor imported)
@@ -80,11 +80,9 @@ trustyfile/
 ├── start.sh                  # uvicorn (src.web.app:app) + Caddy boot (Railway)
 ├── Caddyfile                 # Static files served directly, the rest -> :8000;
 │                             # every visitor gets the same bytes, crawler or not
-├── nixpacks.toml             # UNUSED: Railway builds with Railpack, which ignores it
-│                             # (no test gate on deploy; apt deps come from the
-│                             # RAILPACK_BUILD/DEPLOY_APT_PACKAGES service variables).
-│                             # The only test gate is GitHub CI + Railway "Wait for CI"
-├── .github/workflows/        # CI: pytest on 3.12/3.13/3.14
+├── .github/workflows/        # CI: pytest on 3.13/3.14. Railway builds with Railpack
+│                             # (apt deps: RAILPACK_*_APT_PACKAGES service variables)
+│                             # and runs no tests: "Wait for CI" is the only gate
 ├── src/
 │   ├── analyzer.py           # Main orchestrator — wires all 14 modules
 │   ├── scoring.py            # Evidence ledger -> trust score

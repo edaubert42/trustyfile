@@ -16,9 +16,11 @@ jobs:
     strategy:
       # Don't let one version's failure cancel the others — we want the full
       # picture, especially to tell "3.14 only" breakage from a real regression.
+      # 3.13 is what production runs (Railpack's default); 3.14 is the next
+      # upgrade. The site is an app, not a library: older versions run nowhere.
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13", "3.14"]
+        python-version: ["3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +36,24 @@ jobs:
       # libdmtx-dev rather than the runtime package because the runtime name
       # churns across Ubuntu releases (libdmtx0b -> libdmtx0t64 in 24.04);
       # the -dev name is stable and pulls the runtime lib in.
+      #
+      # The runners fetch from an Azure-only mirror (azure.archive.ubuntu.com).
+      # On 2026-11-11 that name stopped resolving for hours: apt exited 100 and
+      # no test ran. With Railway's "Wait for CI", that alone blocks every
+      # deploy, so: retry, then fall back to the public archive.
       - name: Install system dependencies
+        timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            tesseract-ocr tesseract-ocr-fra libdmtx-dev
+          install_deps() {
+            sudo apt-get -o Acquire::Retries=3 update &&
+            sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
+              tesseract-ocr tesseract-ocr-fra libdmtx-dev
+          }
+          if ! install_deps; then
+            echo "::warning::Azure apt mirror unreachable, falling back to archive.ubuntu.com"
+            echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt
+            install_deps
+          fi
 
       - name: Install Python dependencies
         run: |

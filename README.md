@@ -5,7 +5,7 @@
 **[▶ Try it live at trustyfile.com](https://www.trustyfile.com)**: no account needed, and one click runs the sample invoice.
 
 [![tests](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml/badge.svg)](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml)
-[![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13 | 3.14](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Jinja-009688.svg)](https://fastapi.tiangolo.com/)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
@@ -40,7 +40,7 @@ finding in plain English or French, and draws a box around the spot on the page.
   blocks XXE attacks. A broken PDF degrades to a partial result instead of crashing.
 - **Measured on real documents.** 1,600+ pytest tests include false-positive
   regressions taken from real invoices and corpus band gates. CI runs the suite
-  on Python 3.12, 3.13 and 3.14.
+  on Python 3.13 and 3.14.
 - **Privacy by design.** Uploads are analysed on a temporary file and never
   written to permanent storage. Results live in a bounded in-memory store for
   15 minutes.
@@ -115,8 +115,9 @@ brew install tesseract libdmtx
 # libdmtx: use WSL, or see https://github.com/dmtx/libdmtx
 ```
 
-The deployment (Railway) installs the same system packages through
-`nixpacks.toml`.
+The deployment (Railway, built with Railpack) installs the same system
+packages through the `RAILPACK_BUILD_APT_PACKAGES` and
+`RAILPACK_DEPLOY_APT_PACKAGES` service variables.
 
 ### Installation
 
