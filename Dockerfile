@@ -36,8 +36,8 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=8080
 
 # System libraries the Python wrappers bind to:
-#   tesseract-ocr(-fra)  pytesseract calls the `tesseract` binary (OCR
-#                        fallback for flattened PDFs, French documents)
+#   tesseract-ocr(-fra)  pytesseract calls the `tesseract` binary: MRZ of
+#                        scanned IDs (eng), their issuance date (fra)
 #   libdmtx0t64          pylibdmtx loads libdmtx.so.0 (2D-Doc DataMatrix).
 #                        Debian 13 name; Debian 12 called it libdmtx0b.
 # Not installed, on purpose: libzbar0 (QR codes are read with

@@ -149,7 +149,7 @@ trustyfile/
 │   │   └── span_conflict.py  # Shared helper (overlay + invisible)
 │   └── extractors/
 │       ├── pdf_extractor.py  # PDF text/image extraction
-│       └── ocr.py            # OCR fallback for flattened PDFs
+│       └── ocr.py            # OCR of scanned IDs only: MRZ (eng), issuance date (fra)
 ├── public/                   # Files Caddy serves as they are
 │   ├── guides/, tools/       # GENERATED pages (fr/, en/) — do not hand-edit;
 │   │                         # edit src/site/, then run
