@@ -140,14 +140,14 @@ def file_properties_html(view: DocumentView, lang: str) -> str:
         vt_link = vt_result["link"]
         if vt_result["status"] == "clean":
             vt_pill = (
-                f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
+                f'<a href="{vt_link}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">'
                 f'<span style="background:#28a745; color:white; padding:3px 10px; '
                 f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
                 f'{t("vt_no_threats")}</span></a>'
             )
         elif vt_result["status"] == "malicious":
             vt_pill = (
-                f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
+                f'<a href="{vt_link}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">'
                 f'<span style="background:#ef233c; color:white; padding:3px 10px; '
                 f'border-radius:12px; font-size:0.78rem; font-weight:bold;">'
                 f'{t("vt_threats").format(malicious=vt_result["malicious"], total=vt_result["total"])}</span></a>'
@@ -155,7 +155,7 @@ def file_properties_html(view: DocumentView, lang: str) -> str:
         else:
             # "unknown" — file not in VT database
             vt_pill = (
-                f'<a href="{vt_link}" target="_blank" style="text-decoration:none;">'
+                f'<a href="{vt_link}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">'
                 f'<span style="background:#555; color:#ccc; padding:3px 10px; '
                 f'border-radius:12px; font-size:0.78rem;">'
                 f'{t("vt_unknown")}</span></a>'

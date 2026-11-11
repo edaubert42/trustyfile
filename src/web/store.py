@@ -9,7 +9,9 @@ the URL (`/r/<token>`).
 The promise on the landing page is that a document is not retained. The
 store keeps that promise by being bounded three ways:
 
-- time: an entry nobody has read for `ttl_s` seconds is dropped;
+- time: an entry nobody has read for `ttl_s` seconds is dropped, and any
+  entry older than `max_age_s` is dropped however often it is read (so a
+  leaked URL cannot be kept alive by reloading it);
 - count: at most `max_entries`, oldest-read first out;
 - size: at most `max_bytes` of uploads, oldest-read first out.
 
@@ -35,6 +37,11 @@ from typing import Any
 # How long an unread entry lives. Same 15 minutes the Streamlit app kept a
 # disconnected session (disconnectedSessionTTL = 900).
 DEFAULT_TTL_S = 900
+# Hard limit counted from the upload, which reads do not reset. Without it,
+# anyone holding a /r/<token> URL could keep the document alive forever by
+# reloading it every 14 minutes. One hour is far longer than anyone spends
+# reading a result.
+DEFAULT_MAX_AGE_S = 3600
 DEFAULT_MAX_ENTRIES = 200
 # Uploads are capped at 10 MB each, so this is at least 25 documents.
 DEFAULT_MAX_BYTES = 256 * 1024 * 1024
@@ -48,6 +55,7 @@ class _Entry:
     size: int          # bytes counted against max_bytes
     last_read: float   # monotonic seconds; reading an entry keeps it alive
     pinned: bool       # never evicted (the sample document)
+    created: float     # monotonic seconds at put(); reads never move it
 
 
 class TTLStore:
@@ -63,8 +71,10 @@ class TTLStore:
         ttl_s: float = DEFAULT_TTL_S,
         max_entries: int = DEFAULT_MAX_ENTRIES,
         max_bytes: int = DEFAULT_MAX_BYTES,
+        max_age_s: float = DEFAULT_MAX_AGE_S,
     ):
         self.ttl_s = ttl_s
+        self.max_age_s = max_age_s
         self.max_entries = max_entries
         self.max_bytes = max_bytes
         self._entries: dict[str, _Entry] = {}
@@ -97,7 +107,7 @@ class TTLStore:
         now = time.monotonic() if now is None else now
         token = token or secrets.token_urlsafe(16)
         with self._lock:
-            self._entries[token] = _Entry(value, size, now, pinned)
+            self._entries[token] = _Entry(value, size, now, pinned, created=now)
             self._evict(now)
         return token
 
@@ -120,7 +130,9 @@ class TTLStore:
         """Drop expired entries, then the oldest-read ones over the caps."""
         evictable = {t: e for t, e in self._entries.items() if not e.pinned}
         for token, entry in list(evictable.items()):
-            if now - entry.last_read > self.ttl_s:
+            unread_too_long = now - entry.last_read > self.ttl_s
+            too_old = now - entry.created > self.max_age_s
+            if unread_too_long or too_old:
                 del self._entries[token]
                 del evictable[token]
 

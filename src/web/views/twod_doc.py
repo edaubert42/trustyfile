@@ -149,7 +149,9 @@ def twod_rows_html(twod_doc_data: TwoDocData, lang: str) -> str:
         if field.di in shown_dis:
             continue
         field_val = html.escape(str(field.value))
-        extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_field").format(di=field.di)}</span>'
+        # The identifier is read from the barcode, so it is escaped like the value.
+        field_di = html.escape(str(field.di))
+        extra_fields += (f'<div style="{_2d_row}"><span style="{_2d_key}">{t("twod_field").format(di=field_di)}</span>'
                          f'<span style="{_2d_val}">{field_val}</span></div>')
 
     if extra_fields:

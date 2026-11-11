@@ -15,7 +15,8 @@ How a document travels through it:
          /r/<token>/feedback        thumbs up / down
 
 Several files at once land on `/b/<token>`, one row each. Nothing is written
-to disk; the store (`src/web/store.py`) forgets an entry after 15 minutes.
+to disk; the store (`src/web/store.py`) forgets an entry after 15 minutes
+unread, and after one hour in any case.
 
 Run locally:
     uvicorn src.web.app:app --port 8000

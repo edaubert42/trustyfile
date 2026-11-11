@@ -32,7 +32,9 @@ fi
 # purpose: the results of an upload are kept in that process's memory
 # (src/web/store.py), so a second worker would not find them; and analyses
 # are CPU bound, the app caps their concurrency itself.
-uvicorn src.web.app:app --host 127.0.0.1 --port 8000 --workers 1 &
+# --no-access-log: every result URL (/r/<token>) is a key to someone's
+# document; the access log would copy each one into the Railway logs.
+uvicorn src.web.app:app --host 127.0.0.1 --port 8000 --workers 1 --no-access-log &
 
 # Give the app a moment to start before Caddy begins proxying
 sleep 2

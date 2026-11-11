@@ -44,6 +44,16 @@ def test_reading_an_entry_keeps_it_alive():
     assert store.get(token, now=1600) == "doc"   # 800 s after the last read
 
 
+def test_reading_cannot_keep_an_entry_past_its_max_age():
+    """A leaked URL reloaded every 14 minutes still dies at max_age_s."""
+    store = TTLStore(ttl_s=900, max_age_s=3600)
+    token = store.put("doc", now=0)
+    for now in range(800, 3600, 800):          # read every 800 s, under the TTL
+        assert store.get(token, now=now) == "doc"
+    assert store.get(token, now=3600) == "doc"  # exactly the max age: still there
+    assert store.get(token, now=3601) is None   # one second more: gone
+
+
 def test_count_cap_drops_the_oldest_read_first():
     store = TTLStore(max_entries=2)
     first = store.put("a", now=0)
