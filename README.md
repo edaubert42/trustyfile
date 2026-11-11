@@ -1,19 +1,69 @@
 # TrustyFile
 
-**Document Fraud Detection Tool** — Like VirusTotal, but for invoices and documents.
+**Detects tampered invoices, payslips and official documents. Upload a PDF, get a trust score and the evidence behind it.**
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+**[▶ Try it live at trustyfile.com](https://www.trustyfile.com)**: no account needed, and one click runs the sample invoice.
+
+[![tests](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml/badge.svg)](https://github.com/edaubert42/trustyfile/actions/workflows/tests.yml)
+[![Python 3.12 | 3.13 | 3.14](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Jinja-009688.svg)](https://fastapi.tiangolo.com/)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 
 ![TrustyFile Demo](docs/demo.gif)
 
+*The sample invoice from the landing page ("Try it with an example", also at
+[`/demo`](https://www.trustyfile.com/demo)). Its total was retyped over the original
+in a later revision, and its VAT number is invalid. Regenerate the GIF with
+`python scripts/record_demo.py`.*
+
+## Why it exists
+
+Invoice and document fraud is cheap to commit. A PDF editor is enough to change an
+amount or an IBAN, and the result looks perfect on screen. TrustyFile reads what the
+eye cannot see: the file's revision history, text hidden under a white box, font
+subsets, producer fingerprints, checksums, and signed barcodes. It explains each
+finding in plain English or French, and draws a box around the spot on the page.
+
+## Engineering highlights
+
+- **14 independent detection modules** feed one **evidence ledger** that combines
+  findings in log-odds space. Correlated symptoms of a single edit do not stack.
+  Any real tamper evidence discards the "looks genuine" evidence, so a forged
+  document cannot buy its way to a good score.
+- **Fails closed.** A document the analyzer cannot actually see (no text layer,
+  crashed modules) is reported as UNVERIFIABLE instead of passing by default.
+- **Cryptography, not only heuristics.** French 2D-Doc barcodes are verified
+  with ECDSA against government certificates bundled offline. A valid signature
+  is the only finding allowed to guarantee a high score.
+- **Built for hostile input.** Every page render is clamped against crafted page
+  geometry (`render_safety.py`). Embedded XML goes through `defusedxml`, which
+  blocks XXE attacks. A broken PDF degrades to a partial result instead of crashing.
+- **Measured on real documents.** 1,600+ pytest tests include false-positive
+  regressions taken from real invoices and corpus band gates. CI runs the suite
+  on Python 3.12, 3.13 and 3.14.
+- **Privacy by design.** Uploads are analysed on a temporary file and never
+  written to permanent storage. Results live in a bounded in-memory store for
+  15 minutes.
+- **Shipped.** FastAPI with server-rendered Jinja pages, a JSON API, batch upload,
+  and EN/FR. It runs on Railway behind Caddy, and a test gate runs in the build.
+
+```mermaid
+flowchart LR
+    U[PDF / photo] --> I[intake<br/>limits, PDF checks]
+    I --> A[analyzer<br/>14 modules, crash-isolated]
+    A --> E[evidence ledger<br/>log-odds, hard caps/floors]
+    E --> S[score + band<br/>GENUINE / REVIEW / SUSPICIOUS / UNVERIFIABLE]
+    S --> W[web page<br/>verdict, boxes on preview]
+    S --> J[JSON report<br/>download + API]
+```
+
 ## What is TrustyFile?
 
-TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect signs of tampering or fraud. It runs **14 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
+TrustyFile analyzes PDF documents (invoices, receipts, payslips, contracts) to detect signs of tampering or fraud. It runs **14 detection modules** (plus opt-in external verification), combines every finding into an evidence ledger (see [Scoring](#scoring-the-evidence-ledger) below), and returns a **trust score** from 0 to 100.
 
 **Use cases:**
 - Accounting teams verifying supplier invoices
-- Banks checking loan documents
+- Landlords and banks checking payslips and tax notices
 - Insurance companies analyzing claims
 - Anyone who receives PDFs and wants to verify authenticity
 
@@ -23,7 +73,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 |---|---|
 | metadata | Producer/Creator fingerprints, date sanity, repair marks |
 | content | Dates, references, French company ids, IBAN checksums, anachronisms |
-| visual | Converter/SPECIMEN watermarks (QR decode: next feature) |
+| visual | Converter/SPECIMEN watermarks, QR codes (OpenCV): sender domain, URL shorteners, phishing TLDs |
 | fonts | Font diversity, subset mixing, mid-line changes |
 | images | Screenshots, resolution/compression, paste artifacts, EXIF dates/software |
 | structure | Incremental updates, signatures (EU DSS), JavaScript, embedded files |
@@ -34,7 +84,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, contracts) to detect sign
 | forensics | Error-level analysis (ELA) of page renders |
 | identity | MRZ check digits on ID documents (conditional) |
 | payslip | Net paid = net before tax − withholding tax, tax = base × rate, payment date vs pay period (conditional: payslips) |
-| twod_doc | French 2D-Doc barcodes vs visible text (needs libdmtx) |
+| twod_doc | French 2D-Doc barcodes vs visible text, ECDSA signature checked offline against bundled certificates (needs libdmtx) |
 
 **Bonus features:**
 - **VirusTotal lookup** — Check file hash against malware databases (requires API key)
@@ -79,8 +129,8 @@ cd trustyfile
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (requirements-dev.txt adds the test-only libraries)
+pip install -r requirements-dev.txt
 ```
 
 ### Run the app
@@ -116,25 +166,26 @@ analysis modules crashed on the document).
 
 ## Example Output
 
+The sample invoice (`public/static/demo/facture-exemple.pdf`), analysed
+offline with the snippet below (modules without findings omitted):
+
 ```
-invoice_2024_001.pdf
+Trust Score: 8/100  CRITICAL  (band: SUSPICIOUS)
 
-Trust Score: 62/100  MEDIUM RISK
+[content] Score: 65
+  [high] Invalid French VAT number: FR40732829320
+  [low] IBAN fails checksum validation: FR7630006000011234567890180
 
-[metadata] Score: 55
-  [medium] Document processed by iLovePDF
-  [medium] ModDate is 45 days after CreationDate
+[structure] Score: 55
+  [medium] PDF has 1 incremental update(s)
+  [high] Document was modified 2 days after creation
 
-[content] Score: 85
-  No issues detected
-
-[fonts] Score: 70
-  [low] 6 different fonts detected (typical: 2-4)
-
-[images] Score: 40
-  [high] Logo resolution (72dpi) doesn't match document (300dpi)
-  [medium] EXIF creation date doesn't match document date
+[overlay] Score: 50
+  [critical] A value appears to have been covered and retyped on page 1: "1 200,00 EUR" was hidden and "2 200,00 EUR" placed over it (a change of +1,000.00).
 ```
+
+The website runs with external verification on, so the same file scores 2
+there.
 
 ## Usage as Library
 
@@ -144,8 +195,8 @@ from src.analyzer import TrustyFileAnalyzer
 analyzer = TrustyFileAnalyzer()
 result = analyzer.analyze("invoice.pdf")
 
-print(f"Trust Score: {result.trust_score}/100")
-print(f"Risk Level: {result.risk_level}")
+# trust_score is None when the band is UNVERIFIABLE
+print(f"Trust Score: {result.trust_score}/100  {result.risk_level}  (band: {result.band})")
 
 for module_result in result.modules:
     print(f"\n[{module_result.module}] Score: {module_result.score}")
@@ -169,6 +220,11 @@ trustyfile/
 │   │   └── views/            # Pure functions (data, lang) -> HTML
 │   ├── site/                 # Generator of the guides and tools pages
 │   ├── analyzer.py           # Main orchestrator (per-module crash isolation)
+│   ├── intake.py, pipeline.py, batch.py  # Upload limits, shared temp file, batch items
+│   ├── report.py             # Versioned JSON report (download + API)
+│   ├── preview.py            # Page render + evidence boxes
+│   ├── render_safety.py      # Render caps against hostile page geometry
+│   ├── feedback.py           # Thumbs up/down storage + owner CSV export
 │   ├── evidence.py           # Evidence ledger — the scoring engine (log-odds)
 │   ├── scoring.py            # Builds the ledger from module flags
 │   ├── summary.py            # Rich EN/FR summary generation
@@ -191,17 +247,19 @@ trustyfile/
 │   │   ├── forensics.py      # ELA
 │   │   ├── identity.py       # MRZ checksums
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes
+│   │   ├── twod_doc_crypto.py  # 2D-Doc ECDSA signature verification (offline)
 │   │   └── external.py       # optional: SIREN/SIRET/VAT (opt-in, network)
 │   └── extractors/           # PDF data extraction
 │       ├── pdf_extractor.py
 │       └── ocr.py
 ├── scripts/                  # Dev tools
-│   ├── generate_demo_pdf.py  # Generate test PDF
+│   ├── make_demo_invoice.py  # Build the sample invoice behind /demo
+│   ├── generate_demo_pdf.py  # Older suspicious test PDF (iLovePDF, fonts, watermark)
 │   ├── generate_tampered.py  # Generate tampered corpus samples
 │   ├── build_corpus.py       # Corpus indexing for the band-gate tests
 │   ├── eval_harness.py       # Calibration / evaluation harness
 │   ├── run_analysis.py       # Analyse every PDF of a folder from the command line
-│   └── record_demo.py        # Record demo GIF
+│   └── record_demo.py        # Record docs/demo.gif from the sample invoice
 └── tests/                    # Unit tests
 ```
 
@@ -247,7 +305,8 @@ sent; nothing is retained. Locally: `uvicorn src.web.app:app --port 8000`.
 - [x] VirusTotal hash lookup
 - [x] 2D-DOC barcode scanning (French government documents)
 - [x] Rich summary with verdict and bullet findings
-- [ ] QR code scanning (pyzbar — verify QR URLs match document sender)
+- [x] QR code scanning (OpenCV — QR URLs vs document sender)
+- [x] 2D-Doc ECDSA signature verification (offline certificates)
 - [ ] Template matching (compare against known legitimate invoice layouts)
 - [x] API endpoint (FastAPI, `POST /api/v1/analyze`)
 - [x] Batch upload — several PDFs at once, one row per document, batch JSON report
