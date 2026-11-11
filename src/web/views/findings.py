@@ -181,8 +181,9 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
         _more_key = "more_findings_one" if len(_other_flags) == 1 else "more_findings_many"
         flags_list_html += (
             '<details>'
-            '<summary style="cursor:pointer; color:#8ab4f8; font-size:0.85rem; padding:8px 0 0 0;">'
-            f'{esc(t(_more_key).format(n=len(_other_flags)))}</summary>'
+            '<summary class="tf-disclosure tf-disclosure-small">'
+            f'<span class="tf-when-closed">{esc(t(_more_key).format(n=len(_other_flags)))}</span>'
+            f'<span class="tf-when-open">{esc(t("hide_findings"))}</span></summary>'
             + "".join(_finding_row(f, None) for f in _other_flags) +
             '</details>'
         )

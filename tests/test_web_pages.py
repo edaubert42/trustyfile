@@ -309,10 +309,10 @@ def test_landing_invites_to_the_sample_report(client):
     assert 'href="/demo?lang=fr"' in page
 
 
-def test_sample_report_has_one_link_to_analyse_your_own_document(client):
+def test_sample_report_has_one_link_to_analyse_another_document(client):
     page = client.get("/demo?lang=fr").text
-    assert page.count("Analyser mon document") == 1
-    assert "Analyser un autre document" not in page
+    assert page.count("Analyser un autre document") == 1
+    assert "Analyser mon document" not in page
 
 
 def test_real_report_offers_to_analyse_another_document(client):

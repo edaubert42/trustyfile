@@ -403,10 +403,9 @@ def _results_blocks(document: StoredDocument, lang: str) -> dict:
     result, view = document.result, document.view
     summary = summary_for(document, lang)
     # One fold for everything below the verdict: the evidence bars, every
-    # finding, then one panel per kind of evidence.
-    more_details = (
+    # point found, what the file contains, then the per-check results.
+    file_panels = (
         details.history_panel_html(view, lang)
-        + details.modules_panel_html(result, lang)
         + details.entities_panel_html(result, view.full_text, lang)
         + details.bank_panel_html(result, view.full_text, lang)
         + twod_pdf_panel_html(document.twod_docs, document.twod_signatures, lang)
@@ -425,7 +424,8 @@ def _results_blocks(document: StoredDocument, lang: str) -> dict:
         "all_details": details.all_details_html(
             findings.evidence_bars_html(result, lang),
             details.issues_html(view.all_flags, result.document_type, lang),
-            more_details,
+            file_panels,
+            details.modules_panel_html(result, lang),
             lang,
         ),
     }

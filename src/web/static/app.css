@@ -489,7 +489,9 @@ h2 { margin-top: -0.5rem !important; padding-top: 0 !important; }
 .tf-report-row > *:first-child { flex: 1 1 100%; }
 .tf-report-row #tf-new-analysis { display: block !important; text-align: center; }
 .tf-report-row #tf-print-wrap, .tf-report-row #tf-print { width: 100% !important; }
-.tf-download a {
+/* Quiet export buttons: the JSON link and the print button share one look,
+   hover included. */
+.tf-download a, .tf-quiet-btn {
     display: block;
     width: 100%;
     padding: 7px 14px;
@@ -497,12 +499,52 @@ h2 { margin-top: -0.5rem !important; padding-top: 0 !important; }
     border-radius: 6px;
     background: transparent;
     color: #888;
+    font-family: inherit;
     font-size: 14px;
     line-height: 1.2;
     text-align: center;
     text-decoration: none;
+    cursor: pointer;
 }
-.tf-download a:hover { color: #ccc; border-color: #4a90e2; }
+.tf-download a:hover, .tf-quiet-btn:hover { color: #ccc; border-color: #4a90e2; }
+.tf-quiet-btn:focus-visible { outline: none; box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.5); }
+
+/* "Show more" toggles (<summary>), Google/Gmail style: a borderless text
+   button, chevron next to the label, a faint blue pill on hover. */
+.tf-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: #8ab4f8;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    transition: background 0.15s;
+}
+.tf-disclosure::-webkit-details-marker { display: none; }
+.tf-disclosure::after {
+    content: "";
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translateY(-2px);
+    transition: transform 0.15s;
+}
+details[open] > .tf-disclosure::after { transform: rotate(225deg) translateY(-2px); }
+.tf-disclosure:hover { background: rgba(138, 180, 248, 0.08); }
+.tf-disclosure:active { background: rgba(138, 180, 248, 0.12); }
+.tf-disclosure:focus-visible { outline: none; box-shadow: 0 0 0 0.2rem rgba(74, 144, 226, 0.5); }
+.tf-when-open, details[open] > .tf-disclosure .tf-when-closed { display: none; }
+details[open] > .tf-disclosure .tf-when-open { display: inline; }
+.tf-disclosure-large { font-size: 16px; padding: 10px 20px; margin-top: 14px; }
+.tf-disclosure-small { font-size: 0.85rem; padding: 4px 10px; }
 
 /* ---- Print / "Save as PDF" ----------------------------------------------
    The results page IS the report. This turns the dark UI into a

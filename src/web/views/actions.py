@@ -56,7 +56,7 @@ def print_button_html(lang: str) -> str:
     t = translator(lang)
     return f"""
                 <div id="tf-print-wrap" style="display:flex; justify-content:center;">
-                    <button id="tf-print" type="button" style="background:transparent; color:#888; border:1px solid #2a2a3e; border-radius:6px; padding:7px 14px; font-size:0.85rem; line-height:1.2; cursor:pointer;">
+                    <button id="tf-print" class="tf-quiet-btn" type="button">
                         {t("print_report")}
                     </button>
                 </div>

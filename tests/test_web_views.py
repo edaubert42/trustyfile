@@ -77,11 +77,14 @@ def test_results_views_render_in_both_languages(demo, lang):
     fold = details.all_details_html(
         findings.evidence_bars_html(result, lang),
         details.issues_html(view.all_flags, result.document_type, lang),
+        details.history_panel_html(view, lang),
         details.modules_panel_html(result, lang),
         lang,
     )
     assert fold.startswith('<details class="tf-all-details"')
-    assert translate("detected_issues", lang) in fold
+    for key in ("detail_why_title", "detail_points_title",
+                "detail_file_title", "detail_tech_title"):
+        assert translate(key, lang) in fold
 
 
 def test_file_properties_escape_what_the_pdf_controls(demo):

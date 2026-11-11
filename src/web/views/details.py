@@ -944,60 +944,65 @@ def mrz_panel_html(result: AnalysisResult, lang: str) -> str:
     return more_details_html
 
 
-def all_details_html(bars_html: str, issues: str, more_details: str,
-                     lang: str) -> str:
+def _detail_section(title: str, intro: str, body_html: str) -> str:
+    """One titled section of the fold: heading, one grey line, then the body.
+
+    Returns an empty string when there is no body, so a document without
+    (say) bank details does not show an empty heading.
+    """
+    if not body_html:
+        return ""
+    return (
+        '<section style="margin-top:1.6rem;">'
+        + SECTION_TITLE.format(esc(title))
+        + f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:0 0 0.7rem 0;">{esc(intro)}</p>'
+        + body_html
+        + '</section>'
+    )
+
+
+def all_details_html(bars_html: str, issues: str, file_panels: str,
+                     technical_panels: str, lang: str) -> str:
     """
     The single fold holding everything below the verdict.
 
     The page opens on the verdict and the preview only; a reader who wants
-    the evidence opens this block. Inside it each panel is its own <details>.
+    the evidence opens this block. It answers four questions in order,
+    each a titled section with one line of explanation:
 
-    Example of what gets rendered:
-        ▸ See all details                     <- closed by default
-            DETECTED ISSUES   [High] The total was rewritten ...
-            MORE DETAILS      ▸ Modification history  ▸ Entities ...
+        Why this score?          the four bars
+        Every point found        each point, foldable to its raw data
+        What the file contains   history, companies, bank, 2D-Doc, MRZ
+        Going further            the result of each check
+
+    The caveat about the score closes the block, as a note.
 
     Args:
         bars_html: evidence_bars_html() of the document.
         issues: issues_html() of the document (may be empty).
-        more_details: The panels, concatenated (may be empty).
+        file_panels: What was read in the file, panels concatenated
+            (may be empty).
+        technical_panels: The per-check panel (may be empty).
         lang: "fr" or "en".
 
     Returns:
         The fold as an HTML string.
     """
     t = translator(lang)
-    _section_title = SECTION_TITLE
-    issues_html = issues
-    more_details_html = more_details
-    all_details_html = (
-        f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:0.4rem 0 0 0;">'
-        f'{esc(t("score_caveat"))}</p>'
+    body = (
+        _detail_section(t("detail_why_title"), t("detail_why_intro"),
+                        f'<div style="max-width:440px;">{bars_html}</div>')
+        + _detail_section(t("detail_points_title"), t("detail_points_intro"), issues)
+        + _detail_section(t("detail_file_title"), t("detail_file_intro"), file_panels)
+        + _detail_section(t("detail_tech_title"), t("detail_tech_intro"), technical_panels)
+        + f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:1.6rem 0 0 0;">'
+          f'{esc(t("score_caveat"))}</p>'
     )
-    all_details_html += (
-        '<div style="margin-top:1rem; max-width:440px;">'
-        + _section_title.format(t("evidence_breakdown"))
-        + bars_html
-        + '</div>'
-    )
-    if issues_html:
-        all_details_html += (
-            '<div style="margin-top:1rem;">'
-            + _section_title.format(t("detected_issues"))
-            + issues_html
-            + '</div>'
-        )
-    if more_details_html:
-        all_details_html += (
-            '<div style="margin-top:1rem;">'
-            + _section_title.format(t("more_details"))
-            + more_details_html
-            + '</div>'
-        )
     return (
-        '<details class="tf-all-details" style="margin-top:1.5rem; border-top:1px solid #2a2a2a;">'
-        '<summary style="cursor:pointer; padding:12px 0; color:#8ab4f8; '
-        f'font-size:0.95rem; font-weight:600;">{esc(t("show_all_details"))}</summary>'
-        f'{all_details_html}'
+        '<details class="tf-all-details" style="margin-top:1.5rem;">'
+        '<summary class="tf-disclosure tf-disclosure-large">'
+        f'<span class="tf-when-closed">{esc(t("show_all_details"))}</span>'
+        f'<span class="tf-when-open">{esc(t("hide_all_details"))}</span></summary>'
+        f'{body}'
         '</details>'
     )
