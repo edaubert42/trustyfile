@@ -61,7 +61,8 @@ jobs:
           for host in azure.archive.ubuntu.com archive.ubuntu.com security.ubuntu.com; do
             if ! timeout 5 getent hosts "$host" >/dev/null; then
               ip=$(curl -s --max-time 5 "https://8.8.8.8/resolve?name=$host&type=A" | python3 -c \
-                "import json,sys; a=[x['data'] for x in json.load(sys.stdin).get('Answer',[]) if x['type']==1]; print(a[0] if a else '')")
+                "import json,sys; a=[x['data'] for x in json.load(sys.stdin).get('Answer',[]) if x['type']==1]; print(a[0] if a else '')" \
+                2>/dev/null) || ip=""   # a failed lookup must not end the step (bash -e)
               if [ -n "$ip" ]; then
                 echo "$ip $host" | sudo tee -a /etc/hosts
                 echo "::warning::$host did not resolve on the runner, pinned to $ip via DNS-over-HTTPS"
