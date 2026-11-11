@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "La fraude au faux RIB détourne les virements vers le compte de l'escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/detecter-un-faux-rib"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment savoir si un RIB est faux ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Vérifiez la clé de l'IBAN, la cohérence entre code banque, BIC et banque affichée, et les traces de retouche sur la ligne de l'IBAN dans le PDF. Confirmez ensuite par téléphone auprès du fournisseur, sur un numéro que vous connaissez déjà."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un IBAN valide prouve-t-il que le RIB est authentique ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. La clé de contrôle prouve seulement que le numéro est bien formé. Un fraudeur peut fournir l'IBAN valide d'un compte qu'il a ouvert ; seul le rappel du fournisseur établit à qui appartient le compte."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "La vérification du bénéficiaire par la banque suffit-elle ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Depuis le 9 octobre 2025, les banques de la zone euro comparent le nom du bénéficiaire et l'IBAN au moment du virement. C'est un filet supplémentaire, mais l'alerte arrive au paiement, pas quand la décision de changer de RIB se prend."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment détecter un faux RIB</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">La fraude au faux RIB est l'une des plus coûteuses qui soient : un fournisseur annonce un « changement de coordonnées bancaires », le virement part vers le compte de l'escroc, et l'on s'en aperçoit des semaines plus tard, quand le vrai fournisseur relance. Le document envoyé est souvent authentique à un détail près : l'IBAN.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>La fraude au faux RIB remplace l&#x27;IBAN d&#x27;un document authentique pour détourner un virement vers le compte de l&#x27;escroc.</li>
+            <li>Une clé IBAN fausse (modulo 97) condamne le document ; une clé valide ne l&#x27;innocente pas, car les fraudeurs ouvrent de vrais comptes.</li>
+            <li>Le code banque de l&#x27;IBAN, le BIC et la banque affichée sur le RIB doivent désigner le même établissement.</li>
+            <li>Tout changement de coordonnées bancaires se confirme par téléphone, sur un numéro que vous possédiez déjà.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#comprendre-le-scenario">Comprendre le scénario</a></li>
@@ -195,6 +244,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="le-rappel-telephonique-reste-la-regle">Le rappel téléphonique reste la règle</h2>
     <p>Depuis le 9 octobre 2025, les banques de la zone euro doivent vérifier la concordance entre le nom du bénéficiaire et l'IBAN au moment du virement (« vérification du bénéficiaire »). C'est un filet supplémentaire, pas une raison de baisser la garde : l'alerte arrive au moment du paiement, pas au moment où la décision se prend.</p>
     <p>La règle d'or ne change pas : tout changement de coordonnées bancaires se confirme par téléphone, sur un numéro que vous possédiez déjà — jamais celui du message qui annonce le changement, ni celui imprimé sur le RIB suspect.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment savoir si un RIB est faux ?</dt>
+        <dd>Vérifiez la clé de l&#x27;IBAN, la cohérence entre code banque, BIC et banque affichée, et les traces de retouche sur la ligne de l&#x27;IBAN dans le PDF. Confirmez ensuite par téléphone auprès du fournisseur, sur un numéro que vous connaissez déjà.</dd>
+        <dt>Un IBAN valide prouve-t-il que le RIB est authentique ?</dt>
+        <dd>Non. La clé de contrôle prouve seulement que le numéro est bien formé. Un fraudeur peut fournir l&#x27;IBAN valide d&#x27;un compte qu&#x27;il a ouvert ; seul le rappel du fournisseur établit à qui appartient le compte.</dd>
+        <dt>La vérification du bénéficiaire par la banque suffit-elle ?</dt>
+        <dd>Non. Depuis le 9 octobre 2025, les banques de la zone euro comparent le nom du bénéficiaire et l&#x27;IBAN au moment du virement. C&#x27;est un filet supplémentaire, mais l&#x27;alerte arrive au paiement, pas quand la décision de changer de RIB se prend.</dd>
+    </dl>
     <h2>Outils gratuits</h2>
     <a class="card" href="/outils/verifier-un-iban">
         <h3>Vérifier un IBAN : clé de contrôle et clé RIB</h3>
@@ -237,6 +295,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

@@ -66,6 +66,15 @@ class Guide:
         audience: which section of the hub lists this guide — "individuals"
             (rental files, personal documents), "business" (suppliers, company
             paperwork) or "method" (how PDFs and 2D-Doc work, for everyone).
+        key_points: the "In short" box under the intro — 3 or 4 plain-text
+            sentences, each one answering on its own, so an AI answer engine
+            can quote any single one without the rest of the page. Example:
+            ["Check the PDF's Producer field: ...", "Count the revisions: ..."].
+            Empty list = no box (the guide renders as before).
+        faq: (question, answer) pairs shown at the end of the guide and
+            mirrored as FAQPage JSON-LD. Plain text. Questions are phrased
+            the way people ask an assistant, e.g. ("Does a valid IBAN prove
+            the bank details are genuine?", "No. ...").
     """
 
     slug: str
@@ -79,6 +88,9 @@ class Guide:
     modified: str = LAST_MODIFIED
     tools: list[str] = field(default_factory=list)
     audience: str = ""
+    # Empty by default so a guide without them still builds (no box, no FAQ).
+    key_points: list[str] = field(default_factory=list)
+    faq: list[tuple[str, str]] = field(default_factory=list)
 
 
 AUDIENCES = ("individuals", "business", "method")  # hub section order
@@ -156,6 +168,9 @@ CHROME = {
         "related": "Autres guides",
         "footer_contact": "Contact",
         "updated": "Mis à jour le {date}",
+        "key_points": "En bref",
+        # The method page (Organization.publishingPrinciples on the landing).
+        "method_slug": "comment-fonctionne-trustyfile",
         # Landing page metadata (<head> only). The page itself is rendered by
         # the web app, see landing_head_args() and src/web/app.py.
         "landing_path": "/",
@@ -322,6 +337,8 @@ CHROME = {
         "related": "More guides",
         "footer_contact": "Contact",
         "updated": "Updated {date}",
+        "key_points": "In short",
+        "method_slug": "how-trustyfile-works",
         "landing_path": "/en",
         "landing_title": "TrustyFile - Free Document Fraud Detector",
         "landing_description": (
@@ -455,6 +472,7 @@ GUIDES: dict[str, list[Guide]] = {
         Guide(
             slug="verifier-une-facture-falsifiee",
             audience="business",
+            modified="2026-11-11",
             counterpart="how-to-spot-a-tampered-invoice",
             tools=["verifier-un-siret", "verifier-un-numero-de-tva", "verifier-un-siren"],
             title="Vérifier si une facture a été falsifiée",
@@ -471,6 +489,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "presque toujours des traces dans le fichier — à condition de "
                 "savoir où regarder."
             ),
+            key_points=[
+                (
+                    "Une facture retouchée garde presque toujours des traces dans le PDF : "
+                    "logiciel producteur, révisions, polices, texte recouvert."
+                ),
+                (
+                    "Un champ Producer qui nomme un éditeur PDF ou un convertisseur en "
+                    "ligne (iLovePDF, Smallpdf...) signifie que la facture a été "
+                    "réenregistrée après émission : c'est un signal, pas une preuve."
+                ),
+                (
+                    "Un montant ou un IBAN qui change entre deux révisions du PDF est l'un "
+                    "des rares indices proches de la preuve."
+                ),
+                (
+                    "Le SIRET, le numéro de TVA et la clé de l'IBAN se vérifient hors du "
+                    "fichier ; en cas de doute sur un RIB, appelez le fournisseur sur un "
+                    "numéro que vous connaissez déjà."
+                ),
+            ],
             sections=[
                 Section(
                     heading="1. Regarder qui a produit le fichier",
@@ -581,10 +619,35 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment savoir si une facture PDF a été modifiée ?",
+                    "Regardez le logiciel qui a produit le fichier (champ Producer), le "
+                    "nombre de révisions, les changements de police sur une même ligne "
+                    "et le texte caché sous un rectangle blanc. TrustyFile fait ces "
+                    "contrôles automatiquement sur le PDF déposé.",
+                ),
+                (
+                    "Une facture passée par iLovePDF ou Smallpdf est-elle forcément "
+                    "fausse ?",
+                    "Non. Beaucoup de gens compressent une pièce jointe avant de "
+                    "l'envoyer. C'est un signal à croiser avec les autres : révisions, "
+                    "polices, texte recouvert, cohérence des montants.",
+                ),
+                (
+                    "Peut-on retrouver le montant d'origine d'une facture retouchée ?",
+                    "Souvent, oui. Si la retouche a été enregistrée en mise à jour "
+                    "incrémentale, la version précédente reste dans le fichier. Si "
+                    "l'ancien montant a été masqué par un rectangle blanc, il est "
+                    "toujours dessous et réapparaît parfois par un simple copier-coller "
+                    "du texte.",
+                ),
+            ],
         ),
         Guide(
             slug="verifier-un-justificatif-de-domicile",
             audience="individuals",
+            modified="2026-11-11",
             counterpart="how-to-verify-a-proof-of-address",
             title="Vérifier un justificatif de domicile",
             description=(
@@ -600,6 +663,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "authentique appartenant à quelqu'un d'autre, dont on a remplacé "
                 "le nom et l'adresse."
             ),
+            key_points=[
+                (
+                    "Un faux justificatif de domicile est le plus souvent la vraie facture "
+                    "d'un tiers dont on a remplacé le nom et l'adresse."
+                ),
+                (
+                    "Une facture d'énergie ou de télécom produite par un traitement de "
+                    "texte, un convertisseur en ligne ou une capture d'écran contredit le "
+                    "fournisseur qu'elle annonce."
+                ),
+                (
+                    "Un collage laisse des traces mesurables : rupture de résolution, blanc "
+                    "différent du fond, bruit ou compression concentrés sur un seul bloc."
+                ),
+                (
+                    "Un justificatif scanné ou photographié n'est pas vérifiable "
+                    "techniquement : demandez le PDF d'origine."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Le scénario dominant : substitution de nom",
@@ -679,10 +761,33 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment savoir si un justificatif de domicile est faux ?",
+                    "Comparez le logiciel qui a produit le PDF au fournisseur annoncé, "
+                    "cherchez les traces de collage autour du nom et de l'adresse, et "
+                    "contrôlez la cohérence : date dans la fenêtre exigée, période de "
+                    "consommation antérieure à l'émission, numéro client au format du "
+                    "fournisseur.",
+                ),
+                (
+                    "Un justificatif de domicile scanné peut-il être vérifié ?",
+                    "Pas techniquement. Un scan aplati ne contient plus ni texte, ni "
+                    "polices, ni historique : l'absence d'anomalie ne veut alors rien "
+                    "dire. TrustyFile le classe non vérifiable plutôt que de lui donner "
+                    "un bon score.",
+                ),
+                (
+                    "Que demander pour pouvoir vérifier un justificatif de domicile ?",
+                    "Le PDF original, téléchargé depuis l'espace client du fournisseur, "
+                    "plutôt qu'un scan ou une photo.",
+                ),
+            ],
         ),
         Guide(
             slug="savoir-si-un-pdf-a-ete-modifie",
             audience="method",
+            modified="2026-11-11",
             counterpart="how-to-tell-if-a-pdf-was-modified",
             title="Savoir si un PDF a été modifié",
             description=(
@@ -697,6 +802,27 @@ GUIDES: dict[str, list[Guide]] = {
                 "que la page affiche. Voici ce qu'il garde, et ce qu'on peut en "
                 "déduire."
             ),
+            key_points=[
+                (
+                    "Un PDF garde la trace de ses enregistrements successifs : chaque mise "
+                    "à jour incrémentale ajoute une révision au fichier, et l'état "
+                    "précédent reste lisible."
+                ),
+                (
+                    "Un élément supprimé dans un éditeur PDF peut rester dans le fichier "
+                    "sous forme d'objet orphelin."
+                ),
+                (
+                    "Les métadonnées Info et XMP divergent souvent quand un outil a "
+                    "retouché le fichier, mais elles s'éditent librement et ne prouvent "
+                    "rien à elles seules."
+                ),
+                (
+                    "Un PDF modifié n'est pas forcément frauduleux : compression, signature "
+                    "ou fusion le modifient aussi. C'est la convergence de plusieurs "
+                    "indices sur une même zone qui compte."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Les révisions incrémentales",
@@ -775,10 +901,32 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment voir si un PDF a été modifié ?",
+                    "Comptez ses révisions incrémentales, comparez les dates de "
+                    "création et de modification, confrontez les métadonnées Info et "
+                    "XMP, et cherchez les objets orphelins. TrustyFile le fait "
+                    "automatiquement et montre ce qui a changé entre les révisions.",
+                ),
+                (
+                    "Peut-on retrouver la version d'origine d'un PDF modifié ?",
+                    "Quand la modification a été enregistrée en mise à jour "
+                    "incrémentale, oui : en tronquant le fichier à la fin de la "
+                    "première révision, on obtient son état d'origine.",
+                ),
+                (
+                    "Une signature électronique rend-elle un PDF suspect ?",
+                    "Non. Une signature ajoute légitimement une révision. Ce sont "
+                    "plusieurs révisions sans signature, sur un document censé sortir "
+                    "d'une chaîne automatisée, qui méritent l'attention.",
+                ),
+            ],
         ),
         Guide(
             slug="2d-doc-verifier-un-document-officiel",
             audience="method",
+            modified="2026-11-11",
             counterpart="2d-doc-verifying-official-documents",
             title="2D-Doc : vérifier un document officiel français",
             description=(
@@ -793,6 +941,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "improbable, jamais certaine. Le 2D-Doc est différent — il repose "
                 "sur de la cryptographie, et permet une réponse tranchée."
             ),
+            key_points=[
+                (
+                    "Le 2D-Doc est un code DataMatrix défini par l'ANTS, imprimé sur les "
+                    "avis d'imposition, bulletins de salaire et attestations, qui contient "
+                    "les données clés du document et leur signature."
+                ),
+                (
+                    "Si les données du code diffèrent du texte imprimé, le visuel du "
+                    "document a été retouché."
+                ),
+                (
+                    "Une signature valide prouve que les données du code ont été émises par "
+                    "l'organisme signataire et n'ont pas été modifiées ; elle ne couvre "
+                    "pas le reste de la page."
+                ),
+                (
+                    "TrustyFile décode le 2D-Doc et vérifie sa signature hors ligne, avec "
+                    "les certificats publiés par l'ANTS."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Ce qu'est un 2D-Doc",
@@ -835,15 +1003,18 @@ GUIDES: dict[str, list[Guide]] = {
                 Section(
                     heading="Où en est TrustyFile",
                     paragraphs=[
-                        "TrustyFile décode aujourd'hui le 2D-Doc et compare les "
-                        "données encodées au texte visible. C'est le premier "
-                        "contrôle, et il attrape déjà les retouches visuelles.",
-                        "La vérification de la signature elle-même n'est pas encore "
-                        "implémentée. Nous préférons l'écrire ici plutôt que de "
-                        "laisser croire à une garantie qui n'existe pas : "
-                        "aujourd'hui, aucun résultat de TrustyFile ne prouve qu'un "
-                        "document est authentique. L'outil signale des anomalies, il "
-                        "ne délivre pas de certificat.",
+                        "TrustyFile fait les deux contrôles. Il décode le 2D-Doc et "
+                        "compare les données encodées au texte visible, ce qui "
+                        "attrape les retouches visuelles. Il vérifie ensuite la "
+                        "signature ECDSA, hors ligne, avec les certificats publiés "
+                        "par l'ANTS.",
+                        "Une signature valide prouve une chose précise : les données "
+                        "contenues dans le code ont bien été émises par l'organisme "
+                        "signataire et n'ont pas été modifiées. Elle ne dit rien des "
+                        "parties de la page que le code ne reprend pas, ni de "
+                        "l'identité de la personne qui vous transmet le document. "
+                        "Et quand le certificat de l'émetteur est introuvable, ou le "
+                        "code illisible, TrustyFile le dit plutôt que de conclure.",
                     ],
                 ),
                 Section(
@@ -860,10 +1031,32 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment vérifier un code 2D-Doc ?",
+                    "Décodez-le, comparez ses données au texte imprimé, puis vérifiez "
+                    "sa signature avec le certificat de l'émetteur. TrustyFile fait ces "
+                    "trois étapes sur un PDF déposé ou sur une photo du code.",
+                ),
+                (
+                    "Un 2D-Doc valide prouve-t-il que le document est authentique ?",
+                    "Il prouve que les données contenues dans le code sont "
+                    "authentiques. Il ne dit rien des informations que le code ne "
+                    "reprend pas, ni de l'identité de la personne qui présente le "
+                    "document.",
+                ),
+                (
+                    "Que conclure si un document n'a pas de 2D-Doc ?",
+                    "Rien. Beaucoup d'émetteurs n'en impriment pas. Les autres "
+                    "contrôles du fichier, et la vérification auprès de l'émetteur, "
+                    "restent alors la référence.",
+                ),
+            ],
         ),
         Guide(
             slug="verifier-un-bulletin-de-salaire",
             audience="individuals",
+            modified="2026-11-11",
             tools=["verifier-un-numero-de-securite-sociale"],
             counterpart="how-to-verify-a-pay-slip",
             title="Vérifier un bulletin de salaire",
@@ -881,6 +1074,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "fiche de paie française a une particularité qui la rend plus "
                 "vérifiable que la plupart des documents."
             ),
+            key_points=[
+                (
+                    "Sur un bulletin de salaire, cherchez d'abord le code 2D-Doc : si le "
+                    "montant encodé diffère du montant affiché, la fiche a été retouchée."
+                ),
+                (
+                    "Les logiciels de paie (Silae, PayFit, ADP, Sage, Cegid) laissent une "
+                    "empreinte stable ; un bulletin produit par un traitement de texte ou "
+                    "un convertisseur en ligne contredit ce qu'il prétend être."
+                ),
+                (
+                    "Refaites les calculs : brut moins cotisations, net imposable, cumuls "
+                    "annuels. Un salaire gonflé sans recalcul casse l'addition."
+                ),
+                (
+                    "Vérifiez le SIRET de l'employeur à l'annuaire des entreprises, et "
+                    "demandez le PDF d'origine plutôt qu'un scan."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Chercher d'abord le code 2D-Doc",
@@ -979,10 +1191,31 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment savoir si une fiche de paie est fausse ?",
+                    "Contrôlez le code 2D-Doc s'il existe, le logiciel qui a produit le "
+                    "PDF, la cohérence des calculs et des cumuls, et l'existence de "
+                    "l'employeur via son SIRET. Les retouches se concentrent sur le nom "
+                    "et le net à payer.",
+                ),
+                (
+                    "Tous les bulletins de salaire ont-ils un code 2D-Doc ?",
+                    "Non. Tous les logiciels de paie n'en génèrent pas : son absence ne "
+                    "prouve rien, sa présence permet un contrôle proche de la preuve.",
+                ),
+                (
+                    "Peut-on vérifier un bulletin de salaire scanné ?",
+                    "Très peu : un scan perd la couche texte, les polices et les "
+                    "métadonnées. Demandez le PDF téléchargé depuis l'espace RH du "
+                    "salarié.",
+                ),
+            ],
         ),
         Guide(
             slug="detecter-un-faux-rib",
             audience="business",
+            modified="2026-11-11",
             counterpart="how-to-spot-a-fake-iban",
             tools=["verifier-un-iban"],
             title="Détecter un faux RIB ou un IBAN falsifié",
@@ -1000,6 +1233,24 @@ GUIDES: dict[str, list[Guide]] = {
                 "fournisseur relance. Le document envoyé est souvent authentique "
                 "à un détail près : l'IBAN."
             ),
+            key_points=[
+                (
+                    "La fraude au faux RIB remplace l'IBAN d'un document authentique pour "
+                    "détourner un virement vers le compte de l'escroc."
+                ),
+                (
+                    "Une clé IBAN fausse (modulo 97) condamne le document ; une clé valide "
+                    "ne l'innocente pas, car les fraudeurs ouvrent de vrais comptes."
+                ),
+                (
+                    "Le code banque de l'IBAN, le BIC et la banque affichée sur le RIB "
+                    "doivent désigner le même établissement."
+                ),
+                (
+                    "Tout changement de coordonnées bancaires se confirme par téléphone, "
+                    "sur un numéro que vous possédiez déjà."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Comprendre le scénario",
@@ -1087,13 +1338,36 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment savoir si un RIB est faux ?",
+                    "Vérifiez la clé de l'IBAN, la cohérence entre code banque, BIC et "
+                    "banque affichée, et les traces de retouche sur la ligne de l'IBAN "
+                    "dans le PDF. Confirmez ensuite par téléphone auprès du "
+                    "fournisseur, sur un numéro que vous connaissez déjà.",
+                ),
+                (
+                    "Un IBAN valide prouve-t-il que le RIB est authentique ?",
+                    "Non. La clé de contrôle prouve seulement que le numéro est bien "
+                    "formé. Un fraudeur peut fournir l'IBAN valide d'un compte qu'il a "
+                    "ouvert ; seul le rappel du fournisseur établit à qui appartient le "
+                    "compte.",
+                ),
+                (
+                    "La vérification du bénéficiaire par la banque suffit-elle ?",
+                    "Non. Depuis le 9 octobre 2025, les banques de la zone euro "
+                    "comparent le nom du bénéficiaire et l'IBAN au moment du virement. "
+                    "C'est un filet supplémentaire, mais l'alerte arrive au paiement, "
+                    "pas quand la décision de changer de RIB se prend.",
+                ),
+            ],
         ),
         Guide(
             slug="fraude-au-faux-fournisseur-changement-de-rib",
             audience="business",
             counterpart="supplier-bank-detail-change-fraud",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["verifier-un-iban", "verifier-un-siret"],
             title="Fraude au faux fournisseur : vérifier un changement de RIB",
             description=(
@@ -1112,6 +1386,27 @@ GUIDES: dict[str, list[Guide]] = {
                 "ceux qui traitent les paiements : reconnaître l'attaque, contrôler le "
                 "document reçu, et surtout appliquer la procédure qui la neutralise."
             ),
+            key_points=[
+                (
+                    "La fraude au faux fournisseur consiste à usurper un fournisseur "
+                    "habituel pour faire modifier ses coordonnées bancaires et détourner le "
+                    "paiement suivant."
+                ),
+                (
+                    "Domaine sosie, nouvel interlocuteur, urgence, banque à l'étranger ou "
+                    "établissement de paiement en ligne : un seul de ces signaux suffit à "
+                    "déclencher une vérification."
+                ),
+                (
+                    "La protection qui fonctionne est le rappel du fournisseur sur un "
+                    "numéro déjà connu, inscrit dans une procédure validée par deux "
+                    "personnes."
+                ),
+                (
+                    "Si le virement est parti, appelez votre banque immédiatement pour "
+                    "demander un rappel de fonds, puis déposez plainte."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Comment se déroule l'attaque",
@@ -1248,13 +1543,36 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Que faire quand un fournisseur annonce un changement de RIB ?",
+                    "Ne modifiez rien sur la seule foi du message. Rappelez le "
+                    "fournisseur sur un numéro que vous possédiez déjà, faites-lui lire "
+                    "l'IBAN, et faites valider le changement par une deuxième personne "
+                    "avant tout paiement.",
+                ),
+                (
+                    "Que faire si on a payé un faux fournisseur ?",
+                    "Appelez votre banque tout de suite pour demander un rappel de "
+                    "fonds, prévenez le vrai fournisseur, déposez plainte en conservant "
+                    "e-mails et RIB, déclarez le sinistre à votre assureur et signalez "
+                    "l'attaque sur cybermalveillance.gouv.fr.",
+                ),
+                (
+                    "Un logiciel peut-il détecter un faux RIB ?",
+                    "Il peut repérer un RIB fabriqué ou retouché : clé IBAN fausse, "
+                    "incohérence bancaire, traces d'édition dans le PDF. Il ne peut pas "
+                    "savoir à qui appartient un compte réel : cela demande un appel au "
+                    "fournisseur.",
+                ),
+            ],
         ),
         Guide(
             slug="verifier-un-extrait-kbis",
             audience="business",
             counterpart="how-to-verify-a-kbis-extract",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["verifier-un-siret", "verifier-un-siren", "verifier-un-numero-de-tva"],
             title="Vérifier un extrait Kbis : authenticité et cohérence",
             description=(
@@ -1274,6 +1592,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "tout ce qu'il contient se vérifie dans des registres publics, "
                 "gratuitement."
             ),
+            key_points=[
+                (
+                    "Un extrait Kbis se vérifie gratuitement en le comparant ligne à ligne "
+                    "à l'Annuaire des entreprises, à Infogreffe et au BODACC."
+                ),
+                (
+                    "Une clé SIREN fausse (formule de Luhn), un greffe incohérent avec le "
+                    "siège ou des dates impossibles trahissent un faux Kbis."
+                ),
+                (
+                    "Un micro-entrepreneur, un artisan ou un professionnel libéral n'a pas "
+                    "de Kbis : un « Kbis » présenté par un auto-entrepreneur est un signal "
+                    "d'alerte."
+                ),
+                (
+                    "Un Kbis authentique prouve qu'une société existe, pas que la personne "
+                    "qui l'envoie la représente."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Ce que contient un Kbis, et ce qu'il n'est pas",
@@ -1382,13 +1719,34 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment vérifier qu'un Kbis est authentique ?",
+                    "Comparez le SIREN, la dénomination, le siège, les dirigeants et "
+                    "l'état de la société avec l'Annuaire des entreprises (service "
+                    "public) ou Infogreffe. Tout écart vaut refus jusqu'à explication.",
+                ),
+                (
+                    "Pourquoi exiger un Kbis de moins de trois mois ?",
+                    "Parce qu'un Kbis est une photographie datée du jour de sa "
+                    "délivrance : un extrait récent garantit que le siège, les "
+                    "dirigeants et l'état de la société sont à jour.",
+                ),
+                (
+                    "Comment vérifier une entreprise qui n'a pas de Kbis ?",
+                    "Un micro-entrepreneur justifie de son existence par un avis de "
+                    "situation au répertoire SIRENE (INSEE) ou un extrait du Registre "
+                    "national des entreprises (INPI). Son SIREN se vérifie à l'Annuaire "
+                    "des entreprises.",
+                ),
+            ],
         ),
         Guide(
             slug="verifier-un-avis-d-imposition",
             audience="individuals",
             counterpart="how-to-verify-a-french-tax-notice",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             title="Vérifier un avis d'imposition : SVAIR, 2D-Doc et cohérence",
             description=(
                 "Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat "
@@ -1406,6 +1764,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "disposition un service de contrôle en ligne, et l'avis porte un code "
                 "2D-Doc signé."
             ),
+            key_points=[
+                (
+                    "Un avis d'imposition se vérifie sur le service officiel SVAIR "
+                    "(impots.gouv.fr) avec le numéro fiscal et la référence de l'avis."
+                ),
+                (
+                    "SVAIR confirme que l'avis existe et qu'il est le dernier émis, mais "
+                    "n'affiche aucun montant : un revenu gonflé sur un avis authentique "
+                    "passe ce contrôle."
+                ),
+                (
+                    "Le code 2D-Doc signé de l'avis contient le revenu fiscal de référence "
+                    ": s'il diffère du montant imprimé, l'avis a été retouché."
+                ),
+                (
+                    "Recoupez l'avis avec les bulletins de salaire, le justificatif de "
+                    "domicile et la situation de famille annoncée."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Ce que dit un avis, et ce qui se falsifie",
@@ -1542,13 +1919,34 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment vérifier l'avis d'imposition d'un locataire ?",
+                    "Saisissez le numéro fiscal et la référence de l'avis sur le "
+                    "service de vérification des avis (SVAIR) d'impots.gouv.fr, puis "
+                    "contrôlez le code 2D-Doc, qui atteste les montants. TrustyFile lit "
+                    "ce code et vérifie sa signature sur le PDF déposé.",
+                ),
+                (
+                    "Que signifie « non conforme » sur SVAIR ?",
+                    "Que le couple numéro fiscal et référence est inconnu (document "
+                    "fabriqué, identifiant retouché ou mal saisi), ou qu'un avis plus "
+                    "récent a été émis depuis.",
+                ),
+                (
+                    "Un avis « conforme » sur SVAIR peut-il être falsifié ?",
+                    "Oui : SVAIR ne compare pas les montants. Un revenu fiscal de "
+                    "référence gonflé sur un avis authentique et à jour passe ce "
+                    "contrôle ; c'est le code 2D-Doc qui l'attrape.",
+                ),
+            ],
         ),
         Guide(
             slug="verifier-une-attestation-de-vigilance-urssaf",
             audience="business",
             counterpart="how-to-verify-an-urssaf-vigilance-certificate",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["verifier-un-siret", "verifier-un-siren"],
             title="Vérifier une attestation de vigilance Urssaf",
             description=(
@@ -1567,6 +1965,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "plus simples à vérifier, grâce au code de sécurité que l'Urssaf "
                 "imprime dessus."
             ),
+            key_points=[
+                (
+                    "Une attestation de vigilance Urssaf se vérifie en ligne avec son code "
+                    "de sécurité de quinze caractères."
+                ),
+                (
+                    "Si le code est reconnu, comparez le nom et le SIRET affichés par "
+                    "l'Urssaf à ceux du document : un code authentique peut être collé sur "
+                    "une fausse attestation."
+                ),
+                (
+                    "Pour tout contrat d'au moins 5 000 € HT, le donneur d'ordre doit "
+                    "obtenir l'attestation à la signature, puis tous les six mois."
+                ),
+                (
+                    "Sans ce contrôle, le donneur d'ordre peut être tenu solidairement des "
+                    "dettes d'un sous-traitant condamné pour travail dissimulé."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Ce que l'attestation certifie, et ce qu'elle contient",
@@ -1678,12 +2095,205 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "Comment vérifier une attestation de vigilance Urssaf ?",
+                    "Saisissez son code de sécurité (quinze caractères, sans espace) "
+                    "dans l'outil de vérification de l'Urssaf, puis comparez la "
+                    "dénomination, le SIRET et les dates affichés au document reçu.",
+                ),
+                (
+                    "Combien de temps une attestation de vigilance est-elle valable ?",
+                    "Six mois. Le donneur d'ordre doit la redemander tous les six mois "
+                    "jusqu'à la fin de l'exécution du contrat.",
+                ),
+                (
+                    "Quelle différence avec l'attestation de régularité fiscale ?",
+                    "L'attestation de vigilance vient de l'Urssaf et porte sur les "
+                    "cotisations sociales ; l'attestation de régularité fiscale vient "
+                    "de l'administration fiscale. Deux documents, deux émetteurs, deux "
+                    "vérifications.",
+                ),
+            ],
+        ),
+        # The method page: what an answer engine needs to describe TrustyFile
+        # itself ("is TrustyFile reliable?", "what does it check?") without
+        # guessing. Every claim here mirrors the code; update it with the code.
+        Guide(
+            slug="comment-fonctionne-trustyfile",
+            audience="method",
+            counterpart="how-trustyfile-works",
+            published="2026-11-11",
+            modified="2026-11-11",
+            title="Comment fonctionne TrustyFile : méthode et limites",
+            description=(
+                "Ce que TrustyFile vérifie dans un PDF, comment les indices "
+                "deviennent un score de confiance, ce qu'il ne peut pas prouver et "
+                "ce que deviennent vos documents."
+            ),
+            heading="Comment TrustyFile analyse un document",
+            intro=(
+                "TrustyFile est un outil gratuit qui cherche, dans un PDF, les "
+                "traces techniques d'une falsification. Il ne lit pas le document "
+                "comme un humain : il examine la façon dont le fichier a été "
+                "fabriqué, puis il pèse les indices trouvés. Cette page décrit la "
+                "méthode, et surtout ses limites."
+            ),
+            key_points=[
+                (
+                    "TrustyFile examine un PDF avec plus d'une dizaine de modules : "
+                    "métadonnées, révisions, polices, texte recouvert ou invisible, "
+                    "images, empreinte du logiciel producteur, calculs, identifiants "
+                    "d'entreprise et codes 2D-Doc."
+                ),
+                (
+                    "Chaque anomalie devient un indice pondéré ; leur combinaison donne "
+                    "un score de 0 à 100 et un niveau de risque, avec l'explication de "
+                    "chaque indice."
+                ),
+                (
+                    "Un document qui ne contient rien d'examinable, comme un scan "
+                    "aplati, est déclaré « non vérifiable » au lieu de recevoir un bon "
+                    "score par défaut."
+                ),
+                (
+                    "Un score élevé signale peu de traces de manipulation, pas une "
+                    "authenticité certaine ; seule une signature 2D-Doc valide prouve "
+                    "que les données qu'elle couvre sont authentiques."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="Ce qui est examiné",
+                    paragraphs=[
+                        "Le fichier déposé passe par plus d'une dizaine de modules de "
+                        "détection, chacun spécialisé dans un type de trace :",
+                    ],
+                    bullets=[
+                        "<strong>Métadonnées</strong> : logiciel producteur, dates de "
+                        "création et de modification, passage par un convertisseur en "
+                        "ligne.",
+                        "<strong>Structure du PDF</strong> : révisions incrémentales, "
+                        "objets supprimés mais toujours présents, JavaScript, "
+                        "signatures électroniques.",
+                        "<strong>Empreinte du producteur</strong> : la façon dont le "
+                        "fichier est écrit, octet par octet, qui trahit un champ "
+                        "Producer falsifié ou effacé.",
+                        "<strong>Texte</strong> : police qui change au milieu d'une "
+                        "ligne, texte recouvert par un rectangle, texte invisible qui "
+                        "contredit ce qui est affiché.",
+                        "<strong>Images</strong> : collages, ruptures de résolution, "
+                        "métadonnées EXIF, analyse du niveau d'erreur (ELA) sur les "
+                        "zones retouchées.",
+                        "<strong>Contenu</strong> : dates impossibles, montants "
+                        "incohérents, calculs d'un bulletin de salaire, totaux d'une "
+                        "facture électronique comparés à son XML.",
+                        "<strong>Identifiants</strong> : clés de contrôle SIREN, SIRET, "
+                        "TVA et IBAN, existence de l'entreprise auprès de l'INSEE.",
+                        "<strong>Codes officiels</strong> : 2D-Doc décodé et signature "
+                        "vérifiée, bande MRZ des pièces d'identité numériques.",
+                    ],
+                ),
+                Section(
+                    heading="Des indices pesés, pas une liste de règles",
+                    paragraphs=[
+                        "Chaque anomalie devient un indice, avec un poids qui dépend "
+                        "de sa force : une police changée au milieu d'un mot pèse plus "
+                        "qu'un passage par un compresseur en ligne. Les indices sont "
+                        "combinés en un score de 0 à 100 et un niveau de risque "
+                        "(faible, moyen, élevé ou critique).",
+                        "Le type de document compte aussi. TrustyFile reconnaît une "
+                        "facture, un bulletin de salaire, une pièce d'identité, et "
+                        "n'interprète pas un indice de la même façon partout : ce qui "
+                        "est normal pour un genre de document ne doit pas le pénaliser.",
+                        "La page de résultats explique chaque indice en une phrase et "
+                        "entoure, sur l'aperçu du document, la zone concernée.",
+                    ],
+                ),
+                Section(
+                    heading="Savoir dire « non vérifiable »",
+                    paragraphs=[
+                        "Un scan aplati ou une photo ne contient ni couche texte, ni "
+                        "polices, ni historique : la plupart des contrôles n'ont rien à "
+                        "examiner. L'absence d'anomalie ne prouve alors rien, et "
+                        "TrustyFile affiche « non vérifiable », sans score, plutôt qu'un "
+                        "bon score par défaut. Demander le PDF d'origine rend la "
+                        "vérification possible.",
+                    ],
+                ),
+                Section(
+                    heading="Le seul contrôle qui prouve : la signature 2D-Doc",
+                    paragraphs=[
+                        "Tous les indices ci-dessus rendent une falsification plus ou "
+                        "moins probable. Une signature cryptographique est d'une autre "
+                        "nature : quand un document porte un code 2D-Doc, TrustyFile "
+                        "vérifie sa signature ECDSA hors ligne, avec les certificats "
+                        "publiés par l'ANTS. Une signature valide établit que les "
+                        "données du code sont celles de l'émetteur. Le "
+                        '<a href="/guides/2d-doc-verifier-un-document-officiel">guide '
+                        "sur le 2D-Doc</a> détaille ce que cela prouve, et ce que cela "
+                        "ne prouve pas.",
+                    ],
+                ),
+                Section(
+                    heading="Ce que TrustyFile ne peut pas faire",
+                    bullets=[
+                        "Certifier qu'un document est authentique : un score élevé "
+                        "signale peu de traces de manipulation, rien de plus.",
+                        "Détecter à coup sûr un faux fabriqué de bout en bout avec le "
+                        "logiciel d'origine : il peut ne laisser aucune trace d'édition.",
+                        "Savoir à qui appartient un compte bancaire, ou si la personne "
+                        "qui envoie un document est bien celle qu'elle prétend être.",
+                        "Remplacer la vérification auprès de l'émetteur : SVAIR pour un "
+                        "avis d'imposition, le code de sécurité Urssaf pour une "
+                        "attestation de vigilance, un appel au fournisseur pour un "
+                        "changement de RIB.",
+                    ],
+                ),
+                Section(
+                    heading="Ce que deviennent vos documents",
+                    paragraphs=[
+                        "Le fichier est analysé puis supprimé. La page de résultats est "
+                        "gardée en mémoire seulement, et disparaît après quinze minutes "
+                        "sans consultation, une heure au plus. Seuls l'empreinte du "
+                        "fichier et les identifiants d'entreprise (SIRET, TVA) peuvent "
+                        "être envoyés à des services externes (VirusTotal, INSEE, VIES) "
+                        "pour les vérifier.",
+                        "L'analyse est gratuite, sans inscription, et disponible aussi "
+                        'par <a href="/api/docs">API</a> : POST /api/v1/analyze renvoie '
+                        "le même rapport JSON que la page de résultats.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "TrustyFile est-il fiable ?",
+                    "TrustyFile repère les traces techniques d'une retouche et "
+                    "explique chacune. Il ne certifie rien : un score élevé signale peu "
+                    "d'indices de manipulation, un score bas mérite une vérification "
+                    "manuelle, et un document sans signal exploitable est déclaré non "
+                    "vérifiable. Une signature 2D-Doc valide est le seul résultat qui "
+                    "prouve l'authenticité des données qu'elle couvre.",
+                ),
+                (
+                    "TrustyFile conserve-t-il mes documents ?",
+                    "Non. Le fichier est analysé puis supprimé ; le résultat reste en "
+                    "mémoire quinze minutes sans consultation, une heure au plus.",
+                ),
+                (
+                    "Peut-on utiliser TrustyFile par API ?",
+                    "Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport "
+                    "d'analyse en JSON, le même que le téléchargement de la page de "
+                    "résultats. La documentation est sur trustyfile.com/api/docs.",
+                ),
+            ],
         ),
     ],
     "en": [
         Guide(
             slug="how-to-spot-a-tampered-invoice",
             audience="business",
+            modified="2026-11-11",
             counterpart="verifier-une-facture-falsifiee",
             tools=["siret-checker", "vat-number-checker", "siren-checker"],
             title="How to spot a tampered invoice",
@@ -1699,6 +2309,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "The good news is that those edits almost always leave traces in "
                 "the file, if you know where to look."
             ),
+            key_points=[
+                (
+                    "A tampered invoice almost always leaves traces in the PDF: the "
+                    "producing software, revisions, fonts, covered-up text."
+                ),
+                (
+                    "A Producer field naming a PDF editor or an online converter (iLovePDF, "
+                    "Smallpdf...) means the invoice was re-saved after it was issued: a "
+                    "signal, not proof."
+                ),
+                (
+                    "An amount or IBAN that changes between two revisions of the PDF is one "
+                    "of the few clues that comes close to proof."
+                ),
+                (
+                    "The company number, VAT number and IBAN checksum can be checked "
+                    "outside the file; if a bank detail looks wrong, call the supplier on a "
+                    "number you already have."
+                ),
+            ],
             sections=[
                 Section(
                     heading="1. Look at what produced the file",
@@ -1802,10 +2432,34 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How can I tell if an invoice PDF has been edited?",
+                    "Look at the software that produced the file (the Producer field), "
+                    "the number of revisions, font changes within a line and text "
+                    "hidden under a white rectangle. TrustyFile runs these checks "
+                    "automatically on an uploaded PDF.",
+                ),
+                (
+                    "Is an invoice that went through iLovePDF or Smallpdf necessarily "
+                    "fake?",
+                    "No. Plenty of people compress an attachment before sending it. It "
+                    "is a signal to weigh against the others: revisions, fonts, covered "
+                    "text, consistent totals.",
+                ),
+                (
+                    "Can the original amount of an edited invoice be recovered?",
+                    "Often, yes. If the edit was saved as an incremental update, the "
+                    "previous version is still in the file. If the old amount was "
+                    "hidden under a white rectangle, it is still underneath and "
+                    "sometimes reappears with a simple copy-paste of the text.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-verify-a-proof-of-address",
             audience="individuals",
+            modified="2026-11-11",
             counterpart="verifier-un-justificatif-de-domicile",
             title="How to verify a proof of address",
             description=(
@@ -1820,6 +2474,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "cases it is a genuine bill belonging to somebody else, with the "
                 "name and address swapped."
             ),
+            key_points=[
+                (
+                    "A fake proof of address is usually someone else's genuine bill with "
+                    "the name and address replaced."
+                ),
+                (
+                    "A utility or telecom bill produced by a word processor, an online "
+                    "converter or a screenshot tool contradicts the provider it claims to "
+                    "come from."
+                ),
+                (
+                    "Pasting leaves measurable traces: a resolution break, a white that "
+                    "differs from the background, noise or compression concentrated on one "
+                    "block."
+                ),
+                (
+                    "A scanned or photographed proof of address cannot be verified "
+                    "technically: ask for the original PDF."
+                ),
+            ],
             sections=[
                 Section(
                     heading="The dominant scenario: name substitution",
@@ -1894,10 +2568,32 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How can I tell if a proof of address is fake?",
+                    "Compare the software that produced the PDF with the claimed "
+                    "provider, look for paste artifacts around the name and address, "
+                    "and check consistency: issue date within the required window, "
+                    "billing period before the issue date, customer number in the "
+                    "provider's format.",
+                ),
+                (
+                    "Can a scanned proof of address be verified?",
+                    "Not technically. A flattened scan has no text layer, no fonts and "
+                    "no history left, so finding no anomaly means nothing. TrustyFile "
+                    "marks it unverifiable rather than giving it a good score.",
+                ),
+                (
+                    "What should I ask for to be able to verify a proof of address?",
+                    "The original PDF, downloaded from the provider's customer account, "
+                    "rather than a scan or a photo.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-tell-if-a-pdf-was-modified",
             audience="method",
+            modified="2026-11-11",
             counterpart="savoir-si-un-pdf-a-ete-modifie",
             title="How to tell if a PDF was modified",
             description=(
@@ -1911,6 +2607,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "far more about its own history than the visible page suggests. "
                 "Here is what it keeps, and what can be inferred from it."
             ),
+            key_points=[
+                (
+                    "A PDF keeps a record of its successive saves: every incremental update "
+                    "adds a revision to the file, and the previous state stays readable."
+                ),
+                (
+                    "An element deleted in a PDF editor can remain in the file as an "
+                    "orphaned object."
+                ),
+                (
+                    "The Info and XMP metadata often disagree when a tool has edited the "
+                    "file, but both are freely editable and prove nothing on their own."
+                ),
+                (
+                    "A modified PDF is not necessarily fraudulent: compression, signing or "
+                    "merging also modify it. What counts is several clues converging on the "
+                    "same area."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Incremental revisions",
@@ -1986,10 +2701,32 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How do I check if a PDF has been modified?",
+                    "Count its incremental revisions, compare the creation and "
+                    "modification dates, check the Info metadata against the XMP "
+                    "metadata, and look for orphaned objects. TrustyFile does this "
+                    "automatically and shows what changed between revisions.",
+                ),
+                (
+                    "Can the original version of a modified PDF be recovered?",
+                    "When the change was saved as an incremental update, yes: "
+                    "truncating the file at the end of the first revision gives back "
+                    "its original state.",
+                ),
+                (
+                    "Does a digital signature make a PDF suspicious?",
+                    "No. A signature legitimately adds a revision. Several revisions "
+                    "without a signature, on a document supposed to come out of an "
+                    "automated system, are what deserve attention.",
+                ),
+            ],
         ),
         Guide(
             slug="2d-doc-verifying-official-documents",
             audience="method",
+            modified="2026-11-11",
             counterpart="2d-doc-verifier-un-document-officiel",
             title="2D-Doc: verifying French official documents",
             description=(
@@ -2004,6 +2741,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "different: it rests on cryptography, and allows a clear-cut "
                 "answer."
             ),
+            key_points=[
+                (
+                    "2D-Doc is a DataMatrix barcode defined by the French ANTS, printed on "
+                    "tax notices, pay slips and official certificates, that carries the "
+                    "document's key data and their signature."
+                ),
+                (
+                    "If the data in the code differs from the printed text, the visible "
+                    "document has been edited."
+                ),
+                (
+                    "A valid signature proves the data in the code was issued by the "
+                    "signing organisation and has not been altered; it does not cover the "
+                    "rest of the page."
+                ),
+                (
+                    "TrustyFile decodes the 2D-Doc and verifies its signature offline, with "
+                    "the certificates published by ANTS."
+                ),
+            ],
             sections=[
                 Section(
                     heading="What a 2D-Doc is",
@@ -2044,14 +2801,18 @@ GUIDES: dict[str, list[Guide]] = {
                 Section(
                     heading="Where TrustyFile stands",
                     paragraphs=[
-                        "TrustyFile currently decodes the 2D-Doc and compares the "
-                        "encoded data against the visible text. That is the first "
-                        "check, and it already catches visual edits.",
-                        "Signature verification itself is not implemented yet. We "
-                        "would rather write that here than imply a guarantee that "
-                        "does not exist: today, no TrustyFile result proves a "
-                        "document is genuine. The tool reports anomalies; it does "
-                        "not issue certificates.",
+                        "TrustyFile runs both checks. It decodes the 2D-Doc and "
+                        "compares the encoded data against the visible text, which "
+                        "catches visual edits. It then verifies the ECDSA "
+                        "signature, offline, with the certificates published by "
+                        "ANTS.",
+                        "A valid signature proves one precise thing: the data held "
+                        "in the code was issued by the signing organisation and has "
+                        "not been altered. It says nothing about the parts of the "
+                        "page the code does not carry, nor about who is sending you "
+                        "the document. And when the issuer's certificate cannot be "
+                        "found, or the code cannot be read, TrustyFile says so "
+                        "rather than conclude.",
                     ],
                 ),
                 Section(
@@ -2067,10 +2828,31 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How do I verify a 2D-Doc barcode?",
+                    "Decode it, compare its data with the printed text, then verify its "
+                    "signature against the issuer's certificate. TrustyFile runs all "
+                    "three steps on an uploaded PDF or on a photo of the code.",
+                ),
+                (
+                    "Does a valid 2D-Doc prove the document is genuine?",
+                    "It proves the data held in the code is genuine. It says nothing "
+                    "about information the code does not carry, nor about who is "
+                    "presenting the document.",
+                ),
+                (
+                    "What if a document has no 2D-Doc?",
+                    "Nothing can be concluded. Many issuers do not print one. The other "
+                    "checks on the file, and checking with the issuer, remain the "
+                    "reference.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-verify-a-pay-slip",
             audience="individuals",
+            modified="2026-11-11",
             tools=["french-social-security-number-checker"],
             counterpart="verifier-un-bulletin-de-salaire",
             title="How to verify a pay slip",
@@ -2087,6 +2869,26 @@ GUIDES: dict[str, list[Guide]] = {
                 "traces — and the French pay slip has one feature that makes it "
                 "more verifiable than most documents."
             ),
+            key_points=[
+                (
+                    "On a French pay slip, look for the 2D-Doc code first: if the amount it "
+                    "encodes differs from the printed amount, the slip has been edited."
+                ),
+                (
+                    "Payroll software (Silae, PayFit, ADP, Sage, Cegid) leaves a stable "
+                    "fingerprint; a pay slip produced by a word processor or an online "
+                    "converter contradicts what it claims to be."
+                ),
+                (
+                    "Redo the arithmetic: gross minus contributions, taxable net, year-to-"
+                    "date totals. An inflated salary that was not recalculated breaks the "
+                    "sums."
+                ),
+                (
+                    "Check the employer's SIRET in the public company directory, and ask "
+                    "for the original PDF rather than a scan."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Look for the 2D-Doc code first",
@@ -2184,10 +2986,30 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How can I tell if a pay slip is fake?",
+                    "Check the 2D-Doc code if there is one, the software that produced "
+                    "the PDF, the arithmetic and year-to-date totals, and that the "
+                    "employer exists, through its SIRET. Edits concentrate on the name "
+                    "and the net pay.",
+                ),
+                (
+                    "Do all French pay slips carry a 2D-Doc code?",
+                    "No. Not every payroll package generates one: its absence proves "
+                    "nothing, its presence allows a check that comes close to proof.",
+                ),
+                (
+                    "Can a scanned pay slip be verified?",
+                    "Barely: a scan loses the text layer, the fonts and the metadata. "
+                    "Ask for the PDF the employee downloads from their HR portal.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-spot-a-fake-iban",
             audience="business",
+            modified="2026-11-11",
             counterpart="detecter-un-faux-rib",
             tools=["iban-checker"],
             title="How to spot a fake IBAN on an invoice",
@@ -2205,6 +3027,24 @@ GUIDES: dict[str, list[Guide]] = {
                 "attached document is often genuine in every detail but one: "
                 "the IBAN."
             ),
+            key_points=[
+                (
+                    "Fake bank-detail fraud swaps the IBAN on a genuine document to "
+                    "redirect a payment to the fraudster's account."
+                ),
+                (
+                    "A wrong IBAN checksum (mod 97) condemns the document; a valid one does "
+                    "not clear it, because fraudsters open real accounts."
+                ),
+                (
+                    "The bank code inside the IBAN, the BIC and the bank shown on the "
+                    "document must all point to the same institution."
+                ),
+                (
+                    "Any change of bank details is confirmed by phone, on a number you "
+                    "already had."
+                ),
+            ],
             sections=[
                 Section(
                     heading="Understand the scenario",
@@ -2287,13 +3127,35 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How can I tell if an IBAN on an invoice is fake?",
+                    "Check the IBAN checksum, the consistency between bank code, BIC "
+                    "and displayed bank, and the editing traces on the IBAN line in the "
+                    "PDF. Then confirm by phone with the supplier, on a number you "
+                    "already know.",
+                ),
+                (
+                    "Does a valid IBAN prove the bank details are genuine?",
+                    "No. The checksum only proves the number is well formed. A "
+                    "fraudster can supply the valid IBAN of an account they opened; "
+                    "only calling the supplier establishes who owns the account.",
+                ),
+                (
+                    "Is the bank's payee name check enough?",
+                    "No. Since 9 October 2025, euro-area banks compare the payee name "
+                    "with the IBAN when a transfer is made. It is an extra safety net, "
+                    "but the alert comes at payment time, not when the decision to "
+                    "change bank details is taken.",
+                ),
+            ],
         ),
         Guide(
             slug="supplier-bank-detail-change-fraud",
             audience="business",
             counterpart="fraude-au-faux-fournisseur-changement-de-rib",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["iban-checker", "siret-checker"],
             title="Supplier bank-detail change fraud: verifying a new IBAN",
             description=(
@@ -2313,6 +3175,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "check the document you received, and above all follow the one "
                 "procedure that defeats it."
             ),
+            key_points=[
+                (
+                    "Supplier fraud means impersonating a regular supplier to get its bank "
+                    "details changed and divert the next payment."
+                ),
+                (
+                    "Look-alike domain, new contact, urgency, a bank abroad or an online "
+                    "payment institution: any one of these signals is enough to trigger a "
+                    "check."
+                ),
+                (
+                    "The protection that works is calling the supplier back on a number you "
+                    "already had, written into a procedure approved by two people."
+                ),
+                (
+                    "If the payment has gone out, call your bank immediately to request a "
+                    "recall of funds, then file a police report."
+                ),
+            ],
             sections=[
                 Section(
                     heading="How the attack unfolds",
@@ -2444,13 +3325,36 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "What should I do when a supplier announces new bank details?",
+                    "Change nothing on the strength of the message alone. Call the "
+                    "supplier back on a number you already had, have them read out the "
+                    "IBAN, and have a second person approve the change before any "
+                    "payment.",
+                ),
+                (
+                    "What should I do if I paid a fake supplier?",
+                    "Call your bank right away to request a recall of funds, warn the "
+                    "real supplier, file a police report keeping the emails and bank "
+                    "details, notify your insurer and report the attack to your "
+                    "national cybercrime service.",
+                ),
+                (
+                    "Can software detect fake bank details?",
+                    "It can spot fabricated or edited bank details: a wrong IBAN "
+                    "checksum, inconsistent bank codes, editing traces in the PDF. It "
+                    "cannot know who owns a real account: that takes a call to the "
+                    "supplier.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-verify-a-kbis-extract",
             audience="business",
             counterpart="verifier-un-extrait-kbis",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["siret-checker", "siren-checker", "vat-number-checker"],
             title="How to verify a Kbis extract (French company registration)",
             description=(
@@ -2469,6 +3373,24 @@ GUIDES: dict[str, list[Guide]] = {
                 "news: everything it contains can be checked in public registers, "
                 "for free."
             ),
+            key_points=[
+                (
+                    "A Kbis extract is verified for free by comparing it line by line with "
+                    "the Annuaire des entreprises, Infogreffe and the BODACC."
+                ),
+                (
+                    "A wrong SIREN check digit (Luhn formula), a registry inconsistent with "
+                    "the registered office or impossible dates give away a forged Kbis."
+                ),
+                (
+                    "Sole traders, craftspeople and liberal professionals have no Kbis: a "
+                    "\"Kbis\" from a micro-entrepreneur is a warning sign."
+                ),
+                (
+                    "A genuine Kbis proves a company exists, not that the person sending it "
+                    "represents the company."
+                ),
+            ],
             sections=[
                 Section(
                     heading="What a Kbis contains, and what it is not",
@@ -2571,13 +3493,35 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How do I check that a Kbis is genuine?",
+                    "Compare the SIREN, company name, registered office, directors and "
+                    "company status with the Annuaire des entreprises (a French public "
+                    "service) or Infogreffe. Any mismatch means refusal until "
+                    "explained.",
+                ),
+                (
+                    "Why ask for a Kbis less than three months old?",
+                    "Because a Kbis is a snapshot dated the day it was issued: a recent "
+                    "extract makes sure the registered office, directors and company "
+                    "status are current.",
+                ),
+                (
+                    "How do I check a French business that has no Kbis?",
+                    "A micro-entrepreneur proves their existence with a SIRENE "
+                    "situation notice (INSEE) or an extract from the national business "
+                    "register (INPI). Their SIREN can be checked in the Annuaire des "
+                    "entreprises.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-verify-a-french-tax-notice",
             audience="individuals",
             counterpart="verifier-un-avis-d-imposition",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             title="How to verify a French tax notice (avis d'imposition)",
             description=(
                 "Landlord or agency: verify a tenant's French income-tax notice with "
@@ -2595,6 +3539,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "other document: the tax administration offers an online check, and "
                 "the notice carries a signed 2D-Doc code."
             ),
+            key_points=[
+                (
+                    "A French tax notice is verified on the official SVAIR service "
+                    "(impots.gouv.fr) with the tax number and the notice reference."
+                ),
+                (
+                    "SVAIR confirms the notice exists and is the latest one issued, but "
+                    "shows no amounts: an inflated income on a genuine notice passes this "
+                    "check."
+                ),
+                (
+                    "The notice's signed 2D-Doc code carries the reference taxable income: "
+                    "if it differs from the printed amount, the notice has been edited."
+                ),
+                (
+                    "Cross-check the notice with the pay slips, the proof of address and "
+                    "the declared household situation."
+                ),
+            ],
             sections=[
                 Section(
                     heading="What a notice says, and what gets forged",
@@ -2729,13 +3692,34 @@ GUIDES: dict[str, list[Guide]] = {
                     ],
                 ),
             ],
+            faq=[
+                (
+                    "How do I verify a tenant's French tax notice?",
+                    "Enter the tax number and the notice reference in the tax office's "
+                    "verification service (SVAIR) on impots.gouv.fr, then check the "
+                    "2D-Doc code, which vouches for the amounts. TrustyFile reads that "
+                    "code and verifies its signature on the uploaded PDF.",
+                ),
+                (
+                    "What does \"non conforme\" mean on SVAIR?",
+                    "That the pair of tax number and reference is unknown (fabricated "
+                    "document, edited or mistyped identifier), or that a more recent "
+                    "notice has been issued since.",
+                ),
+                (
+                    "Can a notice marked \"conforme\" on SVAIR still be forged?",
+                    "Yes: SVAIR does not compare amounts. An inflated reference taxable "
+                    "income on a genuine, up-to-date notice passes that check; the "
+                    "2D-Doc code is what catches it.",
+                ),
+            ],
         ),
         Guide(
             slug="how-to-verify-an-urssaf-vigilance-certificate",
             audience="business",
             counterpart="verifier-une-attestation-de-vigilance-urssaf",
             published="2026-09-03",
-            modified="2026-09-03",
+            modified="2026-11-11",
             tools=["siret-checker", "siren-checker"],
             title="How to verify an URSSAF vigilance certificate (France)",
             description=(
@@ -2754,6 +3738,25 @@ GUIDES: dict[str, list[Guide]] = {
                 "reason it gets forged — and it is one of the easiest documents to "
                 "verify, thanks to the security code URSSAF prints on it."
             ),
+            key_points=[
+                (
+                    "An URSSAF vigilance certificate is verified online with its "
+                    "15-character security code."
+                ),
+                (
+                    "If the code is recognised, compare the name and SIRET URSSAF displays "
+                    "with the document's: a genuine code can be pasted onto a fake "
+                    "certificate."
+                ),
+                (
+                    "For any contract of at least €5,000 excluding VAT, the client must "
+                    "obtain the certificate at signature, then every six months."
+                ),
+                (
+                    "Without that check, the client can be held jointly liable for the "
+                    "debts of a subcontractor convicted of undeclared work."
+                ),
+            ],
             sections=[
                 Section(
                     heading="What the certificate certifies, and what it contains",
@@ -2855,6 +3858,186 @@ GUIDES: dict[str, list[Guide]] = {
                         "security code is verified on urssaf.fr, and nothing replaces "
                         "that step.",
                     ],
+                ),
+            ],
+            faq=[
+                (
+                    "How do I verify an URSSAF vigilance certificate?",
+                    "Enter its security code (15 characters, no spaces) in URSSAF's "
+                    "verification tool, then compare the company name, SIRET and dates "
+                    "displayed with the document you received.",
+                ),
+                (
+                    "How long is a vigilance certificate valid?",
+                    "Six months. The client must ask for a new one every six months "
+                    "until the contract is completed.",
+                ),
+                (
+                    "What is the difference with the tax-compliance certificate?",
+                    "The vigilance certificate comes from URSSAF and covers social "
+                    "contributions; the tax-compliance certificate comes from the tax "
+                    "administration. Two documents, two issuers, two checks.",
+                ),
+            ],
+        ),
+        # The method page — see its French counterpart for why it exists.
+        Guide(
+            slug="how-trustyfile-works",
+            audience="method",
+            counterpart="comment-fonctionne-trustyfile",
+            published="2026-11-11",
+            modified="2026-11-11",
+            title="How TrustyFile works: method and limits",
+            description=(
+                "What TrustyFile checks in a PDF, how the evidence becomes a trust "
+                "score, what it cannot prove, and what happens to your documents."
+            ),
+            heading="How TrustyFile analyses a document",
+            intro=(
+                "TrustyFile is a free tool that looks for the technical traces of "
+                "forgery in a PDF. It does not read the document the way a person "
+                "does: it examines how the file was made, then weighs the evidence "
+                "it finds. This page describes the method, and above all its limits."
+            ),
+            key_points=[
+                (
+                    "TrustyFile examines a PDF with more than a dozen modules: "
+                    "metadata, revisions, fonts, covered or invisible text, images, "
+                    "the producing software's fingerprint, arithmetic, company "
+                    "identifiers and 2D-Doc codes."
+                ),
+                (
+                    "Every anomaly becomes a weighted piece of evidence; together they "
+                    "give a score from 0 to 100 and a risk level, with an explanation "
+                    "for each finding."
+                ),
+                (
+                    "A document with nothing to examine, such as a flattened scan, is "
+                    "marked \"unverifiable\" instead of receiving a good score by "
+                    "default."
+                ),
+                (
+                    "A high score means few signs of manipulation, not certain "
+                    "authenticity; only a valid 2D-Doc signature proves the data it "
+                    "covers is genuine."
+                ),
+            ],
+            sections=[
+                Section(
+                    heading="What gets examined",
+                    paragraphs=[
+                        "The uploaded file goes through more than a dozen detection "
+                        "modules, each one specialised in one kind of trace:",
+                    ],
+                    bullets=[
+                        "<strong>Metadata</strong>: producing software, creation and "
+                        "modification dates, a pass through an online converter.",
+                        "<strong>PDF structure</strong>: incremental revisions, deleted "
+                        "objects still present, JavaScript, digital signatures.",
+                        "<strong>Producer fingerprint</strong>: the way the file is "
+                        "written, byte by byte, which gives away a forged or stripped "
+                        "Producer field.",
+                        "<strong>Text</strong>: a font change mid-line, text covered by "
+                        "a rectangle, invisible text that contradicts what is shown.",
+                        "<strong>Images</strong>: pasted blocks, resolution breaks, EXIF "
+                        "metadata, error level analysis (ELA) on edited areas.",
+                        "<strong>Content</strong>: impossible dates, inconsistent "
+                        "amounts, pay slip arithmetic, e-invoice totals compared with "
+                        "their XML.",
+                        "<strong>Identifiers</strong>: SIREN, SIRET, VAT and IBAN check "
+                        "digits, the company's existence in the French INSEE register.",
+                        "<strong>Official codes</strong>: 2D-Doc decoded and its "
+                        "signature verified, the MRZ of digital identity documents.",
+                    ],
+                ),
+                Section(
+                    heading="Weighed evidence, not a checklist",
+                    paragraphs=[
+                        "Every anomaly becomes a piece of evidence, weighted by its "
+                        "strength: a font changed in the middle of a word weighs more "
+                        "than a pass through an online compressor. The evidence is "
+                        "combined into a score from 0 to 100 and a risk level (low, "
+                        "medium, high or critical).",
+                        "The type of document matters too. TrustyFile recognises an "
+                        "invoice, a pay slip, an identity document, and does not read "
+                        "a clue the same way everywhere: what is normal for a kind of "
+                        "document must not count against it.",
+                        "The results page explains each finding in one sentence and "
+                        "outlines, on the document preview, the area it concerns.",
+                    ],
+                ),
+                Section(
+                    heading="Knowing when to say \"unverifiable\"",
+                    paragraphs=[
+                        "A flattened scan or a photo has no text layer, no fonts and "
+                        "no history: most checks have nothing to examine. Finding no "
+                        "anomaly then proves nothing, and TrustyFile shows "
+                        "\"unverifiable\", with no score, rather than a good score by "
+                        "default. Asking for the original PDF makes verification "
+                        "possible.",
+                    ],
+                ),
+                Section(
+                    heading="The one check that proves: the 2D-Doc signature",
+                    paragraphs=[
+                        "All the clues above make forgery more or less likely. A "
+                        "cryptographic signature is different in kind: when a document "
+                        "carries a 2D-Doc code, TrustyFile verifies its ECDSA "
+                        "signature offline, with the certificates published by the "
+                        "French ANTS. A valid signature establishes that the data in "
+                        "the code is the issuer's. The "
+                        '<a href="/en/guides/2d-doc-verifying-official-documents">2D-Doc '
+                        "guide</a> details what that proves, and what it does not.",
+                    ],
+                ),
+                Section(
+                    heading="What TrustyFile cannot do",
+                    bullets=[
+                        "Certify that a document is genuine: a high score means few "
+                        "signs of manipulation, nothing more.",
+                        "Reliably detect a forgery built from scratch with the "
+                        "original software: it may leave no editing trace at all.",
+                        "Tell who owns a bank account, or whether the person sending "
+                        "a document is who they claim to be.",
+                        "Replace checking with the issuer: SVAIR for a French tax "
+                        "notice, the URSSAF security code for a vigilance certificate, "
+                        "a call to the supplier for a change of bank details.",
+                    ],
+                ),
+                Section(
+                    heading="What happens to your documents",
+                    paragraphs=[
+                        "The file is analysed, then deleted. The results page is kept "
+                        "in memory only, and disappears after fifteen minutes without "
+                        "being viewed, one hour at most. Only the file's hash and the "
+                        "company identifiers (SIRET, VAT) may be sent to outside "
+                        "services (VirusTotal, INSEE, VIES) to check them.",
+                        "The analysis is free, with no sign-up, and also available "
+                        'through the <a href="/api/docs">API</a>: POST /api/v1/analyze '
+                        "returns the same JSON report as the results page.",
+                    ],
+                ),
+            ],
+            faq=[
+                (
+                    "Is TrustyFile reliable?",
+                    "TrustyFile finds the technical traces of editing and explains "
+                    "each one. It certifies nothing: a high score means few signs of "
+                    "manipulation, a low score deserves a manual check, and a document "
+                    "with no usable signal is marked unverifiable. A valid 2D-Doc "
+                    "signature is the only result that proves the data it covers is "
+                    "genuine.",
+                ),
+                (
+                    "Does TrustyFile keep my documents?",
+                    "No. The file is analysed, then deleted; the result stays in "
+                    "memory for fifteen minutes without being viewed, one hour at most.",
+                ),
+                (
+                    "Can TrustyFile be used through an API?",
+                    "Yes. POST /api/v1/analyze takes a PDF and returns the analysis "
+                    "report as JSON, the same as the results-page download. The "
+                    "documentation is at trustyfile.com/api/docs.",
                 ),
             ],
         ),

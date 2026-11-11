@@ -12,6 +12,7 @@ title and description length budgets.
 
 from __future__ import annotations
 
+import dataclasses
 import html
 import json
 import re
@@ -160,6 +161,79 @@ def test_section_anchors_are_unique(lang, guide):
     anchors = [render._slugify_heading(s.heading) for s in guide.sections]
     assert len(anchors) == len(set(anchors)), anchors
     assert all(anchors), "a heading produced an empty anchor"
+
+
+# --- "In short" box (key_points) --------------------------------------------
+
+
+def test_key_points_box_renders_escaped_under_the_intro():
+    """The box sits between the intro and the body, its points escaped."""
+    guide = dataclasses.replace(
+        content.GUIDES["fr"][0],
+        key_points=["Montant < 1000 € : rien de suspect.", "Deuxième point."],
+    )
+    rendered = render.render_guide("fr", guide)
+
+    assert '<aside class="key-points">' in rendered
+    assert "<p>En bref</p>" in rendered
+    # Escaped: the "<" is shown as text, it does not open a tag.
+    assert "<li>Montant &lt; 1000 € : rien de suspect.</li>" in rendered
+    assert "<li>Deuxième point.</li>" in rendered
+    # Placed after the intro and before the first section heading.
+    box = rendered.index('<aside class="key-points">')
+    assert rendered.index('<p class="intro">') < box
+    assert box < rendered.index(f'id="{render._slugify_heading(guide.sections[0].heading)}"')
+
+
+@pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
+def test_every_guide_answers_up_front_and_in_a_faq(lang, guide):
+    """Each guide carries the two blocks answer engines quote most easily.
+
+    A new guide without them still renders, so nothing else would notice.
+    """
+    assert 3 <= len(guide.key_points) <= 5, guide.slug
+    assert len(guide.faq) >= 2, guide.slug
+    for point in guide.key_points:
+        assert "<" not in point, f"key points are plain text: {point}"
+
+
+@pytest.mark.parametrize("lang,guide", _all_guides(), ids=lambda v: getattr(v, "slug", v))
+def test_guide_faq_structured_data_matches_visible_faq(lang, guide):
+    """Same rule as the hub FAQ: the JSON-LD describes exactly what is shown."""
+    page = render.render_guide(lang, guide)
+    blocks = [
+        json.loads(block)
+        for block in re.findall(r'<script type="application/ld\+json">(.*?)</script>', page, re.S)
+    ]
+    faq = next(block for block in blocks if block.get("@type") == "FAQPage")
+    from_ld = [(q["name"], q["acceptedAnswer"]["text"]) for q in faq["mainEntity"]]
+    visible = [
+        (html.unescape(q), html.unescape(a))
+        for q, a in re.findall(r"<dt>(.*?)</dt>\s*<dd>(.*?)</dd>", page, re.S)
+    ]
+    assert from_ld == visible == list(guide.faq)
+
+
+def test_indexnow_key_file_is_published_and_routed():
+    """The key the script sends is the one the site serves, at the path Caddy routes.
+
+    A mismatch makes every IndexNow ping fail with a 403, silently from the
+    site's point of view.
+    """
+    from scripts import indexnow
+
+    key_file = ROOT / "public" / f"{indexnow.KEY}.txt"
+    assert key_file.read_text(encoding="utf-8").strip() == indexnow.KEY
+    caddyfile = (ROOT / "Caddyfile").read_text(encoding="utf-8")
+    assert f"handle /{indexnow.KEY}.txt {{" in caddyfile
+    assert indexnow.build_payload(["u"])["keyLocation"] == f"{content.SITE}/{indexnow.KEY}.txt"
+
+
+def test_no_key_points_no_box():
+    """A guide without key points renders no empty box."""
+    guide = dataclasses.replace(content.GUIDES["en"][0], key_points=[])
+    # The class name also lives in the inlined stylesheet: look for the tag.
+    assert '<aside class="key-points">' not in render.render_guide("en", guide)
 
 
 # --- Checker tools ----------------------------------------------------------
@@ -473,8 +547,9 @@ def test_internal_links_resolve_to_generated_files():
                         broken.append((path.relative_to(ROOT).as_posix(), href))
                     break
             else:
-                # Not a generated section: the app root, /en, or a static asset.
-                assert href in ("/", "/en") or "." in href.rsplit("/", 1)[-1], href
+                # Not a generated section: an app route (the landing pages, the
+                # API docs the method page links to) or a static asset.
+                assert href in ("/", "/en", "/api/docs") or "." in href.rsplit("/", 1)[-1], href
     assert not broken, broken
 
 

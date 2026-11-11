@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Payment redirection fraud swaps the bank details on a genuine invoice. IBAN checksum, bank-code consistency and PDF tampering traces: how to check details received by email.",
         "inLanguage": "en",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/how-to-spot-a-fake-iban"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "How can I tell if an IBAN on an invoice is fake?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Check the IBAN checksum, the consistency between bank code, BIC and displayed bank, and the editing traces on the IBAN line in the PDF. Then confirm by phone with the supplier, on a number you already know."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Does a valid IBAN prove the bank details are genuine?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "No. The checksum only proves the number is well formed. A fraudster can supply the valid IBAN of an account they opened; only calling the supplier establishes who owns the account."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Is the bank's payee name check enough?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "No. Since 9 October 2025, euro-area banks compare the payee name with the IBAN when a transfer is made. It is an extra safety net, but the alert comes at payment time, not when the decision to change bank details is taken."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>How to spot fake bank details</h1>
-    <p class="updated"><time datetime="2026-08-13">Updated 13 August 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">Payment redirection fraud is among the most expensive there is: a supplier announces "new bank details", the transfer goes to the fraudster's account, and nobody notices until the real supplier chases the unpaid invoice weeks later. The attached document is often genuine in every detail but one: the IBAN.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>Fake bank-detail fraud swaps the IBAN on a genuine document to redirect a payment to the fraudster&#x27;s account.</li>
+            <li>A wrong IBAN checksum (mod 97) condemns the document; a valid one does not clear it, because fraudsters open real accounts.</li>
+            <li>The bank code inside the IBAN, the BIC and the bank shown on the document must all point to the same institution.</li>
+            <li>Any change of bank details is confirmed by phone, on a number you already had.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#understand-the-scenario">Understand the scenario</a></li>
@@ -195,6 +244,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="the-phone-call-remains-the-rule">The phone call remains the rule</h2>
     <p>Since 9 October 2025, euro-area banks must check that the beneficiary name matches the IBAN at transfer time (verification of payee). That is an extra net, not a reason to relax: the alert comes when the payment is made, not when the decision is taken.</p>
     <p>The golden rule does not change: any change of bank details is confirmed by phone, on a number you already had — never the one in the message announcing the change, nor the one printed on the suspicious document.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>How can I tell if an IBAN on an invoice is fake?</dt>
+        <dd>Check the IBAN checksum, the consistency between bank code, BIC and displayed bank, and the editing traces on the IBAN line in the PDF. Then confirm by phone with the supplier, on a number you already know.</dd>
+        <dt>Does a valid IBAN prove the bank details are genuine?</dt>
+        <dd>No. The checksum only proves the number is well formed. A fraudster can supply the valid IBAN of an account they opened; only calling the supplier establishes who owns the account.</dd>
+        <dt>Is the bank&#x27;s payee name check enough?</dt>
+        <dd>No. Since 9 October 2025, euro-area banks compare the payee name with the IBAN when a transfer is made. It is an extra safety net, but the alert comes at payment time, not when the decision to change bank details is taken.</dd>
+    </dl>
     <h2>Free tools</h2>
     <a class="card" href="/en/tools/iban-checker">
         <h3>IBAN checker: validate the check digits and the length</h3>
@@ -237,6 +295,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
         <h3>How to verify an URSSAF vigilance certificate (France)</h3>
         <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Landlord or agency: verify a tenant's French income-tax notice with the tax office's online service (SVAIR), the signed 2D-Doc code and the other documents in the file.",
         "inLanguage": "en",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "How do I verify a tenant's French tax notice?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Enter the tax number and the notice reference in the tax office's verification service (SVAIR) on impots.gouv.fr, then check the 2D-Doc code, which vouches for the amounts. TrustyFile reads that code and verifies its signature on the uploaded PDF."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "What does \"non conforme\" mean on SVAIR?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "That the pair of tax number and reference is unknown (fabricated document, edited or mistyped identifier), or that a more recent notice has been issued since."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Can a notice marked \"conforme\" on SVAIR still be forged?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Yes: SVAIR does not compare amounts. An inflated reference taxable income on a genuine, up-to-date notice passes that check; the 2D-Doc code is what catches it."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>How to verify a French tax notice</h1>
-    <p class="updated"><time datetime="2026-09-03">Updated 3 September 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">The income-tax notice (<em>avis d'imposition</em>) is the cornerstone of a French rental application and of many credit or benefit requests: it sets the household's reference taxable income (<em>revenu fiscal de référence</em>). It is also the most tampered document in rental files, because an inflated income opens doors the real one keeps shut. Yet it is easier to verify than almost any other document: the tax administration offers an online check, and the notice carries a signed 2D-Doc code.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>A French tax notice is verified on the official SVAIR service (impots.gouv.fr) with the tax number and the notice reference.</li>
+            <li>SVAIR confirms the notice exists and is the latest one issued, but shows no amounts: an inflated income on a genuine notice passes this check.</li>
+            <li>The notice&#x27;s signed 2D-Doc code carries the reference taxable income: if it differs from the printed amount, the notice has been edited.</li>
+            <li>Cross-check the notice with the pay slips, the proof of address and the declared household situation.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#what-a-notice-says-and-what-gets-forged">What a notice says, and what gets forged</a></li>
@@ -200,6 +249,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="legal-framework-and-good-habits">Legal framework and good habits</h2>
     <p>A landlord may ask an applicant for their latest or previous-year tax notice: it is on the exhaustive list of documents set by the decree of 5 November 2015, which forbids demanding anything not listed. Presenting a forged notice is forgery and use of forged documents (article 441-1 of the French criminal code, up to three years' imprisonment and a €45,000 fine).</p>
     <p>Faced with a doubtful notice: do not sign, keep the document and the exchanges, and remember that an unsuccessful applicant's documents must not be kept longer than necessary. TrustyFile archives nothing: the file is analysed, then deleted.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>How do I verify a tenant&#x27;s French tax notice?</dt>
+        <dd>Enter the tax number and the notice reference in the tax office&#x27;s verification service (SVAIR) on impots.gouv.fr, then check the 2D-Doc code, which vouches for the amounts. TrustyFile reads that code and verifies its signature on the uploaded PDF.</dd>
+        <dt>What does &quot;non conforme&quot; mean on SVAIR?</dt>
+        <dd>That the pair of tax number and reference is unknown (fabricated document, edited or mistyped identifier), or that a more recent notice has been issued since.</dd>
+        <dt>Can a notice marked &quot;conforme&quot; on SVAIR still be forged?</dt>
+        <dd>Yes: SVAIR does not compare amounts. An inflated reference taxable income on a genuine, up-to-date notice passes that check; the 2D-Doc code is what catches it.</dd>
+    </dl>
     <h2>More guides</h2>
     <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
         <h3>How to spot a tampered invoice</h3>
@@ -236,6 +294,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
         <h3>How to verify an URSSAF vigilance certificate (France)</h3>
         <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

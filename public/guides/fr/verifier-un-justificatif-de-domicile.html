@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Facture d'énergie, de téléphonie ou d'accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-un-justificatif-de-domicile"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment savoir si un justificatif de domicile est faux ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Comparez le logiciel qui a produit le PDF au fournisseur annoncé, cherchez les traces de collage autour du nom et de l'adresse, et contrôlez la cohérence : date dans la fenêtre exigée, période de consommation antérieure à l'émission, numéro client au format du fournisseur."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un justificatif de domicile scanné peut-il être vérifié ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Pas techniquement. Un scan aplati ne contient plus ni texte, ni polices, ni historique : l'absence d'anomalie ne veut alors rien dire. TrustyFile le classe non vérifiable plutôt que de lui donner un bon score."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Que demander pour pouvoir vérifier un justificatif de domicile ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Le PDF original, téléchargé depuis l'espace client du fournisseur, plutôt qu'un scan ou une photo."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier un justificatif de domicile</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">Le justificatif de domicile est l'un des documents les plus falsifiés, parce qu'il est demandé partout et vérifié presque nulle part. Dans la majorité des cas, il s'agit d'une facture authentique appartenant à quelqu'un d'autre, dont on a remplacé le nom et l'adresse.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Un faux justificatif de domicile est le plus souvent la vraie facture d&#x27;un tiers dont on a remplacé le nom et l&#x27;adresse.</li>
+            <li>Une facture d&#x27;énergie ou de télécom produite par un traitement de texte, un convertisseur en ligne ou une capture d&#x27;écran contredit le fournisseur qu&#x27;elle annonce.</li>
+            <li>Un collage laisse des traces mesurables : rupture de résolution, blanc différent du fond, bruit ou compression concentrés sur un seul bloc.</li>
+            <li>Un justificatif scanné ou photographié n&#x27;est pas vérifiable techniquement : demandez le PDF d&#x27;origine.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#le-scenario-dominant-substitution-de-nom">Le scénario dominant : substitution de nom</a></li>
@@ -200,6 +249,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <li>Le numéro de client suit-il le format du fournisseur ?</li>
         <li>Le montant est-il plausible pour le logement et la saison ?</li>
     </ul>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment savoir si un justificatif de domicile est faux ?</dt>
+        <dd>Comparez le logiciel qui a produit le PDF au fournisseur annoncé, cherchez les traces de collage autour du nom et de l&#x27;adresse, et contrôlez la cohérence : date dans la fenêtre exigée, période de consommation antérieure à l&#x27;émission, numéro client au format du fournisseur.</dd>
+        <dt>Un justificatif de domicile scanné peut-il être vérifié ?</dt>
+        <dd>Pas techniquement. Un scan aplati ne contient plus ni texte, ni polices, ni historique : l&#x27;absence d&#x27;anomalie ne veut alors rien dire. TrustyFile le classe non vérifiable plutôt que de lui donner un bon score.</dd>
+        <dt>Que demander pour pouvoir vérifier un justificatif de domicile ?</dt>
+        <dd>Le PDF original, téléchargé depuis l&#x27;espace client du fournisseur, plutôt qu&#x27;un scan ou une photo.</dd>
+    </dl>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
@@ -236,6 +294,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

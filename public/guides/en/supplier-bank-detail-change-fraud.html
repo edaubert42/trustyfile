@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "A supplier announces new bank details? How the fraud works, the warning signs in the message and in the attached document, and the checks to run before you pay.",
         "inLanguage": "en",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/supplier-bank-detail-change-fraud"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "What should I do when a supplier announces new bank details?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Change nothing on the strength of the message alone. Call the supplier back on a number you already had, have them read out the IBAN, and have a second person approve the change before any payment."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "What should I do if I paid a fake supplier?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Call your bank right away to request a recall of funds, warn the real supplier, file a police report keeping the emails and bank details, notify your insurer and report the attack to your national cybercrime service."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Can software detect fake bank details?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "It can spot fabricated or edited bank details: a wrong IBAN checksum, inconsistent bank codes, editing traces in the PDF. It cannot know who owns a real account: that takes a call to the supplier."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Supplier bank-detail change fraud: what to do with a new IBAN</h1>
-    <p class="updated"><time datetime="2026-09-03">Updated 3 September 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">Supplier impersonation fraud — also called invoice redirection or payment diversion fraud — consists of posing as a regular supplier to hijack its payments: a message announces a "change of bank details", accounts payable updates the vendor record, and the next payment lands in the fraudster's account. The real supplier only notices when it chases the unpaid invoice, often weeks later. This guide is for whoever handles payments: recognise the attack, check the document you received, and above all follow the one procedure that defeats it.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>Supplier fraud means impersonating a regular supplier to get its bank details changed and divert the next payment.</li>
+            <li>Look-alike domain, new contact, urgency, a bank abroad or an online payment institution: any one of these signals is enough to trigger a check.</li>
+            <li>The protection that works is calling the supplier back on a number you already had, written into a procedure approved by two people.</li>
+            <li>If the payment has gone out, call your bank immediately to request a recall of funds, then file a police report.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#how-the-attack-unfolds">How the attack unfolds</a></li>
@@ -213,6 +262,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </ul>
     <h2 id="what-an-automated-check-can-and-cannot-do">What an automated check can and cannot do</h2>
     <p>TrustyFile checks the document: IBAN check digits, consistency of company identifiers (SIRET, VAT), traces of editing, revisions, covered text. It catches the fabricated or altered bank-detail document, which is the most common case. It cannot know who owns a perfectly real account: that last link remains the phone call — and nothing replaces it.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>What should I do when a supplier announces new bank details?</dt>
+        <dd>Change nothing on the strength of the message alone. Call the supplier back on a number you already had, have them read out the IBAN, and have a second person approve the change before any payment.</dd>
+        <dt>What should I do if I paid a fake supplier?</dt>
+        <dd>Call your bank right away to request a recall of funds, warn the real supplier, file a police report keeping the emails and bank details, notify your insurer and report the attack to your national cybercrime service.</dd>
+        <dt>Can software detect fake bank details?</dt>
+        <dd>It can spot fabricated or edited bank details: a wrong IBAN checksum, inconsistent bank codes, editing traces in the PDF. It cannot know who owns a real account: that takes a call to the supplier.</dd>
+    </dl>
     <h2>Free tools</h2>
     <a class="card" href="/en/tools/iban-checker">
         <h3>IBAN checker: validate the check digits and the length</h3>
@@ -260,6 +318,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
         <h3>How to verify an URSSAF vigilance certificate (France)</h3>
         <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

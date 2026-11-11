@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Checking a French subcontractor's attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.",
         "inLanguage": "en",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/how-to-verify-an-urssaf-vigilance-certificate"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "How do I verify an URSSAF vigilance certificate?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Enter its security code (15 characters, no spaces) in URSSAF's verification tool, then compare the company name, SIRET and dates displayed with the document you received."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "How long is a vigilance certificate valid?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Six months. The client must ask for a new one every six months until the contract is completed."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "What is the difference with the tax-compliance certificate?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "The vigilance certificate comes from URSSAF and covers social contributions; the tax-compliance certificate comes from the tax administration. Two documents, two issuers, two checks."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>How to verify an URSSAF vigilance certificate</h1>
-    <p class="updated"><time datetime="2026-09-03">Updated 3 September 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">The <em>attestation de vigilance</em> is the document by which URSSAF, the French social-security collector, certifies that a business declares and pays its social contributions. Any client must demand it from subcontractors above a certain contract value, and have it renewed: it is the client's protection against joint liability if the subcontractor turns out to use undeclared labour. For that very reason it gets forged — and it is one of the easiest documents to verify, thanks to the security code URSSAF prints on it.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>An URSSAF vigilance certificate is verified online with its 15-character security code.</li>
+            <li>If the code is recognised, compare the name and SIRET URSSAF displays with the document&#x27;s: a genuine code can be pasted onto a fake certificate.</li>
+            <li>For any contract of at least €5,000 excluding VAT, the client must obtain the certificate at signature, then every six months.</li>
+            <li>Without that check, the client can be held jointly liable for the debts of a subcontractor convicted of undeclared work.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#what-the-certificate-certifies-and-what-it-contains">What the certificate certifies, and what it contains</a></li>
@@ -197,6 +246,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <p>The certificate never comes alone. The SIRET must be the one on the <a href="/en/guides/how-to-verify-a-kbis-extract">Kbis extract</a> and the invoices; the bank details must be in the same company name — <a href="/en/guides/supplier-bank-detail-change-fraud">supplier impersonation fraud</a> often starts with a flawless onboarding file. And do not confuse the vigilance certificate with the tax-compliance certificate issued by the tax administration: two documents, two issuers, two checks.</p>
     <h2 id="what-a-valid-certificate-does-not-prove">What a valid certificate does not prove</h2>
     <p>That a business is up to date with its contributions today says nothing about its solvency tomorrow, nor about who is actually writing to you in its name. The certificate expires in six months: put the renewal in the contract's follow-up rather than relying on the subcontractor to remember. TrustyFile examines the file — revisions, edits, SIRET and VAT check digits; the security code is verified on urssaf.fr, and nothing replaces that step.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>How do I verify an URSSAF vigilance certificate?</dt>
+        <dd>Enter its security code (15 characters, no spaces) in URSSAF&#x27;s verification tool, then compare the company name, SIRET and dates displayed with the document you received.</dd>
+        <dt>How long is a vigilance certificate valid?</dt>
+        <dd>Six months. The client must ask for a new one every six months until the contract is completed.</dd>
+        <dt>What is the difference with the tax-compliance certificate?</dt>
+        <dd>The vigilance certificate comes from URSSAF and covers social contributions; the tax-compliance certificate comes from the tax administration. Two documents, two issuers, two checks.</dd>
+    </dl>
     <h2>Free tools</h2>
     <a class="card" href="/en/tools/siret-checker">
         <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
@@ -244,6 +302,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-a-french-tax-notice">
         <h3>How to verify a French tax notice (avis d&#x27;imposition)</h3>
         <p>Landlord or agency: verify a tenant&#x27;s French income-tax notice with the tax office&#x27;s online service (SVAIR), the signed 2D-Doc code and the other documents in the file.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

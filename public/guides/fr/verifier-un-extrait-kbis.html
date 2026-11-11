@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d'un faux dans le PDF, et savoir ce qu'un Kbis authentique ne prouve pas.",
         "inLanguage": "fr",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-un-extrait-kbis"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier qu'un Kbis est authentique ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Comparez le SIREN, la dénomination, le siège, les dirigeants et l'état de la société avec l'Annuaire des entreprises (service public) ou Infogreffe. Tout écart vaut refus jusqu'à explication."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Pourquoi exiger un Kbis de moins de trois mois ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Parce qu'un Kbis est une photographie datée du jour de sa délivrance : un extrait récent garantit que le siège, les dirigeants et l'état de la société sont à jour."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier une entreprise qui n'a pas de Kbis ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Un micro-entrepreneur justifie de son existence par un avis de situation au répertoire SIRENE (INSEE) ou un extrait du Registre national des entreprises (INPI). Son SIREN se vérifie à l'Annuaire des entreprises."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier un extrait Kbis</h1>
-    <p class="updated"><time datetime="2026-09-03">Mis à jour le 3 septembre 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">L'extrait Kbis est la « carte d'identité » d'une société commerciale : il atteste de son immatriculation au registre du commerce et des sociétés (RCS) et résume ses informations légales. On l'exige d'un nouveau fournisseur, d'un sous-traitant, d'un locataire professionnel, d'un client en compte. C'est aussi l'un des documents les plus faciles à falsifier : un PDF, un modèle que tout le monde connaît, et une lecture souvent rapide. La bonne nouvelle : tout ce qu'il contient se vérifie dans des registres publics, gratuitement.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Un extrait Kbis se vérifie gratuitement en le comparant ligne à ligne à l&#x27;Annuaire des entreprises, à Infogreffe et au BODACC.</li>
+            <li>Une clé SIREN fausse (formule de Luhn), un greffe incohérent avec le siège ou des dates impossibles trahissent un faux Kbis.</li>
+            <li>Un micro-entrepreneur, un artisan ou un professionnel libéral n&#x27;a pas de Kbis : un « Kbis » présenté par un auto-entrepreneur est un signal d&#x27;alerte.</li>
+            <li>Un Kbis authentique prouve qu&#x27;une société existe, pas que la personne qui l&#x27;envoie la représente.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#ce-que-contient-un-kbis-et-ce-qu-il-n-est-pas">Ce que contient un Kbis, et ce qu&#x27;il n&#x27;est pas</a></li>
@@ -196,6 +245,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="verifier-l-ensemble-du-dossier">Vérifier l&#x27;ensemble du dossier</h2>
     <p>Le Kbis n'arrive jamais seul. Le RIB doit être au nom exact de la dénomination ; la facture doit porter un SIRET dont les neuf premiers chiffres sont le SIREN du Kbis et un numéro de TVA intracommunautaire cohérent avec lui (FR, une clé à deux chiffres, puis le SIREN) ; pour la sous-traitance, l'attestation de vigilance URSSAF complète l'obligation de vigilance. Toute incohérence entre ces pièces pèse plus lourd que la qualité de chacune prise isolément.</p>
     <p>TrustyFile fait ces recoupements sur les PDF que vous déposez : clés SIREN, SIRET et TVA, existence de l'entreprise auprès de l'INSEE, et traces de retouche dans le fichier. La confrontation au registre, elle, reste un geste que rien ne remplace.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment vérifier qu&#x27;un Kbis est authentique ?</dt>
+        <dd>Comparez le SIREN, la dénomination, le siège, les dirigeants et l&#x27;état de la société avec l&#x27;Annuaire des entreprises (service public) ou Infogreffe. Tout écart vaut refus jusqu&#x27;à explication.</dd>
+        <dt>Pourquoi exiger un Kbis de moins de trois mois ?</dt>
+        <dd>Parce qu&#x27;un Kbis est une photographie datée du jour de sa délivrance : un extrait récent garantit que le siège, les dirigeants et l&#x27;état de la société sont à jour.</dd>
+        <dt>Comment vérifier une entreprise qui n&#x27;a pas de Kbis ?</dt>
+        <dd>Un micro-entrepreneur justifie de son existence par un avis de situation au répertoire SIRENE (INSEE) ou un extrait du Registre national des entreprises (INPI). Son SIREN se vérifie à l&#x27;Annuaire des entreprises.</dd>
+    </dl>
     <h2>Outils gratuits</h2>
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
@@ -248,6 +306,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

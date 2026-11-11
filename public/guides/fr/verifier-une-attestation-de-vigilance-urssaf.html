@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Vérifier l'attestation de vigilance d'un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d'ordre.",
         "inLanguage": "fr",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-une-attestation-de-vigilance-urssaf"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier une attestation de vigilance Urssaf ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Saisissez son code de sécurité (quinze caractères, sans espace) dans l'outil de vérification de l'Urssaf, puis comparez la dénomination, le SIRET et les dates affichés au document reçu."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Combien de temps une attestation de vigilance est-elle valable ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Six mois. Le donneur d'ordre doit la redemander tous les six mois jusqu'à la fin de l'exécution du contrat."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Quelle différence avec l'attestation de régularité fiscale ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "L'attestation de vigilance vient de l'Urssaf et porte sur les cotisations sociales ; l'attestation de régularité fiscale vient de l'administration fiscale. Deux documents, deux émetteurs, deux vérifications."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier une attestation de vigilance Urssaf</h1>
-    <p class="updated"><time datetime="2026-09-03">Mis à jour le 3 septembre 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">L'attestation de vigilance est le document par lequel l'Urssaf certifie qu'une entreprise déclare et paie ses cotisations sociales. Tout donneur d'ordre doit l'exiger de ses sous-traitants au-delà d'un certain montant, et la faire renouveler : c'est sa protection contre la solidarité financière en cas de travail dissimulé. C'est aussi, pour cette raison même, un document que l'on falsifie — et l'un des plus simples à vérifier, grâce au code de sécurité que l'Urssaf imprime dessus.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Une attestation de vigilance Urssaf se vérifie en ligne avec son code de sécurité de quinze caractères.</li>
+            <li>Si le code est reconnu, comparez le nom et le SIRET affichés par l&#x27;Urssaf à ceux du document : un code authentique peut être collé sur une fausse attestation.</li>
+            <li>Pour tout contrat d&#x27;au moins 5 000 € HT, le donneur d&#x27;ordre doit obtenir l&#x27;attestation à la signature, puis tous les six mois.</li>
+            <li>Sans ce contrôle, le donneur d&#x27;ordre peut être tenu solidairement des dettes d&#x27;un sous-traitant condamné pour travail dissimulé.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#ce-que-l-attestation-certifie-et-ce-qu-elle-contient">Ce que l&#x27;attestation certifie, et ce qu&#x27;elle contient</a></li>
@@ -197,6 +246,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <p>L'attestation n'arrive jamais seule. Le SIRET doit être celui de <a href="/guides/verifier-un-extrait-kbis">l'extrait Kbis</a> et des factures ; le RIB doit être au nom de la même dénomination — la <a href="/guides/fraude-au-faux-fournisseur-changement-de-rib">fraude au faux fournisseur</a> commence souvent par un dossier de référencement impeccable. Et ne confondez pas l'attestation de vigilance avec l'attestation de régularité fiscale, délivrée par l'administration fiscale : deux documents, deux émetteurs, deux vérifications.</p>
     <h2 id="ce-qu-une-attestation-valide-ne-prouve-pas">Ce qu&#x27;une attestation valide ne prouve pas</h2>
     <p>Qu'une entreprise soit à jour de ses cotisations aujourd'hui ne dit rien de sa solvabilité demain, ni de l'identité de la personne qui vous écrit en son nom. L'attestation se périme en six mois : inscrivez le renouvellement dans le suivi du contrat plutôt que de compter sur le sous-traitant pour y penser. TrustyFile examine le fichier — révisions, retouches, clés SIRET et TVA ; le code de sécurité, lui, se vérifie sur urssaf.fr, et rien ne remplace ce geste.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment vérifier une attestation de vigilance Urssaf ?</dt>
+        <dd>Saisissez son code de sécurité (quinze caractères, sans espace) dans l&#x27;outil de vérification de l&#x27;Urssaf, puis comparez la dénomination, le SIRET et les dates affichés au document reçu.</dd>
+        <dt>Combien de temps une attestation de vigilance est-elle valable ?</dt>
+        <dd>Six mois. Le donneur d&#x27;ordre doit la redemander tous les six mois jusqu&#x27;à la fin de l&#x27;exécution du contrat.</dd>
+        <dt>Quelle différence avec l&#x27;attestation de régularité fiscale ?</dt>
+        <dd>L&#x27;attestation de vigilance vient de l&#x27;Urssaf et porte sur les cotisations sociales ; l&#x27;attestation de régularité fiscale vient de l&#x27;administration fiscale. Deux documents, deux émetteurs, deux vérifications.</dd>
+    </dl>
     <h2>Outils gratuits</h2>
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
@@ -244,6 +302,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-un-avis-d-imposition">
         <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
         <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

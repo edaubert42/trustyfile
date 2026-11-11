@@ -134,6 +134,13 @@ handle /llms.txt {
 	root * /app/public
 	file_server
 }
+# IndexNow ownership key (scripts/indexnow.py): Bing and the other IndexNow
+# engines fetch this file to check that a "these pages changed" ping really
+# comes from the site. Public by design; the name must match the script's KEY.
+handle /6c2a8b428c23f3f77b0dc6a5a4229379.txt {
+	root * /app/public
+	file_server
+}
 handle /favicon.ico {
 	root * /app/public/static
 	header Cache-Control "public, max-age=604800"

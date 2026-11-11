@@ -230,6 +230,44 @@ def _footer(lang: str) -> str:
 """
 
 
+def _key_points_html(lang: str, points: list[str]) -> list[str]:
+    """The "In short" box shown right under a guide's intro.
+
+    Answer engines (ChatGPT, Claude, Gemini) cut a page into passages and
+    quote the ones that answer the question on their own. A short list of
+    self-contained sentences near the top is the easiest thing to quote.
+
+    The points are plain text and are escaped: a "<" in "amount < 1000" must
+    show as a character, not open a tag. The intro, by contrast, holds links
+    and is inserted as HTML.
+
+    Args:
+        lang: "fr" or "en", picks the box title.
+        points: the guide's key_points; may be empty.
+
+    Returns:
+        HTML lines to append to the page, or [] when there are no points
+        (the guide then renders exactly as before).
+
+    Example:
+        _key_points_html("en", ["Check the Producer field."]) ->
+        ['    <aside class="key-points">', '        <p>In short</p>',
+         '        <ul>', '            <li>Check the Producer field.</li>',
+         '        </ul>', '    </aside>']
+    """
+    if not points:
+        return []
+    lines = [
+        '    <aside class="key-points">',
+        f"        <p>{html.escape(CHROME[lang]['key_points'])}</p>",
+        "        <ul>",
+    ]
+    for point in points:
+        lines.append(f"            <li>{html.escape(point)}</li>")
+    lines += ["        </ul>", "    </aside>"]
+    return lines
+
+
 def render_guide(lang: str, guide: Guide) -> str:
     """Render one guide page to a complete HTML document."""
     chrome = CHROME[lang]
@@ -260,9 +298,18 @@ def render_guide(lang: str, guide: Guide) -> str:
         "dateModified": guide.modified,
         "mainEntityOfPage": {"@type": "WebPage", "@id": canonical},
         "image": f"{SITE}/og-image.png",
-        "author": {"@type": "Organization", "name": "TrustyFile", "url": SITE},
+        # "@id" points at the Organization node the landing page declares
+        # (landing_head_args): search and answer engines then read every guide
+        # as written by that one entity, not by a string that happens to match.
+        "author": {
+            "@type": "Organization",
+            "@id": f"{SITE}/#organization",
+            "name": "TrustyFile",
+            "url": SITE,
+        },
         "publisher": {
             "@type": "Organization",
+            "@id": f"{SITE}/#organization",
             "name": "TrustyFile",
             "url": SITE,
             "logo": {
@@ -298,13 +345,15 @@ def render_guide(lang: str, guide: Guide) -> str:
             description=guide.description,
             canonical=canonical,
             alternates=alternates,
-            json_ld=[article_ld, breadcrumb_ld],
+            json_ld=[article_ld, breadcrumb_ld]
+            + ([_faq_ld(guide.faq)] if guide.faq else []),
         ),
         _nav(lang, other_url),
         f"    <h1>{html.escape(guide.heading)}</h1>",
         f"    {_updated_line(lang, guide.modified)}",
         f'    <p class="intro">{guide.intro}</p>',
     ]
+    parts.extend(_key_points_html(lang, guide.key_points))
 
     # Table of contents. Only worth rendering when there are enough sections
     # for a reader to actually want to skip around.
@@ -328,6 +377,11 @@ def render_guide(lang: str, guide: Guide) -> str:
             for bullet in section.bullets:
                 parts.append(f"        <li>{bullet}</li>")
             parts.append("    </ul>")
+
+    # The guide's own FAQ, phrased the way people ask an assistant ("Does a
+    # valid IBAN prove...?"). Same component and look as the hub's FAQ.
+    if guide.faq:
+        parts.extend(_faq_html(lang, guide.faq))
 
     # Checker tools the reader is likely to want next (the fake-RIB guide
     # offers the IBAN checker, the invoice guide the SIRET one). A guide is the
@@ -357,12 +411,20 @@ def render_guide(lang: str, guide: Guide) -> str:
     return "\n".join(parts)
 
 
-def _faq_ld(lang: str) -> dict:
-    """FAQPage structured data for the FAQ rendered on the guides index.
+def _faq_ld(faq: list[tuple[str, str]]) -> dict:
+    """FAQPage structured data for a FAQ rendered on the same page.
 
-    Only valid because the same questions and answers are visible on the page
-    to every visitor: structured data describing content that is not shown is
-    a Google Search spam-policy violation in its own right.
+    Used by the guides index (CHROME[lang]["faq"]) and by each guide
+    (guide.faq). Only valid because the same questions and answers are
+    visible on the page to every visitor: structured data describing content
+    that is not shown is a Google Search spam-policy violation in its own
+    right. Both are generated from the one list passed here.
+
+    Args:
+        faq: (question, answer) pairs, plain text.
+
+    Returns:
+        A schema.org FAQPage dict, ready for json.dumps.
     """
     return {
         "@context": "https://schema.org",
@@ -373,16 +435,21 @@ def _faq_ld(lang: str) -> dict:
                 "name": question,
                 "acceptedAnswer": {"@type": "Answer", "text": answer},
             }
-            for question, answer in CHROME[lang]["faq"]
+            for question, answer in faq
         ],
     }
 
 
-def _faq_html(lang: str) -> list[str]:
-    """The visible FAQ: a heading and a definition list."""
+def _faq_html(lang: str, faq: list[tuple[str, str]]) -> list[str]:
+    """The visible FAQ: a heading and a definition list (same look everywhere).
+
+    Args:
+        lang: picks the "Frequently asked questions" heading.
+        faq: (question, answer) pairs, plain text, escaped here.
+    """
     chrome = CHROME[lang]
     parts = [f"    <h2>{html.escape(chrome['faq_heading'])}</h2>", '    <dl class="faq">']
-    for question, answer in chrome["faq"]:
+    for question, answer in faq:
         parts.append(f"        <dt>{html.escape(question)}</dt>")
         parts.append(f"        <dd>{html.escape(answer)}</dd>")
     parts.append("    </dl>")
@@ -427,7 +494,7 @@ def render_index(lang: str) -> str:
             description=chrome["index_description"],
             canonical=canonical,
             alternates=alternates,
-            json_ld=[collection_ld, _faq_ld(lang)],
+            json_ld=[collection_ld, _faq_ld(chrome["faq"])],
         ),
         _nav(lang, CHROME[other_lang]["index_path"]),
         f"    <h1>{html.escape(chrome['index_heading'])}</h1>",
@@ -445,7 +512,7 @@ def render_index(lang: str) -> str:
     parts.append(f'    <h2 id="outils">{html.escape(chrome["tools_heading"])}</h2>')
     parts.append(f'    <p>{html.escape(chrome["tools_intro"])}</p>')
     parts.extend(_tool_cards(lang, TOOLS[lang]))
-    parts.extend(_faq_html(lang))
+    parts.extend(_faq_html(lang, chrome["faq"]))
     parts.append(f"    <p>{chrome['index_outro']}</p>")
     parts.append(f'    <a class="cta" href="{chrome["app_url"]}">{chrome["cta"]}</a>')
     parts.append(_footer(lang))
@@ -476,6 +543,12 @@ def landing_head_args(lang: str) -> dict:
                 "url": SITE,
                 "logo": f"{SITE}/favicon-192x192.png",
                 "email": "contact@trustyfile.com",
+                "description": chrome["landing_webapp_description"],
+                # schema.org's slot for "how this organisation works": the
+                # method page, so an engine describing TrustyFile can cite it.
+                "publishingPrinciples": (
+                    f"{SITE}{chrome['guides_path']}/{chrome['method_slug']}"
+                ),
             },
             {
                 "@type": "WebSite",

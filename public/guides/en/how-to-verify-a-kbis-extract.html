@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.",
         "inLanguage": "en",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "How do I check that a Kbis is genuine?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Compare the SIREN, company name, registered office, directors and company status with the Annuaire des entreprises (a French public service) or Infogreffe. Any mismatch means refusal until explained."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Why ask for a Kbis less than three months old?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Because a Kbis is a snapshot dated the day it was issued: a recent extract makes sure the registered office, directors and company status are current."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "How do I check a French business that has no Kbis?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "A micro-entrepreneur proves their existence with a SIRENE situation notice (INSEE) or an extract from the national business register (INPI). Their SIREN can be checked in the Annuaire des entreprises."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>How to verify a Kbis extract</h1>
-    <p class="updated"><time datetime="2026-09-03">Updated 3 September 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">The Kbis extract is the "identity card" of a French commercial company: it certifies its registration in the trade and companies register (RCS) and summarises its legal particulars. It is asked of any new supplier, subcontractor, business tenant or trade-credit customer. It is also one of the easiest documents to forge: a PDF, a layout everyone knows, and a reading that is often quick. The good news: everything it contains can be checked in public registers, for free.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>A Kbis extract is verified for free by comparing it line by line with the Annuaire des entreprises, Infogreffe and the BODACC.</li>
+            <li>A wrong SIREN check digit (Luhn formula), a registry inconsistent with the registered office or impossible dates give away a forged Kbis.</li>
+            <li>Sole traders, craftspeople and liberal professionals have no Kbis: a &quot;Kbis&quot; from a micro-entrepreneur is a warning sign.</li>
+            <li>A genuine Kbis proves a company exists, not that the person sending it represents the company.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#what-a-kbis-contains-and-what-it-is-not">What a Kbis contains, and what it is not</a></li>
@@ -196,6 +245,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="check-the-whole-file">Check the whole file</h2>
     <p>A Kbis never comes alone. The bank-detail document must be in the exact company name; the invoice must carry a SIRET whose first nine digits are the Kbis SIREN and an intra-EU VAT number consistent with it (FR, a two-digit key, then the SIREN); for subcontracting, the URSSAF compliance certificate completes the statutory due-diligence file. Any inconsistency between these documents weighs more than the quality of each taken alone.</p>
     <p>TrustyFile runs these cross-checks on the PDFs you upload: SIREN, SIRET and VAT check digits, the company's existence in the INSEE register, and traces of editing in the file. Comparing with the register itself remains a step nothing replaces.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>How do I check that a Kbis is genuine?</dt>
+        <dd>Compare the SIREN, company name, registered office, directors and company status with the Annuaire des entreprises (a French public service) or Infogreffe. Any mismatch means refusal until explained.</dd>
+        <dt>Why ask for a Kbis less than three months old?</dt>
+        <dd>Because a Kbis is a snapshot dated the day it was issued: a recent extract makes sure the registered office, directors and company status are current.</dd>
+        <dt>How do I check a French business that has no Kbis?</dt>
+        <dd>A micro-entrepreneur proves their existence with a SIRENE situation notice (INSEE) or an extract from the national business register (INPI). Their SIREN can be checked in the Annuaire des entreprises.</dd>
+    </dl>
     <h2>Free tools</h2>
     <a class="card" href="/en/tools/siret-checker">
         <h3>SIRET checker: Luhn check digit and the La Poste rule</h3>
@@ -248,6 +306,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
         <h3>How to verify an URSSAF vigilance certificate (France)</h3>
         <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

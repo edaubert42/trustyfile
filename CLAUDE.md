@@ -146,9 +146,12 @@ trustyfile/
 │   │                         # edit src/site/, then run
 │   │                         # python scripts/build_guides.py
 │   ├── static/               # Icons, og image, the sample PDF (demo/)
-│   └── sitemap.xml, llms.txt (generated), robots.txt
+│   ├── sitemap.xml, llms.txt (generated), robots.txt
+│   └── <key>.txt             # IndexNow ownership key (see scripts/indexnow.py)
 ├── scripts/                  # build_corpus, generate_tampered, eval_harness,
-│                             # build_guides (writes what src/site renders)
+│                             # build_guides (writes what src/site renders),
+│                             # indexnow (ping Bing & co. after a content deploy;
+│                             # GEO notes: docs/superpowers/research/2026-11-11-geo-ai-search.md)
 ├── docs/superpowers/         # Specs, plans, research (design history)
 ├── tests/                    # 43 files, ~888 tests
 └── samples/                  # Corpus — gitignored, holds real documents

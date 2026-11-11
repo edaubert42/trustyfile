@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-un-bulletin-de-salaire"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment savoir si une fiche de paie est fausse ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Contrôlez le code 2D-Doc s'il existe, le logiciel qui a produit le PDF, la cohérence des calculs et des cumuls, et l'existence de l'employeur via son SIRET. Les retouches se concentrent sur le nom et le net à payer."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Tous les bulletins de salaire ont-ils un code 2D-Doc ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Tous les logiciels de paie n'en génèrent pas : son absence ne prouve rien, sa présence permet un contrôle proche de la preuve."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Peut-on vérifier un bulletin de salaire scanné ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Très peu : un scan perd la couche texte, les polices et les métadonnées. Demandez le PDF téléchargé depuis l'espace RH du salarié."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier un bulletin de salaire</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">Le bulletin de salaire falsifié est devenu un classique des dossiers de location et des demandes de crédit : un salaire gonflé sur sa propre fiche, ou un nom remplacé sur celle d'un tiers. Comme toute retouche, elle laisse des traces — et la fiche de paie française a une particularité qui la rend plus vérifiable que la plupart des documents.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Sur un bulletin de salaire, cherchez d&#x27;abord le code 2D-Doc : si le montant encodé diffère du montant affiché, la fiche a été retouchée.</li>
+            <li>Les logiciels de paie (Silae, PayFit, ADP, Sage, Cegid) laissent une empreinte stable ; un bulletin produit par un traitement de texte ou un convertisseur en ligne contredit ce qu&#x27;il prétend être.</li>
+            <li>Refaites les calculs : brut moins cotisations, net imposable, cumuls annuels. Un salaire gonflé sans recalcul casse l&#x27;addition.</li>
+            <li>Vérifiez le SIRET de l&#x27;employeur à l&#x27;annuaire des entreprises, et demandez le PDF d&#x27;origine plutôt qu&#x27;un scan.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#chercher-d-abord-le-code-2d-doc">Chercher d&#x27;abord le code 2D-Doc</a></li>
@@ -203,6 +252,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </ul>
     <h2 id="le-scan-encore-une-fois-non-verifiable">Le scan, encore une fois : non vérifiable</h2>
     <p>Un bulletin scanné ou photographié ne conserve ni couche texte, ni polices, ni métadonnées de paie. La plupart des contrôles ci-dessus deviennent inapplicables, et l'absence d'anomalie ne signifie alors rien. Quand vous êtes en position d'exiger, demandez le PDF d'origine — celui que le salarié télécharge depuis son espace RH — plutôt qu'une copie aplatie.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment savoir si une fiche de paie est fausse ?</dt>
+        <dd>Contrôlez le code 2D-Doc s&#x27;il existe, le logiciel qui a produit le PDF, la cohérence des calculs et des cumuls, et l&#x27;existence de l&#x27;employeur via son SIRET. Les retouches se concentrent sur le nom et le net à payer.</dd>
+        <dt>Tous les bulletins de salaire ont-ils un code 2D-Doc ?</dt>
+        <dd>Non. Tous les logiciels de paie n&#x27;en génèrent pas : son absence ne prouve rien, sa présence permet un contrôle proche de la preuve.</dd>
+        <dt>Peut-on vérifier un bulletin de salaire scanné ?</dt>
+        <dd>Très peu : un scan perd la couche texte, les polices et les métadonnées. Demandez le PDF téléchargé depuis l&#x27;espace RH du salarié.</dd>
+    </dl>
     <h2>Outils gratuits</h2>
     <a class="card" href="/outils/verifier-un-numero-de-securite-sociale">
         <h3>Vérifier la clé d&#x27;un numéro de sécurité sociale (NIR)</h3>
@@ -245,6 +303,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Le code 2D-Doc des avis d'imposition, bulletins de salaire et attestations : ce qu'il contient, ce qu'il prouve, et pourquoi il change la donne.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/2d-doc-verifier-un-document-officiel"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier un code 2D-Doc ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Décodez-le, comparez ses données au texte imprimé, puis vérifiez sa signature avec le certificat de l'émetteur. TrustyFile fait ces trois étapes sur un PDF déposé ou sur une photo du code."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un 2D-Doc valide prouve-t-il que le document est authentique ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Il prouve que les données contenues dans le code sont authentiques. Il ne dit rien des informations que le code ne reprend pas, ni de l'identité de la personne qui présente le document."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Que conclure si un document n'a pas de 2D-Doc ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Rien. Beaucoup d'émetteurs n'en impriment pas. Les autres contrôles du fichier, et la vérification auprès de l'émetteur, restent alors la référence."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>2D-Doc : le seul contrôle qui prouve quelque chose</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">Tous les contrôles décrits dans les autres guides sont des faisceaux d'indices : ils rendent une fraude probable ou improbable, jamais certaine. Le 2D-Doc est différent — il repose sur de la cryptographie, et permet une réponse tranchée.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Le 2D-Doc est un code DataMatrix défini par l&#x27;ANTS, imprimé sur les avis d&#x27;imposition, bulletins de salaire et attestations, qui contient les données clés du document et leur signature.</li>
+            <li>Si les données du code diffèrent du texte imprimé, le visuel du document a été retouché.</li>
+            <li>Une signature valide prouve que les données du code ont été émises par l&#x27;organisme signataire et n&#x27;ont pas été modifiées ; elle ne couvre pas le reste de la page.</li>
+            <li>TrustyFile décode le 2D-Doc et vérifie sa signature hors ligne, avec les certificats publiés par l&#x27;ANTS.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#ce-qu-est-un-2d-doc">Ce qu&#x27;est un 2D-Doc</a></li>
@@ -185,11 +234,20 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <li><strong>La signature est-elle valide ?</strong> Cela demande le certificat de l'émetteur et une vérification ECDSA. C'est le seul contrôle qui permet d'affirmer qu'un document est authentique, et non simplement "sans anomalie détectée".</li>
     </ul>
     <h2 id="ou-en-est-trustyfile">Où en est TrustyFile</h2>
-    <p>TrustyFile décode aujourd'hui le 2D-Doc et compare les données encodées au texte visible. C'est le premier contrôle, et il attrape déjà les retouches visuelles.</p>
-    <p>La vérification de la signature elle-même n'est pas encore implémentée. Nous préférons l'écrire ici plutôt que de laisser croire à une garantie qui n'existe pas : aujourd'hui, aucun résultat de TrustyFile ne prouve qu'un document est authentique. L'outil signale des anomalies, il ne délivre pas de certificat.</p>
+    <p>TrustyFile fait les deux contrôles. Il décode le 2D-Doc et compare les données encodées au texte visible, ce qui attrape les retouches visuelles. Il vérifie ensuite la signature ECDSA, hors ligne, avec les certificats publiés par l'ANTS.</p>
+    <p>Une signature valide prouve une chose précise : les données contenues dans le code ont bien été émises par l'organisme signataire et n'ont pas été modifiées. Elle ne dit rien des parties de la page que le code ne reprend pas, ni de l'identité de la personne qui vous transmet le document. Et quand le certificat de l'émetteur est introuvable, ou le code illisible, TrustyFile le dit plutôt que de conclure.</p>
     <h2 id="le-controle-officiel-en-parallele">Le contrôle officiel en parallèle</h2>
     <p>Pour un avis d'imposition, l'administration fiscale propose un service de vérification en ligne (SVAIR) où saisir le numéro fiscal et la référence de l'avis. La réponse vient de la source elle-même, ce qui est plus fort que n'importe quelle analyse de fichier.</p>
     <p>Règle générale : quand l'émetteur offre un moyen de vérifier directement auprès de lui, c'est toujours ce moyen-là qu'il faut privilégier.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment vérifier un code 2D-Doc ?</dt>
+        <dd>Décodez-le, comparez ses données au texte imprimé, puis vérifiez sa signature avec le certificat de l&#x27;émetteur. TrustyFile fait ces trois étapes sur un PDF déposé ou sur une photo du code.</dd>
+        <dt>Un 2D-Doc valide prouve-t-il que le document est authentique ?</dt>
+        <dd>Il prouve que les données contenues dans le code sont authentiques. Il ne dit rien des informations que le code ne reprend pas, ni de l&#x27;identité de la personne qui présente le document.</dd>
+        <dt>Que conclure si un document n&#x27;a pas de 2D-Doc ?</dt>
+        <dd>Rien. Beaucoup d&#x27;émetteurs n&#x27;en impriment pas. Les autres contrôles du fichier, et la vérification auprès de l&#x27;émetteur, restent alors la référence.</dd>
+    </dl>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
@@ -226,6 +284,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

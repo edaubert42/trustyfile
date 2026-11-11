@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comment fonctionne TrustyFile : méthode et limites</title>
+    <meta name="description" content="Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon-48x48.png" type="image/png" sizes="48x48">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="canonical" href="https://www.trustyfile.com/guides/comment-fonctionne-trustyfile">
+    <link rel="alternate" hreflang="fr" href="https://www.trustyfile.com/guides/comment-fonctionne-trustyfile">
+    <link rel="alternate" hreflang="en" href="https://www.trustyfile.com/en/guides/how-trustyfile-works">
+    <link rel="alternate" hreflang="x-default" href="https://www.trustyfile.com/guides/comment-fonctionne-trustyfile">
+    <meta property="og:type" content="article">
+    <meta property="og:title" content="Comment fonctionne TrustyFile : méthode et limites">
+    <meta property="og:description" content="Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.">
+    <meta property="og:url" content="https://www.trustyfile.com/guides/comment-fonctionne-trustyfile">
+    <meta property="og:image" content="https://www.trustyfile.com/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="TrustyFile">
+    <meta property="og:locale" content="fr_FR">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Comment fonctionne TrustyFile : méthode et limites">
+    <meta name="twitter:description" content="Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.">
+    <meta name="twitter:image" content="https://www.trustyfile.com/og-image.png">
+    <style>
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    max-width: 760px; margin: 0 auto; padding: 2rem 1.25rem 4rem;
+    color: #333; line-height: 1.65; background: #fff;
+}
+nav.top { font-size: 0.85rem; color: #888; margin-bottom: 2rem; }
+nav.top a { color: #2563eb; text-decoration: none; }
+nav.top a:hover { text-decoration: underline; }
+nav.top .sep { margin: 0 0.4rem; color: #ccc; }
+nav.top .lang { float: right; }
+h1 { color: #1a1a2e; font-size: 1.9rem; line-height: 1.25; margin: 0 0 0.5rem; }
+h2 { color: #2a2a3e; font-size: 1.25rem; margin: 2.5rem 0 0.75rem; }
+h3 { color: #2a2a3e; font-size: 1.05rem; margin: 1.75rem 0 0.5rem; }
+p.intro { font-size: 1.08rem; color: #444; }
+p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
+ul { padding-left: 1.25rem; }
+li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
+ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
+ol.toc li { margin: 0.25rem 0; }
+a { color: #2563eb; }
+.cta {
+    display: block; margin: 3rem 0 1rem; padding: 1.25rem; text-align: center;
+    background: #1a1a2e; color: #fff; border-radius: 10px;
+    text-decoration: none; font-weight: 600;
+}
+.cta:hover { background: #2a2a4e; }
+.card {
+    display: block; padding: 1.1rem 1.25rem; margin: 0.85rem 0;
+    background: #f8f9fa; border-radius: 10px; text-decoration: none; color: inherit;
+    border: 1px solid #eceef1;
+}
+.card:hover { border-color: #2563eb; }
+.card h2 { margin: 0 0 0.35rem; font-size: 1.1rem; color: #1a1a2e; }
+.card h3 { margin: 0 0 0.35rem; font-size: 1.05rem; color: #1a1a2e; }
+.card p { margin: 0; color: #555; font-size: 0.92rem; }
+.card .more { color: #2563eb; font-size: 0.88rem; }
+footer {
+    margin-top: 3.5rem; padding-top: 1rem; border-top: 1px solid #eee;
+    text-align: center; color: #888; font-size: 0.85rem;
+}
+/* Guides index FAQ */
+dl.faq dt { font-weight: 600; color: #1a1a2e; margin-top: 1.25rem; }
+dl.faq dd { margin: 0.3rem 0 0; color: #555; }
+/* Checker tools */
+form.tool { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0 0.75rem; }
+form.tool input {
+    flex: 1 1 260px; font-size: 1.05rem; padding: 0.7rem 0.9rem;
+    border: 1px solid #c8ccd8; border-radius: 8px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.04em;
+}
+form.tool input:focus { outline: 2px solid #2563eb; outline-offset: 1px; border-color: #2563eb; }
+form.tool button {
+    padding: 0.7rem 1.2rem; border: 0; border-radius: 8px;
+    background: #1a1a2e; color: #fff; font-weight: 600; cursor: pointer;
+}
+form.tool button:hover { background: #2a2a4e; }
+.result { display: none; border-radius: 10px; padding: 1rem 1.1rem; margin: 0 0 0.75rem; }
+.result.show { display: block; }
+.result.ok { background: #e7f6ec; border: 1px solid #9fd7b1; }
+.result.ko { background: #fdecec; border: 1px solid #f1a9a9; }
+.result.warn { background: #fff6e0; border: 1px solid #f3d27a; }
+.result .verdict { margin: 0; font-weight: 600; color: #1a1a2e; }
+.result ul { margin: 0.5rem 0 0; }
+.result .fine { color: #666; font-size: 0.9rem; margin: 0.7rem 0 0; }
+p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
+@media (max-width: 480px) {
+    body { padding: 1.25rem 1rem 3rem; }
+    h1 { font-size: 1.55rem; }
+}
+    </style>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "Article",
+        "headline": "Comment fonctionne TrustyFile : méthode et limites",
+        "description": "Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu'il ne peut pas prouver et ce que deviennent vos documents.",
+        "inLanguage": "fr",
+        "datePublished": "2026-11-11",
+        "dateModified": "2026-11-11",
+        "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": "https://www.trustyfile.com/guides/comment-fonctionne-trustyfile"
+        },
+        "image": "https://www.trustyfile.com/og-image.png",
+        "author": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com"
+        },
+        "publisher": {
+                "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
+                "name": "TrustyFile",
+                "url": "https://www.trustyfile.com",
+                "logo": {
+                        "@type": "ImageObject",
+                        "url": "https://www.trustyfile.com/favicon-192x192.png"
+                }
+        }
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+                {
+                        "@type": "ListItem",
+                        "position": 1,
+                        "name": "TrustyFile",
+                        "item": "https://www.trustyfile.com/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 2,
+                        "name": "Guides",
+                        "item": "https://www.trustyfile.com/guides/"
+                },
+                {
+                        "@type": "ListItem",
+                        "position": 3,
+                        "name": "Comment fonctionne TrustyFile : méthode et limites"
+                }
+        ]
+}
+    </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "TrustyFile est-il fiable ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "TrustyFile repère les traces techniques d'une retouche et explique chacune. Il ne certifie rien : un score élevé signale peu d'indices de manipulation, un score bas mérite une vérification manuelle, et un document sans signal exploitable est déclaré non vérifiable. Une signature 2D-Doc valide est le seul résultat qui prouve l'authenticité des données qu'elle couvre."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "TrustyFile conserve-t-il mes documents ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Le fichier est analysé puis supprimé ; le résultat reste en mémoire quinze minutes sans consultation, une heure au plus."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Peut-on utiliser TrustyFile par API ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d'analyse en JSON, le même que le téléchargement de la page de résultats. La documentation est sur trustyfile.com/api/docs."
+                        }
+                }
+        ]
+}
+    </script>
+</head>
+<body>
+    <nav class="top">
+        <a href="https://www.trustyfile.com/">Accueil</a>
+        <span class="sep">/</span>
+        <a href="/guides/">Guides</a>
+        <a class="lang" href="/en/guides/how-trustyfile-works">English</a>
+    </nav>
+
+    <h1>Comment TrustyFile analyse un document</h1>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
+    <p class="intro">TrustyFile est un outil gratuit qui cherche, dans un PDF, les traces techniques d'une falsification. Il ne lit pas le document comme un humain : il examine la façon dont le fichier a été fabriqué, puis il pèse les indices trouvés. Cette page décrit la méthode, et surtout ses limites.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>TrustyFile examine un PDF avec plus d&#x27;une dizaine de modules : métadonnées, révisions, polices, texte recouvert ou invisible, images, empreinte du logiciel producteur, calculs, identifiants d&#x27;entreprise et codes 2D-Doc.</li>
+            <li>Chaque anomalie devient un indice pondéré ; leur combinaison donne un score de 0 à 100 et un niveau de risque, avec l&#x27;explication de chaque indice.</li>
+            <li>Un document qui ne contient rien d&#x27;examinable, comme un scan aplati, est déclaré « non vérifiable » au lieu de recevoir un bon score par défaut.</li>
+            <li>Un score élevé signale peu de traces de manipulation, pas une authenticité certaine ; seule une signature 2D-Doc valide prouve que les données qu&#x27;elle couvre sont authentiques.</li>
+        </ul>
+    </aside>
+    <h2>Sommaire</h2>
+    <ol class="toc">
+        <li><a href="#ce-qui-est-examine">Ce qui est examiné</a></li>
+        <li><a href="#des-indices-peses-pas-une-liste-de-regles">Des indices pesés, pas une liste de règles</a></li>
+        <li><a href="#savoir-dire-non-verifiable">Savoir dire « non vérifiable »</a></li>
+        <li><a href="#le-seul-controle-qui-prouve-la-signature-2d-doc">Le seul contrôle qui prouve : la signature 2D-Doc</a></li>
+        <li><a href="#ce-que-trustyfile-ne-peut-pas-faire">Ce que TrustyFile ne peut pas faire</a></li>
+        <li><a href="#ce-que-deviennent-vos-documents">Ce que deviennent vos documents</a></li>
+    </ol>
+    <h2 id="ce-qui-est-examine">Ce qui est examiné</h2>
+    <p>Le fichier déposé passe par plus d'une dizaine de modules de détection, chacun spécialisé dans un type de trace :</p>
+    <ul>
+        <li><strong>Métadonnées</strong> : logiciel producteur, dates de création et de modification, passage par un convertisseur en ligne.</li>
+        <li><strong>Structure du PDF</strong> : révisions incrémentales, objets supprimés mais toujours présents, JavaScript, signatures électroniques.</li>
+        <li><strong>Empreinte du producteur</strong> : la façon dont le fichier est écrit, octet par octet, qui trahit un champ Producer falsifié ou effacé.</li>
+        <li><strong>Texte</strong> : police qui change au milieu d'une ligne, texte recouvert par un rectangle, texte invisible qui contredit ce qui est affiché.</li>
+        <li><strong>Images</strong> : collages, ruptures de résolution, métadonnées EXIF, analyse du niveau d'erreur (ELA) sur les zones retouchées.</li>
+        <li><strong>Contenu</strong> : dates impossibles, montants incohérents, calculs d'un bulletin de salaire, totaux d'une facture électronique comparés à son XML.</li>
+        <li><strong>Identifiants</strong> : clés de contrôle SIREN, SIRET, TVA et IBAN, existence de l'entreprise auprès de l'INSEE.</li>
+        <li><strong>Codes officiels</strong> : 2D-Doc décodé et signature vérifiée, bande MRZ des pièces d'identité numériques.</li>
+    </ul>
+    <h2 id="des-indices-peses-pas-une-liste-de-regles">Des indices pesés, pas une liste de règles</h2>
+    <p>Chaque anomalie devient un indice, avec un poids qui dépend de sa force : une police changée au milieu d'un mot pèse plus qu'un passage par un compresseur en ligne. Les indices sont combinés en un score de 0 à 100 et un niveau de risque (faible, moyen, élevé ou critique).</p>
+    <p>Le type de document compte aussi. TrustyFile reconnaît une facture, un bulletin de salaire, une pièce d'identité, et n'interprète pas un indice de la même façon partout : ce qui est normal pour un genre de document ne doit pas le pénaliser.</p>
+    <p>La page de résultats explique chaque indice en une phrase et entoure, sur l'aperçu du document, la zone concernée.</p>
+    <h2 id="savoir-dire-non-verifiable">Savoir dire « non vérifiable »</h2>
+    <p>Un scan aplati ou une photo ne contient ni couche texte, ni polices, ni historique : la plupart des contrôles n'ont rien à examiner. L'absence d'anomalie ne prouve alors rien, et TrustyFile affiche « non vérifiable », sans score, plutôt qu'un bon score par défaut. Demander le PDF d'origine rend la vérification possible.</p>
+    <h2 id="le-seul-controle-qui-prouve-la-signature-2d-doc">Le seul contrôle qui prouve : la signature 2D-Doc</h2>
+    <p>Tous les indices ci-dessus rendent une falsification plus ou moins probable. Une signature cryptographique est d'une autre nature : quand un document porte un code 2D-Doc, TrustyFile vérifie sa signature ECDSA hors ligne, avec les certificats publiés par l'ANTS. Une signature valide établit que les données du code sont celles de l'émetteur. Le <a href="/guides/2d-doc-verifier-un-document-officiel">guide sur le 2D-Doc</a> détaille ce que cela prouve, et ce que cela ne prouve pas.</p>
+    <h2 id="ce-que-trustyfile-ne-peut-pas-faire">Ce que TrustyFile ne peut pas faire</h2>
+    <ul>
+        <li>Certifier qu'un document est authentique : un score élevé signale peu de traces de manipulation, rien de plus.</li>
+        <li>Détecter à coup sûr un faux fabriqué de bout en bout avec le logiciel d'origine : il peut ne laisser aucune trace d'édition.</li>
+        <li>Savoir à qui appartient un compte bancaire, ou si la personne qui envoie un document est bien celle qu'elle prétend être.</li>
+        <li>Remplacer la vérification auprès de l'émetteur : SVAIR pour un avis d'imposition, le code de sécurité Urssaf pour une attestation de vigilance, un appel au fournisseur pour un changement de RIB.</li>
+    </ul>
+    <h2 id="ce-que-deviennent-vos-documents">Ce que deviennent vos documents</h2>
+    <p>Le fichier est analysé puis supprimé. La page de résultats est gardée en mémoire seulement, et disparaît après quinze minutes sans consultation, une heure au plus. Seuls l'empreinte du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être envoyés à des services externes (VirusTotal, INSEE, VIES) pour les vérifier.</p>
+    <p>L'analyse est gratuite, sans inscription, et disponible aussi par <a href="/api/docs">API</a> : POST /api/v1/analyze renvoie le même rapport JSON que la page de résultats.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>TrustyFile est-il fiable ?</dt>
+        <dd>TrustyFile repère les traces techniques d&#x27;une retouche et explique chacune. Il ne certifie rien : un score élevé signale peu d&#x27;indices de manipulation, un score bas mérite une vérification manuelle, et un document sans signal exploitable est déclaré non vérifiable. Une signature 2D-Doc valide est le seul résultat qui prouve l&#x27;authenticité des données qu&#x27;elle couvre.</dd>
+        <dt>TrustyFile conserve-t-il mes documents ?</dt>
+        <dd>Non. Le fichier est analysé puis supprimé ; le résultat reste en mémoire quinze minutes sans consultation, une heure au plus.</dd>
+        <dt>Peut-on utiliser TrustyFile par API ?</dt>
+        <dd>Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d&#x27;analyse en JSON, le même que le téléchargement de la page de résultats. La documentation est sur trustyfile.com/api/docs.</dd>
+    </dl>
+    <h2>Autres guides</h2>
+    <a class="card" href="/guides/verifier-une-facture-falsifiee">
+        <h3>Vérifier si une facture a été falsifiée</h3>
+        <p>Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-justificatif-de-domicile">
+        <h3>Vérifier un justificatif de domicile</h3>
+        <p>Facture d&#x27;énergie, de téléphonie ou d&#x27;accès Internet fournie en justificatif de domicile : les contrôles techniques qui révèlent un document retouché.</p>
+    </a>
+    <a class="card" href="/guides/savoir-si-un-pdf-a-ete-modifie">
+        <h3>Savoir si un PDF a été modifié</h3>
+        <p>Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.</p>
+    </a>
+    <a class="card" href="/guides/2d-doc-verifier-un-document-officiel">
+        <h3>2D-Doc : vérifier un document officiel français</h3>
+        <p>Le code 2D-Doc des avis d&#x27;imposition, bulletins de salaire et attestations : ce qu&#x27;il contient, ce qu&#x27;il prouve, et pourquoi il change la donne.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-bulletin-de-salaire">
+        <h3>Vérifier un bulletin de salaire</h3>
+        <p>Faux bulletins de salaire dans les dossiers de location ou de crédit : logiciel de paie, calculs, code 2D-Doc — les contrôles qui révèlent une fiche retouchée.</p>
+    </a>
+    <a class="card" href="/guides/detecter-un-faux-rib">
+        <h3>Détecter un faux RIB ou un IBAN falsifié</h3>
+        <p>La fraude au faux RIB détourne les virements vers le compte de l&#x27;escroc. Clé IBAN, cohérence bancaire, traces de retouche : comment vérifier un RIB reçu par e-mail.</p>
+    </a>
+    <a class="card" href="/guides/fraude-au-faux-fournisseur-changement-de-rib">
+        <h3>Fraude au faux fournisseur : vérifier un changement de RIB</h3>
+        <p>Un fournisseur annonce de nouvelles coordonnées bancaires ? Le scénario de la fraude, les signaux d&#x27;alerte dans le message et le RIB, et la procédure à suivre avant de payer.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-extrait-kbis">
+        <h3>Vérifier un extrait Kbis : authenticité et cohérence</h3>
+        <p>Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d&#x27;un faux dans le PDF, et savoir ce qu&#x27;un Kbis authentique ne prouve pas.</p>
+    </a>
+    <a class="card" href="/guides/verifier-un-avis-d-imposition">
+        <h3>Vérifier un avis d&#x27;imposition : SVAIR, 2D-Doc et cohérence</h3>
+        <p>Propriétaire ou agence : vérifier l&#x27;avis d&#x27;imposition d&#x27;un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.</p>
+    </a>
+    <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
+        <h3>Vérifier une attestation de vigilance Urssaf</h3>
+        <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
+    <footer>
+        <p><a href="https://www.trustyfile.com/">TrustyFile</a>
+        &middot; <a href="/guides/">Guides</a>
+        &middot; <a href="mailto:contact@trustyfile.com">Contact</a></p>
+    </footer>
+</body>
+</html>

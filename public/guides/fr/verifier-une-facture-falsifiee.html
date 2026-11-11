@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Montant retouché, date modifiée, IBAN remplacé : les indices techniques qui trahissent une facture falsifiée dans un PDF, et comment les contrôler.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-une-facture-falsifiee"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment savoir si une facture PDF a été modifiée ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Regardez le logiciel qui a produit le fichier (champ Producer), le nombre de révisions, les changements de police sur une même ligne et le texte caché sous un rectangle blanc. TrustyFile fait ces contrôles automatiquement sur le PDF déposé."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Une facture passée par iLovePDF ou Smallpdf est-elle forcément fausse ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Beaucoup de gens compressent une pièce jointe avant de l'envoyer. C'est un signal à croiser avec les autres : révisions, polices, texte recouvert, cohérence des montants."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Peut-on retrouver le montant d'origine d'une facture retouchée ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Souvent, oui. Si la retouche a été enregistrée en mise à jour incrémentale, la version précédente reste dans le fichier. Si l'ancien montant a été masqué par un rectangle blanc, il est toujours dessous et réapparaît parfois par un simple copier-coller du texte."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier qu&#x27;une facture n&#x27;a pas été falsifiée</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">La fraude à la facture ne demande plus de compétences particulières : un éditeur PDF gratuit suffit pour changer un montant ou un IBAN. En revanche, ces modifications laissent presque toujours des traces dans le fichier — à condition de savoir où regarder.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Une facture retouchée garde presque toujours des traces dans le PDF : logiciel producteur, révisions, polices, texte recouvert.</li>
+            <li>Un champ Producer qui nomme un éditeur PDF ou un convertisseur en ligne (iLovePDF, Smallpdf...) signifie que la facture a été réenregistrée après émission : c&#x27;est un signal, pas une preuve.</li>
+            <li>Un montant ou un IBAN qui change entre deux révisions du PDF est l&#x27;un des rares indices proches de la preuve.</li>
+            <li>Le SIRET, le numéro de TVA et la clé de l&#x27;IBAN se vérifient hors du fichier ; en cas de doute sur un RIB, appelez le fournisseur sur un numéro que vous connaissez déjà.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#1-regarder-qui-a-produit-le-fichier">1. Regarder qui a produit le fichier</a></li>
@@ -208,6 +257,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </ul>
     <h2 id="le-reflexe-qui-prime-sur-tous-les-autres">Le réflexe qui prime sur tous les autres</h2>
     <p>En cas de doute sur un RIB, aucune analyse de fichier ne remplace un appel au fournisseur, sur un numéro que vous connaissez déjà — jamais celui inscrit sur la facture suspecte. La fraude au faux RIB fonctionne parce que la victime vérifie l'information avec l'information elle-même.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment savoir si une facture PDF a été modifiée ?</dt>
+        <dd>Regardez le logiciel qui a produit le fichier (champ Producer), le nombre de révisions, les changements de police sur une même ligne et le texte caché sous un rectangle blanc. TrustyFile fait ces contrôles automatiquement sur le PDF déposé.</dd>
+        <dt>Une facture passée par iLovePDF ou Smallpdf est-elle forcément fausse ?</dt>
+        <dd>Non. Beaucoup de gens compressent une pièce jointe avant de l&#x27;envoyer. C&#x27;est un signal à croiser avec les autres : révisions, polices, texte recouvert, cohérence des montants.</dd>
+        <dt>Peut-on retrouver le montant d&#x27;origine d&#x27;une facture retouchée ?</dt>
+        <dd>Souvent, oui. Si la retouche a été enregistrée en mise à jour incrémentale, la version précédente reste dans le fichier. Si l&#x27;ancien montant a été masqué par un rectangle blanc, il est toujours dessous et réapparaît parfois par un simple copier-coller du texte.</dd>
+    </dl>
     <h2>Outils gratuits</h2>
     <a class="card" href="/outils/verifier-un-siret">
         <h3>Vérifier un SIRET : clé de Luhn et exception La Poste</h3>
@@ -260,6 +318,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

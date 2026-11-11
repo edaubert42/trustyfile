@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "The 2D-Doc barcode on tax notices, pay slips and official certificates: what it contains, what it actually proves, and why it is different from every other check.",
         "inLanguage": "en",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/en/guides/2d-doc-verifying-official-documents"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "How do I verify a 2D-Doc barcode?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Decode it, compare its data with the printed text, then verify its signature against the issuer's certificate. TrustyFile runs all three steps on an uploaded PDF or on a photo of the code."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Does a valid 2D-Doc prove the document is genuine?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "It proves the data held in the code is genuine. It says nothing about information the code does not carry, nor about who is presenting the document."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "What if a document has no 2D-Doc?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Nothing can be concluded. Many issuers do not print one. The other checks on the file, and checking with the issuer, remain the reference."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>2D-Doc: the only check that proves something</h1>
-    <p class="updated"><time datetime="2026-08-13">Updated 13 August 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Updated 11 November 2026</time></p>
     <p class="intro">Every check described in the other guides is circumstantial — it makes fraud more or less likely, never certain. 2D-Doc is different: it rests on cryptography, and allows a clear-cut answer.</p>
+    <aside class="key-points">
+        <p>In short</p>
+        <ul>
+            <li>2D-Doc is a DataMatrix barcode defined by the French ANTS, printed on tax notices, pay slips and official certificates, that carries the document&#x27;s key data and their signature.</li>
+            <li>If the data in the code differs from the printed text, the visible document has been edited.</li>
+            <li>A valid signature proves the data in the code was issued by the signing organisation and has not been altered; it does not cover the rest of the page.</li>
+            <li>TrustyFile decodes the 2D-Doc and verifies its signature offline, with the certificates published by ANTS.</li>
+        </ul>
+    </aside>
     <h2>Contents</h2>
     <ol class="toc">
         <li><a href="#what-a-2d-doc-is">What a 2D-Doc is</a></li>
@@ -185,11 +234,20 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <li><strong>Is the signature valid?</strong> This requires the issuer's certificate and an ECDSA verification. It is the only check that can assert a document is genuine, rather than merely "no anomaly detected".</li>
     </ul>
     <h2 id="where-trustyfile-stands">Where TrustyFile stands</h2>
-    <p>TrustyFile currently decodes the 2D-Doc and compares the encoded data against the visible text. That is the first check, and it already catches visual edits.</p>
-    <p>Signature verification itself is not implemented yet. We would rather write that here than imply a guarantee that does not exist: today, no TrustyFile result proves a document is genuine. The tool reports anomalies; it does not issue certificates.</p>
+    <p>TrustyFile runs both checks. It decodes the 2D-Doc and compares the encoded data against the visible text, which catches visual edits. It then verifies the ECDSA signature, offline, with the certificates published by ANTS.</p>
+    <p>A valid signature proves one precise thing: the data held in the code was issued by the signing organisation and has not been altered. It says nothing about the parts of the page the code does not carry, nor about who is sending you the document. And when the issuer's certificate cannot be found, or the code cannot be read, TrustyFile says so rather than conclude.</p>
     <h2 id="check-with-the-issuer-in-parallel">Check with the issuer in parallel</h2>
     <p>For a French tax notice, the tax administration runs an online verification service (SVAIR) where you enter the tax number and the notice reference. The answer comes from the source itself, which beats any file analysis.</p>
     <p>General rule: when the issuer offers a way to verify directly with them, that is always the route to take first.</p>
+    <h2>Frequently asked questions</h2>
+    <dl class="faq">
+        <dt>How do I verify a 2D-Doc barcode?</dt>
+        <dd>Decode it, compare its data with the printed text, then verify its signature against the issuer&#x27;s certificate. TrustyFile runs all three steps on an uploaded PDF or on a photo of the code.</dd>
+        <dt>Does a valid 2D-Doc prove the document is genuine?</dt>
+        <dd>It proves the data held in the code is genuine. It says nothing about information the code does not carry, nor about who is presenting the document.</dd>
+        <dt>What if a document has no 2D-Doc?</dt>
+        <dd>Nothing can be concluded. Many issuers do not print one. The other checks on the file, and checking with the issuer, remain the reference.</dd>
+    </dl>
     <h2>More guides</h2>
     <a class="card" href="/en/guides/how-to-spot-a-tampered-invoice">
         <h3>How to spot a tampered invoice</h3>
@@ -226,6 +284,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/en/guides/how-to-verify-an-urssaf-vigilance-certificate">
         <h3>How to verify an URSSAF vigilance certificate (France)</h3>
         <p>Checking a French subcontractor&#x27;s attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.</p>
+    </a>
+    <a class="card" href="/en/guides/how-trustyfile-works">
+        <h3>How TrustyFile works: method and limits</h3>
+        <p>What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/en">Analyse a document for free</a>
     <footer>

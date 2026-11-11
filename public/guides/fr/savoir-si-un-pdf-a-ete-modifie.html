@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Un PDF garde la trace de ses enregistrements successifs : révisions incrémentales, objets fantômes, métadonnées XMP. Où regarder pour savoir si un fichier a été retouché.",
         "inLanguage": "fr",
         "datePublished": "2026-08-13",
-        "dateModified": "2026-08-13",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/savoir-si-un-pdf-a-ete-modifie"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment voir si un PDF a été modifié ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Comptez ses révisions incrémentales, comparez les dates de création et de modification, confrontez les métadonnées Info et XMP, et cherchez les objets orphelins. TrustyFile le fait automatiquement et montre ce qui a changé entre les révisions."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Peut-on retrouver la version d'origine d'un PDF modifié ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Quand la modification a été enregistrée en mise à jour incrémentale, oui : en tronquant le fichier à la fin de la première révision, on obtient son état d'origine."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Une signature électronique rend-elle un PDF suspect ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Non. Une signature ajoute légitimement une révision. Ce sont plusieurs révisions sans signature, sur un document censé sortir d'une chaîne automatisée, qui méritent l'attention."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment savoir si un PDF a été modifié</h1>
-    <p class="updated"><time datetime="2026-08-13">Mis à jour le 13 août 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">Un PDF n'est pas une image figée : c'est un format documenté, qui conserve beaucoup plus d'informations sur son propre passé que ce que la page affiche. Voici ce qu'il garde, et ce qu'on peut en déduire.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Un PDF garde la trace de ses enregistrements successifs : chaque mise à jour incrémentale ajoute une révision au fichier, et l&#x27;état précédent reste lisible.</li>
+            <li>Un élément supprimé dans un éditeur PDF peut rester dans le fichier sous forme d&#x27;objet orphelin.</li>
+            <li>Les métadonnées Info et XMP divergent souvent quand un outil a retouché le fichier, mais elles s&#x27;éditent librement et ne prouvent rien à elles seules.</li>
+            <li>Un PDF modifié n&#x27;est pas forcément frauduleux : compression, signature ou fusion le modifient aussi. C&#x27;est la convergence de plusieurs indices sur une même zone qui compte.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#les-revisions-incrementales">Les révisions incrémentales</a></li>
@@ -194,6 +243,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="une-modification-n-est-pas-une-fraude">Une modification n&#x27;est pas une fraude</h2>
     <p>Il faut le dire clairement : la plupart des PDF modifiés le sont pour des raisons parfaitement banales — compression avant envoi, ajout d'une signature, fusion de plusieurs documents, aplatissement d'un formulaire, passage par un outil d'archivage.</p>
     <p>Détecter une modification ne fait donc que déplacer la question : <em>qu'est-ce qui</em> a été modifié, et est-ce que cela porte sur une donnée qui compte ? C'est la conjonction de plusieurs signaux sur la même zone du document qui fait un dossier, pas un signal isolé.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment voir si un PDF a été modifié ?</dt>
+        <dd>Comptez ses révisions incrémentales, comparez les dates de création et de modification, confrontez les métadonnées Info et XMP, et cherchez les objets orphelins. TrustyFile le fait automatiquement et montre ce qui a changé entre les révisions.</dd>
+        <dt>Peut-on retrouver la version d&#x27;origine d&#x27;un PDF modifié ?</dt>
+        <dd>Quand la modification a été enregistrée en mise à jour incrémentale, oui : en tronquant le fichier à la fin de la première révision, on obtient son état d&#x27;origine.</dd>
+        <dt>Une signature électronique rend-elle un PDF suspect ?</dt>
+        <dd>Non. Une signature ajoute légitimement une révision. Ce sont plusieurs révisions sans signature, sur un document censé sortir d&#x27;une chaîne automatisée, qui méritent l&#x27;attention.</dd>
+    </dl>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
@@ -230,6 +288,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>

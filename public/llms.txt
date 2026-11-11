@@ -26,6 +26,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [Vérifier un extrait Kbis : authenticité et cohérence](https://www.trustyfile.com/guides/verifier-un-extrait-kbis): Confronter un Kbis au registre (SIREN, dirigeants, siège, état de la société), repérer les indices d'un faux dans le PDF, et savoir ce qu'un Kbis authentique ne prouve pas.
 - [Vérifier un avis d'imposition : SVAIR, 2D-Doc et cohérence](https://www.trustyfile.com/guides/verifier-un-avis-d-imposition): Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.
 - [Vérifier une attestation de vigilance Urssaf](https://www.trustyfile.com/guides/verifier-une-attestation-de-vigilance-urssaf): Vérifier l'attestation de vigilance d'un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d'ordre.
+- [Comment fonctionne TrustyFile : méthode et limites](https://www.trustyfile.com/guides/comment-fonctionne-trustyfile): Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu'il ne peut pas prouver et ce que deviennent vos documents.
 
 ## Outils gratuits (français)
 
@@ -48,6 +49,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 - [How to verify a Kbis extract (French company registration)](https://www.trustyfile.com/en/guides/how-to-verify-a-kbis-extract): Check a Kbis against the public registers (SIREN, directors, registered office, company status), spot a forged PDF, and know what a genuine Kbis does not prove.
 - [How to verify a French tax notice (avis d'imposition)](https://www.trustyfile.com/en/guides/how-to-verify-a-french-tax-notice): Landlord or agency: verify a tenant's French income-tax notice with the tax office's online service (SVAIR), the signed 2D-Doc code and the other documents in the file.
 - [How to verify an URSSAF vigilance certificate (France)](https://www.trustyfile.com/en/guides/how-to-verify-an-urssaf-vigilance-certificate): Checking a French subcontractor's attestation de vigilance: the 15-character security code on urssaf.fr, the six-month validity, and what the law requires of the client.
+- [How TrustyFile works: method and limits](https://www.trustyfile.com/en/guides/how-trustyfile-works): What TrustyFile checks in a PDF, how the evidence becomes a trust score, what it cannot prove, and what happens to your documents.
 
 ## Free tools (English)
 

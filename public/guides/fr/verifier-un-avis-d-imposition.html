@@ -47,6 +47,12 @@ p.intro { font-size: 1.08rem; color: #444; }
 p.updated { font-size: 0.8rem; color: #999; margin: 0 0 2rem; }
 ul { padding-left: 1.25rem; }
 li { margin: 0.4rem 0; }
+aside.key-points {
+    background: #eef4ff; border-left: 4px solid #2563eb; border-radius: 8px;
+    padding: 0.9rem 1.1rem; margin: 1.5rem 0;
+}
+aside.key-points p { margin: 0; font-weight: 600; color: #1a1a2e; }
+aside.key-points ul { margin: 0.4rem 0 0; }
 ol.toc { background: #f8f9fa; border-radius: 8px; padding: 1rem 1rem 1rem 2.25rem; }
 ol.toc li { margin: 0.25rem 0; }
 a { color: #2563eb; }
@@ -108,7 +114,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "description": "Propriétaire ou agence : vérifier l'avis d'imposition d'un candidat avec le service officiel des impôts (SVAIR), le code 2D-Doc signé et les autres pièces du dossier.",
         "inLanguage": "fr",
         "datePublished": "2026-09-03",
-        "dateModified": "2026-09-03",
+        "dateModified": "2026-11-11",
         "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": "https://www.trustyfile.com/guides/verifier-un-avis-d-imposition"
@@ -116,11 +122,13 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         "image": "https://www.trustyfile.com/og-image.png",
         "author": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com"
         },
         "publisher": {
                 "@type": "Organization",
+                "@id": "https://www.trustyfile.com/#organization",
                 "name": "TrustyFile",
                 "url": "https://www.trustyfile.com",
                 "logo": {
@@ -155,6 +163,38 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         ]
 }
     </script>
+    <script type="application/ld+json">
+{
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+                {
+                        "@type": "Question",
+                        "name": "Comment vérifier l'avis d'imposition d'un locataire ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Saisissez le numéro fiscal et la référence de l'avis sur le service de vérification des avis (SVAIR) d'impots.gouv.fr, puis contrôlez le code 2D-Doc, qui atteste les montants. TrustyFile lit ce code et vérifie sa signature sur le PDF déposé."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Que signifie « non conforme » sur SVAIR ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Que le couple numéro fiscal et référence est inconnu (document fabriqué, identifiant retouché ou mal saisi), ou qu'un avis plus récent a été émis depuis."
+                        }
+                },
+                {
+                        "@type": "Question",
+                        "name": "Un avis « conforme » sur SVAIR peut-il être falsifié ?",
+                        "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "Oui : SVAIR ne compare pas les montants. Un revenu fiscal de référence gonflé sur un avis authentique et à jour passe ce contrôle ; c'est le code 2D-Doc qui l'attrape."
+                        }
+                }
+        ]
+}
+    </script>
 </head>
 <body>
     <nav class="top">
@@ -165,8 +205,17 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </nav>
 
     <h1>Comment vérifier un avis d&#x27;imposition</h1>
-    <p class="updated"><time datetime="2026-09-03">Mis à jour le 3 septembre 2026</time></p>
+    <p class="updated"><time datetime="2026-11-11">Mis à jour le 11 novembre 2026</time></p>
     <p class="intro">L'avis d'impôt sur le revenu est la pièce maîtresse d'un dossier de location et de nombreuses demandes d'aide ou de crédit : il fixe le revenu fiscal de référence du foyer. C'est aussi le justificatif le plus retouché des dossiers locatifs, parce qu'un revenu gonflé ouvre des portes que le vrai revenu ferme. Il se vérifie pourtant mieux que presque tout autre document : l'administration fiscale met à disposition un service de contrôle en ligne, et l'avis porte un code 2D-Doc signé.</p>
+    <aside class="key-points">
+        <p>En bref</p>
+        <ul>
+            <li>Un avis d&#x27;imposition se vérifie sur le service officiel SVAIR (impots.gouv.fr) avec le numéro fiscal et la référence de l&#x27;avis.</li>
+            <li>SVAIR confirme que l&#x27;avis existe et qu&#x27;il est le dernier émis, mais n&#x27;affiche aucun montant : un revenu gonflé sur un avis authentique passe ce contrôle.</li>
+            <li>Le code 2D-Doc signé de l&#x27;avis contient le revenu fiscal de référence : s&#x27;il diffère du montant imprimé, l&#x27;avis a été retouché.</li>
+            <li>Recoupez l&#x27;avis avec les bulletins de salaire, le justificatif de domicile et la situation de famille annoncée.</li>
+        </ul>
+    </aside>
     <h2>Sommaire</h2>
     <ol class="toc">
         <li><a href="#ce-que-dit-un-avis-et-ce-qui-se-falsifie">Ce que dit un avis, et ce qui se falsifie</a></li>
@@ -200,6 +249,15 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <h2 id="cadre-legal-et-bons-reflexes">Cadre légal et bons réflexes</h2>
     <p>Un bailleur peut demander à un candidat son dernier ou avant-dernier avis d'imposition ou de non-imposition : la pièce figure dans la liste limitative fixée par le décret du 5 novembre 2015, qui interdit d'exiger d'autres documents que ceux qu'il énumère. Présenter un avis falsifié relève du faux et de l'usage de faux (article 441-1 du code pénal, jusqu'à trois ans d'emprisonnement et 45 000 euros d'amende).</p>
     <p>Face à un avis douteux : ne concluez pas, conservez le document et les échanges, et gardez à l'esprit que les pièces d'un candidat non retenu ne doivent pas être conservées au-delà du nécessaire. TrustyFile n'archive rien : le fichier est analysé, puis supprimé.</p>
+    <h2>Questions fréquentes</h2>
+    <dl class="faq">
+        <dt>Comment vérifier l&#x27;avis d&#x27;imposition d&#x27;un locataire ?</dt>
+        <dd>Saisissez le numéro fiscal et la référence de l&#x27;avis sur le service de vérification des avis (SVAIR) d&#x27;impots.gouv.fr, puis contrôlez le code 2D-Doc, qui atteste les montants. TrustyFile lit ce code et vérifie sa signature sur le PDF déposé.</dd>
+        <dt>Que signifie « non conforme » sur SVAIR ?</dt>
+        <dd>Que le couple numéro fiscal et référence est inconnu (document fabriqué, identifiant retouché ou mal saisi), ou qu&#x27;un avis plus récent a été émis depuis.</dd>
+        <dt>Un avis « conforme » sur SVAIR peut-il être falsifié ?</dt>
+        <dd>Oui : SVAIR ne compare pas les montants. Un revenu fiscal de référence gonflé sur un avis authentique et à jour passe ce contrôle ; c&#x27;est le code 2D-Doc qui l&#x27;attrape.</dd>
+    </dl>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/verifier-une-facture-falsifiee">
         <h3>Vérifier si une facture a été falsifiée</h3>
@@ -236,6 +294,10 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     <a class="card" href="/guides/verifier-une-attestation-de-vigilance-urssaf">
         <h3>Vérifier une attestation de vigilance Urssaf</h3>
         <p>Vérifier l&#x27;attestation de vigilance d&#x27;un sous-traitant : code de sécurité à 15 caractères sur urssaf.fr, validité de six mois, et ce que la loi impose au donneur d&#x27;ordre.</p>
+    </a>
+    <a class="card" href="/guides/comment-fonctionne-trustyfile">
+        <h3>Comment fonctionne TrustyFile : méthode et limites</h3>
+        <p>Ce que TrustyFile vérifie dans un PDF, comment les indices deviennent un score de confiance, ce qu&#x27;il ne peut pas prouver et ce que deviennent vos documents.</p>
     </a>
     <a class="cta" href="https://www.trustyfile.com/">Analyser un document gratuitement</a>
     <footer>
