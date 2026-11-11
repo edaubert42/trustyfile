@@ -4,9 +4,8 @@
 #
 # NOTE: caddy is deliberately NOT here. Adding it built fine but the binary was
 # not on PATH in Railway's runtime image, so start.sh aborted and the site went
-# down. Caddy is fetched at boot instead — see start.sh. curl is required for
-# that fetch.
-nixPkgs = ["python313", "tesseract", "libdmtx", "curl"]
+# down. Caddy is fetched at boot instead, by Python — see start.sh.
+nixPkgs = ["python313", "tesseract", "libdmtx"]
 
 [phases.install]
 cmds = ["pip install -r requirements.txt"]

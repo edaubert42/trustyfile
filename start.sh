@@ -18,17 +18,12 @@ CADDY="/usr/local/bin/caddy-${CADDY_VERSION}"
 
 if [ ! -x "$CADDY" ]; then
     echo "Installing Caddy ${CADDY_VERSION}..."
-    archive="$(mktemp)"
-    curl -sfL "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz" -o "$archive"
-    # Refuse to run a download that is not byte for byte the release.
-    if ! echo "${CADDY_SHA512}  ${archive}" | sha512sum -c - > /dev/null; then
-        echo "Caddy ${CADDY_VERSION}: download failed or checksum mismatch, not starting." >&2
+    # In Python, not curl: curl is absent from the runtime image. The script
+    # refuses a download that is not byte for byte the release.
+    if ! python3 scripts/install_caddy.py "$CADDY_VERSION" "$CADDY_SHA512" "$CADDY"; then
+        echo "Caddy ${CADDY_VERSION}: install failed, not starting." >&2
         exit 1
     fi
-    tar -xzf "$archive" -C "$(dirname "$CADDY")" caddy
-    mv "$(dirname "$CADDY")/caddy" "$CADDY"
-    chmod +x "$CADDY"
-    rm -f "$archive"
 fi
 "$CADDY" version
 
