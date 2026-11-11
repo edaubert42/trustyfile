@@ -83,7 +83,9 @@ RUN pip install -r requirements-dev.txt
 # read files at the repository root.
 COPY . .
 
-CMD ["python", "-m", "pytest", "tests/", "-q"]
+# -rs: print why each skipped test was skipped. Some tests skip when a
+# system library is missing, so a skip can hide a broken image.
+CMD ["python", "-m", "pytest", "tests/", "-q", "-rs"]
 
 
 # What Railway builds and runs. Must stay the last stage.

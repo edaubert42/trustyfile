@@ -53,7 +53,8 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 
 ## Tech Stack
 
-- **Language**: Python 3.11+ (CI gates 3.13/3.14; Railway runs Railpack's default, 3.13)
+- **Language**: Python 3.11+ (production image: 3.13.18 on Debian 13; CI also
+  builds the same Dockerfile on 3.14)
 - **PDF Parsing**: PyMuPDF (fitz) - preferred over PyPDF2 for speed and robustness
 - **Text Extraction**: pytesseract (OCR fallback only — the text layer is read
   via PyMuPDF; pdfplumber was dropped and is neither installed nor imported)
@@ -76,13 +77,20 @@ trustyfile/
 ├── README.md
 ├── LICENSE                   # Proprietary — all rights reserved
 ├── requirements.txt          # Runtime deps
-├── requirements-dev.txt      # + pikepdf/pypdfium2 (tests only, not shipped)
-├── start.sh                  # uvicorn (src.web.app:app) + Caddy boot (Railway)
+├── requirements-dev.txt      # + pytest, pikepdf/pypdfium2, httpx (tests only, not shipped)
+├── Dockerfile                # THE build: app / test / runtime stages; Railway builds
+│                             # the last stage (railway.json), CI tests the same image.
+│                             # System deps (tesseract-ocr-fra, libdmtx0t64) and
+│                             # Caddy 2.11.9 live here, nowhere else
+├── .dockerignore             # Keeps samples/ (real documents) out of every image
+├── start.sh                  # uvicorn (src.web.app:app) + Caddy (/usr/local/bin/caddy)
 ├── Caddyfile                 # Static files served directly, the rest -> :8000;
 │                             # every visitor gets the same bytes, crawler or not
-├── .github/workflows/        # CI: pytest on 3.13/3.14. Railway builds with Railpack
-│                             # (apt deps: RAILPACK_*_APT_PACKAGES service variables)
-│                             # and runs no tests: "Wait for CI" is the only gate
+├── .github/workflows/        # CI: builds the Dockerfile, pytest inside the image
+│                             # (production Python + 3.14), then boots the runtime
+│                             # image and smoke-tests it. Railway builds the same
+│                             # Dockerfile and runs no tests: "Wait for CI" is the
+│                             # only gate
 ├── src/
 │   ├── analyzer.py           # Main orchestrator — wires all 14 modules
 │   ├── scoring.py            # Evidence ledger -> trust score
@@ -333,6 +341,9 @@ pip install -r requirements-dev.txt
 # Install system dependencies (OCR + 2D-Doc DataMatrix)
 # Ubuntu/Debian: sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx-dev
 # macOS: brew install tesseract libdmtx
+
+# Or the production image, exactly as Railway runs it (see README "Docker")
+docker build -t trustyfile . && docker run --rm -p 8080:8080 trustyfile
 
 # Run the site (pages + API). Optional keys are read from the environment:
 # IBAN_API_KEY, VIRUSTOTAL_API_KEY

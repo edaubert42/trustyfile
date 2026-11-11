@@ -40,12 +40,12 @@ finding in plain English or French, and draws a box around the spot on the page.
   blocks XXE attacks. A broken PDF degrades to a partial result instead of crashing.
 - **Measured on real documents.** 1,600+ pytest tests include false-positive
   regressions taken from real invoices and corpus band gates. CI runs the suite
-  on Python 3.13 and 3.14.
+  inside the production Docker image (Python 3.13), and again on Python 3.14.
 - **Privacy by design.** Uploads are analysed on a temporary file and never
   written to permanent storage. Results live in a bounded in-memory store for
   15 minutes.
 - **Shipped.** FastAPI with server-rendered Jinja pages, a JSON API, batch upload,
-  and EN/FR. It runs on Railway behind Caddy, and a test gate runs in the build.
+  and EN/FR. It runs on Railway behind Caddy, from the same Docker image CI tests.
 
 ```mermaid
 flowchart LR
@@ -105,7 +105,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, payslips, contracts) to d
 
 ```bash
 # Ubuntu/Debian
-sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx0b
+sudo apt install tesseract-ocr tesseract-ocr-fra libdmtx-dev
 
 # macOS
 brew install tesseract libdmtx
@@ -115,9 +115,21 @@ brew install tesseract libdmtx
 # libdmtx: use WSL, or see https://github.com/dmtx/libdmtx
 ```
 
-The deployment (Railway, built with Railpack) installs the same system
-packages through the `RAILPACK_BUILD_APT_PACKAGES` and
-`RAILPACK_DEPLOY_APT_PACKAGES` service variables.
+### Docker (what production runs)
+
+The `Dockerfile` is the one recipe for production and CI: Python 3.13 on
+Debian 13, the system packages above, Caddy 2.11.9 in front of uvicorn
+(`start.sh`). Railway builds its last stage (`railway.json`); CI runs the test
+suite in its `test` stage, then boots the production image and smoke-tests it.
+
+```bash
+docker build -t trustyfile .                    # production image
+docker run --rm -p 8080:8080 trustyfile         # http://localhost:8080
+docker build --target test -t trustyfile:test . && docker run --rm trustyfile:test
+```
+
+`samples/` (real documents) is excluded from the build context by
+`.dockerignore` and never enters an image.
 
 ### Installation
 
@@ -209,6 +221,7 @@ for module_result in result.modules:
 
 ```
 trustyfile/
+├── Dockerfile, railway.json  # The image production and CI both run
 ├── Caddyfile, start.sh        # Deployment: Caddy in front of one uvicorn process
 ├── public/                   # Files served as they are: guides/, tools/ (generated),
 │                             # static/ (icons, sample PDF), sitemap.xml, robots.txt
