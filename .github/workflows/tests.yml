@@ -42,12 +42,18 @@ jobs:
       # Ubuntu archive, so an archive or DNS outage no longer blocks CI (and,
       # through Railway's "Wait for CI", every deploy). A new runner image
       # changes the key, so the packages are fetched again for it.
+      # ImageOS / ImageVersion are shell variables on the hosted runners, not
+      # part of the ${{ env }} context: read them in a step.
+      - name: Cache key for system packages
+        id: apt-key
+        run: echo "key=apt-${ImageOS}-${ImageVersion}-tesseract-fra-dmtx-v1" >> "$GITHUB_OUTPUT"
+
       - name: Restore cached system packages
         id: apt-cache
         uses: actions/cache@v4
         with:
           path: ~/apt-debs
-          key: apt-${{ env.ImageOS }}-${{ env.ImageVersion }}-tesseract-fra-dmtx-v1
+          key: ${{ steps.apt-key.outputs.key }}
 
       # Cold cache only. On 2026-11-11 the runners' own DNS stopped resolving
       # the Ubuntu archive names for hours (they resolved fine elsewhere), and
