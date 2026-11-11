@@ -76,6 +76,13 @@ CMD ["bash", "start.sh"]
 
 FROM app AS test
 
+# Node runs the browser-side checksum code of the IBAN/SIRET tool pages
+# against the Python reference (tests/test_checksum_vectors.py); without it
+# those tests skip. Test stage only: the site itself never runs JavaScript.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements-dev.txt .
 RUN pip install -r requirements-dev.txt
 
