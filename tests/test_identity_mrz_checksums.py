@@ -129,3 +129,19 @@ def test_valid_td3_not_coverage_blind(tmp_path):
     _write_mrz_pdf(pdf, TD3)
     result = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False).analyze(str(pdf))
     assert result.band != "UNVERIFIABLE"
+
+
+def test_text_mentioning_passports_without_mrz_is_not_retyped_identity(tmp_path):
+    # A town-hall press release passed the keyword pre-check ("passeport")
+    # and became an issued identity document (2026-11-12).
+    pdf = tmp_path / "press.pdf"
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((50, 80), "Communiqué de presse - Mairie annexe", fontsize=12)
+    page.insert_text((50, 110), "La nouvelle mairie annexe accueille six services municipaux.",
+                     fontsize=10)
+    page.insert_text((50, 130), "Vous pourrez y faire vos démarches de carte d'identité "
+                     "et de passeport.", fontsize=10)
+    doc.save(str(pdf))
+    result = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False).analyze(str(pdf))
+    assert result.document_type == "unknown"
