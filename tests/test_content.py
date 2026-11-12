@@ -1195,3 +1195,29 @@ class TestExtractIbanRegistry:
         from src.modules.content import extract_iban
         ibans = [i for i, _, _ in extract_iban("IBAN: FR76 3000 6000 0112 3456 7890 189 Merci")]
         assert ibans == ["FR7630006000011234567890189"]
+
+
+class TestOwnDateLabel:
+    """A bare "Date:" label marks the document's own date (investigation doc 3)."""
+
+    NOTICE = ("LEGAL NOTICE\nDate: 05/11/2026\nTo the borrower,\n"
+              "Pursuant to the Loan Agreement dated 12/03/2019, you must pay.\n")
+
+    def test_a_cited_date_is_not_the_document_date(self):
+        from datetime import datetime
+        from src.modules.content import check_date_vs_creation, extract_dates_from_text
+        dates = extract_dates_from_text(self.NOTICE)
+        assert check_date_vs_creation(dates, datetime(2026, 11, 5, 10)) == []
+
+    def test_a_backdated_labelled_date_is_still_caught(self):
+        from datetime import datetime
+        from src.modules.content import check_date_vs_creation, extract_dates_from_text
+        dates = extract_dates_from_text(self.NOTICE)
+        flags = check_date_vs_creation(dates, datetime(2026, 1, 5, 10))
+        assert [(f.details["document_date"][:10], f.details["direction"]) for f in flags] \
+            == [("2026-11-05", "created_before")]
+
+    def test_label_on_the_line_above(self):
+        from src.modules.content import _has_own_date_label
+        assert _has_own_date_label("Date\n05/11/2026", "05/11/2026")
+        assert not _has_own_date_label("Date de naissance : 01/01/1990", "01/01/1990")
