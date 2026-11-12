@@ -182,23 +182,74 @@ def proven_modification_codes(flags: list[Flag], document_type: str,
         >>> proven_modification_codes([f], "scientific")
         []
     """
+    issued = document_type in ISSUED_DOCUMENT_TYPES or coverage_blind
+
+    found = {f.code for f in flags
+             if f.severity != "low" and f.code in MODIFICATION_PROOF_CODES}
+    if issued:
+        found |= _unexcused_provenance_codes(flags, einvoice_xml)
+    return sorted(found)
+
+
+def _unexcused_provenance_codes(flags: list[Flag], einvoice_xml: bool) -> set[str]:
+    """Return the PROVENANCE_BREAK_CODES that no legitimate pipeline explains.
+
+    Low flags never count. A date gap, an Acrobat XMP or a missing creation
+    date is excused when the file is signed or carries a consistent e-invoice
+    XML, or when its module graded it only "medium" (see
+    proven_modification_codes for the measurements behind each excuse).
+    """
     codes = {f.code for f in flags}
     signed = bool(codes & _SIGNATURE_PRESENT_CODES)
     einvoice_ok = einvoice_xml and not (codes & _EINVOICE_MISMATCH_CODES)
-    issued = document_type in ISSUED_DOCUMENT_TYPES or coverage_blind
 
-    found = []
+    found = set()
     for f in flags:
-        if f.severity == "low":
+        if f.severity == "low" or f.code not in PROVENANCE_BREAK_CODES:
             continue
-        if f.code in MODIFICATION_PROOF_CODES:
-            found.append(f.code)
-        elif f.code in PROVENANCE_BREAK_CODES and issued:
-            excusable = f.code in _PIPELINE_EXCUSABLE_CODES
-            if excusable and (signed or einvoice_ok or f.severity == "medium"):
-                continue
-            found.append(f.code)
-    return sorted(set(found))
+        excusable = f.code in _PIPELINE_EXCUSABLE_CODES
+        if excusable and (signed or einvoice_ok or f.severity == "medium"):
+            continue
+        found.add(f.code)
+    return found
+
+
+# The provenance codes that show a TOOL touched the file, as opposed to a
+# date that moved. Used on documents whose genre is unknown (see
+# edited_unknown_codes). Dates are left out on purpose: measured 2026-11-12,
+# 4 of the 13 local legit non-issued documents have a ModDate after their
+# CreationDate (3 scientific articles, one re-saved 5 minutes later).
+EDITOR_TRACE_CODES: frozenset[str] = PROVENANCE_BREAK_CODES - {
+    "META_DOCUMENT_MODIFIED", "META_NO_CREATION_DATE", "META_MALFORMED_DATE",
+}
+
+
+def edited_unknown_codes(flags: list[Flag], document_type: str,
+                         einvoice_xml: bool = False) -> list[str]:
+    """Return the editor traces that deny GENUINE to an unclassified document.
+
+    The SUSPICIOUS rule (proven_modification_codes) only trusts provenance
+    codes on issued documents, since a CV or an article is legitimately edited
+    by its author. But "unknown" only means the classifier found too few
+    keywords: it may well be an invoice. A restaurant invoice with no word
+    "facture", re-saved in Acrobat, scored GENUINE 81 (2026-11-12). So on an
+    unknown document an editor trace caps the band at REVIEW: someone edited
+    this file, look at it. Not SUSPICIOUS, because it may be a CV.
+
+    Measured on the corpus: no legit document leaves GENUINE (the only hit,
+    a CV edited in Acrobat, was already REVIEW).
+
+    Examples:
+        >>> f = Flag(severity="high", code="STRUCT_XMP_EDITOR_MISMATCH", message="")
+        >>> edited_unknown_codes([f], "unknown")
+        ['STRUCT_XMP_EDITOR_MISMATCH']
+        >>> edited_unknown_codes([f], "scientific")
+        []
+    """
+    if document_type != "unknown":
+        return []
+    found = _unexcused_provenance_codes(flags, einvoice_xml)
+    return sorted(found & EDITOR_TRACE_CODES)
 
 
 def apply_doc_type_suppression(evidence, document_type: str):
@@ -343,11 +394,13 @@ def create_analysis_result(
             if ev is not None:
                 evidence.append(ev)
 
+    einvoice_xml = any((r.details or {}).get("einvoice_xml") for r in module_results)
     proven = proven_modification_codes(
-        scored_flags, document_type, coverage_blind,
-        einvoice_xml=any((r.details or {}).get("einvoice_xml") for r in module_results))
+        scored_flags, document_type, coverage_blind, einvoice_xml=einvoice_xml)
     unverified = sorted({f.code for f in scored_flags if f.code in UNVERIFIED_ORIGIN_CODES}
                         if document_type in ISSUED_DOCUMENT_TYPES else set())
+    # Both lists cap the band at REVIEW (never GENUINE), see evidence.py
+    unverified += edited_unknown_codes(scored_flags, document_type, einvoice_xml)
     agg = aggregate_evidence(evidence, analyzable=analyzable,
                              coverage_blind=coverage_blind,
                              hard_detector_blinded=hard_detector_blinded,

@@ -151,3 +151,36 @@ def test_virtual_printer_detection():
 
 def test_garbled_metadata_date_on_invoice_is_suspicious():
     assert _result([_flag("META_MALFORMED_DATE")], "invoice").band == "SUSPICIOUS"
+
+
+# --- editor trace on an unknown genre -> REVIEW (edited_unknown_codes) -------
+
+def test_acrobat_edit_on_unknown_genre_is_review_not_genuine():
+    # Restaurant invoice without the word "facture", re-saved in Acrobat:
+    # scored GENUINE 81 while classified "unknown" (2026-11-12).
+    flags = [_flag("STRUCT_XMP_EDITOR_MISMATCH"), _flag("META_DOCUMENT_MODIFIED", "medium"),
+             _flag("FONTS_MIDLINE_CHANGE", "medium")]
+    r = _result(flags, "unknown")
+    assert r.band == "REVIEW"
+    assert r.forced_codes == {"STRUCT_XMP_EDITOR_MISMATCH": "REVIEW"}
+
+
+def test_online_converter_on_unknown_genre_is_review():
+    assert _result([_flag("META_ONLINE_CONVERTER")], "unknown").band == "REVIEW"
+
+
+def test_editor_trace_on_a_known_non_issued_genre_changes_nothing():
+    # A scientific article reworked by its publisher in Acrobat stays as before
+    alone = _result([], "scientific")
+    edited = _result([_flag("STRUCT_XMP_EDITOR_MISMATCH")], "scientific")
+    assert edited.forced_codes == {}
+    assert edited.band == alone.band
+
+
+def test_einvoice_xml_still_excuses_acrobat_on_unknown_genre():
+    # ZUGFeRD toolkits re-save the PDF to attach the XML
+    r = create_analysis_result(
+        "hash", [ModuleResult(module="arithmetic", flags=[_flag("STRUCT_XMP_EDITOR_MISMATCH")],
+                              score=50, confidence=1.0, details={"einvoice_xml": True})],
+        document_type="unknown")
+    assert r.forced_codes == {}
