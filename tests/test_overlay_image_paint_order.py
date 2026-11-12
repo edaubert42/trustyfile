@@ -71,3 +71,38 @@ def test_order_helper_unknown_keeps_cautious_answer():
     # No log, or the image is not in it: we cannot prove a background.
     assert _text_painted_over_image(None, IMG, SPAN) is False
     assert _text_painted_over_image([("fill-text", (58, 218, 132, 234))], IMG, SPAN) is False
+
+
+def _shaded_header(tmp_path):
+    """A grey gradient (a shading, operator "sh") painted, then text on top.
+
+    Real case: Costumes FA5237's header block. PyMuPDF reports the shading as
+    an image with no xref, but never paints it as one ("fill-shade").
+    """
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text((50, 100), "SAS EXEMPLE COSTUMES", fontname="helv", fontsize=12)
+    shading = doc.get_new_xref()
+    doc.update_object(shading, (
+        "<< /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 0 60] "
+        "/Function << /FunctionType 2 /Domain [0 1] /C0 [0.9 0.9 0.9] "
+        "/C1 [1 1 1] /N 1 >> /Extend [true true] >>"))
+    kind, value = doc.xref_get_key(page.xref, "Resources")
+    if kind == "xref":
+        doc.xref_set_key(int(value.split()[0]), "Shading", f"<< /Sh1 {shading} 0 R >>")
+    else:
+        doc.xref_set_key(page.xref, "Resources/Shading", f"<< /Sh1 {shading} 0 R >>")
+    contents = page.get_contents()[0]
+    doc.update_stream(contents, b"q 40 712 200 60 re W n /Sh1 sh Q\n"
+                      + doc.xref_stream(contents))
+    path = tmp_path / "shaded.pdf"
+    doc.save(str(path))
+    doc.close()
+    return str(path)
+
+
+def test_gradient_background_is_not_an_image_over_text(tmp_path):
+    path = _shaded_header(tmp_path)
+    page = fitz.open(path)[0]
+    assert page.get_image_info(xrefs=True), "the shading must look like an image"
+    assert "OVERLAY_IMAGE_OVER_TEXT" not in _codes(path)
