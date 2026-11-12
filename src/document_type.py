@@ -17,6 +17,8 @@ Usage:
 """
 
 import logging
+import re
+
 from src.models import DocumentType
 
 logger = logging.getLogger(__name__)
@@ -141,6 +143,40 @@ KEYWORDS: dict[str, list[str]] = {
 
 
 # =============================================================================
+# PATTERN SIGNALS
+# =============================================================================
+# Some invoice signals are too short or too variable for a plain substring:
+# "ht" is inside "light" and "https", and an amount is any number followed by
+# a currency. A regex adds word boundaries and shapes. Each pattern found adds
+# +1 to its type, exactly like a keyword.
+#
+# Why (2026-11-12): a restaurant invoice typed in Word ("FC A21012026", a
+# HT/TVA table in euros, "sarl - RCS BREST" in the footer) matched only "tva"
+# and "siret", fell into "unknown", and an Acrobat edit then scored GENUINE 81.
+#
+# Measured on the 205-PDF corpus: ht/ttc, a VAT rate, RCS and an
+# intra-community VAT number appear on invoices only. An amount in euros also
+# appears on tax notices and legal notices, a legal form on one technical spec:
+# alone they never reach the 3-signal minimum.
+PATTERNS: dict[str, list[re.Pattern[str]]] = {
+    "invoice": [
+        # "375.14 Euros", "1 200,00 €", "43.8 EUR"
+        re.compile(r"\d[\d  .,]*\s?(?:€|euros?\b|eur\b)"),
+        # "HT 10 %", "Total TTC", but not "light" or "https"
+        re.compile(r"\b(?:ht|ttc)\b"),
+        # "TVA 10%", "TVA à 5,5 %"
+        re.compile(r"\btva\s*(?:à\s*)?\d{1,2}(?:[.,]\d+)?\s?%"),
+        # French company forms; "sa" is left out, it is also a French word
+        re.compile(r"\b(?:sarl|sas|sasu|eurl|snc)\b"),
+        # Trade register: "RCS BREST B 789 397 759"
+        re.compile(r"\brcs\b"),
+        # "Numéro de TVA intracommunautaire", "N° TVA"
+        re.compile(r"tva intracommunautaire|num[ée]ro de tva|n°\s?tva"),
+    ],
+}
+
+
+# =============================================================================
 # CLASSIFIER
 # =============================================================================
 
@@ -177,6 +213,10 @@ def detect_document_type(pdf_data) -> DocumentType:
     for doc_type, keywords in KEYWORDS.items():
         # Use a set to count distinct keyword matches (not total occurrences)
         hit_count = sum(1 for kw in keywords if kw.lower() in full_text)
+        # Pattern signals count the same way: +1 per pattern found
+        for pattern in PATTERNS.get(doc_type, []):
+            if pattern.search(full_text):
+                hit_count += 1
         scores[doc_type] = hit_count
 
     # Find the winner. A TIE between two types means the document is ambiguous
