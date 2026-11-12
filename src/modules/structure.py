@@ -925,8 +925,14 @@ XMP_TOOLKIT_SIGNATURES = {
 # Matching the exact frozen string AND the library's own Producer keeps the
 # detection intact: a real edit in Acrobat rewrites the XMP packet with Acrobat's
 # current version string, which no longer matches this constant.
+#
+# Word for Microsoft 365 does the same on its own PDF export (2026-11-12): the
+# ANTS 2D-Doc specs, exported from Word and never touched (dates 9 s apart),
+# carry this exact string. Acrobat 2019 used it too, so a 2019 Acrobat edit of
+# a Word file is missed here; the ModDate check still sees that edit.
 XMP_TOOLKIT_LIBRARY_BOILERPLATE: dict[str, str] = {
     "adobe xmp core 4.2.1-c043 52.372728, 2009/01/18-15:08:04": "tcpdf",
+    "adobe xmp core 5.6-c016 91.163616, 2018/10/29-16:58:49": "microsoft® word",
 }
 
 # Known scanner software signatures (in Producer or Creator fields)

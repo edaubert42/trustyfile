@@ -378,6 +378,44 @@ class TestXmpLibraryBoilerplate:
                        for b in XMP_TOOLKIT_LIBRARY_BOILERPLATE)
 
 
+from src.modules.structure import check_xmp_toolkit_mismatch  # noqa: E402
+
+
+class TestWordXmpBoilerplate:
+    """Word 365 writes Adobe's 2018 XMP Core string on its own PDF export.
+
+    Regression 2026-11-12: every Word 365 PDF was reported "later modified
+    with Adobe Acrobat" at high severity (ANTS specs, a law firm's invoice).
+    """
+
+    WORD_XMPTK = "Adobe XMP Core 5.6-c016 91.163616, 2018/10/29-16:58:49        "
+
+    def _pdf(self, tmp_path, producer: str) -> str:
+        doc = fitz.open()
+        doc.new_page()
+        doc.set_metadata({"producer": producer, "creator": producer})
+        doc.set_xml_metadata(
+            f'<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="{self.WORD_XMPTK}">'
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>'
+            '</x:xmpmeta>'
+        )
+        path = str(tmp_path / "word.pdf")
+        doc.save(path)
+        doc.close()
+        return path
+
+    def test_word_export_is_not_an_acrobat_edit(self, tmp_path):
+        producer = "Microsoft® Word pour Microsoft 365"
+        path = self._pdf(tmp_path, producer)
+        assert check_xmp_toolkit_mismatch(path, producer, producer) == []
+
+    def test_same_string_on_another_producer_still_flags(self, tmp_path):
+        producer = "macOS Version 10.14.5 (Build 18F132) Quartz PDFContext"
+        path = self._pdf(tmp_path, producer)
+        codes = [f.code for f in check_xmp_toolkit_mismatch(path, producer, None)]
+        assert codes == ["STRUCT_XMP_EDITOR_MISMATCH"]
+
+
 # =============================================================================
 # XMP <-> INFO CREATION DATE CROSS-CHECK
 # =============================================================================
