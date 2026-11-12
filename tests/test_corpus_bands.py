@@ -49,10 +49,9 @@ BAND_EXCEPTIONS: dict[str, tuple[set[str], str]] = {
     # These two invoices went through a virtual printer, so REVIEW is their
     # ceiling (scoring.UNVERIFIED_ORIGIN_CODES): GENUINE is no longer reachable.
     "Costumes Facture - FA5237 - Salon rétro mobile.pdf": ({"REVIEW"},
-        "Microsoft Print To PDF: origin unverifiable (also a stamp image over text)"),
+        "Microsoft Print To PDF: origin unverifiable"),
     "FACA3322120235.pdf": ({"REVIEW"},
-        "PDFCreator, the issuer's own pipeline: origin unverifiable "
-        "(also a known OVERLAY_CONFLICTING_TEXT FP)"),
+        "PDFCreator, the issuer's own pipeline: origin unverifiable"),
     "CV_AUBERT_FR_2026_P.pdf": ({"GENUINE", "REVIEW"},
         "a CV edited over several sessions: not an issued document"),
     "ProtocoleTechniqueFicoba3 v11.pdf": ({"GENUINE", "REVIEW"},
