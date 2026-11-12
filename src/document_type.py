@@ -284,6 +284,47 @@ def _title_types(first_page: str) -> set[str]:
 
 
 # =============================================================================
+# INVOICE IDENTITY
+# =============================================================================
+# VAT, HT, amounts in euros, a SIRET and a company form describe any
+# commercial paper. A price grid carries all of them and became an invoice
+# (TotalEnergies tariff sheet, 2026-11-12). What an invoice has and a price
+# grid does not is its own identity: the word naming it, or a document
+# number. Without one, "invoice" falls back to "unknown".
+#
+# Measured on the labelled corpus: every one of the ~170 invoices contains
+# one of the words. The reference form catches the restaurant invoice that
+# never says "facture" ("FC A21012026").
+_INVOICE_WORD = re.compile(
+    r"(?<!\w)(?:factur[ea]|invoice|rechnung|receipt|reçu|recibo|quittung"
+    r"|ticket de caisse|note d'honoraires|devis|quote|bon de commande"
+    r"|purchase order|avoir\s*(?:n°|no\b|num)"
+    r"|bill of lading|connaissement|lettre de voiture)"
+)
+# A short invoice prefix followed by a number: "FC A21012026", "FA-2025-0084",
+# "INV-10442", "Bill 2026-118", "Fac. n° 12345"
+_INVOICE_REFERENCE = re.compile(
+    r"(?<!\w)(?:fc|fa|fac|inv|bill)\s*(?:n°|no\.?|nr\.?|#)?\s*[:.]?\s*"
+    r"[a-z]{0,3}[-/.]?\d[\d\-/.]{2,}"
+)
+
+
+def _has_invoice_identity(text: str) -> bool:
+    """True when the text names itself as an invoice or carries an invoice number.
+
+    Args:
+        text: Lowercased full text of the document.
+
+    Examples:
+        >>> _has_invoice_identity("fc a21012026 repas de groupe tva 10%")
+        True
+        >>> _has_invoice_identity("grille tarifaire prix ht tva 20% abonnement")
+        False
+    """
+    return bool(_INVOICE_WORD.search(text) or _INVOICE_REFERENCE.search(text))
+
+
+# =============================================================================
 # CLASSIFIER
 # =============================================================================
 
@@ -342,6 +383,11 @@ def detect_document_type(pdf_data) -> DocumentType:
     # 2 is too low — generic words like "introduction" + "results" can appear
     # in any document and falsely trigger the "scientific" category.
     if best_score < 3 or len(winners) > 1:
+        return "unknown"
+
+    # An invoice must say what it is (word or number), see _has_invoice_identity
+    if winners[0] == "invoice" and not _has_invoice_identity(full_text):
+        logger.debug("Invoice signals without an invoice word or number -> unknown")
         return "unknown"
 
     return winners[0]  # type: ignore[return-value]
