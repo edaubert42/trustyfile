@@ -29,6 +29,12 @@ OPAQUE_FILL_MIN_OPACITY = 0.90
 BG_COLOR_MATCH_TOL = 0.06
 CONTAINMENT_MIN = 0.8
 CONFLICT_IOU_MIN = 0.6
+# Share of the shorter span's glyphs that must sit on a glyph of the other span.
+# A retype stacks new characters on the old ones; a label/value grid written as
+# two text runs only looks stacked at span level (FACA invoices: 0% of glyphs
+# overlap, every corpus hit was this shape). Low on purpose, so a retype
+# placed slightly off still counts.
+CONFLICT_GLYPH_OVERLAP_MIN = 0.25
 LOCALIZED_FILL_MAX_AREA_FRAC = 0.10
 LINE_HEIGHT_LO, LINE_HEIGHT_HI = 0.5, 2.5
 MAX_FILL_ASPECT = 25.0
@@ -399,12 +405,49 @@ def _signal_conflicting_text(spans: list[dict], page_angle: float,
                 continue
             if _is_layered_icon(a, b):
                 continue
+            if _glyph_overlap(a, b) < CONFLICT_GLYPH_OVERLAP_MIN:
+                continue                   # boxes overlap, letters do not
             if _pair_is_conflict(a, b, page_angle):
                 under = a if a.get("seqno", 0) <= b.get("seqno", 0) else b
                 if is_placeholder(span_text(under)):
                     continue
                 hits.append({"a": a, "b": b})
     return hits
+
+
+def _glyph_boxes(span: dict) -> list:
+    """The non-empty box of every visible character of a span (spaces dropped)."""
+    boxes = []
+    for char in span.get("chars", ()):
+        x0, y0, x1, y1 = char[3]
+        if char[0] != 32 and x1 > x0 and y1 > y0:
+            boxes.append(fitz.Rect(x0, y0, x1, y1))
+    return boxes
+
+
+def _glyph_overlap(a: dict, b: dict) -> float:
+    """Share of the shorter span's glyphs lying on a glyph of the other span.
+
+    A glyph counts when at least 30% of its area is covered by one glyph of
+    the other span. Spans without character data return 1.0, so the signal
+    keeps its old behaviour on them.
+
+    Examples:
+        "1 250,00" retyped over "1 850,00" at the same spot -> about 1.0
+        labels "Série : Type Mine :" and values "SUZ FX359LZ" written as two
+        text runs whose boxes cover the same grid      -> 0.0
+    """
+    glyphs_a, glyphs_b = _glyph_boxes(a), _glyph_boxes(b)
+    small, big = sorted((glyphs_a, glyphs_b), key=len)
+    if not small:
+        return 1.0
+    covered = 0
+    for glyph in small:
+        for other in big:
+            if glyph.intersects(other) and (glyph & other).get_area() >= 0.3 * glyph.get_area():
+                covered += 1
+                break
+    return covered / len(small)
 
 
 def _is_layered_icon(a: dict, b: dict) -> bool:
