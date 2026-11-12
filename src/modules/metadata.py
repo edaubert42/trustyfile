@@ -16,10 +16,13 @@ Severity levels:
 - critical: Almost certainly manipulated
 """
 
+import re
+
+from dateutil import parser as date_parser
 from datetime import datetime, timedelta, timezone
 from src.dates import to_aware_utc
 from src.models import Flag, ModuleResult
-from src.extractors.pdf_extractor import PDFData
+from src.extractors.pdf_extractor import PDFData, parse_pdf_date
 
 
 # =============================================================================
@@ -481,6 +484,55 @@ def check_missing_metadata(metadata_dict: dict) -> list[Flag]:
     return flags
 
 
+# Characters a PDF date ever uses: "D:20240115143052+01'00'", "...Z".
+_PDF_DATE_CHARS = re.compile(r"^(D:)?[0-9Z+\-' ]+$")
+
+
+def _is_garbled_date(value: str) -> bool:
+    """True when a metadata date is not a date in any format.
+
+    A valid PDF date passes. So does a non-standard but real date
+    ("2024-01-15T10:00:00", written by some libraries): dateutil reads it.
+    Junk does not: "hello", "D:2026110fsdffsd1", a valid date plus letters.
+
+    Examples:
+        >>> _is_garbled_date("D:20240115143052+01'00'")
+        False
+        >>> _is_garbled_date("2024-01-15T10:00:00")
+        False
+        >>> _is_garbled_date("D:2026110fsdffsd1")
+        True
+    """
+    if parse_pdf_date(value) is not None and _PDF_DATE_CHARS.match(value):
+        return False
+    try:
+        date_parser.parse(value.removeprefix("D:"))
+        return False
+    except (ValueError, OverflowError):
+        return True
+
+
+def check_malformed_dates(metadata_dict: dict) -> list[Flag]:
+    """Flag a creation or modification date that is not a date.
+
+    Software always writes a real date. Junk there means the metadata was
+    edited by hand, and it also dodged the date checks: an unreadable
+    CreationDate is neither "missing" nor "older than ModDate". User rule
+    2026-11-12; 0 of 205 corpus files have one (all use the standard form).
+    """
+    flags = []
+    for key, label in (("creationDate", "creation"), ("modDate", "modification")):
+        value = (metadata_dict.get(key) or "").strip()
+        if value and _is_garbled_date(value):
+            flags.append(Flag(
+                severity="high",
+                code="META_MALFORMED_DATE",
+                message=f"The {label} date in the metadata is not a date: {value}",
+                details={"field": key, "value": value},
+            ))
+    return flags
+
+
 # =============================================================================
 # MAIN ANALYSIS FUNCTION
 # =============================================================================
@@ -560,6 +612,7 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
     # because they relate to document modifications, not metadata quality
 
     all_flags.extend(check_missing_metadata(pdf_data.raw_metadata))
+    all_flags.extend(check_malformed_dates(pdf_data.raw_metadata))
 
     # PyMuPDF had to REPAIR the file structure to open it. Sloppy producers
     # emit malformed PDFs, but hand-edited bytes are the classic cause —

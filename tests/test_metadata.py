@@ -569,3 +569,28 @@ class TestAuthorFieldNotScanned:
 @pytest.mark.parametrize("tool", ["pdfescape", "dochub", "lightpdf", "raptorpdf"])
 def test_2026_online_editors_are_known(tool):
     assert tool in SUSPICIOUS_PRODUCERS
+
+
+class TestMalformedDates:
+    """A metadata date that is not a date (user rule 2026-11-12)."""
+
+    def test_garbled_creation_date_is_flagged(self):
+        from src.modules.metadata import check_malformed_dates
+        flags = check_malformed_dates({"creationDate": "D:2026110fsdffsd1",
+                                       "modDate": "D:20261101100000+01'00'"})
+        assert [(f.code, f.details["field"]) for f in flags] == [
+            ("META_MALFORMED_DATE", "creationDate")]
+
+    def test_text_and_trailing_junk_are_flagged(self):
+        from src.modules.metadata import check_malformed_dates
+        assert check_malformed_dates({"creationDate": "hello"}) != []
+        assert check_malformed_dates({"modDate": "D:20261101100000+01'00'xyz"}) != []
+
+    def test_every_real_date_shape_passes(self):
+        from src.modules.metadata import check_malformed_dates
+        # The 6 shapes found in the 205 corpus files, plus ISO from libraries.
+        for value in ["D:20240115143052+01'00'", "D:20240115143052Z",
+                      "D:20240115143052", "D:20240115143052Z00'00'",
+                      "D:20240115143052-05'00'", "D:20240115143052+01'00",
+                      "2024-01-15T10:00:00", ""]:
+            assert check_malformed_dates({"creationDate": value}) == [], value

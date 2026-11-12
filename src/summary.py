@@ -78,6 +78,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_NO_METADATA": "origin",
     "META_NO_PRODUCER": "origin",
     "META_NO_CREATION_DATE": "origin",
+    "META_MALFORMED_DATE": "origin",
     "META_VIRTUAL_PRINTER": "origin",
     "META_IMAGE_EDITOR": "origin",
     "META_IMAGE_CONVERSION": "origin",
@@ -281,6 +282,11 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "META_VIRTUAL_PRINTER": lambda f: (
         "The file was printed to PDF through a virtual printer: it is a re-print, "
         "not the file the issuer's software wrote, so its origin cannot be checked."
+    ),
+    "META_MALFORMED_DATE": lambda f: (
+        f"A date in the file's properties is not a date "
+        f"({(f.details or {}).get('value', '')}): no software writes that, "
+        "a hand edit does."
     ),
     "META_NO_CREATION_DATE": lambda f: (
         "The file keeps a modification date but its creation date was removed: "
@@ -853,6 +859,11 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Le fichier a été imprimé en PDF par une imprimante virtuelle : c'est une "
         "réimpression, pas le fichier produit par le logiciel de l'émetteur, donc "
         "son origine ne peut pas être vérifiée."
+    ),
+    "META_MALFORMED_DATE": lambda f: (
+        f"Une date des propriétés du fichier n'est pas une date "
+        f"({(f.details or {}).get('value', '')}) : aucun logiciel n'écrit ça, "
+        "une retouche à la main oui."
     ),
     "META_NO_CREATION_DATE": lambda f: (
         "Le fichier garde une date de modification mais sa date de création a "
