@@ -274,8 +274,9 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     # document. SUSPICIOUS passes through untouched: surviving modules that did
     # find tamper evidence still stand on their own.
     # Same cap when the file's origin cannot be checked at all: an issued
-    # document re-printed through a virtual printer (scoring.UNVERIFIED_ORIGIN_CODES).
-    # No proof of tampering, so REVIEW, not SUSPICIOUS.
+    # document re-printed through a virtual printer (scoring.UNVERIFIED_ORIGIN_CODES),
+    # or a document of unknown genre that an editor touched
+    # (scoring.edited_unknown_codes). No proof of tampering, so REVIEW, not SUSPICIOUS.
     if (hard_detector_blinded or origin_unverified) and band == "GENUINE":
         score = min(score, BAND_GENUINE_MIN - 1)
         band, risk = _band_and_risk(score)
