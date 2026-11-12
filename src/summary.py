@@ -283,6 +283,47 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "The file was printed to PDF through a virtual printer: it is a re-print, "
         "not the file the issuer's software wrote, so its origin cannot be checked."
     ),
+    # --- 2026-11-12: codes that had no sentence and showed the raw English
+    # module message, also on the French page.
+    "ARITH_XML_CONSISTENT": lambda f: (
+        "The e-invoice data embedded in the file matches the visible page"
+        + (" (total checked)" if (f.details or {}).get("total_verified") else "")
+        + (" (IBAN checked)" if (f.details or {}).get("iban_verified") else "") + "."
+    ),
+    "FONTS_NOT_EMBEDDED": lambda f: (
+        "Some fonts are not embedded in the file "
+        f"({', '.join((f.details or {}).get('non_embedded_fonts', []))}): common "
+        "with office software."
+    ),
+    "FONTS_SYSTEM_FONTS": lambda f: (
+        "The document uses common system fonts "
+        f"({', '.join((f.details or {}).get('system_fonts', []))}), like most "
+        "office software."
+    ),
+    "IMAGES_EXCESSIVE_COUNT": lambda f: (
+        f"The document holds many images ({(f.details or {}).get('image_count', '?')} "
+        f"for {(f.details or {}).get('page_count', '?')} page(s))."
+    ),
+    "META_DOCUMENT_REPAIRED": lambda f: (
+        "The file's internal structure was broken and had to be repaired to open: "
+        "a sloppy generator, or bytes edited by hand."
+    ),
+    "STRUCT_ACROFORM_DETECTED": lambda f: (
+        f"The PDF contains {(f.details or {}).get('total_count', '?')} fillable form "
+        "field(s): anyone who opens it can change their values."
+    ),
+    "STRUCT_SIGNATURE_TRUSTED": lambda f: (
+        "The document carries a valid EU-trusted digital signature "
+        f"({(f.details or {}).get('signer', 'unknown signer')})."
+    ),
+    "STRUCT_SIGNATURE_TRUSTED_EXPIRED": lambda f: (
+        "The document carries an EU-trusted digital signature "
+        f"({(f.details or {}).get('signer', 'unknown signer')}); its certificate "
+        "may have expired since."
+    ),
+    "STRUCT_SIGNATURE_UNVERIFIED": lambda f: (
+        "The document carries a digital signature, but it could not be checked here."
+    ),
     "META_MALFORMED_DATE": lambda f: (
         f"A date in the file's properties is not a date "
         f"({(f.details or {}).get('value', '')}): no software writes that, "
@@ -859,6 +900,47 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Le fichier a été imprimé en PDF par une imprimante virtuelle : c'est une "
         "réimpression, pas le fichier produit par le logiciel de l'émetteur, donc "
         "son origine ne peut pas être vérifiée."
+    ),
+    # --- 2026-11-12 : codes sans phrase, qui affichaient le message anglais
+    # brut du module, y compris sur la page française.
+    "ARITH_XML_CONSISTENT": lambda f: (
+        "Les données de facture électronique intégrées au fichier correspondent à la page"
+        + (" (total vérifié)" if (f.details or {}).get("total_verified") else "")
+        + (" (IBAN vérifié)" if (f.details or {}).get("iban_verified") else "") + "."
+    ),
+    "FONTS_NOT_EMBEDDED": lambda f: (
+        "Certaines polices ne sont pas intégrées au fichier "
+        f"({', '.join((f.details or {}).get('non_embedded_fonts', []))}) : courant "
+        "avec les logiciels de bureautique."
+    ),
+    "FONTS_SYSTEM_FONTS": lambda f: (
+        "Le document utilise des polices système courantes "
+        f"({', '.join((f.details or {}).get('system_fonts', []))}), comme la plupart "
+        "des logiciels de bureautique."
+    ),
+    "IMAGES_EXCESSIVE_COUNT": lambda f: (
+        f"Le document contient beaucoup d'images ({(f.details or {}).get('image_count', '?')} "
+        f"pour {(f.details or {}).get('page_count', '?')} page(s))."
+    ),
+    "META_DOCUMENT_REPAIRED": lambda f: (
+        "La structure interne du fichier était cassée et a dû être réparée pour "
+        "l'ouvrir : un générateur peu soigneux, ou des octets modifiés à la main."
+    ),
+    "STRUCT_ACROFORM_DETECTED": lambda f: (
+        f"Le PDF contient {(f.details or {}).get('total_count', '?')} champ(s) de "
+        "formulaire modifiable(s) : toute personne qui l'ouvre peut en changer la valeur."
+    ),
+    "STRUCT_SIGNATURE_TRUSTED": lambda f: (
+        "Le document porte une signature numérique valide reconnue par l'UE "
+        f"({(f.details or {}).get('signer', 'signataire inconnu')})."
+    ),
+    "STRUCT_SIGNATURE_TRUSTED_EXPIRED": lambda f: (
+        "Le document porte une signature numérique reconnue par l'UE "
+        f"({(f.details or {}).get('signer', 'signataire inconnu')}) ; son certificat "
+        "a peut-être expiré depuis."
+    ),
+    "STRUCT_SIGNATURE_UNVERIFIED": lambda f: (
+        "Le document porte une signature numérique, mais elle n'a pas pu être vérifiée ici."
     ),
     "META_MALFORMED_DATE": lambda f: (
         f"Une date des propriétés du fichier n'est pas une date "
