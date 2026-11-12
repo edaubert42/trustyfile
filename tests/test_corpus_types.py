@@ -107,15 +107,10 @@ KNOWN_MISSES: dict[str, str] = {
     "doctypes/attestation/carizy-attestation-multi-pro-rc-2026.pdf":
         "only 'attestation' (listed twice) + 'certifions que'; 'avoir' and "
         "'rest' match inside other words",
-    "doctypes/attestation/equiliberte-modele-attestation-rcpe.pdf":
-        "a blank model: 'attestation' is its only keyword",
     "doctypes/certificate/carrlane-ec-conformity.pdf":
         "'hereby certifies' alone; one keyword is below the 3-hit minimum",
     "doctypes/price_list/totalenergies-offre-verte-pro-2025-08.pdf":
         "a price grid carries TVA, HT, euros and RCS like an invoice",
-    "legitimate/notice.pdf":
-        "a ministry notice that explains an attestation: 'attestation', "
-        "'domicilié' outnumber the legal-notice words",
     "legitimate/web/zugferd/ZUGFeRDv1__correct__Intarsys__ZUGFeRD_1p0_COMFORT_Kraftfahrversicherung_Bruttopreise.pdf":
         "German insurance invoice: 'rechnung' and an amount only",
 }
