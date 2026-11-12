@@ -167,12 +167,36 @@ A set of codes that forces band ≥ SUSPECT (score < 50), like the existing
 - `IMAGES_HEAVY_COMPRESSION` and `IMAGES_EXCESSIVE_COUNT` on a scan sliced into 138
   strips by the print driver (doc 2).
 
+Step 4 done (2026-11-12), one commit each, every fix reproduced first:
+- IBAN: only ISO 13616 countries at their exact length; the external "invalid"
+  flag needs the word IBAN next to the number (a German meter point too).
+- Image over text: a shading (gradient) is reported as an xref-0 image but never
+  painted as one; skipped (Costumes FA5237's header).
+- Conflicting text: two runs whose boxes overlap must also overlap glyph-wise
+  (>= 25%). FACA label/value grids were 0%, including the 2 suspicious hits,
+  which stay SUSPICIOUS through date + editor evidence.
+- Date: a date under a bare "Date:" label is the document's own date and the
+  only one compared (doc 3). 12 docs gain a low "created after" note.
+- Banded scans: bands tiling a column are one image (doc 2: 92 compression
+  flags + count on a synthetic copy -> 1 compression flag).
+
 ### 5. Display
 - Untranslated FR sentence: `FONTS_SYSTEM_FONTS`.
 - `META_DOCUMENT_MODIFIED` listed under Structure while Metadata shows 100/100.
 - "Pourquoi ce score ?" bars are relative: one family shows full red at score 92.
 - `IMAGES_IMAGE_ONLY_PDF` wording ("modifications scannées") is too accusatory
   for a phone photo.
+
+Step 5 done (2026-11-12):
+- Every emitted code has an EN and FR sentence (9 had none, FONTS_SYSTEM_FONTS
+  among them); the drift test now fails on a code without one.
+- Score bars on an absolute scale (full = enough alone to reach 50, red = enough
+  alone to leave GENUINE); bands forced by a rule are recorded in
+  AnalysisResult.forced_codes and shown. Per-module "NN/100" removed.
+- Scan page: two lines ("Scan or photo: cannot be checked automatically" / "ask
+  for the original PDF"); restating findings, type banner and score caveat hidden
+  on UNVERIFIABLE; neutral image-only and editor sentences.
+- History: "→ enregistré avec" and singular "1 autre changement" in French.
 
 ### Later / parked
 - Issuer fingerprint table (issuer → expected Producer), e.g. EDF → OpenText
