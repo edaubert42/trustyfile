@@ -38,7 +38,7 @@ KEYWORDS: dict[str, list[str]] = {
         # French
         "facture", "montant dû", "total ttc", "total ht", "tva", "siret",
         "iban", "numéro de facture", "régler avant", "échéance", "devis",
-        "bon de commande", "avoir", "acompte", "solde",
+        "bon de commande", "acompte", "solde",
         "total à payer", "total a payer", "hors taxes", "sous-total",
         "votre facture", "prix unitaire", "frais de livraison",
         # English
@@ -178,6 +178,9 @@ PATTERNS: dict[str, list[re.Pattern[str]]] = {
         # Company forms. "sa" is left out (a French word), "inc" needs a word
         # boundary ("incl." does not match).
         re.compile(r"\b(?:sarl|sas|sasu|eurl|snc|ltd|llc|llp|inc|plc|gmbh)\b"),
+        # A credit note: "Avoir n° 12". Not the bare word, which is also the
+        # verb "to have" ("vous devez avoir"): a 2D-Doc spec became an invoice.
+        re.compile(r"(?<!\w)avoir\s*(?:n°|no\b|num[ée]ro)"),
         # Trade register: "RCS BREST B 789 397 759", "Registered in England
         # No 01234567", "Company No 01234567", "Company registration number"
         re.compile(r"\brcs\b|registered in (?:england|scotland|wales|northern ireland)"
@@ -188,6 +191,96 @@ PATTERNS: dict[str, list[re.Pattern[str]]] = {
                    r"|vat (?:reg(?:istration)?\.? )?(?:no\b|number)"),
     ],
 }
+
+
+def _keyword_regex(keyword: str) -> re.Pattern[str]:
+    """Compile a keyword so that it cannot match from inside another word.
+
+    A plain substring test found "api" in "rapide", "rest" in "restaurant"
+    and "table" in "acceptable", each adding a point to the wrong type.
+
+    Every keyword must START a word (no letter or digit just before it), so
+    plurals and derived forms still match: "certificat" finds "certificats",
+    "certify" finds "certifying". Short keywords (4 characters or less:
+    "api", "rest", "cgv", "tva"...) must also END the word: as prefixes
+    they hide in too many words ("restaurant", "apiculture").
+
+    Measured 2026-11-12: requiring whole words for every keyword broke 8
+    corpus documents for 1 fixed (plurals, "certifies", German compounds).
+
+    Examples:
+        >>> bool(_keyword_regex("api").search("une api rest"))
+        True
+        >>> bool(_keyword_regex("api").search("un paiement rapide"))
+        False
+        >>> bool(_keyword_regex("rest").search("le restaurant"))
+        False
+        >>> bool(_keyword_regex("table").search("acceptable"))
+        False
+        >>> bool(_keyword_regex("certificat").search("les certificats"))
+        True
+    """
+    kw = re.escape(keyword.lower())
+    end = r"(?!\w)" if len(keyword) <= 4 else ""
+    return re.compile(r"(?<!\w)" + kw + end)
+
+
+# One compiled regex per DISTINCT keyword: "attestation" sits in both the
+# French and the English list and used to count twice.
+_KEYWORD_RES: dict[str, list[re.Pattern[str]]] = {
+    doc_type: [_keyword_regex(kw) for kw in dict.fromkeys(k.lower() for k in keywords)]
+    for doc_type, keywords in KEYWORDS.items()
+}
+
+
+# =============================================================================
+# TITLE SIGNALS
+# =============================================================================
+# A document usually names itself at the top of page 1: "FACTURE",
+# "ATTESTATION D'INSCRIPTION", "Certificate N°", "Spécifications Techniques".
+# That is the document's own declaration, worth more than a word met in its
+# body: an ANTS spec quoting invoice fields, or a ministry notice explaining
+# an attestation, piled up keywords of the wrong type.
+#
+# TITLE_WINDOW characters of page 1 (whitespace collapsed) are searched; each
+# type whose title phrase starts a word there gets TITLE_BONUS once. A title
+# word is usually a keyword too ("facture"), so a document that names itself
+# reaches the 3-point minimum on its title alone: "Attestation d'assurance"
+# on a blank model is an attestation. Title words are nouns used as headings;
+# "reçu" and "receipt" stay out because letters open with them.
+TITLE_WINDOW = 120
+TITLE_BONUS = 2
+TITLES: dict[str, list[str]] = {
+    # Not "reçu" or "receipt": a letter opens with "Nous avons reçu..."
+    "invoice": ["facture", "invoice", "rechnung", "factura"],
+    "attestation": ["attestation", "atteste que"],
+    "certificate": ["certificat", "certificate", "déclaration de conformité",
+                    "declaration of conformity"],
+    "tax_document": ["avis d'imposition", "avis d'impôt"],
+    "payslip": ["bulletin de paie", "bulletin de salaire", "payslip"],
+    "technical": ["spécification technique", "spécifications techniques",
+                  "protocole technique", "documentation technique",
+                  "fiche technique", "fiche produit", "technical specification",
+                  "datasheet", "data sheet"],
+    "legal_notice": ["notice d'information", "conditions générales",
+                     "mentions légales", "terms and conditions"],
+}
+
+
+def _title_types(first_page: str) -> set[str]:
+    """Return the types named in the title area of page 1.
+
+    Examples:
+        >>> sorted(_title_types("FACTURE AXE MOTOS SUZUKI TOULON 34 BOULEVARD"))
+        ['invoice']
+        >>> sorted(_title_types("Spécifications Techniques Date : 17/06/2024"))
+        ['technical']
+        >>> sorted(_title_types("Ministère chargé du Logement Recours amiable"))
+        []
+    """
+    window = " ".join(first_page.split())[:TITLE_WINDOW].lower()
+    return {doc_type for doc_type, phrases in TITLES.items()
+            if any(re.search(r"(?<!\w)" + re.escape(ph), window) for ph in phrases)}
 
 
 # =============================================================================
@@ -223,14 +316,17 @@ def detect_document_type(pdf_data) -> DocumentType:
         return "unknown"
 
     # Score each document type by counting keyword hits
+    titled = _title_types(pdf_data.text_by_page[0])
     scores: dict[str, int] = {}
-    for doc_type, keywords in KEYWORDS.items():
-        # Use a set to count distinct keyword matches (not total occurrences)
-        hit_count = sum(1 for kw in keywords if kw.lower() in full_text)
+    for doc_type, keyword_res in _KEYWORD_RES.items():
+        # Each distinct keyword counts once, as a whole word (_keyword_regex)
+        hit_count = sum(1 for kw_re in keyword_res if kw_re.search(full_text))
         # Pattern signals count the same way: +1 per pattern found
         for pattern in PATTERNS.get(doc_type, []):
             if pattern.search(full_text):
                 hit_count += 1
+        if doc_type in titled:
+            hit_count += TITLE_BONUS
         scores[doc_type] = hit_count
 
     # Find the winner. A TIE between two types means the document is ambiguous

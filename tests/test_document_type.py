@@ -23,8 +23,13 @@ def test_tie_returns_unknown():
     assert detect_document_type(FakePDFData(text)) == "unknown"
 
 
+# Over 120 characters, so the keywords that follow sit outside the title area
+_FILLER = "Bonjour, veuillez trouver ci-dessous les informations demandées lors de notre " \
+          "échange de la semaine dernière, comme convenu ensemble. "
+
+
 def test_below_min_keywords_unknown():
-    assert detect_document_type(FakePDFData("facture tva")) == "unknown"
+    assert detect_document_type(FakePDFData(_FILLER + "facture tva")) == "unknown"
 
 
 def test_empty_text_unknown():
@@ -78,3 +83,46 @@ def test_vat_inside_a_word_is_not_a_signal():
     # "private", "elevator", "activate" contain "vat"; "incl" is not "inc"
     text = "private elevator activate incl. siret tva"
     assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+# --- Whole-word keywords, titles (2026-11-12 rework) -------------------------
+
+def test_short_keyword_inside_a_word_does_not_count():
+    # "api" in "rapide", "rest" in "restaurant", "table" in "acceptable"
+    text = _FILLER + "un paiement rapide au restaurant, un prix acceptable, figure"
+    assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+def test_keyword_listed_in_two_languages_counts_once():
+    # "attestation" is in the French and the English list
+    text = _FILLER + "attestation attestation bonne foi"
+    assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+def test_verb_avoir_is_not_a_credit_note():
+    text = _FILLER + "vous devez avoir une facture et un siret"
+    assert detect_document_type(FakePDFData(text)) == "unknown"
+    assert detect_document_type(FakePDFData(_FILLER + "Avoir n° 12 facture siret")) == "invoice"
+
+
+def test_title_plus_one_keyword_classifies():
+    text = "ATTESTATION D'ASSURANCE La compagnie certifie garantir M. Dupont. " + _FILLER \
+           + "je soussigné"
+    assert detect_document_type(FakePDFData(text)) == "attestation"
+
+
+def test_document_that_names_itself_is_classified():
+    # Title word ("facture", also a keyword) + title bonus = the 3-point minimum
+    assert detect_document_type(FakePDFData("FACTURE " + _FILLER)) == "invoice"
+
+
+def test_received_in_a_letter_opening_is_not_a_title():
+    text = "Nous avons bien reçu votre courrier du 3 mars. " + _FILLER
+    assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+def test_title_beats_keywords_quoted_from_another_genre():
+    # A technical spec that describes invoice fields
+    text = ("Spécifications Techniques Date : 17/06/2024 interopérabilité " + _FILLER
+            + "facture numéro de facture")
+    assert detect_document_type(FakePDFData(text)) == "technical"
