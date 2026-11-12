@@ -1946,6 +1946,26 @@ def validate_iban_checksum(iban: str) -> bool:
     return int(numeric_str) % 97 == 1
 
 
+# ISO 13616 registry: canonical IBAN length per country code. A candidate
+# whose country is absent is NOT treated as an IBAN (fail-safe). Exactly one
+# mod-97 attempt per candidate — a brute-force length search was proven to
+# fabricate "IBANs" out of ordinary reference numbers (2026-07-12 review).
+IBAN_LENGTHS = {
+    "AL": 28, "AD": 24, "AT": 20, "AZ": 28, "BH": 22, "BY": 28, "BE": 16,
+    "BA": 20, "BR": 29, "BG": 22, "CR": 22, "HR": 21, "CY": 28, "CZ": 24,
+    "DK": 18, "DO": 28, "EG": 29, "SV": 28, "EE": 20, "FO": 18, "FI": 18,
+    "FR": 27, "GE": 22, "DE": 22, "GI": 23, "GR": 27, "GL": 18, "GT": 28,
+    "HU": 28, "IS": 26, "IQ": 23, "IE": 22, "IL": 23, "IT": 27, "JO": 30,
+    "KZ": 20, "XK": 20, "KW": 30, "LV": 21, "LB": 28, "LY": 25, "LI": 21,
+    "LT": 20, "LU": 20, "MT": 31, "MR": 27, "MU": 30, "MD": 24, "MC": 27,
+    "ME": 22, "NL": 18, "MK": 19, "NO": 15, "PK": 24, "PS": 29, "PL": 28,
+    "PT": 25, "QA": 29, "RO": 24, "RU": 33, "SM": 27, "SA": 24, "RS": 22,
+    "SC": 31, "SK": 24, "SI": 19, "ES": 24, "SD": 18, "SE": 24, "CH": 21,
+    "TL": 23, "TN": 24, "TR": 26, "UA": 29, "AE": 23, "GB": 22, "VA": 22,
+    "VG": 24,
+}
+
+
 def extract_iban(text: str) -> list[tuple[str, bool, str]]:
     """
     Extract all IBAN numbers from text.
@@ -1988,14 +2008,19 @@ def extract_iban(text: str) -> list[tuple[str, bool, str]]:
             # Remove spaces to get electronic format
             iban = raw.replace(" ", "").upper()
 
-            # Skip duplicates early (before validation)
-            if iban in seen:
+            # The country must issue IBANs, and the capture must reach its
+            # length. Cut to that length: the regex can run into the next word.
+            # Without this, a loan number "KH2026..." (Cambodia has no IBAN)
+            # went to the IBAN API and came back "invalid" at high severity.
+            expected_len = IBAN_LENGTHS.get(iban[:2])
+            if expected_len is None or len(iban) < expected_len:
+                continue
+            iban = iban[:expected_len]
+            if not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]+$", iban):
                 continue
 
-            # Validate length (15-34 chars) and format
-            if len(iban) < 15 or len(iban) > 34:
-                continue
-            if not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]+$", iban):
+            # Skip duplicates
+            if iban in seen:
                 continue
 
             is_valid = validate_iban_checksum(iban)

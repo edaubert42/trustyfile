@@ -36,7 +36,7 @@ from src.models import Flag, ModuleResult
 # mod-97 IBAN validator proven in the content module.
 from src.modules.span_conflict import money_value
 from src.modules.structure import is_einvoice_attachment
-from src.modules.content import validate_iban_checksum
+from src.modules.content import IBAN_LENGTHS, validate_iban_checksum
 
 logger = logging.getLogger(__name__)
 
@@ -426,24 +426,8 @@ def _xml_ibans(xml_bytes: bytes | None) -> set[str]:
 _IBAN_TEXT_RE = re.compile(r"\b([A-Z]{2}\d{2}(?:[  ]?[A-Z0-9]){11,30})\b", re.I)
 
 
-# ISO 13616 registry: canonical IBAN length per country code. A candidate
-# whose country is absent is NOT treated as an IBAN (fail-safe). Exactly one
-# mod-97 attempt per candidate — a brute-force length search was proven to
-# fabricate "IBANs" out of ordinary reference numbers (2026-07-12 review).
-_IBAN_LENGTHS = {
-    "AL": 28, "AD": 24, "AT": 20, "AZ": 28, "BH": 22, "BY": 28, "BE": 16,
-    "BA": 20, "BR": 29, "BG": 22, "CR": 22, "HR": 21, "CY": 28, "CZ": 24,
-    "DK": 18, "DO": 28, "EG": 29, "SV": 28, "EE": 20, "FO": 18, "FI": 18,
-    "FR": 27, "GE": 22, "DE": 22, "GI": 23, "GR": 27, "GL": 18, "GT": 28,
-    "HU": 28, "IS": 26, "IQ": 23, "IE": 22, "IL": 23, "IT": 27, "JO": 30,
-    "KZ": 20, "XK": 20, "KW": 30, "LV": 21, "LB": 28, "LY": 25, "LI": 21,
-    "LT": 20, "LU": 20, "MT": 31, "MR": 27, "MU": 30, "MD": 24, "MC": 27,
-    "ME": 22, "NL": 18, "MK": 19, "NO": 15, "PK": 24, "PS": 29, "PL": 28,
-    "PT": 25, "QA": 29, "RO": 24, "RU": 33, "SM": 27, "SA": 24, "RS": 22,
-    "SC": 31, "SK": 24, "SI": 19, "ES": 24, "SD": 18, "SE": 24, "CH": 21,
-    "TL": 23, "TN": 24, "TR": 26, "UA": 29, "AE": 23, "GB": 22, "VA": 22,
-    "VG": 24,
-}
+# ISO 13616 registry, shared with content.extract_iban.
+_IBAN_LENGTHS = IBAN_LENGTHS
 
 
 def _visible_ibans(text: str) -> set[str]:

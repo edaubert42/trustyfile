@@ -776,8 +776,11 @@ def analyze_external(
                         "bank_name": _resolve_bank_name(bic_data),
                         "branch_name": bic_data.get("name"),
                     })
-                else:
-                    # IBAN format is invalid according to API
+                elif "iban" in context.lower():
+                    # Invalid according to the API. Only a number labelled
+                    # "IBAN" is accused: an unlabelled match can be a meter
+                    # point ("Zählpunkt: DE0001...") or a loan number, never
+                    # meant as an IBAN. Same rule as content.check_iban_validity.
                     all_flags.append(Flag(
                         severity="high",
                         code="EXTERNAL_IBAN_INVALID",
