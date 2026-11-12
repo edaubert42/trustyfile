@@ -227,7 +227,9 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
 
     _secondary_types = {"scientific", "legal_notice", "technical", "unknown"}
     _banner_html = ""
-    if _dt in _secondary_types:
+    # On a scan the type is unknown only because there is no text to read:
+    # the headline already says so.
+    if _dt in _secondary_types and result.band != "UNVERIFIABLE":
         _banner_html = (
             f'<div style="padding:8px 14px; margin:8px 0 0.8rem 0;'
             f' background:#1a2a3a; border-left:3px solid #4a9ade; border-radius:4px;">'

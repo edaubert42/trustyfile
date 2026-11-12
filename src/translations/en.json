@@ -61,7 +61,7 @@
     "next_step_GENUINE": "If the stakes are high, confirm with the issuer.",
     "next_step_REVIEW": "Ask the issuer for an explanation or the original.",
     "next_step_SUSPICIOUS": "Do not rely on this document. Ask the issuer for the original.",
-    "next_step_UNVERIFIABLE": "Ask for the original PDF, then run the analysis again.",
+    "next_step_UNVERIFIABLE": "To check it, ask for the original PDF.",
     "next_step_GENUINE_proof": "If the stakes are high, confirm with the issuing organisation.",
     "next_step_REVIEW_proof": "Ask for the original or check with the issuing organisation.",
     "next_step_SUSPICIOUS_proof": "Do not accept this document. Check it with the issuing organisation.",

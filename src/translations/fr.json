@@ -61,7 +61,7 @@
     "next_step_GENUINE": "En cas d'enjeu important, confirmez auprès de l'émetteur.",
     "next_step_REVIEW": "Demandez une explication ou l'original à l'émetteur.",
     "next_step_SUSPICIOUS": "Ne vous fiez pas à ce document. Demandez l'original à l'émetteur.",
-    "next_step_UNVERIFIABLE": "Demandez le PDF d'origine, puis relancez l'analyse.",
+    "next_step_UNVERIFIABLE": "Pour le vérifier, demandez le PDF d'origine.",
     "next_step_GENUINE_proof": "En cas d'enjeu important, confirmez auprès de l'organisme émetteur.",
     "next_step_REVIEW_proof": "Demandez l'original ou vérifiez auprès de l'organisme émetteur.",
     "next_step_SUSPICIOUS_proof": "N'acceptez pas ce document. Vérifiez-le auprès de l'organisme émetteur.",

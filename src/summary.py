@@ -787,8 +787,7 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "An image is heavily compressed, which can indicate multiple re-saves."
     ),
     "IMAGES_IMAGE_ONLY_PDF": lambda f: (
-        "The document is image-only with no text layer, "
-        "which is typical of screenshots or scanned modifications."
+        "The document is images only, with no text: a scan, a photo or a screenshot."
     ),
     "IMAGES_MOSTLY_IMAGE_PDF": lambda f: (
         "The document is mostly images with very little text."
@@ -821,7 +820,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "(file attachments, multimedia, etc.)."
     ),
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
-        "The document was modified by a different tool than its creator."
+        f"The scan bears the trace of {(f.details or {}).get('detected_editor', 'another tool')}."
+        if (f.details or {}).get("is_scanned") else
+        f"Created with {(f.details or {}).get('original_producer') or 'one tool'}, "
+        f"then saved with {(f.details or {}).get('detected_editor', 'another tool')}."
     ),
     "STRUCT_XMP_DATE_MISMATCH": lambda f: (
         f"The visible creation date is "
@@ -1415,8 +1417,7 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "Une image est fortement compressée, ce qui peut indiquer de multiples re-sauvegardes."
     ),
     "IMAGES_IMAGE_ONLY_PDF": lambda f: (
-        "Le document est composé uniquement d'images sans couche de texte, "
-        "ce qui est typique des captures d'écran ou des modifications scannées."
+        "Le document n'est fait que d'images, sans texte : scan, photo ou capture d'écran."
     ),
     "IMAGES_MOSTLY_IMAGE_PDF": lambda f: (
         "Le document est principalement composé d'images avec très peu de texte."
@@ -1451,7 +1452,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         "(pièces jointes, multimédia, etc.)."
     ),
     "STRUCT_XMP_EDITOR_MISMATCH": lambda f: (
-        "Le document a été modifié par un outil différent de son créateur."
+        f"Le scan porte la trace d'un passage par {(f.details or {}).get('detected_editor', 'un autre outil')}."
+        if (f.details or {}).get("is_scanned") else
+        f"Créé avec {(f.details or {}).get('original_producer') or 'un outil'}, "
+        f"puis enregistré avec {(f.details or {}).get('detected_editor', 'un autre outil')}."
     ),
     "STRUCT_XMP_DATE_MISMATCH": lambda f: (
         f"La date de création affichée est antérieure de "
@@ -1563,14 +1567,8 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
 # explicit code check in generate_rich_summary: the low-severity coverage
 # flag can never win severity-weighted theme dominance, so the VERDICTS
 # theme mechanism cannot route to it.
-COVERAGE_VERDICT = (
-    "This appears to be a scanned or photographed document — its content "
-    "could not be machine-verified. Request the digital original."
-)
-COVERAGE_VERDICT_FR = (
-    "Ce document semble être un scan ou une photo — son contenu n'a pas pu "
-    "être vérifié automatiquement. Demandez l'original numérique."
-)
+COVERAGE_VERDICT = "Scan or photo: its content cannot be checked automatically."
+COVERAGE_VERDICT_FR = "Scan ou photo : son contenu ne peut pas être vérifié automatiquement."
 
 
 # =============================================================================
@@ -1852,7 +1850,15 @@ def get_flag_sentence(flag: Flag, lang: str = "en") -> str:
 MAX_TOP_REASONS = 3
 
 
-def top_reasons(flags: list[Flag], limit: int = MAX_TOP_REASONS) -> list[Flag]:
+# On an UNVERIFIABLE result the headline already says "scan or photo": these
+# findings would only repeat it.
+SCAN_RESTATING_CODES = frozenset({
+    "COVERAGE_NO_TEXT_LAYER", "IMAGES_IMAGE_ONLY_PDF", "IMAGES_MOSTLY_IMAGE_PDF",
+})
+
+
+def top_reasons(flags: list[Flag], limit: int = MAX_TOP_REASONS,
+                band: str | None = None) -> list[Flag]:
     """
     Pick the few findings worth showing next to the verdict.
 
@@ -1887,6 +1893,8 @@ def top_reasons(flags: list[Flag], limit: int = MAX_TOP_REASONS) -> list[Flag]:
         if flag.severity == "low":
             continue
         if flag.code in GENUINE_CODES:
+            continue
+        if band == "UNVERIFIABLE" and flag.code in SCAN_RESTATING_CODES:
             continue
         reasons.append(flag)
         if len(reasons) == limit:

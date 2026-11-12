@@ -146,7 +146,7 @@ def build_document_view(
         A DocumentView, safe to keep in memory after the file is deleted.
     """
     all_flags = with_located_regions(collect_all_flags(result.modules), pdf_path)
-    reasons = top_reasons(all_flags)
+    reasons = top_reasons(all_flags, band=result.band)
 
     pdf_data = extract_pdf_data(pdf_path)
     history = get_modification_history(pdf_path)

@@ -954,7 +954,7 @@ def _detail_section(title: str, intro: str, body_html: str) -> str:
 
 
 def all_details_html(bars_html: str, issues: str, file_panels: str,
-                     technical_panels: str, lang: str) -> str:
+                     technical_panels: str, lang: str, has_score: bool = True) -> str:
     """
     The single fold holding everything below the verdict.
 
@@ -987,8 +987,8 @@ def all_details_html(bars_html: str, issues: str, file_panels: str,
         + _detail_section(t("detail_points_title"), t("detail_points_intro"), issues)
         + _detail_section(t("detail_file_title"), t("detail_file_intro"), file_panels)
         + _detail_section(t("detail_tech_title"), t("detail_tech_intro"), technical_panels)
-        + f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:1.6rem 0 0 0;">'
-          f'{esc(t("score_caveat"))}</p>'
+        + (f'<p style="color:#888; font-size:0.8rem; line-height:1.5; margin:1.6rem 0 0 0;">'
+           f'{esc(t("score_caveat"))}</p>' if has_score else "")
     )
     return (
         '<details class="tf-all-details" style="margin-top:1.5rem;">'

@@ -428,6 +428,7 @@ def _results_blocks(document: StoredDocument, lang: str) -> dict:
             file_panels,
             details.modules_panel_html(result, lang),
             lang,
+            has_score=result.band != "UNVERIFIABLE",
         ),
     }
     return {name: Markup(html) for name, html in blocks.items()}

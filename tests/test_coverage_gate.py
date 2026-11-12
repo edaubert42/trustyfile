@@ -180,8 +180,23 @@ def test_blind_doc_gets_scan_specific_verdict(tmp_path):
     pdf = tmp_path / "scan.pdf"
     _write_image_only_pdf(pdf)
     result = _analyze(pdf)
-    assert "scanned or photographed" in generate_rich_summary(result, "en").verdict
-    assert "scan ou une photo" in generate_rich_summary(result, "fr").verdict
+    from src.summary import COVERAGE_VERDICT, COVERAGE_VERDICT_FR
+    assert generate_rich_summary(result, "en").verdict == COVERAGE_VERDICT
+    assert generate_rich_summary(result, "fr").verdict == COVERAGE_VERDICT_FR
+
+
+def test_scan_reasons_do_not_repeat_the_headline(tmp_path):
+    """The headline says "scan or photo": an image-only finding only repeats it."""
+    from src.scoring import collect_all_flags
+    from src.summary import SCAN_RESTATING_CODES, top_reasons
+    pdf = tmp_path / "scan.pdf"
+    _write_image_only_pdf(pdf)
+    result = _analyze(pdf)
+    assert result.band == "UNVERIFIABLE"
+    flags = collect_all_flags(result.modules)
+    assert any(f.code in SCAN_RESTATING_CODES and f.severity != "low" for f in flags)
+    assert not [f for f in top_reasons(flags, band=result.band)
+                if f.code in SCAN_RESTATING_CODES]
 
 
 def test_unreadable_doc_keeps_generic_unverifiable_verdict(tmp_path):
@@ -191,7 +206,8 @@ def test_unreadable_doc_keeps_generic_unverifiable_verdict(tmp_path):
     assert result.band == "UNVERIFIABLE"
     verdict = generate_rich_summary(result, "en").verdict
     assert "could not be read or verified" in verdict
-    assert "scanned or photographed" not in verdict
+    from src.summary import COVERAGE_VERDICT
+    assert verdict != COVERAGE_VERDICT
 
 
 # --- Task 5: encrypted-file message rider ---
