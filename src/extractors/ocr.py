@@ -39,6 +39,58 @@ _MRZ_LINE_RE = re.compile(r'^[A-Z0-9<]{29,45}$')
 # L'OCR peut ajouter 1-2 caractères parasites autour de la vraie MRZ
 _MRZ_CHARS = re.compile(r'[A-Z0-9<]+')
 
+# Code pays ICAO (émetteur, nationalité) : 3 caractères, lettres ou '<' de
+# remplissage (ex. "D<<" pour l'Allemagne), au moins une lettre.
+_COUNTRY_CODE_RE = re.compile(r'^(?=.*[A-Z])[A-Z<]{3}$')
+
+
+def is_plausible_mrz(lines: list[str]) -> bool:
+    """
+    Tell a real MRZ from text that only has the right length and charset.
+
+    OCR of an ordinary page can yield three 30-char runs of [A-Z0-9] starting
+    with 'I' — notice.pdf, a ministry form, read as
+    'I42S4COMMISVEPIM6AIV2IU6FIIL2I'... — that pass the length/charset tests.
+    Two traits every ICAO 9303 MRZ (TD1 and TD3) has, and that survive OCR:
+
+    1. A '<<' filler run on some line. The name field always pads with '<'
+       and separates surname from given names with '<<'. OCR can misread a
+       few '<' (Tesseract's whitelist turns them into 'K' or 'S', never '«'),
+       but never a whole run of them on every line.
+    2. A country code made of letters: issuer (line 1, chars 2-4) or
+       nationality (TD3: line 2, chars 10-12; TD1: line 2, chars 15-17).
+       Only one of the two is required, so one misread digit ('UT0') does not
+       reject a genuine scan.
+
+    Args:
+        lines: 2 lines (TD3) or 3 lines (TD1), already length-checked
+
+    Returns:
+        True when the lines can be a real MRZ
+
+    Example:
+        >>> is_plausible_mrz(["P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        ...                   "L898902C36UTO7408122F1204159ZE184226B<<<<<10"])
+        True
+        >>> is_plausible_mrz(["I42S4COMMISVEPIM6AIV2IU6FIIL2I",
+        ...                   "616I1579II20072905M2007IL48129",
+        ...                   "L441293R8001RIOD2RI44113R44118"])
+        False
+    """
+    has_filler_run = any('<<' in line for line in lines)
+    if not has_filler_run:
+        return False
+
+    issuer = lines[0][2:5]
+    if len(lines) == 2:
+        nationality = lines[1][10:13]   # TD3 (passeport)
+    else:
+        nationality = lines[1][15:18]   # TD1 (CNI, titre de séjour)
+
+    issuer_ok = bool(_COUNTRY_CODE_RE.match(issuer))
+    nationality_ok = bool(_COUNTRY_CODE_RE.match(nationality))
+    return issuer_ok or nationality_ok
+
 
 def _extract_mrz_candidate(line: str, expected_len: int) -> str | None:
     """
@@ -321,9 +373,12 @@ def ocr_extract_mrz(
             # Contrainte structurelle ICAO 9303 : la ligne 1 d'un passeport commence
             # TOUJOURS par 'P'. Sans cette vérification, n'importe quel texte mis bout
             # à bout peut être confondu avec une MRZ (faux positif sur CV, facture...).
+            # is_plausible_mrz écarte en plus le texte ordinaire (pas de '<<',
+            # pas de code pays en lettres) qui a la bonne longueur par hasard.
             for i in range(len(candidates_44) - 1):
                 if (candidates_44[i] and candidates_44[i + 1]
-                        and candidates_44[i][0] == 'P'):
+                        and candidates_44[i][0] == 'P'
+                        and is_plausible_mrz([candidates_44[i], candidates_44[i + 1]])):
                     logger.info(
                         f"MRZ TD3 trouvée par OCR (page {page_num + 1}, y_ratio={y_ratio})"
                     )
@@ -332,12 +387,14 @@ def ocr_extract_mrz(
             # Chercher TD1 (3 lignes consécutives extraites de longueur 30)
             # La ligne 1 d'une CNI/permis commence par 'I' (Identity) ou 'A' (selon le pays).
             for i in range(len(candidates_30) - 2):
-                if (candidates_30[i] and candidates_30[i + 1] and candidates_30[i + 2]
-                        and candidates_30[i][0] in ('I', 'A', 'C')):
+                td1_lines = candidates_30[i:i + 3]
+                if (all(td1_lines)
+                        and td1_lines[0][0] in ('I', 'A', 'C')
+                        and is_plausible_mrz(td1_lines)):
                     logger.info(
                         f"MRZ TD1 trouvée par OCR (page {page_num + 1}, y_ratio={y_ratio})"
                     )
-                    return [candidates_30[i], candidates_30[i + 1], candidates_30[i + 2]], page_num
+                    return td1_lines, page_num
 
             # --- Fallback : buffer global ---
             # Tesseract peut concaténer les 2 lignes MRZ en une seule (88 chars)
@@ -352,21 +409,27 @@ def ocr_extract_mrz(
             # par Tesseract, mais ça peut laisser passer '\n' et espaces)
             mrz_buffer = re.sub(r'[^A-Z0-9<]', '', raw_text)
 
-            # TD3 : deux séquences de 44 chars consécutives, la première commençant par 'P'
-            m_td3 = re.search(r'(P[A-Z0-9<]{43})([A-Z0-9<]{44})', mrz_buffer)
-            if m_td3:
-                logger.info(
-                    f"MRZ TD3 trouvée via buffer global (page {page_num + 1})"
-                )
-                return [m_td3.group(1), m_td3.group(2)], page_num
+            # TD3 : deux séquences de 44 chars consécutives, la première commençant par 'P'.
+            # Le lookahead (?=...) rend les correspondances chevauchantes : si une
+            # fenêtre est rejetée par is_plausible_mrz, on essaie la suivante.
+            for m_td3 in re.finditer(r'(?=(P[A-Z0-9<]{43})([A-Z0-9<]{44}))', mrz_buffer):
+                td3_lines = [m_td3.group(1), m_td3.group(2)]
+                if is_plausible_mrz(td3_lines):
+                    logger.info(
+                        f"MRZ TD3 trouvée via buffer global (page {page_num + 1})"
+                    )
+                    return td3_lines, page_num
 
             # TD1 : trois séquences de 30 chars consécutives, la première commençant par I/A/C
-            m_td1 = re.search(r'([IAC][A-Z0-9<]{29})([A-Z0-9<]{30})([A-Z0-9<]{30})', mrz_buffer)
-            if m_td1:
-                logger.info(
-                    f"MRZ TD1 trouvée via buffer global (page {page_num + 1})"
-                )
-                return [m_td1.group(1), m_td1.group(2), m_td1.group(3)], page_num
+            for m_td1 in re.finditer(
+                r'(?=([IAC][A-Z0-9<]{29})([A-Z0-9<]{30})([A-Z0-9<]{30}))', mrz_buffer
+            ):
+                td1_lines = [m_td1.group(1), m_td1.group(2), m_td1.group(3)]
+                if is_plausible_mrz(td1_lines):
+                    logger.info(
+                        f"MRZ TD1 trouvée via buffer global (page {page_num + 1})"
+                    )
+                    return td1_lines, page_num
 
             logger.debug(
                 f"Aucune MRZ dans l'OCR de la page {page_num + 1} (y_ratio={y_ratio})"

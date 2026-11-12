@@ -78,6 +78,7 @@ import logging
 from datetime import date
 from src.models import Flag, ModuleResult
 from src.extractors.pdf_extractor import PDFData
+from src.extractors.ocr import is_plausible_mrz
 from src.render_safety import safe_zoom
 
 logger = logging.getLogger(__name__)
@@ -557,6 +558,9 @@ def extract_mrz_lines(pdf_data: PDFData) -> tuple[list[str], int] | None:
     3. Sinon, chercher 3 lignes consécutives de 30 chars (TD1 = CNI)
 
     Chaque ligne candidate est validée par regex : uniquement [A-Z0-9<].
+    Le groupe de lignes doit en plus ressembler à une vraie MRZ
+    (is_plausible_mrz : une suite '<<', un code pays en lettres) — sinon trois
+    lignes de texte en majuscules de 30 chars passeraient pour une CNI.
 
     Limite : si le PDF est une image scannée sans couche texte, PyMuPDF
     retourne du texte vide → MRZ non détectable sans OCR.
@@ -589,7 +593,8 @@ def extract_mrz_lines(pdf_data: PDFData) -> tuple[list[str], int] | None:
             if (len(line_a) == TD3_LINE_LENGTH and
                     len(line_b) == TD3_LINE_LENGTH and
                     MRZ_LINE_PATTERN.match(line_a) and
-                    MRZ_LINE_PATTERN.match(line_b)):
+                    MRZ_LINE_PATTERN.match(line_b) and
+                    is_plausible_mrz([line_a, line_b])):
                 logger.debug(f"MRZ TD3 détectée page {page_num + 1}, ligne {i + 1}")
                 return [line_a, line_b], page_num
 
@@ -604,7 +609,8 @@ def extract_mrz_lines(pdf_data: PDFData) -> tuple[list[str], int] | None:
                     len(line_c) == TD1_LINE_LENGTH and
                     MRZ_LINE_PATTERN.match(line_a) and
                     MRZ_LINE_PATTERN.match(line_b) and
-                    MRZ_LINE_PATTERN.match(line_c)):
+                    MRZ_LINE_PATTERN.match(line_c) and
+                    is_plausible_mrz([line_a, line_b, line_c])):
                 logger.debug(f"MRZ TD1 détectée page {page_num + 1}, ligne {i + 1}")
                 return [line_a, line_b, line_c], page_num
 
