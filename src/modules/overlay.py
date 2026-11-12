@@ -1436,7 +1436,14 @@ def _signal_shadow_duplicate_text(page, page_num: int) -> list[Flag]:
                     continue
                 rect = fitz.Rect(span["bbox"])
                 for other in seen.get(text, []):
-                    offset = max(abs(rect.x0 - other.x0), abs(rect.y0 - other.y0))
+                    dx, dy = abs(rect.x0 - other.x0), abs(rect.y0 - other.y0)
+                    offset = max(dx, dy)
+                    # Same column, one line height lower: the next row of a
+                    # table repeating its label (EDF: "Electricité Période
+                    # unique" for two periods, 8.2 pt apart in a 7 pt font).
+                    # Line boxes are taller than the line pitch, so they touch.
+                    if dx <= SHADOW_MIN_OFFSET_PT and dy >= 0.9 * span.get("size", 0):
+                        continue
                     if rect.intersects(other) and offset > SHADOW_MIN_OFFSET_PT:
                         hits.append({"text": text[:60], "offset_pt": round(offset, 1)})
                 seen.setdefault(text, []).append(rect)
