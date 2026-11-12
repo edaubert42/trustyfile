@@ -87,19 +87,26 @@ def _identity_confirmed(pdf_data: PDFData, module_results: list[ModuleResult]) -
 
     Identity is an issued type (a provenance break forces SUSPICIOUS), so the
     retype needs evidence, not a keyword:
-      - the identity module found an MRZ, or
-      - the document is a scan (no usable text layer): the face/keyword
-        pre-check is then the only signal available, as before.
+      - a scan (no usable text layer): the face/keyword pre-check is then
+        the only signal available, as before;
+      - a document with text: an MRZ found IN its text layer (a digital ID).
+        An MRZ read by OCR does not count there: on a ministry form the OCR
+        turned body text into three "MRZ" lines with no '<' filler, issuer
+        "2S4", sex "9" (2026-11-12).
 
     Examples:
         A press release with text mentioning "passeport", no MRZ -> False
         A scanned passport (no text layer) -> True
     """
-    for r in module_results:
-        if r.module == "identity" and (r.details or {}).get("mrz_found"):
-            return True
     non_ws = sum(len("".join(page.split())) for page in pdf_data.text_by_page)
-    return non_ws / max(1, pdf_data.page_count) < MIN_TEXT_CHARS_PER_PAGE
+    if non_ws / max(1, pdf_data.page_count) < MIN_TEXT_CHARS_PER_PAGE:
+        return True
+    for r in module_results:
+        details = r.details or {}
+        if (r.module == "identity" and details.get("mrz_found")
+                and details.get("mrz_source") == "text_layer"):
+            return True
+    return False
 
 
 class TrustyFileAnalyzer:

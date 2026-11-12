@@ -145,3 +145,20 @@ def test_text_mentioning_passports_without_mrz_is_not_retyped_identity(tmp_path)
     doc.save(str(pdf))
     result = TrustyFileAnalyzer(enable_external=False, enable_qr_scan=False).analyze(str(pdf))
     assert result.document_type == "unknown"
+
+
+def test_ocr_mrz_on_a_text_document_does_not_retype_it():
+    # A ministry form: OCR turned body text into "MRZ" lines (2026-11-12)
+    from src.analyzer import _identity_confirmed
+    from src.models import ModuleResult
+
+    class _Data:
+        text_by_page = ["Recours amiable devant la commission départementale " * 5]
+        page_count = 1
+
+    ocr = ModuleResult(module="identity", flags=[], score=50, confidence=1.0,
+                       details={"mrz_found": True, "mrz_source": "ocr"})
+    text = ModuleResult(module="identity", flags=[], score=50, confidence=1.0,
+                        details={"mrz_found": True, "mrz_source": "text_layer"})
+    assert not _identity_confirmed(_Data(), [ocr])
+    assert _identity_confirmed(_Data(), [text])
