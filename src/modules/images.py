@@ -54,6 +54,8 @@ class ImageInfo:
         size_bytes: Approximate size in bytes
         dpi_x: Horizontal resolution (if determinable)
         dpi_y: Vertical resolution (if determinable)
+        strip_group: Set when the image is one band of a page cut into strips
+            (see _strip_groups); every band of one page shares the same value
     """
     xref: int
     page: int
@@ -65,11 +67,51 @@ class ImageInfo:
     size_bytes: int = 0
     dpi_x: float = 0
     dpi_y: float = 0
+    strip_group: str | None = None
 
 
 # =============================================================================
 # IMAGE EXTRACTION
 # =============================================================================
+
+# A print driver can cut one scanned page into many horizontal bands
+# (investigation doc 2: 138 bands). Each band then looked like an image of its
+# own: "too many images", and one "heavy compression" flag per blank band.
+STRIP_MIN_COUNT = 5            # bands needed to call it a cut-up page
+STRIP_MIN_HEIGHT_FRAC = 0.3    # share of the page height the bands must cover
+STRIP_MAX_GAP = 2.0            # points allowed between two consecutive bands
+
+
+def _strip_groups(page) -> set[int]:
+    """Xrefs of the images that tile one column of the page as stacked bands.
+
+    Bands share the same left and right edges (to the point), follow each
+    other with no gap, and together cover a good part of the page height.
+
+    Example:
+        138 images, each 595 pt wide and 6.1 pt tall, from y=0 to y=842
+        -> all 138 xrefs; a logo and a signature image -> empty set
+    """
+    columns: dict[tuple[int, int], list] = {}
+    for info in page.get_image_info(xrefs=True):
+        if not info.get("xref"):
+            continue
+        rect = fitz.Rect(info["bbox"])
+        columns.setdefault((round(rect.x0), round(rect.x1)), []).append((rect, info["xref"]))
+    banded: set[int] = set()
+    for bands in columns.values():
+        bands.sort(key=lambda band: band[0].y0)
+        run = [bands[0]]
+        for band in bands[1:] + [None]:
+            if band is not None and band[0].y0 - run[-1][0].y1 <= STRIP_MAX_GAP:
+                run.append(band)
+                continue
+            height = run[-1][0].y1 - run[0][0].y0
+            if len(run) >= STRIP_MIN_COUNT and height >= STRIP_MIN_HEIGHT_FRAC * page.rect.height:
+                banded.update(xref for _, xref in run)
+            run = [band] if band is not None else []
+    return banded
+
 
 def extract_images_from_pdf(pdf_path: str) -> list[ImageInfo]:
     """
@@ -96,6 +138,7 @@ def extract_images_from_pdf(pdf_path: str) -> list[ImageInfo]:
             # Get images on this page
             # Returns list of tuples: (xref, smask, width, height, bpc, colorspace, alt, name, filter, referencer)
             image_list = page.get_images(full=True)
+            banded = _strip_groups(page) if len(image_list) >= STRIP_MIN_COUNT else set()
 
             for img_data in image_list:
                 xref = img_data[0]
@@ -130,6 +173,7 @@ def extract_images_from_pdf(pdf_path: str) -> list[ImageInfo]:
                     size_bytes=size_bytes,
                     dpi_x=dpi_x,
                     dpi_y=dpi_y,
+                    strip_group=f"page {page_num}" if xref in banded else None,
                 ))
     finally:
         # Ensure doc is closed even if an exception occurs mid-loop
@@ -398,6 +442,31 @@ def check_resolution_consistency(images: list[ImageInfo]) -> list[Flag]:
     return flags
 
 
+def _merge_strips(images: list[ImageInfo]) -> list[ImageInfo]:
+    """Replace the bands of each cut-up page by one image (pixels and bytes summed).
+
+    Example:
+        138 bands of 1654x40 px on page 0 -> one 1654x5520 px image on page 0
+    """
+    merged: list[ImageInfo] = []
+    groups: dict[str, list[ImageInfo]] = {}
+    for img in images:
+        if img.strip_group is None:
+            merged.append(img)
+        else:
+            groups.setdefault(img.strip_group, []).append(img)
+    for bands in groups.values():
+        first = bands[0]
+        merged.append(ImageInfo(
+            xref=first.xref, page=first.page, width=first.width,
+            height=sum(b.height for b in bands), colorspace=first.colorspace,
+            bpc=first.bpc, filter=first.filter,
+            size_bytes=sum(b.size_bytes for b in bands),
+            dpi_x=first.dpi_x, dpi_y=first.dpi_y, strip_group=first.strip_group,
+        ))
+    return merged
+
+
 def check_heavy_compression(images: list[ImageInfo]) -> list[Flag]:
     """
     Check for heavily compressed JPEG images.
@@ -412,6 +481,10 @@ def check_heavy_compression(images: list[ImageInfo]) -> list[Flag]:
         List of flags for compression issues
     """
     flags = []
+
+    # The bands of a cut-up page are judged as the one image they form: a blank
+    # margin band alone compresses to almost nothing, which says nothing.
+    images = _merge_strips(images)
 
     for img in images:
         # Only check JPEG images
@@ -458,6 +531,9 @@ def check_image_count(images: list[ImageInfo], page_count: int) -> list[Flag]:
         List of flags for suspicious image counts
     """
     flags = []
+
+    # A page cut into bands is one image, not 138.
+    images = _merge_strips(images)
 
     # Check for excessive images
     images_per_page = len(images) / page_count if page_count > 0 else len(images)
