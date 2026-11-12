@@ -121,6 +121,10 @@ class AnalysisResult:
     score_low: int = 0               # lower bound of the score band
     score_high: int = 100            # upper bound of the score band
     evidence_ledger: list = field(default_factory=list)  # list[Evidence]
+    # Flag codes that forced a band on their own, code -> band ("SUSPICIOUS"
+    # for a proven modification, "REVIEW" for an unverifiable origin). The
+    # "why this score" bars use it: a forced band is not a sum of nats.
+    forced_codes: dict = field(default_factory=dict)
 
 
 @dataclass

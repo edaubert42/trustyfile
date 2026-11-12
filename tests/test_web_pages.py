@@ -159,7 +159,7 @@ def test_upload_redirects_to_a_results_page(client):
 def test_results_page_shows_the_verdict_and_is_not_indexed(client):
     page = client.get(_analysed(client))
     assert page.status_code == 200
-    assert "/100" in page.text
+    assert 'stroke-dasharray="' in page.text          # the score ring
     assert 'id="tf-preview-img"' in page.text
     assert 'id="tf-feedback"' in page.text
     assert "noindex" in page.text
@@ -285,7 +285,7 @@ def test_photo_gets_a_scan_page_without_a_score(client):
     assert response.status_code == 303
     page = client.get(response.headers["location"])
     assert page.status_code == 200
-    assert "/100" not in page.text
+    assert 'stroke-dasharray="' not in page.text      # no score ring
     assert 'id="tf-feedback"' not in page.text
 
 
@@ -297,7 +297,7 @@ def test_photo_gets_a_scan_page_without_a_score(client):
 def test_demo_page_shows_the_sample_document(client):
     page = client.get("/demo")
     assert page.status_code == 200
-    assert "/100" in page.text
+    assert 'stroke-dasharray="' in page.text          # the score ring
     # Analysed once, then kept under a fixed token whatever its age.
     assert web_app.store.get(web_app.DEMO_TOKEN).demo is True
     assert client.get("/r/demo/page/1.png").status_code == 200

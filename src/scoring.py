@@ -343,18 +343,18 @@ def create_analysis_result(
             if ev is not None:
                 evidence.append(ev)
 
+    proven = proven_modification_codes(
+        scored_flags, document_type, coverage_blind,
+        einvoice_xml=any((r.details or {}).get("einvoice_xml") for r in module_results))
+    unverified = sorted({f.code for f in scored_flags if f.code in UNVERIFIED_ORIGIN_CODES}
+                        if document_type in ISSUED_DOCUMENT_TYPES else set())
     agg = aggregate_evidence(evidence, analyzable=analyzable,
                              coverage_blind=coverage_blind,
                              hard_detector_blinded=hard_detector_blinded,
-                             proven_modification=bool(proven_modification_codes(
-                                 scored_flags, document_type, coverage_blind,
-                                 einvoice_xml=any(
-                                     (r.details or {}).get("einvoice_xml")
-                                     for r in module_results))),
-                             origin_unverified=(
-                                 document_type in ISSUED_DOCUMENT_TYPES
-                                 and any(f.code in UNVERIFIED_ORIGIN_CODES
-                                         for f in scored_flags)))
+                             proven_modification=bool(proven),
+                             origin_unverified=bool(unverified))
+    forced_codes = {code: "REVIEW" for code in unverified}
+    forced_codes.update({code: "SUSPICIOUS" for code in proven})
 
     return AnalysisResult(
         file_hash=file_hash,
@@ -367,4 +367,5 @@ def create_analysis_result(
         score_low=agg.score_low,
         score_high=agg.score_high,
         evidence_ledger=agg.ledger,
+        forced_codes=forced_codes,
     )

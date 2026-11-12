@@ -3,13 +3,35 @@
 from __future__ import annotations
 
 import html
+import math
 
-from src.evidence import GENUINE_CODES, module_contributions
+from src.evidence import (
+    BAND_GENUINE_MIN, BAND_REVIEW_MIN, GENUINE_CODES, PRIOR_LOG_ODDS, module_contributions,
+)
 from src.i18n import translator
 from src.models import AnalysisResult
 from src.summary import get_flag_sentence
 from src.web.viewmodel import DocumentView
 from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc
+
+
+def _nats_to_reach(score: int) -> float:
+    """Tamper evidence (nats) that alone brings a clean document down to `score`.
+
+    score = 100 * (1 - sigmoid(PRIOR_LOG_ODDS + nats)), solved for nats.
+
+    Examples:
+        >>> round(_nats_to_reach(50), 2)   # 4.0 with PRIOR_LOG_ODDS = -4.0
+        4.0
+        >>> round(_nats_to_reach(80), 2)
+        2.61
+    """
+    tamper_share = 1 - score / 100
+    return math.log(tamper_share / (1 - tamper_share)) - PRIOR_LOG_ODDS
+
+
+BAR_FULL_NATS = _nats_to_reach(BAND_REVIEW_MIN)    # full bar: down to 50 alone
+BAR_RED_NATS = _nats_to_reach(BAND_GENUINE_MIN)    # red: out of GENUINE alone
 
 
 def evidence_bars_html(result: AnalysisResult, lang: str) -> str:
@@ -46,8 +68,14 @@ def evidence_bars_html(result: AnalysisResult, lang: str) -> str:
                    - contrib.get(n, {}).get("genuine", 0.0)
                    for n in names)
 
-    total_pressure = sum(max(0.0, _group_net(names))
-                         for _, names, _ in groups) or 0.0
+    # Codes that forced the band, per module (proven modification, virtual
+    # printer). Their weight in nats says nothing: the band was imposed.
+    forced_band_by_module: dict[str, str] = {}
+    for m in result.modules:
+        for f in m.flags:
+            band = result.forced_codes.get(f.code)
+            if band and forced_band_by_module.get(m.module) != "SUSPICIOUS":
+                forced_band_by_module[m.module] = band
 
     bars_html = ""
     for label, member_names, tooltip in groups:
@@ -74,15 +102,24 @@ def evidence_bars_html(result: AnalysisResult, lang: str) -> str:
         # score DOWN; negative = genuine evidence lifted it).
         net = _group_net(member_names)
         hard = any(contrib.get(n, {}).get("hard_tamper") for n in member_names)
+        forced = {forced_band_by_module.get(n) for n in member_names}
 
         # No number next to the bar: the values are log-odds "nats",
         # an internal unit that means nothing to a reader ("+3.7").
         # Bar length and colour carry the comparison on their own.
-        if hard:
+        #
+        # ABSOLUTE scale (2026-11-12): a full bar is the evidence that alone
+        # brings the score down to 50 (BAR_FULL_NATS), red from the amount
+        # that alone takes a document out of GENUINE. The old bars showed
+        # each group's SHARE of the total, so the only weak hint of a
+        # GENUINE 92 document filled its bar.
+        if hard or "SUSPICIOUS" in forced:
             width, bar_color, value_label = 100, "#ef233c", ""
-        elif net > 0:
-            width = round(100 * net / total_pressure) if total_pressure else 0
-            bar_color = "#ef233c" if net >= 1.5 else "#ffb627"
+        elif net > 0 or "REVIEW" in forced:
+            width = min(100, round(100 * max(net, 0.0) / BAR_FULL_NATS))
+            if "REVIEW" in forced:
+                width = max(width, round(100 * BAR_RED_NATS / BAR_FULL_NATS))
+            bar_color = "#ef233c" if net >= BAR_RED_NATS else "#ffb627"
             value_label = ""
         elif net < 0:
             width, bar_color, value_label = 25, "#28a745", ""
