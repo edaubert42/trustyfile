@@ -485,6 +485,45 @@ def check_missing_metadata(metadata_dict: dict) -> list[Flag]:
 # MAIN ANALYSIS FUNCTION
 # =============================================================================
 
+# Virtual printers: the PDF is a re-print of what was on screen, not the file
+# the issuer's software wrote. Small issuers use them legitimately (FACA prints
+# its invoices through PDFCreator), but so does anyone who edits an invoice on
+# screen and prints it again: every trace of the edit is gone. So the origin
+# cannot be verified, and an issued document never reaches GENUINE
+# (scoring.UNVERIFIED_ORIGIN_CODES). Chrome's "Skia/PDF" and macOS "Quartz" are
+# not listed: they are also how web portals and Mac apps export directly.
+VIRTUAL_PRINTERS = [
+    "print to pdf",   # Microsoft: Print To PDF
+    "pdfcreator",
+    "cutepdf",
+    "dopdf",
+    "bullzip",
+    "novapdf",
+    "primopdf",
+    "cups-pdf",
+]
+
+
+def check_virtual_printer(producer: str | None, creator: str | None) -> list[Flag]:
+    """Flag a PDF written by a virtual printer.
+
+    Example:
+        >>> check_virtual_printer("Microsoft: Print To PDF", None)[0].code
+        'META_VIRTUAL_PRINTER'
+    """
+    combined = f"{producer or ''} {creator or ''}".lower()
+    for printer in VIRTUAL_PRINTERS:
+        if printer in combined:
+            return [Flag(
+                severity="low",
+                code="META_VIRTUAL_PRINTER",
+                message=f"Document was printed to PDF through a virtual printer: {printer}",
+                details={"producer": producer, "creator": creator,
+                         "detected_tool": printer},
+            )]
+    return []
+
+
 def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
     """
     Main function: Analyze PDF metadata for signs of manipulation.
@@ -508,6 +547,11 @@ def analyze_metadata(pdf_data: PDFData) -> ModuleResult:
 
     # Run all checks
     all_flags.extend(check_producer(
+        pdf_data.metadata.producer,
+        pdf_data.metadata.creator,
+    ))
+
+    all_flags.extend(check_virtual_printer(
         pdf_data.metadata.producer,
         pdf_data.metadata.creator,
     ))

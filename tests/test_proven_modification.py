@@ -119,3 +119,31 @@ def test_einvoice_flag_is_read_from_module_details():
                          details={"einvoice_xml": True})]
     r = create_analysis_result("hash", mods, document_type="invoice")
     assert r.band == "GENUINE"
+
+
+# --- virtual printer: origin unverifiable -> never GENUINE, never forced lower --
+
+def test_virtual_printer_invoice_is_review_not_genuine():
+    result = _result([_flag("META_VIRTUAL_PRINTER", "low")], "invoice")
+    assert result.band == "REVIEW"
+
+
+def test_virtual_printer_on_a_cv_changes_nothing():
+    alone = _result([], "unknown")
+    printed = _result([_flag("META_VIRTUAL_PRINTER", "low")], "unknown")
+    assert (printed.band, printed.trust_score) == (alone.band, alone.trust_score)
+
+
+def test_virtual_printer_plus_date_gap_is_suspicious():
+    # EDF case: Print To PDF, then modified 36 minutes later.
+    flags = [_flag("META_VIRTUAL_PRINTER", "low"), _flag("META_DOCUMENT_MODIFIED")]
+    assert _result(flags, "invoice").band == "SUSPICIOUS"
+
+
+def test_virtual_printer_detection():
+    from src.modules.metadata import check_virtual_printer
+    assert [f.code for f in check_virtual_printer("Microsoft: Print To PDF", None)] \
+        == ["META_VIRTUAL_PRINTER"]
+    assert [f.code for f in check_virtual_printer("PDFCreator 2.5.3", None)] \
+        == ["META_VIRTUAL_PRINTER"]
+    assert check_virtual_printer("Skia/PDF m120", "Chromium") == []

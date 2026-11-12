@@ -187,7 +187,8 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
                        prior: float = PRIOR_LOG_ODDS,
                        coverage_blind: bool = False,
                        hard_detector_blinded: bool = False,
-                       proven_modification: bool = False) -> AggregateResult:
+                       proven_modification: bool = False,
+                       origin_unverified: bool = False) -> AggregateResult:
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
@@ -272,7 +273,10 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     # as the coverage gate, applied to a blinded detector instead of a blind
     # document. SUSPICIOUS passes through untouched: surviving modules that did
     # find tamper evidence still stand on their own.
-    if hard_detector_blinded and band == "GENUINE":
+    # Same cap when the file's origin cannot be checked at all: an issued
+    # document re-printed through a virtual printer (scoring.UNVERIFIED_ORIGIN_CODES).
+    # No proof of tampering, so REVIEW, not SUSPICIOUS.
+    if (hard_detector_blinded or origin_unverified) and band == "GENUINE":
         score = min(score, BAND_GENUINE_MIN - 1)
         band, risk = _band_and_risk(score)
     half = _band_width(evidence)

@@ -78,6 +78,9 @@ NON_EVIDENCE_CODES: frozenset[str] = frozenset({
     # low flag cannot move a band by itself, so its only real effect was pushing
     # net_tamper across the gates above. Kept visible, not scored.
     "FONTS_SYSTEM_FONTS",
+    # Scoring role is the REVIEW ceiling on issued documents only
+    # (UNVERIFIED_ORIGIN_CODES): a CV or a notice printed to PDF loses nothing.
+    "META_VIRTUAL_PRINTER",
 })
 
 
@@ -130,6 +133,14 @@ _SIGNATURE_PRESENT_CODES: frozenset[str] = frozenset({
     "STRUCT_SIGNATURE_NOT_TRUSTED", "STRUCT_SIGNATURE_UNVERIFIED",
     "STRUCT_SIGNATURE_UNVERIFIABLE",
 })
+
+
+# The file's origin cannot be verified: an issued document re-printed through a
+# virtual printer may be the issuer's own export or a screen edit printed again.
+# Nothing proves tampering, so it is capped at REVIEW (never GENUINE), not forced
+# into SUSPICIOUS. Measured 2026-11-12: 2 legit invoices use one (both already
+# REVIEW for other reasons), and no suspicious corpus doc needs it.
+UNVERIFIED_ORIGIN_CODES: frozenset[str] = frozenset({"META_VIRTUAL_PRINTER"})
 
 
 # The e-invoice XML disagrees with the visible page: the visible layer was
@@ -338,7 +349,11 @@ def create_analysis_result(
                                  scored_flags, document_type, coverage_blind,
                                  einvoice_xml=any(
                                      (r.details or {}).get("einvoice_xml")
-                                     for r in module_results))))
+                                     for r in module_results))),
+                             origin_unverified=(
+                                 document_type in ISSUED_DOCUMENT_TYPES
+                                 and any(f.code in UNVERIFIED_ORIGIN_CODES
+                                         for f in scored_flags)))
 
     return AnalysisResult(
         file_hash=file_hash,
