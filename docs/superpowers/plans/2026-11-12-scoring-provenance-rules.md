@@ -78,6 +78,32 @@ GENUINE (unchanged), 0 rule trips. Added:
 Still not SUSPICIOUS: 3 scans in UNVERIFIABLE (date gaps under 30 min) and
 `avis_de_situation.pdf` (REVIEW).
 
+Shipped: commit a0c4df9 is live on staging and prod (prod verified 2026-11-12:
+`unknown-b-ink.pdf` → SUSPICIOUS 49).
+
+Zero-FP gate fixed (uncommitted): `tests/test_corpus_bands.py` now globs
+`samples/legitimate/*.pdf` + `samples/legitimate/web/**/*.pdf` (152 docs), with
+an argued `BAND_EXCEPTIONS` entry for each of the 9 non-GENUINE local files. Each
+entry allows GENUINE + its current band. A new test fails on a stale exception.
+The two web samples whose XML contradicts the page (Mustang RE-20150613_503,
+PHP sample_inofficial) moved to `samples/not_sure/zugferd-inconsistent/`.
+Result: 186 passed (legit + tamper gates).
+`45654.pdf` (2026-11-12): a law firm's invoice from a Word template, re-saved by an
+unknown tool 26 h after export. Softening the date rule to REVIEW was measured and
+rejected: 5 forged editor files have the same lone date signal and would leave
+SUSPICIOUS. User rule: a real forgery never lands in an intermediate band. The file
+stays an argued exception.
+Word 365 FP fixed: Word writes "Adobe XMP Core 5.6-c016 ... 2018/10/29" itself, so
+STRUCT_XMP_EDITOR_MISMATCH claimed "modified with Acrobat" on every Word 365 PDF
+(10 ANTS specs, 45654). Exempted like TCPDF.
+Virtual printer (step 2, done): `META_VIRTUAL_PRINTER` (MS Print To PDF, PDFCreator,
+CutePDF...) caps an issued document at REVIEW, never SUSPICIOUS by itself: nothing
+proves tampering. 0 band change: the 2 legit invoices using one were already REVIEW,
+no suspicious doc needed it, and the EDF case is SUSPICIOUS through the date rule.
+Chrome Skia/PDF and macOS Quartz are not virtual printers here.
+Next: step 2 leftovers (malformed visible date, Print To PDF on invoice,
+signature block without signature), step 4 FPs, step 5 display, a French legit corpus.
+
 Original spec:
 A set of codes that forces band ≥ SUSPECT (score < 50), like the existing
 `hard_detector_blinded` / coverage overrides:
