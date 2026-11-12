@@ -210,17 +210,23 @@ def _legit_footer_band(dst: str) -> None:
 
 
 def _legit_form_field(dst: str) -> None:
-    """LEGIT: an annotation (freetext) whose rect overlaps a label.
-    NOTE: headless PyMuPDF widget/AcroForm creation is awkward without a full
-    appearance-stream setup, so this uses page.add_freetext_annot instead — it
-    exercises the SAME annot-provenance exclusion path (content living in an
-    Annot rather than the page content stream must not be mistaken for a
-    cover-and-retype overlay)."""
+    """LEGIT: a filled form field (AcroForm text widget) next to a label.
+    Content living in a widget rather than the page content stream must not
+    be mistaken for a cover-and-retype overlay.
+    Was a FreeText annotation until 2026-11-12 (widgets looked awkward to
+    build headless; PyMuPDF 1.26 builds them fine). A FreeText amount is the
+    "add text" tool of consumer editors, which structure.py now reports as
+    STRUCT_MARKUP_ANNOTATIONS — so it no longer modelled a legit form."""
     doc = fitz.open(); page = doc.new_page(width=595, height=842)
     stamp_invoice_body(page)
     page.insert_text(fitz.Point(370, 400), "TOTAL TTC:", fontname="helv", fontsize=12)
-    annot = page.add_freetext_annot(fitz.Rect(455, 392, 545, 406), "1 200,00 €", fontsize=12)
-    annot.update()
+    widget = fitz.Widget()
+    widget.field_type = fitz.PDF_WIDGET_TYPE_TEXT
+    widget.field_name = "total_ttc"
+    widget.rect = fitz.Rect(455, 392, 545, 406)
+    widget.field_value = "1 200,00 €"
+    widget.text_fontsize = 12
+    page.add_widget(widget)
     Path(dst).parent.mkdir(parents=True, exist_ok=True); doc.save(dst); doc.close()
 
 

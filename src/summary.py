@@ -77,6 +77,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_SUSPICIOUS_PRODUCER": "origin",
     "META_NO_METADATA": "origin",
     "META_NO_PRODUCER": "origin",
+    "META_NO_CREATION_DATE": "origin",
     "META_IMAGE_EDITOR": "origin",
     "META_IMAGE_CONVERSION": "origin",
     "PROVENANCE_PRODUCER_MISMATCH": "origin",
@@ -103,6 +104,9 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_REVISION_TEXT_CHANGED": "tampering",
     "OVERLAY_IMAGE_OVER_VALUE": "tampering",
     "OVERLAY_IMAGE_OVER_TEXT": "tampering",
+    "OVERLAY_DUPLICATED_TEXT": "tampering",
+    "OVERLAY_FREEHAND_DRAWING": "tampering",
+    "STRUCT_MARKUP_ANNOTATIONS": "tampering",
 
     # tampering: invisible text that conflicts with or is injected beside the
     # visible page content (an extraction-vs-display mismatch)
@@ -272,6 +276,21 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "META_NO_PRODUCER": lambda f: (
         "No software information is present in the document metadata."
+    ),
+    "META_NO_CREATION_DATE": lambda f: (
+        "The file keeps a modification date but its creation date was removed: "
+        "another tool rebuilt it."
+        if f.severity == "high" else
+        "The file records no creation date."
+    ),
+    "STRUCT_MARKUP_ANNOTATIONS": lambda f: (
+        "Someone drew, highlighted or wrote on the document after it was issued."
+    ),
+    "OVERLAY_DUPLICATED_TEXT": lambda f: (
+        "A line of text was pasted a second time on top of itself."
+    ),
+    "OVERLAY_FREEHAND_DRAWING": lambda f: (
+        "A hand-drawn stroke was merged into the page."
     ),
     "META_IMAGE_EDITOR": lambda f: (
         "The document was produced with an image editor "
@@ -824,6 +843,21 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "META_NO_PRODUCER": lambda f: (
         "Aucune information logicielle n'est présente dans les métadonnées du document."
+    ),
+    "META_NO_CREATION_DATE": lambda f: (
+        "Le fichier garde une date de modification mais sa date de création a "
+        "été supprimée : un autre outil l'a reconstruit."
+        if f.severity == "high" else
+        "Le fichier n'indique aucune date de création."
+    ),
+    "STRUCT_MARKUP_ANNOTATIONS": lambda f: (
+        "Quelqu'un a dessiné, surligné ou écrit sur le document après son émission."
+    ),
+    "OVERLAY_DUPLICATED_TEXT": lambda f: (
+        "Une ligne de texte a été collée une seconde fois par-dessus elle-même."
+    ),
+    "OVERLAY_FREEHAND_DRAWING": lambda f: (
+        "Un trait dessiné à la main a été intégré à la page."
     ),
     "META_IMAGE_EDITOR": lambda f: (
         "Le document a été produit avec un éditeur d'images "

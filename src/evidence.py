@@ -148,6 +148,11 @@ HARD_POSITIVE_NATS = 2.5
 BAND_GENUINE_MIN = 80
 BAND_REVIEW_MIN = 50
 BAND_SUSPICIOUS_CRITICAL_MAX = 20  # below this, risk is CRITICAL
+# Score ceiling for a document whose file is provably NOT the issuer's
+# untouched original (see scoring.proven_modification_codes). One point under
+# REVIEW: summing hints could never get there — one high flag alone scored
+# 92/GENUINE, even a critical only 73 — so the band is forced instead.
+PROVEN_MODIFICATION_CEILING = BAND_REVIEW_MIN - 1
 
 
 @dataclass
@@ -181,7 +186,8 @@ def _band_width(evidence: list["Evidence"]) -> int:
 def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
                        prior: float = PRIOR_LOG_ODDS,
                        coverage_blind: bool = False,
-                       hard_detector_blinded: bool = False) -> AggregateResult:
+                       hard_detector_blinded: bool = False,
+                       proven_modification: bool = False) -> AggregateResult:
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
@@ -236,6 +242,14 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
         score = min(score, HARD_NEGATIVE_CEILING)      # tampering veto wins
     elif hard_pos_applies:
         score = max(score, HARD_POSITIVE_FLOOR)        # backstop; the nats above normally clear it
+
+    # The file is provably not the issuer's original (edited between
+    # revisions, re-saved by an online editor, reopened and saved later…).
+    # That is a verdict, not one more hint to add up: cap into SUSPICIOUS.
+    # Applied BEFORE the coverage gate on purpose — SUSPICIOUS passes that
+    # gate, so a modified scan is reported as such, not as UNVERIFIABLE.
+    if proven_modification:
+        score = min(score, PROVEN_MODIFICATION_CEILING)
 
     band, risk = _band_and_risk(score)
     # Coverage gate (spec 2026-07-17, D1/D3): a blind document — no usable

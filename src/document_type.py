@@ -37,9 +37,22 @@ KEYWORDS: dict[str, list[str]] = {
         "facture", "montant dû", "total ttc", "total ht", "tva", "siret",
         "iban", "numéro de facture", "régler avant", "échéance", "devis",
         "bon de commande", "avoir", "acompte", "solde",
+        "total à payer", "total a payer", "hors taxes", "sous-total",
+        "votre facture", "prix unitaire", "frais de livraison",
         # English
         "invoice", "amount due", "payment due", "vat number", "tax invoice",
-        "billing address", "purchase order", "remittance",
+        "billing address", "purchase order", "remittance", "receipt",
+        "subtotal", "total due", "unit price",
+        # German (ZUGFeRD / XRechnung invoices)
+        "rechnung", "rechnungsnummer", "rechnungsdatum", "umsatzsteuer",
+        "mwst", "ust-id", "nettobetrag", "bruttobetrag", "gesamtbetrag",
+        "zahlbar",
+        # Spanish
+        "factura", "importe", "base imponible",
+        # Transport / trade papers an issuer generates once, like an invoice
+        # (investigation doc 1, a bill of lading, fell into legal_notice)
+        "bill of lading", "connaissement", "shipper", "consignee",
+        "port of loading", "port of discharge", "lettre de voiture",
     ],
     "identity": [
         # Termes exclusifs aux pièces d'identité officielles — ne pas ajouter ici

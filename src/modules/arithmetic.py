@@ -532,6 +532,7 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
     text = "\n".join(getattr(pdf_data, "text_by_page", []) or [])
     confidence = 1.0
     checked_anything = False
+    xml_present = False
 
     # Extract the prominent visible grand total (fed to the XML cross-check only;
     # the visible-text identity check was removed — see _GRAND_ANCHORS comment).
@@ -545,6 +546,7 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
     # Check X + Check I — embedded e-invoice XML (read once, reused).
     try:
         xml_bytes = _extract_einvoice_xml(pdf_data.file_path)
+        xml_present = bool(xml_bytes)
         totals = xml_totals(xml_bytes)
         fi = fc = None
         if totals is not None:
@@ -600,4 +602,7 @@ def analyze_arithmetic(pdf_data) -> ModuleResult:
             continue  # positive signal — never reduces the module score
         score -= {"low": 5, "medium": 15, "high": 30, "critical": 50}.get(f.severity, 0)
     return ModuleResult(module="arithmetic", flags=flags, score=max(0, score),
-                        confidence=confidence)
+                        confidence=confidence,
+                        # Read by scoring.proven_modification_codes: attaching
+                        # the XML legitimately re-saves the PDF later.
+                        details={"einvoice_xml": xml_present})

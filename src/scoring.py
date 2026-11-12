@@ -81,6 +81,114 @@ NON_EVIDENCE_CODES: frozenset[str] = frozenset({
 })
 
 
+# =============================================================================
+# PROVEN MODIFICATION -> SUSPICIOUS band (user decisions 2026-11-12, see
+# docs/superpowers/plans/2026-11-12-scoring-provenance-rules.md)
+# =============================================================================
+
+# Proof that visible content changed after the file was first written. True
+# for any document genre: a revision diff does not depend on what the text says.
+MODIFICATION_PROOF_CODES: frozenset[str] = frozenset({
+    "OVERLAY_REVISION_TEXT_CHANGED",   # text differs between two revisions
+    "OVERLAY_REVISION_VALUE_CHANGED",  # an amount/date/ID differs between revisions
+    "FONTS_MIDWORD_CHANGE",            # two font families inside ONE word
+                                       # (no legit hit, local corpus 2026-11-12)
+    # Not STRUCT_HIDDEN_MODIFICATION: legit Factur-X toolkits (Symtrax) append
+    # the XML without touching ModDate — measured on the ZUGFeRD corpus.
+})
+
+# Proof that the file is not what the issuer's software produced: it went
+# through a consumer editor, or was reopened and saved later. Only meaningful
+# for documents an issuer generates once and sends (invoices, official papers);
+# a CV or an article is legitimately edited by its own author.
+PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
+    "META_ONLINE_CONVERTER",       # iLovePDF, PDF Candy, Sejda...
+    "META_IMAGE_EDITOR",           # Photoshop, GIMP... in the Producer chain
+    "META_DOCUMENT_MODIFIED",      # ModDate > CreationDate (high = gap over 30 min)
+    "STRUCT_XMP_EDITOR_MISMATCH",  # XMP says Acrobat edited it, Producer says otherwise
+    "META_NO_CREATION_DATE",       # creation date dropped by a rebuilding tool (Smallpdf)
+    "STRUCT_MARKUP_ANNOTATIONS",   # ink, text box, highlight added by a reader
+    "OVERLAY_DUPLICATED_TEXT",     # a line pasted again on top of itself
+    "OVERLAY_FREEHAND_DRAWING",    # a pen stroke flattened into the page
+})
+
+# The provenance codes that a legitimate re-save pipeline also produces
+# (signing, attaching Factur-X XML, a library that skips the field).
+_PIPELINE_EXCUSABLE_CODES: frozenset[str] = frozenset({
+    "META_DOCUMENT_MODIFIED", "STRUCT_XMP_EDITOR_MISMATCH", "META_NO_CREATION_DATE",
+})
+
+# Genres an issuer generates once and hands over untouched.
+ISSUED_DOCUMENT_TYPES: frozenset[str] = frozenset({
+    "invoice", "identity", "certificate", "attestation", "tax_document", "payslip",
+})
+
+# Signing a PDF appends a revision and rewrites ModDate: on a signed document,
+# a date gap is the signature itself. INVALID is not an excuse.
+_SIGNATURE_PRESENT_CODES: frozenset[str] = frozenset({
+    "STRUCT_SIGNATURE_TRUSTED", "STRUCT_SIGNATURE_TRUSTED_EXPIRED",
+    "STRUCT_SIGNATURE_NOT_TRUSTED", "STRUCT_SIGNATURE_UNVERIFIED",
+    "STRUCT_SIGNATURE_UNVERIFIABLE",
+})
+
+
+# The e-invoice XML disagrees with the visible page: the visible layer was
+# edited after the XML was written. Cancels the e-invoice date excuse below.
+_EINVOICE_MISMATCH_CODES: frozenset[str] = frozenset({
+    "ARITH_XML_VISIBLE_MISMATCH", "ARITH_IBAN_MISMATCH",
+})
+
+
+def proven_modification_codes(flags: list[Flag], document_type: str,
+                              coverage_blind: bool = False,
+                              einvoice_xml: bool = False) -> list[str]:
+    """Return the flag codes proving the file is not the issuer's original.
+
+    A non-empty result forces the SUSPICIOUS band (see
+    evidence.PROVEN_MODIFICATION_CEILING). Low-severity flags never count:
+    a module grades a finding "low" exactly when it judged it harmless (a
+    re-save that changed nothing, a scanner-to-viewer pipeline).
+
+    Provenance codes only count on issued documents, or on scans (blind
+    documents carry no text, so their genre is always "unknown"). For the
+    _PIPELINE_EXCUSABLE_CODES, "high" is required: the medium date-gap grade
+    means under 30 minutes, the normal scan-then-save or generate-then-view
+    pipeline.
+
+    Two legitimate pipelines re-save a finished PDF, so they excuse the
+    _PIPELINE_EXCUSABLE_CODES (never a converter):
+      - signing it (a signature appends a revision);
+      - attaching a Factur-X/ZUGFeRD XML (einvoice_xml=True). Measured: 40 of
+        126 ZUGFeRD reference invoices carry a ModDate days after creation.
+        The excuse is void when the XML contradicts the visible page — an
+        edited visible layer no longer matches the XML written before it.
+
+    Examples:
+        >>> f = Flag(severity="high", code="META_ONLINE_CONVERTER", message="")
+        >>> proven_modification_codes([f], "invoice")
+        ['META_ONLINE_CONVERTER']
+        >>> proven_modification_codes([f], "scientific")
+        []
+    """
+    codes = {f.code for f in flags}
+    signed = bool(codes & _SIGNATURE_PRESENT_CODES)
+    einvoice_ok = einvoice_xml and not (codes & _EINVOICE_MISMATCH_CODES)
+    issued = document_type in ISSUED_DOCUMENT_TYPES or coverage_blind
+
+    found = []
+    for f in flags:
+        if f.severity == "low":
+            continue
+        if f.code in MODIFICATION_PROOF_CODES:
+            found.append(f.code)
+        elif f.code in PROVENANCE_BREAK_CODES and issued:
+            excusable = f.code in _PIPELINE_EXCUSABLE_CODES
+            if excusable and (signed or einvoice_ok or f.severity == "medium"):
+                continue
+            found.append(f.code)
+    return sorted(set(found))
+
+
 def apply_doc_type_suppression(evidence, document_type: str):
     """Down-weight genre-specific FP-prone SOFT codes for a document type.
     Hard evidence is never touched. Returns Evidence, a down-weighted copy, or
@@ -208,14 +316,16 @@ def create_analysis_result(
     # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
     # trust upward. Modules score from their FLAGS, not their numeric score.
     evidence = []
+    scored_flags = []  # flags as scored (after the scanner downgrade)
     for r in module_results:
         if not r.flags and r.score >= 100:
             continue
         for f in r.flags:
-            if f.code in NON_EVIDENCE_CODES:
-                continue
             if downgrade_scanner_fp and _is_scanner_pipeline_critical(f):
                 f = replace(f, severity="low")
+            scored_flags.append(f)
+            if f.code in NON_EVIDENCE_CODES:
+                continue
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:
@@ -223,7 +333,12 @@ def create_analysis_result(
 
     agg = aggregate_evidence(evidence, analyzable=analyzable,
                              coverage_blind=coverage_blind,
-                             hard_detector_blinded=hard_detector_blinded)
+                             hard_detector_blinded=hard_detector_blinded,
+                             proven_modification=bool(proven_modification_codes(
+                                 scored_flags, document_type, coverage_blind,
+                                 einvoice_xml=any(
+                                     (r.details or {}).get("einvoice_xml")
+                                     for r in module_results))))
 
     return AnalysisResult(
         file_hash=file_hash,

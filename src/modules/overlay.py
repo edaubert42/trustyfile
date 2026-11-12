@@ -1345,7 +1345,94 @@ def _analyze_page(page, page_angle: float, page_num: int, corroboration: dict) -
         logger.warning("overlay: image-over-text signal failed on page %d: %s",
                        page_num, exc)
 
+    for signal in (_signal_shadow_duplicate_text, _signal_freehand_stroke):
+        try:
+            flags.extend(signal(page, page_num))
+        except Exception as exc:
+            logger.warning("overlay: %s failed on page %d: %s",
+                           signal.__name__, page_num, exc)
+
     return flags
+
+
+# Shortest line worth comparing: shorter strings ("Total", "EUR") repeat
+# honestly all over an invoice.
+SHADOW_MIN_CHARS = 8
+# Below this offset, a second drawing of the same text is the classic
+# "fake bold" trick (text drawn twice, a fraction of a point apart).
+SHADOW_MIN_OFFSET_PT = 1.0
+
+
+def _signal_shadow_duplicate_text(page, page_num: int) -> list[Flag]:
+    """The same line of text drawn twice, overlapping, a few points apart.
+
+    Seen on a test invoice edited online: the date/amount block was pasted a
+    second time 10 pt lower-right, on top of the original. Generators repeat
+    a line in other places (headers, footers) but never on top of itself.
+    Measured 2026-11-12: 0 hits in the 171 non-suspicious local samples.
+
+    Example:
+        "Total TTC ... 120,00 EUR" at (72, 218) and again at (82, 228)
+        -> one OVERLAY_DUPLICATED_TEXT flag
+    """
+    seen: dict[str, list[fitz.Rect]] = {}
+    hits = []
+    for block in page.get_text("dict").get("blocks", []):
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                text = span.get("text", "").strip()
+                if len(text) < SHADOW_MIN_CHARS:
+                    continue
+                rect = fitz.Rect(span["bbox"])
+                for other in seen.get(text, []):
+                    offset = max(abs(rect.x0 - other.x0), abs(rect.y0 - other.y0))
+                    if rect.intersects(other) and offset > SHADOW_MIN_OFFSET_PT:
+                        hits.append({"text": text[:60], "offset_pt": round(offset, 1)})
+                seen.setdefault(text, []).append(rect)
+    if not hits:
+        return []
+    return [Flag(
+        severity="high",
+        code="OVERLAY_DUPLICATED_TEXT",
+        message=(f"Text drawn twice on top of itself on page {page_num + 1}: "
+                 f"'{hits[0]['text']}'"),
+        details={"page": page_num + 1, "lines": hits[:5], "total": len(hits),
+                 "explanation": "The same line appears a second time, shifted by a "
+                                "few points over the original: pasted content."},
+    )]
+
+
+# A pen stroke is a stroked, open path of many Bézier curves. Rounded
+# rectangles have 4 curves and are closed; logos are filled, not stroked.
+FREEHAND_MIN_CURVES = 6
+
+
+def _signal_freehand_stroke(page, page_num: int) -> list[Flag]:
+    """A hand-drawn pen stroke flattened into the page content.
+
+    When an online editor "flattens" an ink annotation, the stroke stops
+    being an annotation and becomes page drawing — the annotation check no
+    longer sees it. Measured 2026-11-12: 0 hits in the 171 non-suspicious
+    local samples; 2 test invoices drawn on online.
+    """
+    strokes = []
+    for d in page.get_drawings():
+        ops = [item[0] for item in d.get("items", [])]
+        if d.get("type") == "s" and not d.get("closePath") \
+                and ops.count("c") >= FREEHAND_MIN_CURVES:
+            r = d["rect"]
+            strokes.append({"rect": [round(r.x0), round(r.y0), round(r.x1), round(r.y1)],
+                            "curves": ops.count("c")})
+    if not strokes:
+        return []
+    return [Flag(
+        severity="high",
+        code="OVERLAY_FREEHAND_DRAWING",
+        message=f"Hand-drawn stroke on page {page_num + 1}",
+        details={"page": page_num + 1, "strokes": strokes[:5],
+                 "explanation": "A free pen stroke is part of the page: someone "
+                                "drew on the document and flattened it."},
+    )]
 
 
 # =============================================================================

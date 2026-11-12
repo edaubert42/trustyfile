@@ -60,6 +60,11 @@ def make_pdf_data(
             raw_metadata["creator"] = creator
         if author:
             raw_metadata["author"] = author
+        # PyMuPDF reports the dates as PDF date strings in the same dict.
+        if creation_date:
+            raw_metadata["creationDate"] = creation_date.strftime("D:%Y%m%d%H%M%S")
+        if mod_date:
+            raw_metadata["modDate"] = mod_date.strftime("D:%Y%m%d%H%M%S")
 
     return PDFData(
         file_path="/fake/test.pdf",
@@ -370,14 +375,33 @@ class TestCheckMissingMetadata:
         assert flags[0].severity == "low"
 
     def test_has_producer(self):
-        """Has producer → no flag."""
-        flags = check_missing_metadata({"producer": "Adobe PDF Library"})
+        """Has producer and creation date → no flag."""
+        flags = check_missing_metadata({"producer": "Adobe PDF Library",
+                                        "creationDate": "D:20260101120000"})
         assert len(flags) == 0
 
     def test_has_creator(self):
-        """Has creator (but no producer) → no flag."""
-        flags = check_missing_metadata({"creator": "Microsoft Word"})
+        """Has creator (but no producer) and creation date → no flag."""
+        flags = check_missing_metadata({"creator": "Microsoft Word",
+                                        "creationDate": "D:20260101120000"})
         assert len(flags) == 0
+
+    def test_creation_date_removed_but_moddate_kept_is_high(self):
+        """Smallpdf: Producer + ModDate, CreationDate gone → high."""
+        flags = check_missing_metadata({"producer": "Pdftools SDK",
+                                        "modDate": "D:20261112110018Z"})
+        assert [(f.code, f.severity) for f in flags] == [("META_NO_CREATION_DATE", "high")]
+
+    def test_library_writing_no_dates_is_low(self):
+        """Mustang Factur-X writes no date at all → low, never a proof."""
+        flags = check_missing_metadata({"producer": "Mustang Demo (via mustangproject.org)"})
+        assert [(f.code, f.severity) for f in flags] == [("META_NO_CREATION_DATE", "low")]
+
+    def test_fully_stripped_file_is_not_a_missing_date(self):
+        """Only "format" filled (PyMuPDF default) → no creation-date flag."""
+        flags = check_missing_metadata({"format": "PDF 1.7", "producer": "",
+                                        "creationDate": ""})
+        assert all(f.code != "META_NO_CREATION_DATE" for f in flags)
 
 
 # =============================================================================

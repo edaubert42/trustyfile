@@ -1879,6 +1879,18 @@ def check_javascript(pdf_path: str) -> list[Flag]:
     return flags
 
 
+# Annotations a READER adds on top of a finished page: pen strokes, text
+# boxes, shapes, highlights, stamps, sticky notes. page.annots() already
+# leaves out links and form widgets, which issuers do produce. Measured
+# 2026-11-12: none in the 171 non-suspicious local samples; the four test
+# invoices edited online with ink or highlight carry them.
+MARKUP_ANNOTATION_TYPES: frozenset[str] = frozenset({
+    "Ink", "FreeText", "Square", "Circle", "Line", "Polygon", "PolyLine",
+    "Highlight", "Underline", "StrikeOut", "Squiggly", "Stamp", "Caret",
+    "Text", "Redact",
+})
+
+
 def check_hidden_annotations(pdf_path: str) -> list[Flag]:
     """
     Check for hidden or suspicious annotations in the PDF.
@@ -1902,6 +1914,7 @@ def check_hidden_annotations(pdf_path: str) -> list[Flag]:
         try:
             hidden_annots = []
             suspicious_annots = []
+            markup_annots = []
 
             for page_num in range(len(doc)):
                 page = doc[page_num]
@@ -1925,8 +1938,26 @@ def check_hidden_annotations(pdf_path: str) -> list[Flag]:
                             "type": annot_type,
                             "reason": f"suspicious type: {annot_type}"
                         })
+
+                    if annot_type in MARKUP_ANNOTATION_TYPES:
+                        markup_annots.append({"page": page_num + 1, "type": annot_type})
         finally:
             doc.close()
+
+        if markup_annots:
+            types = sorted({a["type"] for a in markup_annots})
+            flags.append(Flag(
+                severity="high",
+                code="STRUCT_MARKUP_ANNOTATIONS",
+                message=(f"Someone drew or wrote on the document after it was "
+                         f"issued ({', '.join(types)})"),
+                details={
+                    "annotations": markup_annots[:10],
+                    "explanation": "Drawings, highlights and text boxes are added "
+                                   "by a reader, never by the issuer's software. "
+                                   "They can also hide or overwrite printed values.",
+                }
+            ))
 
         if hidden_annots:
             flags.append(Flag(

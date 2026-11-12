@@ -521,7 +521,7 @@ def _continues_word(left: str, right: str) -> bool:
 
 
 def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
-    """Font family changes INSIDE a word, across PyMuPDF blocks.
+    """Font family changes INSIDE a word (same line or across PyMuPDF blocks).
 
     Why a separate pass: when an editor retypes "1992" as "1998", the new
     digits are a new text object, which PyMuPDF puts in its own block. The
@@ -534,11 +534,16 @@ def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
     them. A font change with NO space, between two characters of the same
     token, is how a partial retype looks; honest generators don't do it.
 
+    Spans of the SAME line are compared too: online editors (LightPDF) insert
+    the retyped characters inside the original line, e.g. "FACTURE N°" +
+    "g" (Arimo) + "fd" (NotoSans). The per-line check only says "two fonts
+    on a line"; this one says "two fonts inside one word".
+
     A pair of spans is reported when ALL of these hold:
-      - they are in different blocks or lines (same line = per-line check's job);
       - same baseline (|Δ origin y| ≤ MIDWORD_BASELINE_TOL_FRAC × size);
-      - the right one starts where the left one ends
-        (0 - small overlap ≤ gap ≤ MIDWORD_MAX_GAP_FRAC × size);
+      - the right one starts where the left one ends, overlap allowed
+        (|gap| ≤ MIDWORD_MAX_GAP_FRAC × size — glyph boxes include side
+        bearings, so touching letters overlap ~1 pt at 18 pt);
       - no whitespace at the junction, and the right one starts with a letter
         or digit (the left may end with "/", "." etc.: "19/08/" + "1998");
       - different real families (no CID names, no lone fallback glyphs).
@@ -581,13 +586,11 @@ def _midword_font_changes(text_dict: dict, page_label: int) -> list[dict]:
     found = []
     for left, right in candidate_pairs:
         ls, rs = left["span"], right["span"]
-        if right["key"] == left["key"]:
-            continue                                      # same line: other check
         size = max(ls.get("size", 0), rs.get("size", 0), 1.0)
         if abs(ls["origin"][1] - rs["origin"][1]) > MIDWORD_BASELINE_TOL_FRAC * size:
             continue                                      # not the same baseline
         gap = rs["bbox"][0] - ls["bbox"][2]
-        if not (-0.5 <= gap <= MIDWORD_MAX_GAP_FRAC * size):
+        if not (-MIDWORD_MAX_GAP_FRAC * size <= gap <= MIDWORD_MAX_GAP_FRAC * size):
             continue                                  # not touching
         l_text, r_text = ls["text"], rs["text"]
         if l_text[-1].isspace() or not _continues_word(l_text, r_text):
