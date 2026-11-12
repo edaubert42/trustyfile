@@ -248,10 +248,20 @@ class ExtractedDate(NamedTuple):
         date: The parsed datetime object
         context: Text surrounding the date (helps identify what it is)
         date_type: What we think this date represents (if identified)
+        labelled: True when the date stands right after a bare "Date:" label,
+            the document's own date (see _OWN_DATE_LABEL)
     """
     date: datetime
     context: str
     date_type: str | None  # "invoice", "service", "due", "creation", "order" or None
+    labelled: bool = False
+
+
+# A bare "Date:" / "Dated:" label, alone on the line before the date (or on
+# the line above it, as PDF tables often split label and value). That is the
+# document's own date. Investigation doc 3: without it, "Loan Agreement dated
+# 12/03/2019" in the body was taken as the date of a notice dated 2026.
+_OWN_DATE_LABEL = re.compile(r"^\s*dated?\s*:?\s*$", re.IGNORECASE)
 
 
 # Keywords that help identify what a date represents
@@ -455,6 +465,28 @@ def identify_date_type(context: str) -> str | None:
     return None
 
 
+def _has_own_date_label(text: str, source_text: str) -> bool:
+    """True when the date follows a bare "Date:" label (same line or line above).
+
+    Examples:
+        >>> _has_own_date_label("Date: 05/11/2026", "05/11/2026")
+        True
+        >>> _has_own_date_label("Date\n05/11/2026", "05/11/2026")
+        True
+        >>> _has_own_date_label("Loan Agreement dated 12/03/2019", "12/03/2019")
+        False
+    """
+    pos = text.lower().find(source_text.lower())
+    if pos < 0:
+        return False
+    line_start = text.rfind("\n", 0, pos) + 1
+    before = text[line_start:pos]
+    if before.strip():
+        return bool(_OWN_DATE_LABEL.match(before))
+    prev_start = text.rfind("\n", 0, max(0, line_start - 1)) + 1
+    return bool(_OWN_DATE_LABEL.match(text[prev_start:max(prev_start, line_start - 1)]))
+
+
 def extract_dates_from_text(text: str) -> list[ExtractedDate]:
     """
     Find all dates in text and identify their types.
@@ -518,7 +550,8 @@ def extract_dates_from_text(text: str) -> list[ExtractedDate]:
         extracted.append(ExtractedDate(
             date=date,
             context=context.strip(),
-            date_type=date_type
+            date_type=date_type,
+            labelled=_has_own_date_label(text, source_text),
         ))
 
     # Method 1: French dates with month names ("15 janvier 2024", "1er sept. 2024")
@@ -940,13 +973,20 @@ def check_date_vs_creation(
     # Comparing ALL dates of these types causes false positives on informational
     # dates (tax declaration periods, etc.) that happen to be classified as
     # "invoice" or "document".
+    # A date under a bare "Date:" label is the document's own date: when there
+    # is one, it is the only one compared (a date cited in the body, such as
+    # "Agreement dated 12/03/2019", is not when this document was produced).
     doc_dates = []
+    labelled = next((d for d in dates if d.labelled), None)
     first_document = next((d for d in dates if d.date_type == "document"), None)
     first_invoice = next((d for d in dates if d.date_type == "invoice"), None)
-    if first_document:
-        doc_dates.append(first_document)
-    if first_invoice:
-        doc_dates.append(first_invoice)
+    if labelled:
+        doc_dates.append(labelled)
+    else:
+        if first_document:
+            doc_dates.append(first_document)
+        if first_invoice:
+            doc_dates.append(first_invoice)
 
     for d in doc_dates:
         # Signed gap: positive when the file was created BEFORE the date
