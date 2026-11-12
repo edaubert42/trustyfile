@@ -147,3 +147,7 @@ def test_virtual_printer_detection():
     assert [f.code for f in check_virtual_printer("PDFCreator 2.5.3", None)] \
         == ["META_VIRTUAL_PRINTER"]
     assert check_virtual_printer("Skia/PDF m120", "Chromium") == []
+
+
+def test_garbled_metadata_date_on_invoice_is_suspicious():
+    assert _result([_flag("META_MALFORMED_DATE")], "invoice").band == "SUSPICIOUS"

@@ -101,6 +101,16 @@ CutePDF...) caps an issued document at REVIEW, never SUSPICIOUS by itself: nothi
 proves tampering. 0 band change: the 2 legit invoices using one were already REVIEW,
 no suspicious doc needed it, and the EDF case is SUSPICIOUS through the date rule.
 Chrome Skia/PDF and macOS Quartz are not virtual printers here.
+Malformed date in VISIBLE text: dropped (2026-11-12). The only example was the
+user's own test (junk typed inside a date in Wondershare), real forgers replace
+digits cleanly, and OCR on scans confuses O/0 and l/1 ("12/03/2O26"), a real FP risk.
+Malformed date in METADATA (what the user meant by rule 4): a real bypass. A
+CreationDate of "hello" or "D:2026110fsdffsd1" is silently ignored (GENUINE 98)
+and dodges both META_NO_CREATION_DATE and the date-gap rule. Corpus: 0 of 205
+files have an unparseable date, so treating it like a removed date costs nothing.
+Done: `META_MALFORMED_DATE` (high, provenance code): a metadata date that is
+neither a valid PDF date nor readable by dateutil. Garbled test files go from
+GENUINE 98 to SUSPICIOUS 49; no corpus band changes.
 Next: step 2 leftovers (malformed visible date, Print To PDF on invoice,
 signature block without signature), step 4 FPs, step 5 display, a French legit corpus.
 

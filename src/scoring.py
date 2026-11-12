@@ -113,6 +113,7 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
     "STRUCT_MARKUP_ANNOTATIONS",   # ink, text box, highlight added by a reader
     "OVERLAY_DUPLICATED_TEXT",     # a line pasted again on top of itself
     "OVERLAY_FREEHAND_DRAWING",    # a pen stroke flattened into the page
+    "META_MALFORMED_DATE",         # a metadata date that is not a date (hand-edited)
 })
 
 # The provenance codes that a legitimate re-save pipeline also produces
