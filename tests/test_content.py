@@ -1178,3 +1178,20 @@ class TestAnalyzeContent:
         pdf_data = make_pdf_data(text)
         result = analyze_content(pdf_data)
         assert result.score == 70  # 100 - 30 (high)
+
+
+class TestExtractIbanRegistry:
+    """extract_iban keeps only IBAN countries at their exact length."""
+
+    def test_non_iban_country_is_skipped(self):
+        from src.modules.content import extract_iban
+        assert extract_iban("Loan Account No. KH2026051234567890123") == []
+
+    def test_too_short_for_its_country_is_skipped(self):
+        from src.modules.content import extract_iban
+        assert extract_iban("IBAN : DE12 1234 4321 9876 00") == []
+
+    def test_trailing_word_is_cut_at_the_country_length(self):
+        from src.modules.content import extract_iban
+        ibans = [i for i, _, _ in extract_iban("IBAN: FR76 3000 6000 0112 3456 7890 189 Merci")]
+        assert ibans == ["FR7630006000011234567890189"]
