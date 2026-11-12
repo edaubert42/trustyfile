@@ -82,6 +82,26 @@ def _coverage_blind(
     return True, avg
 
 
+def _identity_confirmed(pdf_data: PDFData, module_results: list[ModuleResult]) -> bool:
+    """Decide whether an "unknown" document may be retyped as an identity document.
+
+    Identity is an issued type (a provenance break forces SUSPICIOUS), so the
+    retype needs evidence, not a keyword:
+      - the identity module found an MRZ, or
+      - the document is a scan (no usable text layer): the face/keyword
+        pre-check is then the only signal available, as before.
+
+    Examples:
+        A press release with text mentioning "passeport", no MRZ -> False
+        A scanned passport (no text layer) -> True
+    """
+    for r in module_results:
+        if r.module == "identity" and (r.details or {}).get("mrz_found"):
+            return True
+    non_ws = sum(len("".join(page.split())) for page in pdf_data.text_by_page)
+    return non_ws / max(1, pdf_data.page_count) < MIN_TEXT_CHARS_PER_PAGE
+
+
 class TrustyFileAnalyzer:
     """
     Main analyzer class for TrustyFile document fraud detection.
@@ -261,9 +281,12 @@ class TrustyFileAnalyzer:
             _run("identity", lambda: analyze_identity(pdf_data))
             # If the classifier missed it (returned "unknown" because the scan has no
             # text layer), override so scoring uses identity-specific multipliers and caps.
-            if doc_type == "unknown":
+            # A document WITH text needs a real MRZ for that: a town-hall press
+            # release saying "carte d'identité et passeport" passed the keyword
+            # pre-check and became an issued identity document (2026-11-12).
+            if doc_type == "unknown" and _identity_confirmed(pdf_data, module_results):
                 doc_type = "identity"
-                logger.info("Document type overridden to 'identity' (face/keyword pre-check)")
+                logger.info("Document type overridden to 'identity' (scan or MRZ found)")
 
         # Module G: External Verification (optional)
         if self.enable_external:
