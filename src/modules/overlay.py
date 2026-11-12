@@ -1191,6 +1191,14 @@ def _signal_image_over_text(page, spans: list[dict]) -> list[dict]:
         # before looking for a hidden span (same rule as
         # _text_painted_over_image, with both halves precomputed).
         last_image = _last_image_op(log, irect) if log else None
+        if log and last_image is None and not info.get("xref"):
+            # get_image_info also reports a SHADING (a gradient, operator
+            # "sh") as an image with no xref, but the paint log records it as
+            # "fill-shade", never "fill-image". A gradient is a background,
+            # not a pasted patch: Costumes FA5237's grey header gradient,
+            # painted before every line of text, was read as covering the
+            # company name. A real inline image (also xref 0) is "fill-image".
+            continue
         if last_image is None:
             under = list(spans)                   # order unknown: stay cautious
         else:
