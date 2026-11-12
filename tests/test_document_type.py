@@ -67,11 +67,32 @@ def test_amount_and_legal_form_alone_do_not_make_an_invoice():
     assert detect_document_type(FakePDFData(text)) == "unknown"
 
 
+_UK_PUB = ("The Crown Pub Ltd 12 High Street London. Group dinner 21 January 2026. "
+           "15 set menus £375.14 Net £312.62 VAT 20% £62.52. "
+           "Registered in England No 01234567. VAT Reg No GB123456789")
+
+
 def test_english_receipt_without_the_word_invoice_is_an_invoice():
-    text = ("The Crown Pub Ltd 12 High Street London. Group dinner 21 January 2026. "
-            "15 set menus £375.14 Net £312.62 VAT 20% £62.52. "
-            "Registered in England No 01234567. VAT Reg No GB123456789")
-    assert detect_document_type(FakePDFData(text)) == "invoice"
+    # No word "invoice", but a bill number: the invoice identity
+    assert detect_document_type(FakePDFData("Bill No 4471 " + _UK_PUB)) == "invoice"
+
+
+# --- Invoice identity (word or number) ---------------------------------------
+
+def test_accounting_signals_without_word_or_number_are_not_an_invoice():
+    # VAT, amounts, Ltd, register: also a price grid. No identity -> unknown
+    assert detect_document_type(FakePDFData(_UK_PUB)) == "unknown"
+
+
+def test_price_grid_is_not_an_invoice():
+    text = ("1 août 2025 Electricité - Option tarifaire Base. Abonnement mensuel (€) "
+            "Prix HT 12,50 € TVA 20% 2,50 €. TotalEnergies SA RCS Nanterre 542 051 180")
+    assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+def test_invoice_number_without_the_word_facture_is_enough():
+    assert detect_document_type(FakePDFData(REPAS_DE_GROUPE)) == "invoice"
+    assert "facture" not in REPAS_DE_GROUPE.lower()
 
 
 def test_us_bill_with_sales_tax_is_an_invoice():

@@ -109,8 +109,6 @@ KNOWN_MISSES: dict[str, str] = {
         "'rest' match inside other words",
     "doctypes/certificate/carrlane-ec-conformity.pdf":
         "'hereby certifies' alone; one keyword is below the 3-hit minimum",
-    "doctypes/price_list/totalenergies-offre-verte-pro-2025-08.pdf":
-        "a price grid carries TVA, HT, euros and RCS like an invoice",
     "legitimate/web/zugferd/ZUGFeRDv1__correct__Intarsys__ZUGFeRD_1p0_COMFORT_Kraftfahrversicherung_Bruttopreise.pdf":
         "German insurance invoice: 'rechnung' and an amount only",
 }
