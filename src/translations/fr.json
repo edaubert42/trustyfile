@@ -153,6 +153,8 @@
     "no_text_changes": "Aucune modification de texte détectée",
     "after_creation": "après la création",
     "and_n_more_lines": "… et {n} autres changements",
+    "and_one_more_line": "… et 1 autre changement",
+    "history_saved_with": "enregistré avec",
     "modified_objects": "Objets modifiés : ",
 
     "analysis_details": "Résultat de chaque contrôle",
