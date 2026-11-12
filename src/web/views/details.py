@@ -244,17 +244,6 @@ def modules_panel_html(result: AnalysisResult, lang: str) -> str:
     more_details_html = ""
     raw_content = ""
     for module in result.modules:
-        # Module header with score pill
-        mod_score = module.score
-        if mod_score >= 80:
-            sc_color = "#28a745"
-        elif mod_score >= 50:
-            sc_color = "#ffb627"
-        elif mod_score >= 20:
-            sc_color = "#ef233c"
-        else:
-            sc_color = "#ef233c"
-
         mod_name = module.module.capitalize()
 
         # Module card with full raw data
@@ -313,9 +302,12 @@ def modules_panel_html(result: AnalysisResult, lang: str) -> str:
             f'padding:12px 16px; margin-bottom:8px;">'
             f'<div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">'
             f'<span style="color:white; font-size:0.88rem; font-weight:bold;">{mod_name}</span>'
-            f'<span style="background:{sc_color}; color:white; font-size:0.68rem; font-weight:bold; '
-            f'padding:2px 10px; border-radius:10px;">{mod_score}/100</span>'
             f'</div>'
+            # No per-module "NN/100" pill (2026-11-12): module.score is not
+            # what the verdict is built from (the evidence ledger is), so it
+            # contradicted it: "Metadata 100/100" next to a SUSPICIOUS file
+            # whose modification date (emitted by the structure module)
+            # decided the band. Same reason the confidence went below.
             # module.confidence (0.3-1.0, e.g. metadata 0.3 when a PDF has no
             # metadata) is deliberately not shown here: the evidence ledger
             # never reads it (flag_to_evidence pins confidence to 1.0), so a
