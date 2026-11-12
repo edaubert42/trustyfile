@@ -78,6 +78,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_NO_METADATA": "origin",
     "META_NO_PRODUCER": "origin",
     "META_NO_CREATION_DATE": "origin",
+    "META_VIRTUAL_PRINTER": "origin",
     "META_IMAGE_EDITOR": "origin",
     "META_IMAGE_CONVERSION": "origin",
     "PROVENANCE_PRODUCER_MISMATCH": "origin",
@@ -276,6 +277,10 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "META_NO_PRODUCER": lambda f: (
         "No software information is present in the document metadata."
+    ),
+    "META_VIRTUAL_PRINTER": lambda f: (
+        "The file was printed to PDF through a virtual printer: it is a re-print, "
+        "not the file the issuer's software wrote, so its origin cannot be checked."
     ),
     "META_NO_CREATION_DATE": lambda f: (
         "The file keeps a modification date but its creation date was removed: "
@@ -843,6 +848,11 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "META_NO_PRODUCER": lambda f: (
         "Aucune information logicielle n'est présente dans les métadonnées du document."
+    ),
+    "META_VIRTUAL_PRINTER": lambda f: (
+        "Le fichier a été imprimé en PDF par une imprimante virtuelle : c'est une "
+        "réimpression, pas le fichier produit par le logiciel de l'émetteur, donc "
+        "son origine ne peut pas être vérifiée."
     ),
     "META_NO_CREATION_DATE": lambda f: (
         "Le fichier garde une date de modification mais sa date de création a "
