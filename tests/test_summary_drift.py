@@ -70,6 +70,13 @@ def test_every_emitted_code_has_a_theme():
     assert not missing, f"codes with no FLAG_THEME_MAP entry: {missing}"
 
 
+def test_every_emitted_code_has_a_sentence():
+    """No code may fall back to its raw English module message: on the French
+    page it showed English (2026-11-12: FONTS_SYSTEM_FONTS and 8 others)."""
+    missing = sorted(_emitted_codes() - set(SENTENCE_TEMPLATES_FR))
+    assert not missing, f"codes with no sentence template: {missing}"
+
+
 def test_en_fr_template_parity():
     only_en = sorted(set(SENTENCE_TEMPLATES) - set(SENTENCE_TEMPLATES_FR))
     only_fr = sorted(set(SENTENCE_TEMPLATES_FR) - set(SENTENCE_TEMPLATES))
