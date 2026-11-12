@@ -42,7 +42,9 @@ BAND_EXCEPTIONS: dict[str, tuple[set[str], str]] = {
         "after export. Rule cost accepted (2026-11-12): 5 forged editor files "
         "have the same lone date signal, and they must stay SUSPICIOUS"),
     "notice.pdf": ({"GENUINE", "SUSPICIOUS"},
-        "attestation with a mid-line font change, re-saved in Acrobat"),
+        "ministry notice (DALO appeal) with a mid-line font change, re-saved in "
+        "Acrobat; the identity module also reads OCR'd body text as an MRZ and "
+        "adds MRZ_* flags. Classified unknown since 2026-11-12 (was attestation)"),
     "Facture 5052463594.pdf": ({"GENUINE", "UNVERIFIABLE"}, _SCAN),
     "Ordonnance Valaciclovir Solupred Amoxicilline.pdf": (
         {"GENUINE", "UNVERIFIABLE"}, _SCAN),
