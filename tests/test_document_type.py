@@ -60,3 +60,21 @@ def test_amount_and_legal_form_alone_do_not_make_an_invoice():
     # A tax or legal notice can quote euros and name a SAS: 2 signals, not 3
     text = "Le loyer est de 1 200,00 euros, versé à la société Exemple SAS."
     assert detect_document_type(FakePDFData(text)) == "unknown"
+
+
+def test_english_receipt_without_the_word_invoice_is_an_invoice():
+    text = ("The Crown Pub Ltd 12 High Street London. Group dinner 21 January 2026. "
+            "15 set menus £375.14 Net £312.62 VAT 20% £62.52. "
+            "Registered in England No 01234567. VAT Reg No GB123456789")
+    assert detect_document_type(FakePDFData(text)) == "invoice"
+
+
+def test_us_bill_with_sales_tax_is_an_invoice():
+    text = "Acme Supplies LLC. Bill 2026-118. 3 widgets $120.00 Sales tax 8.25% $9.90"
+    assert detect_document_type(FakePDFData(text)) == "invoice"
+
+
+def test_vat_inside_a_word_is_not_a_signal():
+    # "private", "elevator", "activate" contain "vat"; "incl" is not "inc"
+    text = "private elevator activate incl. siret tva"
+    assert detect_document_type(FakePDFData(text)) == "unknown"

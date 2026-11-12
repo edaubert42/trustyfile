@@ -158,20 +158,34 @@ KEYWORDS: dict[str, list[str]] = {
 # intra-community VAT number appear on invoices only. An amount in euros also
 # appears on tax notices and legal notices, a legal form on one technical spec:
 # alone they never reach the 3-signal minimum.
+#
+# Each pattern is one MEANING in French and English ("TVA 10%" and "VAT 20%"
+# are the same signal), so a bilingual invoice does not count it twice. An
+# English receipt with no word "invoice" ("£375.14 ... VAT 20% ... Ltd ...
+# Registered in England") was "unknown" too before the English forms.
 PATTERNS: dict[str, list[re.Pattern[str]]] = {
     "invoice": [
-        # "375.14 Euros", "1 200,00 €", "43.8 EUR"
-        re.compile(r"\d[\d  .,]*\s?(?:€|euros?\b|eur\b)"),
-        # "HT 10 %", "Total TTC", but not "light" or "https"
-        re.compile(r"\b(?:ht|ttc)\b"),
-        # "TVA 10%", "TVA à 5,5 %"
-        re.compile(r"\btva\s*(?:à\s*)?\d{1,2}(?:[.,]\d+)?\s?%"),
-        # French company forms; "sa" is left out, it is also a French word
-        re.compile(r"\b(?:sarl|sas|sasu|eurl|snc)\b"),
-        # Trade register: "RCS BREST B 789 397 759"
-        re.compile(r"\brcs\b"),
-        # "Numéro de TVA intracommunautaire", "N° TVA"
-        re.compile(r"tva intracommunautaire|num[ée]ro de tva|n°\s?tva"),
+        # An amount with its currency: "375.14 Euros", "1 200,00 €", "43.8 EUR",
+        # "£375.14", "$129.90", "120.00 GBP"
+        re.compile(r"[£$]\s?\d"
+                   r"|\d[\d  .,]*\s?(?:€|£|\$|euros?\b|eur\b|gbp\b|usd\b)"),
+        # Net / gross markers as whole words: "HT 10 %", "Total TTC", "excl. VAT".
+        # Not "light", "https" or "private".
+        re.compile(r"\b(?:ht|ttc|vat)\b"),
+        # A tax rate: "TVA 10%", "TVA à 5,5 %", "VAT 20%", "VAT @ 20%",
+        # "Sales tax 8.25%", "GST 10%"
+        re.compile(r"\b(?:tva|vat|sales tax|gst)\s*(?:à|@)?\s*\d{1,2}(?:[.,]\d+)?\s?%"),
+        # Company forms. "sa" is left out (a French word), "inc" needs a word
+        # boundary ("incl." does not match).
+        re.compile(r"\b(?:sarl|sas|sasu|eurl|snc|ltd|llc|llp|inc|plc|gmbh)\b"),
+        # Trade register: "RCS BREST B 789 397 759", "Registered in England
+        # No 01234567", "Company No 01234567", "Company registration number"
+        re.compile(r"\brcs\b|registered in (?:england|scotland|wales|northern ireland)"
+                   r"|company (?:registration )?(?:no\b|number)"),
+        # The seller's VAT number: "Numéro de TVA intracommunautaire", "N° TVA",
+        # "VAT Reg No", "VAT registration number", "VAT No"
+        re.compile(r"tva intracommunautaire|num[ée]ro de tva|n°\s?tva"
+                   r"|vat (?:reg(?:istration)?\.? )?(?:no\b|number)"),
     ],
 }
 
