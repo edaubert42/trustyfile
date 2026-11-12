@@ -153,6 +153,8 @@
     "no_text_changes": "No text changes detected",
     "after_creation": "after creation",
     "and_n_more_lines": "… and {n} more changes",
+    "and_one_more_line": "… and 1 more change",
+    "history_saved_with": "saved with",
     "modified_objects": "Modified objects: ",
 
     "analysis_details": "Result of each check",

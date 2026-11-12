@@ -12,7 +12,7 @@ from src.i18n import translator
 from src.models import AnalysisResult
 from src.summary import get_flag_sentence
 from src.web.viewmodel import DocumentView
-from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc
+from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc, tool_label
 
 
 def _nats_to_reach(score: int) -> float:
@@ -32,6 +32,11 @@ def _nats_to_reach(score: int) -> float:
 
 BAR_FULL_NATS = _nats_to_reach(BAND_REVIEW_MIN)    # full bar: down to 50 alone
 BAR_RED_NATS = _nats_to_reach(BAND_GENUINE_MIN)    # red: out of GENUINE alone
+
+
+def _more_lines(n: int, t) -> str:
+    """'… and 1 more change' / '… and 3 more changes' (FR: '1 autre changement')."""
+    return t("and_one_more_line") if n == 1 else t("and_n_more_lines").format(n=n)
 
 
 def evidence_bars_html(result: AnalysisResult, lang: str) -> str:
@@ -296,7 +301,7 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
         steps_html = _timeline_step(
             t("history_step_created"),
             _created_at.strftime(_date_format) if _created_at else "",
-            (f'<div style="{_tool_style}">{html.escape(first_software)}</div>'
+            (f'<div style="{_tool_style}">{html.escape(tool_label(first_software, t))}</div>'
              if first_software else ""),
             "#888",
             is_last=False,
@@ -312,7 +317,7 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
 
             version_software = diff.get("to_tool", "")
             if version_software:
-                body_html += f'<div style="{_tool_style}">{html.escape(version_software)}</div>'
+                body_html += f'<div style="{_tool_style}">{html.escape(tool_label(version_software, t))}</div>'
 
             # A PDF stores two dates only (creation, last
             # modification), so only the LAST save can be dated; it
@@ -353,7 +358,7 @@ def summary_html(result: AnalysisResult, view: DocumentView, lang: str) -> str:
                               f'{old_html}{arrow_html}{new_html}</div>')
             if len(pairs) > max_changes:
                 body_html += (f'<div style="color:#888; font-size:0.75rem; font-style:italic; margin-top:2px;">'
-                              f'{t("and_n_more_lines").format(n=len(pairs) - max_changes)}</div>')
+                              f'{_more_lines(len(pairs) - max_changes, t)}</div>')
             if not pairs:
                 body_html += f'<div style="{_tool_style}">{t("non_text_changes")}</div>'
 

@@ -15,7 +15,7 @@ from src.modules.content import (
 )
 from src.summary import get_flag_sentence
 from src.web.viewmodel import DocumentView
-from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc
+from src.web.views.common import SECTION_TITLE, SEVERITY_COLORS, esc, tool_label
 from src.web.views.links import guide_url_for_flag, tool_url_for_flag
 
 
@@ -152,7 +152,7 @@ def history_panel_html(view: DocumentView, lang: str) -> str:
                         f'<span style="{_mval}">{view.metadata.creation_date.strftime("%Y-%m-%d %H:%M")}</span></div>')
         if first_sw:
             v1_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_producer")}</span>'
-                        f'<span style="{_mval}">{html.escape(first_sw)}</span></div>')
+                        f'<span style="{_mval}">{html.escape(tool_label(first_sw, t))}</span></div>')
 
         hist_content += (
             f'<div style="{_card}">'
@@ -188,7 +188,7 @@ def history_panel_html(view: DocumentView, lang: str) -> str:
 
             if to_sw and to_sw != from_sw:
                 v_meta += (f'<div style="{_mrow}"><span style="{_mkey}">{t("label_editor")}</span>'
-                           f'<span style="{_mval}">{html.escape(to_sw)}</span></div>')
+                           f'<span style="{_mval}">{html.escape(tool_label(to_sw, t))}</span></div>')
 
             diff_html = ""
             if diff["changes"]:

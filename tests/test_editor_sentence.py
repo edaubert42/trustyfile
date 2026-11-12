@@ -22,3 +22,18 @@ def test_document_sentence_names_both_tools():
                  original_producer="macOS Quartz PDFContext")
     assert get_flag_sentence(flag, "fr") == (
         "Créé avec macOS Quartz PDFContext, puis enregistré avec Adobe Acrobat.")
+
+
+def test_history_tool_label_is_translated():
+    from src.i18n import translator
+    from src.web.views.common import tool_label
+    assert tool_label("Word → modified with iLovePDF", translator("fr")) \
+        == "Word → enregistré avec iLovePDF"
+    assert tool_label("Word", translator("fr")) == "Word"
+
+
+def test_one_more_change_is_singular():
+    from src.i18n import translator
+    from src.web.views.findings import _more_lines
+    assert _more_lines(1, translator("fr")) == "… et 1 autre changement"
+    assert _more_lines(3, translator("fr")) == "… et 3 autres changements"

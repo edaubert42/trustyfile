@@ -32,3 +32,18 @@ def esc(s) -> str:
     text and attribute (e.g. title="...") positions.
     """
     return html.escape(str(s if s is not None else ""), quote=True)
+
+
+# structure.py writes a re-saved revision's tool as "Word → modified with
+# iLovePDF" (viewmodel._editor_name parses that exact text). Only the page
+# translates it, so the French history no longer shows English.
+_MODIFIED_WITH = " → modified with "
+
+
+def tool_label(tool: str, t) -> str:
+    """A revision's tool, in the page language.
+
+    Example (fr):
+        "Word → modified with iLovePDF" -> "Word → enregistré avec iLovePDF"
+    """
+    return tool.replace(_MODIFIED_WITH, f" → {t('history_saved_with')} ")
