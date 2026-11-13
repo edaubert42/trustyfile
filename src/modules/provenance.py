@@ -6,6 +6,12 @@ Identifies the tool that actually produced/rewrote a PDF from its structural
 survive metadata scrubbing. See docs/superpowers/specs/2026-07-17-producer-
 fingerprint-design.md.
 
+Two families of flags:
+  - converters (build_flags): an online converter's structure under another
+    tool's name, or with the Producer removed;
+  - rewrite engines (build_rewrite_flags, 2026-11-13): PyMuPDF's or qpdf's
+    structure, the one pass that wipes an edit's file traces.
+
 Deferred (do NOT wire here): a "verifiability damper" that caps the GENUINE
 ceiling for converter-rewritten documents belongs in the coverage-gate build;
 this module only emits flags on the default (soft) evidence path.
@@ -33,6 +39,66 @@ _VALID_CATEGORIES = frozenset({
     "online_converter", "consumer_editor",
 })
 _SIGNATURES_PATH = Path(__file__).resolve().parent / "data" / "provenance_signatures.json"
+
+# -----------------------------------------------------------------------------
+# Rewrite engines (2026-11-13)
+# -----------------------------------------------------------------------------
+# Libraries that write a whole PDF again in one pass. They never put their own
+# name in the Producer field: the copy keeps the Producer of the file it came
+# from. So when the bytes are theirs and the Producer names something else, the
+# file was written a second time after the named software produced it. That
+# one pass is also how a forger wipes an edit's traces (date gap, XMP packet,
+# earlier revisions), see tests/test_corpus_rewrite.py.
+#
+# The rule reads the bytes, never the Producer's good faith: a file that says
+# "PyMuPDF" or names nothing is treated like one under an unknown name. The
+# Producer is free text, so an exemption for "honest" names would be a
+# one-line way around the rule.
+#
+# These entries match on the header bytes alone (the converter flags above
+# need the trailer too). Measured on the local corpus, 2026-11-13: of 176
+# legitimate files, 0 start with PyMuPDF's bytes and 1 with qpdf's (a notice
+# exported from Chrome, not an issued document); after a rewrite, 12 of 12
+# forged copies do.
+#
+# Structural tool (key of the signature table) -> name shown to the reader.
+REWRITE_ENGINES: dict[str, str] = {"pymupdf": "PyMuPDF", "qpdf": "qpdf"}
+
+# Engines whose rewrite of a KNOWN tool's file counts as a provenance break
+# (PROVENANCE_FILE_REWRITTEN, SUSPICIOUS on an issued document). qpdf is left
+# out on purpose: it is a routine last step in legitimate pipelines (web
+# optimisation, password removal, OCRmyPDF), so it only caps the band at
+# REVIEW (PROVENANCE_WRITER_UNVERIFIED).
+_BREAKING_REWRITE_ENGINES = frozenset({"pymupdf"})
+
+# Software that writes PDF files with its own writer, never through MuPDF or
+# qpdf. A Producer naming one of these on a file laid out by a rewrite engine
+# is a contradiction, not a guess. A name outside this list ("Acme Billing
+# 2.1") proves nothing: an application built on PyMuPDF may sign its files
+# with its own name, and those cannot be told apart from a rewritten copy.
+KNOWN_WRITERS: tuple[str, ...] = (
+    # Adobe, Microsoft, office suites
+    "adobe", "acrobat", "distiller", "microsoft", "libreoffice", "openoffice",
+    # Browsers and operating systems
+    "skia", "chromium", "quartz", "qt", "wkhtmltopdf", "cairo", "pdfium",
+    # Server-side libraries behind billing software
+    "itext", "itextsharp", "reportlab", "fop", "pdfbox", "jasperreports",
+    "weasyprint", "tcpdf", "fpdf", "dompdf", "mpdf", "pdfkit", "pdflib",
+    "pdf-lib", "aspose", "pdfsharp", "migradoc", "openpdf", "pypdf",
+    "abcpdf", "windev", "typst", "prince",
+    # TeX
+    "pdftex", "xetex", "luatex", "latex",
+    # Converters and editors (they have their own flags; listed so that the
+    # rewrite is seen too)
+    "ghostscript", "pdftools", "foxit", "nitro", "canva", "ilovepdf",
+    "smallpdf", "sejda",
+    # E-invoice toolkits and business suites
+    "intarsys", "mustangproject", "sap", "sage", "oracle", "quickbooks", "xero",
+)
+# One regex, whole words only: "sage" must not match inside "message".
+_KNOWN_WRITER_RE = re.compile(
+    r"(?<![a-z0-9])(" + "|".join(re.escape(w) for w in KNOWN_WRITERS) + r")(?![a-z])"
+)
 
 
 @dataclass
@@ -325,8 +391,105 @@ def build_flags(cls: Classification, producer: str | None,
     )]
 
 
+def _named_known_writer(claimed: str) -> str | None:
+    """Return the known PDF writer named in a Producer/Creator string, if any.
+
+    Args:
+        claimed: Producer and Creator joined, already casefolded.
+
+    Examples:
+        >>> _named_known_writer("adobe pdf library 19.8 acrobat pdfmaker 19")
+        'adobe'
+        >>> _named_known_writer("qt 4.8.7 wkhtmltopdf 0.12.6")
+        'qt'
+        >>> _named_known_writer("acme billing 2.1") is None
+        True
+        >>> _named_known_writer("message router") is None   # "sage" inside a word
+        True
+    """
+    match = _KNOWN_WRITER_RE.search(claimed)
+    return match.group(1) if match else None
+
+
+def build_rewrite_flags(cls: Classification, producer: str | None,
+                        creator: str | None) -> list[Flag]:
+    """Flag a file whose bytes were laid out by a rewrite engine.
+
+    Decision table, for a file written by a REWRITE_ENGINES tool (PyMuPDF or
+    qpdf). Every such file gets exactly one flag:
+
+      PyMuPDF + Producer/Creator names a KNOWN_WRITERS tool
+          -> PROVENANCE_FILE_REWRITTEN (high). That tool did not write these
+             bytes: the file was written again afterwards.
+      anything else
+          -> PROVENANCE_WRITER_UNVERIFIED (low). The origin cannot be checked.
+             details["reason"] says why:
+               "rewritten"     qpdf under a known tool's name: a certain
+                               rewrite, by a tool legitimate pipelines also use
+               "unknown_name"  a name that cannot be checked against the bytes
+                               (an app built on the library, or a rewrite)
+               "no_name"       no Producer and no Creator at all
+
+    The band consequences live in src/scoring.py (PROVENANCE_BREAK_CODES and
+    UNVERIFIED_ORIGIN_CODES); this function only states what the file shows.
+
+    Args:
+        cls: Result of classify() for the file.
+        producer: The /Producer metadata string, or None.
+        creator: The /Creator metadata string, or None.
+
+    Returns:
+        A list holding zero or one Flag.
+
+    Examples:
+        >>> cls = Classification("pymupdf", "native_generator", 1.0, ("header_magic",))
+        >>> [f.code for f in build_rewrite_flags(cls, "Adobe PDF Library 19.8", None)]
+        ['PROVENANCE_FILE_REWRITTEN']
+        >>> flag = build_rewrite_flags(cls, "Acme Billing 2.1", None)[0]
+        >>> flag.code, flag.details["reason"]
+        ('PROVENANCE_WRITER_UNVERIFIED', 'unknown_name')
+        >>> word = Classification("microsoft_word", "office", 1.0, ("header_magic",))
+        >>> build_rewrite_flags(word, "Microsoft Word", None)
+        []
+    """
+    if cls.tool not in REWRITE_ENGINES or cls.confidence < 1.0:
+        return []
+    engine = REWRITE_ENGINES[cls.tool]
+    claimed = f"{producer or ''} {creator or ''}".casefold().strip()
+    stated = (producer or creator or "").strip()   # shown to the reader
+
+    known = _named_known_writer(claimed)
+    details = {"structural_tool": cls.tool, "engine": engine,
+               "claimed_producer": producer, "claimed_creator": creator,
+               "matched_features": list(cls.matched_features)}
+
+    if known and cls.tool in _BREAKING_REWRITE_ENGINES:
+        return [Flag(
+            severity="high",
+            code="PROVENANCE_FILE_REWRITTEN",
+            message=(f"The metadata names '{stated}', but the file was written "
+                     f"by {engine}: it was written again after it was produced"),
+            details={**details, "known_writer": known},
+        )]
+
+    if known:
+        reason = "rewritten"
+    elif claimed:
+        reason = "unknown_name"
+    else:
+        reason = "no_name"
+    names = f"names '{stated}'" if stated else "names no software"
+    return [Flag(
+        severity="low",
+        code="PROVENANCE_WRITER_UNVERIFIED",
+        message=(f"The file was written by {engine}, a general-purpose PDF "
+                 f"library; its metadata {names}, so its origin cannot be verified"),
+        details={**details, "reason": reason},
+    )]
+
+
 def analyze_provenance(pdf_data) -> ModuleResult:
-    """Flag converter/editor laundering from the PDF's structural fingerprint.
+    """Flag converter laundering and silent rewrites from the structural fingerprint.
 
     Never raises: unreadable input yields a partial result (CLAUDE.md).
     """
@@ -345,6 +508,9 @@ def analyze_provenance(pdf_data) -> ModuleResult:
         producer = getattr(meta, "producer", None)
         creator = getattr(meta, "creator", None)
         flags = build_flags(cls, producer, creator, db)
+        # A different family of tools (categories never overlap), so at
+        # most one of the two calls returns a flag.
+        flags += build_rewrite_flags(cls, producer, creator)
     except Exception as exc:
         logger.warning("provenance: analysis failed for %s: %s",
                        getattr(pdf_data, "file_path", "?"), exc)

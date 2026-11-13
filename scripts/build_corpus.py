@@ -11,6 +11,37 @@ from pathlib import Path
 
 import fitz
 
+# Line 2 of every file PyMuPDF saves, and what stamp_issuer_header puts there
+# instead: 4 placeholder bytes that match no entry of the signature table
+# (src/modules/data/provenance_signatures.json).
+_PYMUPDF_HEADER = b"%\xc2\xb5\xc2\xb6\n"
+_ISSUER_HEADER = b"%\xf0\xf1\xf2\xf3\n"
+
+
+def stamp_issuer_header(path: str) -> None:
+    """Make a PyMuPDF-built fixture stop looking like a PyMuPDF file.
+
+    The fixtures stand for files an issuer's billing software wrote (their
+    Producer says "ReportLab PDF Library"), but PyMuPDF builds them. The
+    provenance module reads the header bytes, sees PyMuPDF under another
+    tool's name, and rightly reports a rewritten file: true of the fixture,
+    false of the document it stands for. So the 4 header bytes are replaced.
+
+    Same length before and after: every byte offset stored in the file's
+    cross-reference table stays valid.
+
+    Args:
+        path: PDF to patch in place. Left untouched when it does not start
+            with PyMuPDF's header.
+
+    Example:
+        b"%PDF-1.7\n%\xc2\xb5\xc2\xb6\n..."  ->  b"%PDF-1.7\n%\xf0\xf1\xf2\xf3\n..."
+    """
+    raw = Path(path).read_bytes()
+    head, rest = raw[:32], raw[32:]     # the header sits in the first 2 lines
+    if _PYMUPDF_HEADER in head:
+        Path(path).write_bytes(head.replace(_PYMUPDF_HEADER, _ISSUER_HEADER, 1) + rest)
+
 
 def stamp_invoice_body(page) -> None:
     """Stamp realistic invoice body text into the left-middle region (y 165-290,
@@ -469,6 +500,11 @@ def build_corpus(out_dir: str) -> dict:
 
     uv = out / "unverifiable" / "image_only_scan.pdf"
     _unverifiable_image_only_scan(str(uv))
+
+    # Every fixture stands for a file written by the tool its Producer names
+    # (ReportLab, iLovePDF, Acrobat...), never by PyMuPDF.
+    for built in (*legitimate, *forged, str(uv)):
+        stamp_issuer_header(built)
 
     return {"legitimate": legitimate, "suspicious": forged,
             "unverifiable": [str(uv)]}

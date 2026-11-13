@@ -93,6 +93,10 @@ def _write_text_pdf(path) -> None:
     doc.new_page().insert_text((72, 100), INVOICE_TEXT, fontsize=11)
     doc.save(str(path))
     doc.close()
+    # The fixture stands for an issuer's own file, not a PyMuPDF one (which
+    # would be capped at REVIEW: PROVENANCE_WRITER_UNVERIFIED).
+    from scripts.build_corpus import stamp_issuer_header
+    stamp_issuer_header(str(path))
 
 
 def _write_image_only_pdf(path) -> None:

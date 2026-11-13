@@ -84,6 +84,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "META_IMAGE_CONVERSION": "origin",
     "PROVENANCE_PRODUCER_MISMATCH": "origin",
     "PROVENANCE_LAUNDERED": "origin",
+    "PROVENANCE_FILE_REWRITTEN": "origin",
+    "PROVENANCE_WRITER_UNVERIFIED": "origin",
 
     # tampering: incremental edits, paste artifacts, font mixing, deleted objects
     "STRUCT_INCREMENTAL_UPDATES": "tampering",
@@ -258,6 +260,53 @@ def _get_converter_name(flag: Flag) -> str:
     if flag.details:
         return flag.details.get("detected_tool", flag.details.get("producer", "an unknown tool"))
     return "an unknown tool"
+
+
+def _rewrite_names(flag: Flag) -> tuple[str, str]:
+    """Return (engine, stated software) for the two rewrite-engine codes.
+
+    Example:
+        details {"engine": "PyMuPDF", "claimed_producer": "Adobe PDF Library 19.8"}
+        -> ("PyMuPDF", "Adobe PDF Library 19.8")
+    """
+    details = flag.details or {}
+    engine = details.get("engine") or "a PDF library"
+    stated = (details.get("claimed_producer") or details.get("claimed_creator") or "").strip()
+    return engine, stated
+
+
+def _writer_unverified_en(flag: Flag) -> str:
+    """English sentence for PROVENANCE_WRITER_UNVERIFIED, one per reason."""
+    engine, stated = _rewrite_names(flag)
+    reason = (flag.details or {}).get("reason")
+    if reason == "rewritten" and stated:
+        return (f"This file was saved again by {engine} after {stated} produced it. "
+                f"Legitimate tools do that, and so does someone hiding an edit, "
+                f"so its origin cannot be checked.")
+    if reason == "unknown_name" and stated:
+        return (f"This file was written by {engine}, a general-purpose PDF library, "
+                f"under the name {stated}, so its origin cannot be checked.")
+    return (f"This file was written by {engine}, a general-purpose PDF library, "
+            f"and names no software, so its origin cannot be checked.")
+
+
+def _writer_unverified_fr(flag: Flag) -> str:
+    """French sentence for PROVENANCE_WRITER_UNVERIFIED, one per reason."""
+    engine, stated = _rewrite_names(flag)
+    if engine == "a PDF library":
+        engine = "une bibliothèque PDF"
+    reason = (flag.details or {}).get("reason")
+    if reason == "rewritten" and stated:
+        return (f"Ce fichier a été réenregistré par {engine} après sa création par "
+                f"{stated}. Des outils légitimes le font, une personne qui masque "
+                f"une retouche aussi : son origine ne peut pas être vérifiée.")
+    if reason == "unknown_name" and stated:
+        return (f"Ce fichier a été écrit par {engine}, une bibliothèque PDF "
+                f"généraliste, sous le nom {stated} : son origine ne peut pas "
+                f"être vérifiée.")
+    return (f"Ce fichier a été écrit par {engine}, une bibliothèque PDF "
+            f"généraliste, et ne nomme aucun logiciel : son origine ne peut pas "
+            f"être vérifiée.")
 
 
 SENTENCE_TEMPLATES: dict[str, callable] = {
@@ -511,6 +560,12 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         f"{(f.details or {}).get('structural_tool', 'a conversion tool').replace('_', ' ')}, "
         f"but the Producer metadata was stripped."
     ),
+    "PROVENANCE_FILE_REWRITTEN": lambda f: (
+        f"The metadata says this file comes from {_rewrite_names(f)[1] or 'another software'}, "
+        f"but the file was written by {_rewrite_names(f)[0]}: it was saved again "
+        f"after it was issued, which erases the traces an edit leaves."
+    ),
+    "PROVENANCE_WRITER_UNVERIFIED": _writer_unverified_en,
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"The bank account shown on the page (IBAN "
         f"{', '.join(f.details.get('visible_ibans', []))}) does not match the "
@@ -1140,6 +1195,14 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
         f"{(f.details or {}).get('structural_tool', 'un outil de conversion').replace('_', ' ')}, "
         f"mais les métadonnées Producer ont été supprimées."
     ),
+    "PROVENANCE_FILE_REWRITTEN": lambda f: (
+        f"Les métadonnées donnent {_rewrite_names(f)[1] or 'un autre logiciel'} "
+        f"comme logiciel d'origine, mais le fichier a été écrit par "
+        f"{_rewrite_names(f)[0] if (f.details or {}).get('engine') else 'une bibliothèque PDF'} : "
+        f"il a été réenregistré après son émission, ce qui efface les traces "
+        f"que laisse une retouche."
+    ),
+    "PROVENANCE_WRITER_UNVERIFIED": _writer_unverified_fr,
     "ARITH_IBAN_MISMATCH": lambda f: (
         f"Le compte bancaire indiqué sur la page (IBAN "
         f"{', '.join(f.details.get('visible_ibans', []))}) ne correspond pas au "

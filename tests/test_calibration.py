@@ -12,7 +12,7 @@ import pytest
 
 from src.analyzer import TrustyFileAnalyzer
 from src.evidence import HARD_NEGATIVE_CODES
-from scripts.build_corpus import stamp_invoice_body
+from scripts.build_corpus import stamp_invoice_body, stamp_issuer_header
 
 
 def _invoice(path, *, siret="552 081 317 00018", vat="FR03552081317",
@@ -34,6 +34,7 @@ def _invoice(path, *, siret="552 081 317 00018", vat="FR03552081317",
                       "creationDate": "D:20250115103000", "modDate": "D:20250115103000"})
     doc.save(path)
     doc.close()
+    stamp_issuer_header(path)   # the fixture stands for the producer's own file
 
 
 # =============================================================================
@@ -78,6 +79,7 @@ def test_reference_invoice_all_ids_invalid_is_review_not_suspicious(tmp_path):
                       "modDate": "D:20250115103000"})
     doc.save(p)
     doc.close()
+    stamp_issuer_header(p)   # the fixture stands for ReportLab's own file
     r = TrustyFileAnalyzer(enable_external=False).analyze(p)
     all_flags = [f for m in r.modules for f in m.flags]
     codes = {f.code for f in all_flags}
@@ -150,6 +152,7 @@ def _embeds(path, embeds):
     doc.set_metadata({"producer": "ReportLab PDF Library", "creationDate": "D:20250115103000"})
     doc.save(path)
     doc.close()
+    stamp_issuer_header(path)   # the fixture stands for ReportLab's own file
 
 
 def _codes(result):

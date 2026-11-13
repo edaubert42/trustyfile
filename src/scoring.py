@@ -81,6 +81,7 @@ NON_EVIDENCE_CODES: frozenset[str] = frozenset({
     # Scoring role is the REVIEW ceiling on issued documents only
     # (UNVERIFIED_ORIGIN_CODES): a CV or a notice printed to PDF loses nothing.
     "META_VIRTUAL_PRINTER",
+    "PROVENANCE_WRITER_UNVERIFIED",
 })
 
 
@@ -116,6 +117,10 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
     "META_MALFORMED_DATE",         # a metadata date that is not a date (hand-edited)
     "STRUCT_ACROBAT_TEXT_EDIT",    # Acrobat's "Edit text" marker in the page itself:
                                    # survives a full rewrite of the file
+    "PROVENANCE_FILE_REWRITTEN",   # bytes laid out by PyMuPDF while the Producer
+                                   # names a known other tool: the file was written
+                                   # again afterwards (the pass that wipes an edit's
+                                   # traces). 0 of 176 legit files, 2026-11-13
 })
 
 # The provenance codes that a legitimate re-save pipeline also produces
@@ -155,7 +160,15 @@ _SIGNATURE_PRESENT_CODES: frozenset[str] = frozenset({
 # Nothing proves tampering, so it is capped at REVIEW (never GENUINE), not forced
 # into SUSPICIOUS. Measured 2026-11-12: 2 legit invoices use one (both already
 # REVIEW for other reasons), and no suspicious corpus doc needs it.
-UNVERIFIED_ORIGIN_CODES: frozenset[str] = frozenset({"META_VIRTUAL_PRINTER"})
+#
+# Same reasoning for PROVENANCE_WRITER_UNVERIFIED (2026-11-13): the bytes were
+# laid out by a general-purpose library (qpdf, or PyMuPDF under a Producer name
+# that cannot be checked). An issuer's own pipeline does that, and so does the
+# one pass that erases an edit's traces. Measured: 0 legit issued document
+# carries it; all 12 rewritten copies of the 6 forgeries that scored GENUINE do.
+UNVERIFIED_ORIGIN_CODES: frozenset[str] = frozenset({
+    "META_VIRTUAL_PRINTER", "PROVENANCE_WRITER_UNVERIFIED",
+})
 
 
 # The e-invoice XML disagrees with the visible page: the visible layer was
