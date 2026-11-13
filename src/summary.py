@@ -112,6 +112,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_FREEHAND_DRAWING": "tampering",
     "STRUCT_MARKUP_ANNOTATIONS": "tampering",
     "STRUCT_ACROBAT_TEXT_EDIT": "tampering",
+    "STRUCT_EDITOR_MARKER": "tampering",
+    "STRUCT_EMPTY_TEXT_OPERATOR": "tampering",
 
     # tampering: invisible text that conflicts with or is injected beside the
     # visible page content (an extraction-vs-display mismatch)
@@ -390,6 +392,15 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "STRUCT_ACROBAT_TEXT_EDIT": lambda f: (
         "Text in this document was changed with Adobe Acrobat's text editing tool."
+    ),
+    "STRUCT_EDITOR_MARKER": lambda f: (
+        f"Content was added or changed on this document with "
+        f"{', '.join(sorted((f.details or {}).get('editors') or [])) or 'a PDF editor'}, "
+        f"which left its mark in the page."
+    ),
+    "STRUCT_EMPTY_TEXT_OPERATOR": lambda f: (
+        "Text was deleted from this document with a PDF editor: the instruction "
+        "that drew it is still in the page, emptied."
     ),
     "OVERLAY_DUPLICATED_TEXT": lambda f: (
         "A line of text was pasted a second time on top of itself."
@@ -1020,6 +1031,15 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "STRUCT_ACROBAT_TEXT_EDIT": lambda f: (
         "Du texte de ce document a été modifié avec l'outil d'édition de texte "
         "d'Adobe Acrobat."
+    ),
+    "STRUCT_EDITOR_MARKER": lambda f: (
+        f"Du contenu a été ajouté ou modifié sur ce document avec "
+        f"{', '.join(sorted((f.details or {}).get('editors') or [])) or 'un éditeur PDF'}, "
+        f"qui a laissé sa marque dans la page."
+    ),
+    "STRUCT_EMPTY_TEXT_OPERATOR": lambda f: (
+        "Du texte a été supprimé de ce document avec un éditeur PDF : "
+        "l'instruction qui le dessinait est encore dans la page, vidée."
     ),
     "OVERLAY_DUPLICATED_TEXT": lambda f: (
         "Une ligne de texte a été collée une seconde fois par-dessus elle-même."
