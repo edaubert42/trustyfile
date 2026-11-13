@@ -109,6 +109,7 @@ FLAG_THEME_MAP: dict[str, str] = {
     "OVERLAY_DUPLICATED_TEXT": "tampering",
     "OVERLAY_FREEHAND_DRAWING": "tampering",
     "STRUCT_MARKUP_ANNOTATIONS": "tampering",
+    "STRUCT_ACROBAT_TEXT_EDIT": "tampering",
 
     # tampering: invisible text that conflicts with or is injected beside the
     # visible page content (an extraction-vs-display mismatch)
@@ -337,6 +338,9 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     ),
     "STRUCT_MARKUP_ANNOTATIONS": lambda f: (
         "Someone drew, highlighted or wrote on the document after it was issued."
+    ),
+    "STRUCT_ACROBAT_TEXT_EDIT": lambda f: (
+        "Text in this document was changed with Adobe Acrobat's text editing tool."
     ),
     "OVERLAY_DUPLICATED_TEXT": lambda f: (
         "A line of text was pasted a second time on top of itself."
@@ -957,6 +961,10 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     "STRUCT_MARKUP_ANNOTATIONS": lambda f: (
         "Quelqu'un a dessiné, surligné ou écrit sur le document après son émission."
+    ),
+    "STRUCT_ACROBAT_TEXT_EDIT": lambda f: (
+        "Du texte de ce document a été modifié avec l'outil d'édition de texte "
+        "d'Adobe Acrobat."
     ),
     "OVERLAY_DUPLICATED_TEXT": lambda f: (
         "Une ligne de texte a été collée une seconde fois par-dessus elle-même."
