@@ -301,3 +301,74 @@ def test_editor_marks_on_an_article_are_only_a_hint():
         res = _result([_flag(code)], document_type="scientific")
         assert res.band == "GENUINE", code
         assert res.forced_codes == {}, code
+
+
+# --- three levels of proof, three ceilings (2026-11-13) -------------------------
+
+def test_each_level_of_proof_has_its_own_ceiling():
+    from src.evidence import MODIFICATION_CEILINGS
+    cases = [("META_ONLINE_CONVERTER", "not_original", "HIGH"),            # saved again
+             ("STRUCT_ACROBAT_TEXT_EDIT", "page_edited", "HIGH"),          # written on
+             ("OVERLAY_REVISION_TEXT_CHANGED", "content_changed", "CRITICAL")]  # shown
+    scores = []
+    for code, level, risk in cases:
+        res = _result([_flag(code)])
+        assert res.modification_level == level, code
+        assert res.trust_score == MODIFICATION_CEILINGS[level], code
+        assert (res.band, res.risk_level) == ("SUSPICIOUS", risk), code
+        scores.append(res.trust_score)
+    assert scores == sorted(scores, reverse=True) and len(set(scores)) == 3
+
+
+def test_the_strongest_proof_sets_the_level():
+    from src.scoring import modification_level
+    assert modification_level(["META_ONLINE_CONVERTER", "STRUCT_EDITOR_MARKER"]) == "page_edited"
+    assert modification_level(
+        ["META_ONLINE_CONVERTER", "STRUCT_EDITOR_MARKER", "FONTS_MIDWORD_CHANGE"]) == "content_changed"
+    assert modification_level([]) is None
+
+
+def test_every_proven_code_belongs_to_exactly_one_level():
+    from src.scoring import (MODIFICATION_PROOF_CODES, PAGE_EDIT_CODES,
+                             PROVENANCE_BREAK_CODES, modification_level)
+    assert PAGE_EDIT_CODES <= PROVENANCE_BREAK_CODES
+    assert not (PAGE_EDIT_CODES & MODIFICATION_PROOF_CODES)
+    for code in MODIFICATION_PROOF_CODES | PROVENANCE_BREAK_CODES:
+        assert modification_level([code]) in ("content_changed", "page_edited", "not_original")
+
+
+def test_a_ceiling_never_raises_a_score():
+    # Enough other findings to sink the document: the level's ceiling is a
+    # maximum, not a value.
+    flags = [_flag("META_ONLINE_CONVERTER")] + [_flag(f"OTHER_{i}", "critical") for i in range(4)]
+    assert _result(flags).trust_score < 20
+
+
+def test_no_level_without_a_proof():
+    assert _result([], "invoice").modification_level is None
+    # An unknown genre is capped at REVIEW, not proven modified.
+    assert _result([_flag("STRUCT_ACROBAT_TEXT_EDIT")], "unknown").modification_level is None
+    # A verified 2D-Doc excuses the origin codes: nothing left to prove.
+    assert _result([_flag("STRUCT_ACROBAT_TEXT_EDIT"), _BARCODE],
+                   "tax_document").modification_level is None
+
+
+def test_the_verdict_names_the_level_in_both_languages():
+    from src.summary import (MODIFICATION_VERDICTS, MODIFICATION_VERDICTS_FR,
+                             generate_rich_summary)
+    for code, level in (("META_ONLINE_CONVERTER", "not_original"),
+                        ("STRUCT_ACROBAT_TEXT_EDIT", "page_edited"),
+                        ("OVERLAY_REVISION_TEXT_CHANGED", "content_changed")):
+        res = _result([_flag(code)])
+        assert generate_rich_summary(res, lang="en").verdict == MODIFICATION_VERDICTS[level]
+        assert generate_rich_summary(res, lang="fr").verdict == MODIFICATION_VERDICTS_FR[level]
+
+
+def test_weak_level_does_not_replace_a_critical_verdict():
+    # "Another tool saved it again" would undersell a document that other
+    # findings pulled down to CRITICAL.
+    from src.summary import MODIFICATION_VERDICTS, generate_rich_summary
+    flags = [_flag("META_ONLINE_CONVERTER")] + [_flag(f"OTHER_{i}", "critical") for i in range(4)]
+    res = _result(flags)
+    assert res.risk_level == "CRITICAL" and res.modification_level == "not_original"
+    assert generate_rich_summary(res, lang="en").verdict not in MODIFICATION_VERDICTS.values()

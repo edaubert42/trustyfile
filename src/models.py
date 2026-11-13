@@ -125,6 +125,10 @@ class AnalysisResult:
     # for a proven modification, "REVIEW" for an unverifiable origin). The
     # "why this score" bars use it: a forced band is not a sum of nats.
     forced_codes: dict = field(default_factory=dict)
+    # What the strongest proof of modification establishes, None when nothing
+    # is proven: "content_changed" | "page_edited" | "not_original"
+    # (scoring.modification_level). Sets the score ceiling and the verdict.
+    modification_level: str | None = None
 
 
 @dataclass

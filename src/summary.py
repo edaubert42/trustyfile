@@ -1654,6 +1654,44 @@ VERDICTS_FR: dict[str, dict[str, str]] = {
 }
 
 
+# Verdict when a modification is PROVEN (result.modification_level, see
+# scoring.modification_level). It says what the proof establishes, which the
+# risk level alone cannot: a compressed file and a changed amount are both
+# "HIGH". Used by generate_rich_summary in place of the theme verdict.
+MODIFICATION_VERDICTS: dict[str, str] = {
+    "content_changed": "The content of this document was changed after it was issued.",
+    "page_edited": "This document was edited with a PDF editor after it was issued.",
+    "not_original": "This file is not the one the issuer produced: another tool saved it again.",
+}
+MODIFICATION_VERDICTS_FR: dict[str, str] = {
+    "content_changed": "Le contenu de ce document a été modifié après son émission.",
+    "page_edited": "Ce document a été retouché avec un éditeur PDF après son émission.",
+    "not_original": "Ce fichier n'est pas celui produit par l'émetteur : un autre outil l'a réenregistré.",
+}
+
+
+def _modification_verdict(result: AnalysisResult, lang: str) -> str | None:
+    """Verdict for a proven modification, or None to keep the theme verdict.
+
+    "content_changed" always wins: it is the strongest thing this tool can
+    say. The two weaker levels only replace the HIGH verdicts. When other
+    findings pulled the score down to CRITICAL, "do not trust this document"
+    says more than "another tool saved it again".
+
+    Example:
+        band SUSPICIOUS, risk HIGH, level "not_original", lang "fr" ->
+        "Ce fichier n'est pas celui produit par l'émetteur : un autre outil
+        l'a réenregistré."
+    """
+    level = getattr(result, "modification_level", None)
+    if result.band != "SUSPICIOUS" or level is None:
+        return None
+    if level != "content_changed" and result.risk_level != "HIGH":
+        return None
+    verdicts = MODIFICATION_VERDICTS_FR if lang == "fr" else MODIFICATION_VERDICTS
+    return verdicts.get(level)
+
+
 # Coverage-specific UNVERIFIABLE verdicts (spec 2026-07-17). Selected by
 # explicit code check in generate_rich_summary: the low-severity coverage
 # flag can never win severity-weighted theme dominance, so the VERDICTS
@@ -1915,7 +1953,8 @@ def generate_rich_summary(result: AnalysisResult, lang: str = "en") -> AnalysisS
             and not any(f.code == "EXTRACTION_FAILED" for f in all_flags)):
         verdict = COVERAGE_VERDICT_FR if lang == "fr" else COVERAGE_VERDICT
     else:
-        verdict = _build_verdict(result.risk_level, dominant_theme, lang)
+        verdict = (_modification_verdict(result, lang)
+                   or _build_verdict(result.risk_level, dominant_theme, lang))
 
     return AnalysisSummary(verdict=verdict, bullets=bullets)
 
