@@ -184,3 +184,60 @@ def test_einvoice_xml_still_excuses_acrobat_on_unknown_genre():
                               score=50, confidence=1.0, details={"einvoice_xml": True})],
         document_type="unknown")
     assert r.forced_codes == {}
+
+
+
+# --- Acrobat edit marker, and the verified 2D-Doc that excuses it (2026-11-13) ---
+
+_BARCODE = Flag(severity="medium", code="TWOD_DOC_SIGNATURE_VALID", message="valid")
+
+
+def test_acrobat_text_edit_on_invoice_is_suspicious():
+    res = _result([_flag("STRUCT_ACROBAT_TEXT_EDIT")])
+    assert res.band == "SUSPICIOUS"
+    assert res.forced_codes == {"STRUCT_ACROBAT_TEXT_EDIT": "SUSPICIOUS"}
+
+
+def test_acrobat_text_edit_on_unknown_genre_is_review():
+    res = _result([_flag("STRUCT_ACROBAT_TEXT_EDIT")], document_type="unknown")
+    assert res.band == "REVIEW"
+
+
+def test_acrobat_text_edit_on_an_article_is_only_a_hint():
+    res = _result([_flag("STRUCT_ACROBAT_TEXT_EDIT")], document_type="scientific")
+    assert res.band == "GENUINE"
+    assert res.forced_codes == {}
+
+
+def test_verified_barcode_excuses_the_acrobat_marker():
+    # The tax notice case: template labels retouched in Acrobat by the issuer.
+    with_marker = _result([_flag("STRUCT_ACROBAT_TEXT_EDIT"), _BARCODE],
+                          document_type="tax_document")
+    barcode_only = _result([_BARCODE], document_type="tax_document")
+    assert with_marker.band == "GENUINE"
+    assert with_marker.forced_codes == {}
+    # The excused flag does not weigh either: same score as without it.
+    assert with_marker.trust_score == barcode_only.trust_score
+
+
+def test_verified_barcode_excuses_every_origin_signal():
+    flags = [_flag("META_ONLINE_CONVERTER"), _flag("META_DOCUMENT_MODIFIED"),
+             _flag("META_VIRTUAL_PRINTER", "low"), _BARCODE]
+    res = _result(flags, document_type="tax_document")
+    assert res.band == "GENUINE"
+    assert res.forced_codes == {}
+
+
+def test_verified_barcode_does_not_excuse_a_proven_content_change():
+    # The barcode does not cover every field: text that changed between two
+    # revisions is still proof, whatever the barcode says.
+    res = _result([_flag("OVERLAY_REVISION_TEXT_CHANGED"), _BARCODE],
+                  document_type="tax_document")
+    assert res.band == "SUSPICIOUS"
+
+
+def test_excused_flag_is_still_shown_to_the_reader():
+    res = _result([_flag("STRUCT_ACROBAT_TEXT_EDIT"), _BARCODE],
+                  document_type="tax_document")
+    shown = [f.code for m in res.modules for f in m.flags]
+    assert "STRUCT_ACROBAT_TEXT_EDIT" in shown

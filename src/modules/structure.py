@@ -41,6 +41,7 @@ from src.models import Flag, ModuleResult
 from src.render_safety import safe_zoom
 from src.extractors.pdf_extractor import PDFData
 from src.modules.metadata import check_dates
+from src.modules.acrobat_edit import find_acrobat_text_edits
 
 logger = logging.getLogger(__name__)
 
@@ -1993,6 +1994,51 @@ def check_hidden_annotations(pdf_path: str) -> list[Flag]:
     return flags
 
 
+def check_acrobat_text_edit(pdf_path: str) -> list[Flag]:
+    """Flag text that was changed with Acrobat's "Edit text" tool.
+
+    Acrobat leaves a /TouchUp_TextEdit marker in the page next to the text it
+    rewrote (see src/modules/acrobat_edit.py). The marker is in the page
+    itself, so it is still there after the file's dates, XMP and revisions
+    have been wiped by a rewrite.
+
+    The flag lists the visible lines sitting next to a marker, each with its
+    page and box, in the "instances" shape the preview draws.
+
+    Args:
+        pdf_path: Path to the PDF file.
+
+    Returns:
+        One high flag when at least one marker is found, else an empty list.
+
+    Example:
+        Invoice whose recipient block was retyped in Acrobat ->
+        [Flag(high, STRUCT_ACROBAT_TEXT_EDIT, details={"marker_count": 2,
+          "instances": [{"page": 0, "bbox": (301, 231, 531, 243),
+                         "text": "Destinataire : EDOUARD AUBERT"}, ...]})]
+    """
+    edits = find_acrobat_text_edits(pdf_path)
+    if edits.marker_count == 0:
+        return []
+
+    return [Flag(
+        severity="high",
+        code="STRUCT_ACROBAT_TEXT_EDIT",
+        message=(f"Text was edited with Adobe Acrobat's text tool "
+                 f"({edits.marker_count} edit marker(s) in the page content)"),
+        details={
+            "marker_count": edits.marker_count,
+            # page is 0-based here, like every other "instances" entry
+            "instances": [{"page": line.page, "bbox": line.bbox, "text": line.text}
+                          for line in edits.lines],
+            "explanation": "Acrobat marks the text blocks its edit tool rewrote. "
+                           "The lines listed sit next to a marker: the change "
+                           "is in one of them. An issuer's software does not "
+                           "leave this marker, a manual edit does.",
+        },
+    )]
+
+
 def check_embedded_files(pdf_path: str) -> list[Flag]:
     """
     Check for embedded files in the PDF.
@@ -2363,6 +2409,7 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
     all_flags.extend(check_incremental_updates(pdf_data.file_path, verify_signatures))
     all_flags.extend(check_javascript(pdf_data.file_path))
     all_flags.extend(check_hidden_annotations(pdf_data.file_path))
+    all_flags.extend(check_acrobat_text_edit(pdf_data.file_path))
     all_flags.extend(check_embedded_files(pdf_data.file_path))
     all_flags.extend(check_acroform(pdf_data.file_path))
     all_flags.extend(check_object_streams(pdf_data.file_path, has_trusted_signature))

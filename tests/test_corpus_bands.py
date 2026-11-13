@@ -36,6 +36,10 @@ CORPUS = sorted(
 # Documented exceptions: doc basename -> (allowed bands, reason).
 # Each entry also allows GENUINE, so a fix that improves the doc never fails.
 _SCAN = "image-only scan: no text layer, the coverage gate says UNVERIFIABLE by design"
+_INTARSYS = ("Intarsys sample invoice whose text was retouched by hand in Acrobat "
+             "(STRUCT_ACROBAT_TEXT_EDIT is true). Rule cost accepted (2026-11-13): "
+             "5 forged invoices carry the same lone signal once their file "
+             "history is wiped, and they must stay SUSPICIOUS")
 BAND_EXCEPTIONS: dict[str, tuple[set[str], str]] = {
     "45654.pdf": ({"GENUINE", "SUSPICIOUS"},
         "law firm invoice from a Word template, re-saved by an unknown tool 26 h "
@@ -60,6 +64,12 @@ BAND_EXCEPTIONS: dict[str, tuple[set[str], str]] = {
         "long technical spec, not an issued document"),
     "en.subject.pdf": ({"GENUINE", "REVIEW"},
         "school exercise subject, not an issued document"),
+    "ZUGFeRDv2__correct__intarsys__EN16931__zugferd_2p0_EN16931_ElektronischeAdresse.pdf":
+        ({"GENUINE", "SUSPICIOUS"}, _INTARSYS),
+    "ZUGFeRDv2__correct__intarsys__EN16931__zugferd_2p0_EN16931_RechnungsUebertragung.pdf":
+        ({"GENUINE", "SUSPICIOUS"}, _INTARSYS),
+    "ZUGFeRDv2__correct__intarsys__EXTENDED__zugferd_2p0_EXTENDED_Fremdwaehrung.pdf":
+        ({"GENUINE", "SUSPICIOUS"}, _INTARSYS),
 }
 
 logging.disable(logging.CRITICAL)

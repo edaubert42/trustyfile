@@ -114,6 +114,8 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
     "OVERLAY_DUPLICATED_TEXT",     # a line pasted again on top of itself
     "OVERLAY_FREEHAND_DRAWING",    # a pen stroke flattened into the page
     "META_MALFORMED_DATE",         # a metadata date that is not a date (hand-edited)
+    "STRUCT_ACROBAT_TEXT_EDIT",    # Acrobat's "Edit text" marker in the page itself:
+                                   # survives a full rewrite of the file
 })
 
 # The provenance codes that a legitimate re-save pipeline also produces
@@ -121,6 +123,18 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
 _PIPELINE_EXCUSABLE_CODES: frozenset[str] = frozenset({
     "META_DOCUMENT_MODIFIED", "STRUCT_XMP_EDITOR_MISMATCH", "META_NO_CREATION_DATE",
 })
+
+# A 2D-Doc whose ECDSA signature verifies AND whose every field matches the
+# visible page (twod_doc emits this code only when both hold). User rule,
+# 2026-11-13: such a document is GENUINE. The issuer signed what the page
+# shows, so a trace that only says "a tool touched this file" proves nothing
+# against it. Measured: a tax notice carries 4 Acrobat edit markers next to
+# its template labels, the issuer's own template work.
+#
+# It excuses PROVENANCE_BREAK_CODES only. Proof that visible content changed
+# (MODIFICATION_PROOF_CODES) and every other finding keep their full effect:
+# the barcode does not cover every field on the page.
+VERIFIED_DOCUMENT_CODES: frozenset[str] = frozenset({"TWOD_DOC_SIGNATURE_VALID"})
 
 # Genres an issuer generates once and hands over untouched.
 ISSUED_DOCUMENT_TYPES: frozenset[str] = frozenset({
@@ -198,8 +212,20 @@ def _unexcused_provenance_codes(flags: list[Flag], einvoice_xml: bool) -> set[st
     date is excused when the file is signed or carries a consistent e-invoice
     XML, or when its module graded it only "medium" (see
     proven_modification_codes for the measurements behind each excuse).
+
+    A verified 2D-Doc (VERIFIED_DOCUMENT_CODES) excuses every provenance code.
+
+    Examples:
+        >>> edit = Flag(severity="high", code="STRUCT_ACROBAT_TEXT_EDIT", message="")
+        >>> _unexcused_provenance_codes([edit], einvoice_xml=False)
+        {'STRUCT_ACROBAT_TEXT_EDIT'}
+        >>> barcode = Flag(severity="medium", code="TWOD_DOC_SIGNATURE_VALID", message="")
+        >>> _unexcused_provenance_codes([edit, barcode], einvoice_xml=False)
+        set()
     """
     codes = {f.code for f in flags}
+    if codes & VERIFIED_DOCUMENT_CODES:
+        return set()
     signed = bool(codes & _SIGNATURE_PRESENT_CODES)
     einvoice_ok = einvoice_xml and not (codes & _EINVOICE_MISMATCH_CODES)
 
@@ -375,6 +401,13 @@ def create_analysis_result(
     )
     downgrade_scanner_fp = document_type == "identity" and mrz_found
 
+    # A verified 2D-Doc excuses the provenance codes (VERIFIED_DOCUMENT_CODES).
+    # They are then left out of the ledger too, not only out of the band rule:
+    # their weight would otherwise withhold the hard-positive grant (gated on
+    # net tamper under 0.7 nats) and two of them would still add up to REVIEW.
+    verified = any(f.code in VERIFIED_DOCUMENT_CODES
+                   for r in module_results for f in r.flags)
+
     # Build the evidence ledger. A module that found nothing (no flags AND
     # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
     # trust upward. Modules score from their FLAGS, not their numeric score.
@@ -389,6 +422,8 @@ def create_analysis_result(
             scored_flags.append(f)
             if f.code in NON_EVIDENCE_CODES:
                 continue
+            if verified and f.code in PROVENANCE_BREAK_CODES:
+                continue    # shown to the reader, not scored
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)
             if ev is not None:
@@ -398,7 +433,7 @@ def create_analysis_result(
     proven = proven_modification_codes(
         scored_flags, document_type, coverage_blind, einvoice_xml=einvoice_xml)
     unverified = sorted({f.code for f in scored_flags if f.code in UNVERIFIED_ORIGIN_CODES}
-                        if document_type in ISSUED_DOCUMENT_TYPES else set())
+                        if document_type in ISSUED_DOCUMENT_TYPES and not verified else set())
     # Both lists cap the band at REVIEW (never GENUINE), see evidence.py
     unverified += edited_unknown_codes(scored_flags, document_type, einvoice_xml)
     agg = aggregate_evidence(evidence, analyzable=analyzable,
