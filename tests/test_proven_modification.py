@@ -280,3 +280,24 @@ def test_verified_barcode_excuses_both_rewrite_codes():
         res = _result([_flag(code, severity), _BARCODE], document_type="tax_document")
         assert res.band == "GENUINE", code
         assert res.forced_codes == {}, code
+
+
+# --- marks other editors leave in the page (2026-11-13) -------------------------
+
+def test_editor_marks_on_invoice_are_suspicious():
+    for code in ("STRUCT_EDITOR_MARKER", "STRUCT_EMPTY_TEXT_OPERATOR"):
+        res = _result([_flag(code)])
+        assert res.band == "SUSPICIOUS", code
+        assert res.forced_codes == {code: "SUSPICIOUS"}, code
+
+
+def test_editor_marks_on_unknown_genre_are_review():
+    for code in ("STRUCT_EDITOR_MARKER", "STRUCT_EMPTY_TEXT_OPERATOR"):
+        assert _result([_flag(code)], document_type="unknown").band == "REVIEW", code
+
+
+def test_editor_marks_on_an_article_are_only_a_hint():
+    for code in ("STRUCT_EDITOR_MARKER", "STRUCT_EMPTY_TEXT_OPERATOR"):
+        res = _result([_flag(code)], document_type="scientific")
+        assert res.band == "GENUINE", code
+        assert res.forced_codes == {}, code

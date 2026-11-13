@@ -42,6 +42,7 @@ from src.render_safety import safe_zoom
 from src.extractors.pdf_extractor import PDFData
 from src.modules.metadata import check_dates
 from src.modules.acrobat_edit import find_acrobat_text_edits
+from src.modules.editor_marks import find_editor_marks
 
 logger = logging.getLogger(__name__)
 
@@ -2039,6 +2040,70 @@ def check_acrobat_text_edit(pdf_path: str) -> list[Flag]:
     )]
 
 
+def check_editor_marks(pdf_path: str) -> list[Flag]:
+    """Flag the marks a PDF editor left in the page content.
+
+    Two flags, both read from the page itself, so both still there after the
+    file's dates, XMP and revisions have been wiped by a rewrite (see
+    src/modules/editor_marks.py for the marks and the corpus measurements):
+
+      STRUCT_EDITOR_MARKER        an editor's own named marker (Adobe Fill &
+                                  Sign, Wondershare PDFelement, Iceni Infix)
+      STRUCT_EMPTY_TEXT_OPERATOR  a text operator that draws nothing: what is
+                                  left when an editor deletes text
+
+    Args:
+        pdf_path: Path to the PDF file.
+
+    Returns:
+        Zero, one or two high flags.
+
+    Example:
+        Invoice with a line typed over it in Adobe Fill & Sign ->
+        [Flag(high, STRUCT_EDITOR_MARKER, details={"editors": {"Adobe Fill &
+          Sign": 1}, "instances": [{"page": 0, "bbox": (341, 178, 392, 191),
+          "text": "Remise 30 %"}]})]
+    """
+    marks = find_editor_marks(pdf_path)
+    flags: list[Flag] = []
+
+    if marks.editors:
+        names = ", ".join(sorted(marks.editors))
+        flags.append(Flag(
+            severity="high",
+            code="STRUCT_EDITOR_MARKER",
+            message=(f"Content was added or edited with {names} "
+                     f"({sum(marks.editors.values())} marker(s) in the page content)"),
+            details={
+                "editors": dict(marks.editors),
+                # page is 0-based here, like every other "instances" entry
+                "instances": [{"page": line.page, "bbox": line.bbox, "text": line.text}
+                              for line in marks.lines],
+                "explanation": "This editor marks the content it adds or takes "
+                               "over. The lines listed are drawn inside its "
+                               "marks. An issuer's software does not leave "
+                               "them, a manual edit does.",
+            },
+        ))
+
+    if marks.empty_text_operators:
+        flags.append(Flag(
+            severity="high",
+            code="STRUCT_EMPTY_TEXT_OPERATOR",
+            message=(f"{marks.empty_text_operators} text operator(s) in the page "
+                     f"content draw nothing: text was deleted by an editor"),
+            details={
+                "count": marks.empty_text_operators,
+                "explanation": "A page draws text with an operator that holds "
+                               "the characters. Here the operator is still "
+                               "there and its characters are gone. Software "
+                               "that generates a document does not write that; "
+                               "an editor removing text does.",
+            },
+        ))
+    return flags
+
+
 def check_embedded_files(pdf_path: str) -> list[Flag]:
     """
     Check for embedded files in the PDF.
@@ -2410,6 +2475,7 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
     all_flags.extend(check_javascript(pdf_data.file_path))
     all_flags.extend(check_hidden_annotations(pdf_data.file_path))
     all_flags.extend(check_acrobat_text_edit(pdf_data.file_path))
+    all_flags.extend(check_editor_marks(pdf_data.file_path))
     all_flags.extend(check_embedded_files(pdf_data.file_path))
     all_flags.extend(check_acroform(pdf_data.file_path))
     all_flags.extend(check_object_streams(pdf_data.file_path, has_trusted_signature))

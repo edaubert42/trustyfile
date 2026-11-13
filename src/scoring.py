@@ -117,6 +117,11 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
     "META_MALFORMED_DATE",         # a metadata date that is not a date (hand-edited)
     "STRUCT_ACROBAT_TEXT_EDIT",    # Acrobat's "Edit text" marker in the page itself:
                                    # survives a full rewrite of the file
+    "STRUCT_EDITOR_MARKER",        # another editor's own marker in the page (Adobe
+                                   # Fill & Sign, Wondershare, Infix): survives a
+                                   # rewrite too. 0 of 176 legit files, 2026-11-13
+    "STRUCT_EMPTY_TEXT_OPERATOR",  # a text operator left with no characters: an
+                                   # editor deleted text. 0 of 176 legit files
     "PROVENANCE_FILE_REWRITTEN",   # bytes laid out by PyMuPDF while the Producer
                                    # names a known other tool: the file was written
                                    # again afterwards (the pass that wipes an edit's

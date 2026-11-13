@@ -20,17 +20,22 @@ The rewrite is done three ways:
     PAGE evidence alone.
 
 Measured 2026-11-13: 12 of the 32 forged documents came out GENUINE (96-98)
-after the rewrite, with either tool. Two detectors answered the same day:
+after the rewrite, with either tool. Three detectors answered the same day:
   - Acrobat's edit marker (STRUCT_ACROBAT_TEXT_EDIT, read from the page
     content) catches 6 of them under every rewriter;
+  - the marks of other editors (STRUCT_EDITOR_MARKER,
+    STRUCT_EMPTY_TEXT_OPERATOR, also read from the page) catch 3 more under
+    every rewriter;
   - the rewrite-engine rule (PROVENANCE_FILE_REWRITTEN /
     PROVENANCE_WRITER_UNVERIFIED) recognises the rewriting tool from the
-    file's header bytes: the other 6 no longer reach GENUINE under "pymupdf"
+    file's header bytes: the last 3 no longer reach GENUINE under "pymupdf"
     and "qpdf". It catches the tool, not the forgery: 4 bytes defeat it.
 
-So the 6 stay listed in KNOWN_MISSES under "pymupdf-forged-header", marked
-xfail(strict): the day a detector reading the page catches one, pytest fails
-until the entry is removed, so progress has to be recorded here.
+So the last 3 stay listed in KNOWN_MISSES under "pymupdf-forged-header",
+marked xfail(strict): the day a detector catches one, pytest fails until the
+entry is removed, so progress has to be recorded here. For these 3 the page
+holds nothing to read (see MISS_REASONS): only the file's history gave them
+away.
 
 The corpus is gitignored (real documents never leave the machine), so the
 corpus tests skip when it is absent. test_rewrite_removes_file_history needs
@@ -165,28 +170,22 @@ def _name(path: str) -> str:
 # and which file trace was the only thing catching it.
 MISS_REASONS: dict[str, str] = {
     "Facture ordi volé.pdf":
-        "text changed between two revisions; caught only by the revision diff",
+        "one line DELETED between two revisions (\"MISE EN SERVICE PAR "
+        "Boulanger (art 3): NON ...\"); a deletion leaves nothing on the page, "
+        "caught only by the revision diff",
     "Receipt_29Jun2022_001045.pdf":
-        "caught only by the Acrobat XMP",
-    "adobeonline-text-add.pdf":
-        "text added in Adobe online; caught only by the date gap",
+        "saved in Acrobat 22 minutes after its export, what changed is not "
+        "known; caught only by the Acrobat XMP",
     "smallpdf-compress.pdf":
-        "compressed by Smallpdf; caught only by the missing CreationDate",
-    "unknown-3.0.39-text-edit.pdf":
-        "text edited; caught only by the date gap",
-    "wondershare-text-edit.pdf":
-        "text edited in Wondershare; caught only by the revision diff",
+        "compressed by Smallpdf, no content changed; caught only by the "
+        "missing CreationDate",
 }
 
 # Rewriter -> the forged documents it still gets to GENUINE.
 #
-# None under "pymupdf" and "qpdf" since the rewrite-engine rule: the 6 come out
+# None under "pymupdf" and "qpdf" since the rewrite-engine rule: the 3 come out
 # SUSPICIOUS or REVIEW because the TOOL is recognised. Nothing on their pages
 # gives them away, which is what "pymupdf-forged-header" keeps on record.
-#
-# Careful with 3 of them (adobeonline-text-add, wondershare-text-edit,
-# unknown-3.0.39-text-edit): they are edits of a test invoice that PyMuPDF
-# itself generated, so the unedited original is capped at REVIEW as well.
 KNOWN_MISSES: dict[str, frozenset[str]] = {
     "pymupdf": frozenset(),
     "qpdf": frozenset(),
