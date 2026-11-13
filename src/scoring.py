@@ -128,6 +128,56 @@ PROVENANCE_BREAK_CODES: frozenset[str] = frozenset({
                                    # traces). 0 of 176 legit files, 2026-11-13
 })
 
+# Among the provenance codes, the ones showing that an editor WROTE ON THE
+# PAGE (typed, drew, deleted), as opposed to a tool that only saved the file
+# again. What was written before is not known: no earlier version to compare.
+PAGE_EDIT_CODES: frozenset[str] = frozenset({
+    "STRUCT_ACROBAT_TEXT_EDIT", "STRUCT_EDITOR_MARKER", "STRUCT_EMPTY_TEXT_OPERATOR",
+    "STRUCT_MARKUP_ANNOTATIONS", "OVERLAY_DUPLICATED_TEXT", "OVERLAY_FREEHAND_DRAWING",
+})
+
+
+def modification_level(proven: list[str]) -> str | None:
+    """Return what the strongest proof in `proven` establishes.
+
+    Three levels, strongest first. Each has its own score ceiling
+    (evidence.MODIFICATION_CEILINGS) and its own verdict sentence (summary):
+
+      "content_changed"  a MODIFICATION_PROOF_CODES entry: the changed content
+                         itself is shown (text before and after, two fonts in
+                         one word).
+      "page_edited"      a PAGE_EDIT_CODES entry: an editor wrote on the page,
+                         what it changed is not known.
+      "not_original"     any other proven code: the file was saved again by
+                         another tool (converter, compressor, later re-save);
+                         nothing shows that the page changed.
+
+    Args:
+        proven: Result of proven_modification_codes().
+
+    Returns:
+        The level name, or None when nothing is proven.
+
+    Examples:
+        >>> modification_level(["META_ONLINE_CONVERTER"])
+        'not_original'
+        >>> modification_level(["META_ONLINE_CONVERTER", "STRUCT_ACROBAT_TEXT_EDIT"])
+        'page_edited'
+        >>> modification_level(["STRUCT_ACROBAT_TEXT_EDIT", "OVERLAY_REVISION_TEXT_CHANGED"])
+        'content_changed'
+        >>> modification_level([]) is None
+        True
+    """
+    if not proven:
+        return None
+    codes = set(proven)
+    if codes & MODIFICATION_PROOF_CODES:
+        return "content_changed"
+    if codes & PAGE_EDIT_CODES:
+        return "page_edited"
+    return "not_original"
+
+
 # The provenance codes that a legitimate re-save pipeline also produces
 # (signing, attaching Factur-X XML, a library that skips the field).
 _PIPELINE_EXCUSABLE_CODES: frozenset[str] = frozenset({
@@ -454,11 +504,13 @@ def create_analysis_result(
                         if document_type in ISSUED_DOCUMENT_TYPES and not verified else set())
     # Both lists cap the band at REVIEW (never GENUINE), see evidence.py
     unverified += edited_unknown_codes(scored_flags, document_type, einvoice_xml)
+    level = modification_level(proven)
     agg = aggregate_evidence(evidence, analyzable=analyzable,
                              coverage_blind=coverage_blind,
                              hard_detector_blinded=hard_detector_blinded,
                              proven_modification=bool(proven),
-                             origin_unverified=bool(unverified))
+                             origin_unverified=bool(unverified),
+                             modification_level=level or "not_original")
     forced_codes = {code: "REVIEW" for code in unverified}
     forced_codes.update({code: "SUSPICIOUS" for code in proven})
 
@@ -474,4 +526,5 @@ def create_analysis_result(
         score_high=agg.score_high,
         evidence_ledger=agg.ledger,
         forced_codes=forced_codes,
+        modification_level=level,
     )

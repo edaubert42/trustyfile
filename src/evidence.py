@@ -153,6 +153,21 @@ BAND_SUSPICIOUS_CRITICAL_MAX = 20  # below this, risk is CRITICAL
 # REVIEW: summing hints could never get there — one high flag alone scored
 # 92/GENUINE, even a critical only 73 — so the band is forced instead.
 PROVEN_MODIFICATION_CEILING = BAND_REVIEW_MIN - 1
+# Not every proof says the same thing, so not every proof caps the score at
+# the same place (scoring.modification_level picks the level). Until
+# 2026-11-13 there was one ceiling: 19 of the 32 forged corpus documents
+# scored exactly 49, a compressed file like one whose text had changed.
+#   content_changed  the changed content itself is shown (a revision diff, two
+#                    fonts in one word). Same ceiling as hard tamper evidence,
+#                    under BAND_SUSPICIOUS_CRITICAL_MAX: risk CRITICAL.
+#   page_edited      an editor wrote on the page; what it changed is not known.
+#   not_original     the file was saved again by another tool; nothing shows
+#                    that the page changed.
+MODIFICATION_CEILINGS: dict[str, int] = {
+    "content_changed": HARD_NEGATIVE_CEILING,
+    "page_edited": 35,
+    "not_original": PROVEN_MODIFICATION_CEILING,
+}
 
 
 @dataclass
@@ -188,7 +203,8 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
                        coverage_blind: bool = False,
                        hard_detector_blinded: bool = False,
                        proven_modification: bool = False,
-                       origin_unverified: bool = False) -> AggregateResult:
+                       origin_unverified: bool = False,
+                       modification_level: str = "not_original") -> AggregateResult:
     if not analyzable:
         return AggregateResult(score=0, band="UNVERIFIABLE", risk_level="UNVERIFIABLE",
                                score_low=0, score_high=0, ledger=list(evidence))
@@ -249,8 +265,10 @@ def aggregate_evidence(evidence: list["Evidence"], analyzable: bool = True,
     # That is a verdict, not one more hint to add up: cap into SUSPICIOUS.
     # Applied BEFORE the coverage gate on purpose — SUSPICIOUS passes that
     # gate, so a modified scan is reported as such, not as UNVERIFIABLE.
+    # How low depends on what the proof establishes (MODIFICATION_CEILINGS).
     if proven_modification:
-        score = min(score, PROVEN_MODIFICATION_CEILING)
+        score = min(score, MODIFICATION_CEILINGS.get(
+            modification_level, PROVEN_MODIFICATION_CEILING))
 
     band, risk = _band_and_risk(score)
     # Coverage gate (spec 2026-07-17, D1/D3): a blind document — no usable
