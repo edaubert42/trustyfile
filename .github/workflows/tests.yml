@@ -75,12 +75,16 @@ jobs:
 
       # Boot the production image the way Railway does (CMD = start.sh) and
       # hit it from outside: Caddy starts and parses the Caddyfile, serves
-      # the static pages, proxies the app, the API analyses the sample PDF.
-      # Then check the system libraries some tests silently skip without.
+      # the static pages, proxies the app, the API analyses the sample PDF
+      # with a key made through the admin route (a throwaway key database
+      # and admin token, as on staging). Then check the system libraries
+      # some tests silently skip without.
       - name: Smoke test the production image
         if: matrix.smoke
         run: |
-          docker run -d --name site -p 8080:8080 trustyfile:runtime
+          docker run -d --name site -p 8080:8080 \
+            -e TRUSTYFILE_API_DB=/tmp/api.db -e TRUSTYFILE_ADMIN_TOKEN=smoke \
+            trustyfile:runtime
           for _ in $(seq 30); do
             curl -fsS -o /dev/null http://127.0.0.1:8080/ && break
             sleep 1
@@ -89,7 +93,13 @@ jobs:
           curl -fsS -o /dev/null http://127.0.0.1:8080/en
           curl -fsS -o /dev/null http://127.0.0.1:8080/guides/
           curl -fsS -o /dev/null http://127.0.0.1:8080/robots.txt
-          curl -fsS -F file=@public/static/demo/facture-exemple.pdf \
+          # No key: refused. Then a key from the admin route, and the analysis.
+          test "$(curl -s -o /dev/null -w '%{http_code}' -F file=@public/static/demo/facture-exemple.pdf \
+            http://127.0.0.1:8080/api/v1/analyze)" = 401
+          key=$(curl -fsS -u admin:smoke -H 'Content-Type: application/json' \
+            -d '{"name": "smoke", "monthly_quota": 1}' http://127.0.0.1:8080/api/v1/admin/keys \
+            | python3 -c "import json, sys; print(json.load(sys.stdin)['secret'])")
+          curl -fsS -H "Authorization: Bearer $key" -F file=@public/static/demo/facture-exemple.pdf \
             http://127.0.0.1:8080/api/v1/analyze -o report.json
           python3 -c "import json; r = json.load(open('report.json')); print('band:', r['band'], 'score:', r['trust_score'])"
 
