@@ -2941,9 +2941,10 @@ GUIDES: dict[str, list[Guide]] = {
                         "fichier et les identifiants d'entreprise (SIRET, TVA) peuvent "
                         "être envoyés à des services externes (VirusTotal, INSEE, VIES) "
                         "pour les vérifier.",
-                        "L'analyse est gratuite, sans inscription, et disponible aussi "
-                        'par <a href="/api/docs">API</a> : POST /api/v1/analyze renvoie '
-                        "le même rapport JSON que la page de résultats.",
+                        "L'analyse sur le site est gratuite et sans inscription. Elle "
+                        'existe aussi par <a href="/api/docs">API</a>, avec une clé : '
+                        "POST /api/v1/analyze renvoie le même rapport JSON que la page "
+                        "de résultats.",
                     ],
                 ),
             ],
@@ -2964,9 +2965,11 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
                 (
                     "Peut-on utiliser TrustyFile par API ?",
-                    "Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport "
+                    "Oui, avec une clé d'API, à demander à contact@trustyfile.com. "
+                    "POST /api/v1/analyze reçoit un PDF et renvoie le rapport "
                     "d'analyse en JSON, le même que le téléchargement de la page de "
-                    "résultats. La documentation est sur trustyfile.com/api/docs.",
+                    "résultats. Chaque clé a un quota mensuel d'analyses. La "
+                    "documentation est sur trustyfile.com/api/docs.",
                 ),
             ],
         ),
@@ -5307,9 +5310,10 @@ GUIDES: dict[str, list[Guide]] = {
                         "being viewed, one hour at most. Only the file's hash and the "
                         "company identifiers (SIRET, VAT) may be sent to outside "
                         "services (VirusTotal, INSEE, VIES) to check them.",
-                        "The analysis is free, with no sign-up, and also available "
-                        'through the <a href="/api/docs">API</a>: POST /api/v1/analyze '
-                        "returns the same JSON report as the results page.",
+                        "The analysis on the site is free, with no sign-up. It is also "
+                        'available through the <a href="/api/docs">API</a>, with a key: '
+                        "POST /api/v1/analyze returns the same JSON report as the "
+                        "results page.",
                     ],
                 ),
             ],
@@ -5330,9 +5334,11 @@ GUIDES: dict[str, list[Guide]] = {
                 ),
                 (
                     "Can TrustyFile be used through an API?",
-                    "Yes. POST /api/v1/analyze takes a PDF and returns the analysis "
-                    "report as JSON, the same as the results-page download. The "
-                    "documentation is at trustyfile.com/api/docs.",
+                    "Yes, with an API key: ask for one at contact@trustyfile.com. "
+                    "POST /api/v1/analyze takes a PDF and returns the analysis "
+                    "report as JSON, the same as the results-page download. Each key "
+                    "has a monthly quota of analyses. The documentation is at "
+                    "trustyfile.com/api/docs.",
                 ),
             ],
         ),

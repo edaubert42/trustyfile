@@ -103,6 +103,8 @@ trustyfile/
 │   ├── batch.py              # One BatchItem per uploaded file (batch page)
 │   ├── feedback.py           # Thumbs up/down: log line + SQLite (TRUSTYFILE_FEEDBACK_DB);
 │   │                         # owner CSV export at /api/v1/feedback.csv (TRUSTYFILE_ADMIN_TOKEN)
+│   ├── api_keys.py           # API keys (SHA-256 only) + monthly quotas, SQLite
+│   │                         # (TRUSTYFILE_API_DB; unset = API answers 503)
 │   ├── document_type.py      # Document-genre classifier (FP suppression)
 │   ├── models.py             # Flag, ModuleResult, AnalysisResult
 │   ├── render_safety.py      # safe_zoom + page caps — every raster module
@@ -112,7 +114,8 @@ trustyfile/
 │   ├── web/                  # The website (display layer)
 │   │   ├── app.py            # FastAPI pages: /, /en, POST /analyse, /r/<token>,
 │   │   │                     # /b/<token>, /demo; mounts the JSON API
-│   │   ├── api.py            # JSON API: POST /api/v1/analyze
+│   │   ├── api.py            # JSON API: POST /api/v1/analyze (Bearer key + quota),
+│   │   │                     # GET /api/v1/usage, owner routes /api/v1/admin/keys
 │   │   ├── documents.py      # What a page keeps about an upload (StoredDocument,
 │   │   │                     # StoredBatch, StoredPhoto) and how it is produced
 │   │   ├── store.py          # In-memory TTL store behind /r/<token> (15 min,

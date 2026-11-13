@@ -295,19 +295,44 @@ results page, so scripts and readers share a single schema
 (`schema_version` in the body, defined in `src/report.py`).
 
 ```bash
-curl -F file=@invoice.pdf "https://www.trustyfile.com/api/v1/analyze?lang=fr"
+curl -H "Authorization: Bearer tf_live_..." -F file=@invoice.pdf \
+     "https://www.trustyfile.com/api/v1/analyze?lang=fr"
 ```
 
 | | |
 |---|---|
+| Key | required, `Authorization: Bearer tf_live_...` — `401` when missing, unknown, revoked or expired |
+| Quota | per key, per calendar month (UTC); only successful analyses count. Every answer carries `X-Quota-Limit`, `X-Quota-Remaining`, `X-Quota-Reset`; `429 QUOTA_EXCEEDED` once used up. `GET /api/v1/usage` shows it for free |
 | `lang` | `fr` (default) or `en` — language of the sentences and verdict |
 | `external` | `true` (default, as in the web app) verifies SIRET/VAT against INSEE/VIES; `false` analyses the file alone, offline |
 | Limits | PDF only, 10 MB, 20 pages — `415`, `413`, `422` otherwise, with a JSON `error` body |
-| Load | 2 analyses at a time per server (`503` + `Retry-After` when busy), 20 requests/minute per client (`429`) |
+| Load | 2 analyses at a time per server (`503` + `Retry-After` when busy), 20 requests/minute per key (`429`) |
 | Docs | interactive OpenAPI at `/api/docs`, schema at `/api/openapi.json`, liveness at `/api/v1/health` |
 
 Documents are analysed on a temporary file that is deleted when the answer is
 sent; nothing is retained. Locally: `uvicorn src.web.app:app --port 8000`.
+
+### Managing keys (owner)
+
+Keys live in the SQLite file named by `TRUSTYFILE_API_DB` (on Railway, a path
+on the Volume such as `/data/api.db`); only their SHA-256 is stored. Without
+that variable the API answers `503` to every call. The admin routes use HTTP
+Basic auth with `TRUSTYFILE_ADMIN_TOKEN` as the password and are not listed
+in `/api/docs`:
+
+```bash
+# Create (the answer's "secret" is the key, shown this once)
+curl -u admin:$TOKEN -H 'Content-Type: application/json' \
+     -d '{"name": "Acme", "email": "it@acme.example", "monthly_quota": 200, "expires_in_days": 7}' \
+     https://www.trustyfile.com/api/v1/admin/keys
+# List, with this month's usage
+curl -u admin:$TOKEN https://www.trustyfile.com/api/v1/admin/keys
+# Trial turns paid: new quota, no expiry
+curl -u admin:$TOKEN -X PATCH -H 'Content-Type: application/json' \
+     -d '{"monthly_quota": 1000, "expires_in_days": null}' https://www.trustyfile.com/api/v1/admin/keys/1
+# Revoke
+curl -u admin:$TOKEN -X DELETE https://www.trustyfile.com/api/v1/admin/keys/1
+```
 
 ## Roadmap
 

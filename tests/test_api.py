@@ -19,6 +19,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import src.web.api as api_module
+from src.api_keys import DB_ENV as KeyStore_DB_ENV
+from src.api_keys import KeyStore
 from src.web.api import SlidingWindowLimiter, api
 from src.report import SCHEMA_VERSION
 
@@ -26,12 +28,26 @@ ROOT = Path(__file__).resolve().parent.parent
 DEMO_PDF = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 
 
+@pytest.fixture(autouse=True)
+def api_db(monkeypatch, tmp_path_factory):
+    """A fresh key database per test (src/api_keys.py); every call needs a key.
+    Kept out of tmp_path, which the not-retained tests expect to stay empty."""
+    path = str(tmp_path_factory.mktemp("keys") / "api.db")
+    monkeypatch.setenv(KeyStore_DB_ENV, path)
+    return KeyStore(path)
+
+
+def _keyed_client(store: KeyStore, quota: int = 10_000) -> TestClient:
+    secret, _ = store.create("tests", monthly_quota=quota)
+    return TestClient(api, headers={"Authorization": f"Bearer {secret}"})
+
+
 @pytest.fixture
-def client(monkeypatch):
-    """A fresh client with a permissive rate limiter, so tests do not starve
-    each other; the rate-limit tests install their own tight limiter."""
+def client(monkeypatch, api_db):
+    """A fresh keyed client with a permissive rate limiter, so tests do not
+    starve each other; the rate-limit tests install their own tight limiter."""
     monkeypatch.setattr(api_module, "_limiter", SlidingWindowLimiter(limit=10_000, window_s=60))
-    return TestClient(api)
+    return _keyed_client(api_db)
 
 
 def _post_pdf(client: TestClient, data: bytes, name: str = "facture-exemple.pdf", **params):
@@ -253,9 +269,9 @@ class TestSlidingWindowLimiter:
         assert len(limiter._hits) == 1
 
 
-def test_rate_limited_client_gets_429_with_retry_after(monkeypatch):
+def test_rate_limited_client_gets_429_with_retry_after(monkeypatch, api_db):
     monkeypatch.setattr(api_module, "_limiter", SlidingWindowLimiter(limit=2, window_s=60))
-    client = TestClient(api)
+    client = _keyed_client(api_db)
     assert _post_pdf(client, DEMO_PDF.read_bytes()).status_code == 200
     assert _post_pdf(client, DEMO_PDF.read_bytes()).status_code == 200
     third = _post_pdf(client, DEMO_PDF.read_bytes())
@@ -264,24 +280,26 @@ def test_rate_limited_client_gets_429_with_retry_after(monkeypatch):
     assert int(third.headers["retry-after"]) >= 1
 
 
-def test_rate_limit_keys_on_the_forwarded_client_behind_caddy(monkeypatch):
-    """Caddy proxies every request from 127.0.0.1; without X-Forwarded-For
-    all callers would share one bucket."""
+def test_rate_limit_is_per_api_key_not_per_address(monkeypatch, api_db):
+    """Two customers behind one address (or one NAT) keep separate budgets,
+    and one customer cannot dodge theirs by changing address."""
     monkeypatch.setattr(api_module, "_limiter", SlidingWindowLimiter(limit=1, window_s=60))
-    client = TestClient(api)
+    a, b = _keyed_client(api_db), _keyed_client(api_db)
     data = DEMO_PDF.read_bytes()
-    a = client.post("/api/v1/analyze", files={"file": ("a.pdf", data)}, params={"external": "false"},
-                    headers={"X-Forwarded-For": "203.0.113.5, 10.0.0.1"})
-    b = client.post("/api/v1/analyze", files={"file": ("a.pdf", data)}, params={"external": "false"},
-                    headers={"X-Forwarded-For": "203.0.113.6"})
-    a_again = client.post("/api/v1/analyze", files={"file": ("a.pdf", data)}, params={"external": "false"},
-                          headers={"X-Forwarded-For": "203.0.113.5"})
-    assert (a.status_code, b.status_code, a_again.status_code) == (200, 200, 429)
+
+    def post(client: TestClient, ip: str):
+        return client.post("/api/v1/analyze", files={"file": ("a.pdf", data)},
+                           params={"external": "false"}, headers={"X-Forwarded-For": ip})
+
+    first_a = post(a, "203.0.113.5")
+    first_b = post(b, "203.0.113.5")
+    a_elsewhere = post(a, "198.51.100.7")
+    assert (first_a.status_code, first_b.status_code, a_elsewhere.status_code) == (200, 200, 429)
 
 
-def test_health_is_not_rate_limited(monkeypatch):
+def test_health_is_not_rate_limited(monkeypatch, api_db):
     monkeypatch.setattr(api_module, "_limiter", SlidingWindowLimiter(limit=1, window_s=60))
-    client = TestClient(api)
+    client = _keyed_client(api_db)
     assert _post_pdf(client, DEMO_PDF.read_bytes()).status_code == 200
     assert client.get("/api/v1/health").status_code == 200
 

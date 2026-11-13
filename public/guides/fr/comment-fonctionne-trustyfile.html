@@ -190,7 +190,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
                         "name": "Peut-on utiliser TrustyFile par API ?",
                         "acceptedAnswer": {
                                 "@type": "Answer",
-                                "text": "Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d'analyse en JSON, le même que le téléchargement de la page de résultats. La documentation est sur trustyfile.com/api/docs."
+                                "text": "Oui, avec une clé d'API, à demander à contact@trustyfile.com. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d'analyse en JSON, le même que le téléchargement de la page de résultats. Chaque clé a un quota mensuel d'analyses. La documentation est sur trustyfile.com/api/docs."
                         }
                 }
         ]
@@ -255,7 +255,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
     </ul>
     <h2 id="ce-que-deviennent-vos-documents">Ce que deviennent vos documents</h2>
     <p>Le fichier est analysé puis supprimé. La page de résultats est gardée en mémoire seulement, et disparaît après quinze minutes sans consultation, une heure au plus. Seuls l'empreinte du fichier et les identifiants d'entreprise (SIRET, TVA) peuvent être envoyés à des services externes (VirusTotal, INSEE, VIES) pour les vérifier.</p>
-    <p>L'analyse est gratuite, sans inscription, et disponible aussi par <a href="/api/docs">API</a> : POST /api/v1/analyze renvoie le même rapport JSON que la page de résultats.</p>
+    <p>L'analyse sur le site est gratuite et sans inscription. Elle existe aussi par <a href="/api/docs">API</a>, avec une clé : POST /api/v1/analyze renvoie le même rapport JSON que la page de résultats.</p>
     <h2>Questions fréquentes</h2>
     <dl class="faq">
         <dt>TrustyFile est-il fiable ?</dt>
@@ -263,7 +263,7 @@ p.privacy { color: #666; font-size: 0.88rem; margin: 0 0 1rem; }
         <dt>TrustyFile conserve-t-il mes documents ?</dt>
         <dd>Non. Le fichier est analysé puis supprimé ; le résultat reste en mémoire quinze minutes sans consultation, une heure au plus.</dd>
         <dt>Peut-on utiliser TrustyFile par API ?</dt>
-        <dd>Oui. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d&#x27;analyse en JSON, le même que le téléchargement de la page de résultats. La documentation est sur trustyfile.com/api/docs.</dd>
+        <dd>Oui, avec une clé d&#x27;API, à demander à contact@trustyfile.com. POST /api/v1/analyze reçoit un PDF et renvoie le rapport d&#x27;analyse en JSON, le même que le téléchargement de la page de résultats. Chaque clé a un quota mensuel d&#x27;analyses. La documentation est sur trustyfile.com/api/docs.</dd>
     </dl>
     <h2>Autres guides</h2>
     <a class="card" href="/guides/reperer-un-faux-dossier-de-location">
