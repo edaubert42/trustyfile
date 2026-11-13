@@ -850,9 +850,10 @@ def render_llms_txt() -> str:
         "",
         f"- [Documentation de l'API / API docs]({SITE}/api/docs): "
         "POST /api/v1/analyze — un PDF en entrée, le rapport d'analyse JSON en "
-        "sortie (le même que le téléchargement de la page de résultats). "
+        "sortie (le même que le téléchargement de la page de résultats) ; "
+        "clé d'API requise, quota mensuel. "
         "One PDF in, the JSON analysis report out — same schema as the "
-        "results-page download.",
+        "results-page download; API key required, monthly quota.",
         "",
     ]
     headings = {

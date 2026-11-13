@@ -11,7 +11,7 @@ TrustyFile est un outil d'aide à la décision, pas une autorité de certificati
 
 ## API
 
-- [Documentation de l'API / API docs](https://www.trustyfile.com/api/docs): POST /api/v1/analyze — un PDF en entrée, le rapport d'analyse JSON en sortie (le même que le téléchargement de la page de résultats). One PDF in, the JSON analysis report out — same schema as the results-page download.
+- [Documentation de l'API / API docs](https://www.trustyfile.com/api/docs): POST /api/v1/analyze — un PDF en entrée, le rapport d'analyse JSON en sortie (le même que le téléchargement de la page de résultats) ; clé d'API requise, quota mensuel. One PDF in, the JSON analysis report out — same schema as the results-page download; API key required, monthly quota.
 
 ## Guides (français)
 

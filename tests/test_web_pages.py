@@ -20,6 +20,8 @@ from PIL import Image
 import src.web.app as web_app
 import src.web.documents as documents
 from src.analyzer import TrustyFileAnalyzer
+from src.api_keys import DB_ENV as API_DB_ENV
+from src.api_keys import KeyStore
 from src.intake import MAX_PAGES
 from src.web.store import TTLStore
 
@@ -195,17 +197,21 @@ def test_preview_page_out_of_range_is_404(client):
     assert client.get("/r/unknown-token/page/1.png").status_code == 404
 
 
-def test_report_download_matches_the_api_report(client, monkeypatch):
+def test_report_download_matches_the_api_report(client, monkeypatch, tmp_path_factory):
     """The download and the API answer come from the same serializer."""
     path = _analysed(client, name="facture-exemple.pdf")
     download = client.get(f"{path}/report.json?lang=fr")
     assert download.status_code == 200
     assert download.headers["content-disposition"].startswith("attachment; filename=")
 
+    db = str(tmp_path_factory.mktemp("keys") / "api.db")
+    monkeypatch.setenv(API_DB_ENV, db)
+    secret, _ = KeyStore(db).create("tests", monthly_quota=10)
     api_answer = client.post(
         "/api/v1/analyze",
         files={"file": ("facture-exemple.pdf", DEMO_PDF.read_bytes(), "application/pdf")},
         params={"external": "false", "lang": "fr"},
+        headers={"Authorization": f"Bearer {secret}"},
     )
     assert api_answer.status_code == 200, api_answer.text
     page_report, api_report = download.json(), api_answer.json()

@@ -25,6 +25,7 @@ _CODE_RE = re.compile(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"')
 NOT_FLAG_CODES = {
     "INCOME_CHECK",   # twod_doc.py: a ComparisonMatch DI label, not a Flag code
     "TRUSTYFILE_FEEDBACK_DB",  # feedback.py: an environment variable name, not a Flag code
+    "TRUSTYFILE_API_DB",  # api_keys.py: an environment variable name, not a Flag code
 }
 
 # Codes without a sentence template fall back to their (English)
