@@ -18,7 +18,8 @@ corpus, so raising their weight cannot demote a legitimate document.
 import fitz
 import pytest
 
-from scripts.build_corpus import build_corpus, corpus_expectations, stamp_invoice_body
+from scripts.build_corpus import (build_corpus, corpus_expectations,
+                                  stamp_invoice_body, stamp_issuer_header)
 from src.analyzer import TrustyFileAnalyzer
 
 NON_EDITOR = "ReportLab PDF Library"
@@ -43,6 +44,7 @@ def _conflicting_text_pdf(path):
     page.insert_text(fitz.Point(400, 610), "9 200,00", fontname="helv", fontsize=12)
     doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
     doc.save(path); doc.close()
+    stamp_issuer_header(path)   # the fixture stands for the producer's own file
     return path
 
 
@@ -58,6 +60,7 @@ def _opaque_fill_over_text_pdf(path):
     page.draw_rect(r, color=(1, 1, 1), fill=(1, 1, 1), width=0)   # white box, no retype on top
     doc.set_metadata({"producer": NON_EDITOR, "creationDate": "D:20250115103000"})
     doc.save(path); doc.close()
+    stamp_issuer_header(path)   # the fixture stands for the producer's own file
     return path
 
 

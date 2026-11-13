@@ -241,3 +241,42 @@ def test_excused_flag_is_still_shown_to_the_reader():
                   document_type="tax_document")
     shown = [f.code for m in res.modules for f in m.flags]
     assert "STRUCT_ACROBAT_TEXT_EDIT" in shown
+
+
+# --- rewrite engines (2026-11-13): PyMuPDF / qpdf bytes ------------------------
+
+def test_file_rewritten_on_invoice_is_suspicious():
+    res = _result([_flag("PROVENANCE_FILE_REWRITTEN")])
+    assert res.band == "SUSPICIOUS"
+    assert res.forced_codes == {"PROVENANCE_FILE_REWRITTEN": "SUSPICIOUS"}
+
+
+def test_file_rewritten_on_unknown_genre_is_review():
+    assert _result([_flag("PROVENANCE_FILE_REWRITTEN")], document_type="unknown").band == "REVIEW"
+
+
+def test_file_rewritten_on_an_article_is_only_a_hint():
+    res = _result([_flag("PROVENANCE_FILE_REWRITTEN")], document_type="scientific")
+    assert res.band == "GENUINE"
+    assert res.forced_codes == {}
+
+
+def test_writer_unverified_invoice_is_review_not_genuine():
+    res = _result([_flag("PROVENANCE_WRITER_UNVERIFIED", "low")], "invoice")
+    assert res.band == "REVIEW"
+    assert res.forced_codes == {"PROVENANCE_WRITER_UNVERIFIED": "REVIEW"}
+
+
+def test_writer_unverified_outside_issued_documents_changes_nothing():
+    for genre in ("unknown", "scientific"):
+        alone = _result([], genre)
+        flagged = _result([_flag("PROVENANCE_WRITER_UNVERIFIED", "low")], genre)
+        assert (flagged.band, flagged.trust_score) == (alone.band, alone.trust_score), genre
+
+
+def test_verified_barcode_excuses_both_rewrite_codes():
+    for code, severity in (("PROVENANCE_FILE_REWRITTEN", "high"),
+                           ("PROVENANCE_WRITER_UNVERIFIED", "low")):
+        res = _result([_flag(code, severity), _BARCODE], document_type="tax_document")
+        assert res.band == "GENUINE", code
+        assert res.forced_codes == {}, code

@@ -11,16 +11,26 @@ This gate analyses that rewritten copy. What still catches it is evidence
 carried by the PAGE itself (fonts, overlays, content), the only kind a forger
 cannot wipe for free.
 
-The rewrite is done with two unrelated tools, PyMuPDF and qpdf (through
-pikepdf). Each writes files its own way, so a detector that only recognises
-one tool's output cannot turn the whole gate green.
+The rewrite is done three ways:
+  - "pymupdf" and "qpdf" (through pikepdf): two unrelated tools, each writing
+    files its own way;
+  - "pymupdf-forged-header": PyMuPDF again, then the 4 header bytes that give
+    PyMuPDF away are overwritten with Adobe's. This is the copy of a forger who
+    knows the provenance module, and the only one of the three that measures
+    PAGE evidence alone.
 
 Measured 2026-11-13: 12 of the 32 forged documents came out GENUINE (96-98)
-after the rewrite, with either tool. Acrobat's edit marker
-(STRUCT_ACROBAT_TEXT_EDIT, read from the page content) caught 6 of them the
-same day. The 6 left are listed in KNOWN_MISSES and marked xfail(strict): the
-day a detector catches one, pytest fails until the entry is removed, so
-progress has to be recorded here.
+after the rewrite, with either tool. Two detectors answered the same day:
+  - Acrobat's edit marker (STRUCT_ACROBAT_TEXT_EDIT, read from the page
+    content) catches 6 of them under every rewriter;
+  - the rewrite-engine rule (PROVENANCE_FILE_REWRITTEN /
+    PROVENANCE_WRITER_UNVERIFIED) recognises the rewriting tool from the
+    file's header bytes: the other 6 no longer reach GENUINE under "pymupdf"
+    and "qpdf". It catches the tool, not the forgery: 4 bytes defeat it.
+
+So the 6 stay listed in KNOWN_MISSES under "pymupdf-forged-header", marked
+xfail(strict): the day a detector reading the page catches one, pytest fails
+until the entry is removed, so progress has to be recorded here.
 
 The corpus is gitignored (real documents never leave the machine), so the
 corpus tests skip when it is absent. test_rewrite_removes_file_history needs
@@ -106,8 +116,39 @@ def rewrite_with_qpdf(src: str, dst: str) -> None:
         pdf.save(dst)
 
 
+# Line 2 of a PDF is a comment holding 4 arbitrary bytes. PyMuPDF always
+# writes the first ones; the second ones are Adobe's, the most copied of all.
+PYMUPDF_HEADER = b"%\xc2\xb5\xc2\xb6\n"
+ADOBE_HEADER = b"%\xe2\xe3\xcf\xd3\n"
+
+
+def rewrite_with_forged_header(src: str, dst: str) -> None:
+    """rewrite_with_pymupdf, then hide that PyMuPDF wrote the file.
+
+    The provenance module recognises a PyMuPDF file by 4 bytes on its second
+    line. They sit in a comment, so any value is a valid PDF. Replacing them
+    with Adobe's 4 bytes (same length, so every byte offset stored in the file
+    stays right) makes the copy look like any ordinary file.
+
+    Args:
+        src: Path of the PDF to copy.
+        dst: Path of the rewritten copy.
+
+    Example:
+        b"%PDF-1.7\n%\xc2\xb5\xc2\xb6\n1 0 obj..."  ->  b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n1 0 obj..."
+    """
+    rewrite_with_pymupdf(src, dst)
+    with open(dst, "rb") as f:
+        raw = f.read()
+    head, rest = raw[:32], raw[32:]     # the header sits in the first 2 lines
+    assert PYMUPDF_HEADER in head, "PyMuPDF no longer writes the header this gate patches"
+    with open(dst, "wb") as f:
+        f.write(head.replace(PYMUPDF_HEADER, ADOBE_HEADER, 1) + rest)
+
+
 # Name shown in the test id -> the function doing the rewrite.
-REWRITERS = {"pymupdf": rewrite_with_pymupdf, "qpdf": rewrite_with_qpdf}
+REWRITERS = {"pymupdf": rewrite_with_pymupdf, "qpdf": rewrite_with_qpdf,
+             "pymupdf-forged-header": rewrite_with_forged_header}
 
 
 def _name(path: str) -> str:
@@ -137,11 +178,19 @@ MISS_REASONS: dict[str, str] = {
         "text edited in Wondershare; caught only by the revision diff",
 }
 
-# Rewriter -> the forged documents it still gets to GENUINE. The same 6 with
-# both today; the sets will differ once a detector recognises one tool's files.
+# Rewriter -> the forged documents it still gets to GENUINE.
+#
+# None under "pymupdf" and "qpdf" since the rewrite-engine rule: the 6 come out
+# SUSPICIOUS or REVIEW because the TOOL is recognised. Nothing on their pages
+# gives them away, which is what "pymupdf-forged-header" keeps on record.
+#
+# Careful with 3 of them (adobeonline-text-add, wondershare-text-edit,
+# unknown-3.0.39-text-edit): they are edits of a test invoice that PyMuPDF
+# itself generated, so the unedited original is capped at REVIEW as well.
 KNOWN_MISSES: dict[str, frozenset[str]] = {
-    "pymupdf": frozenset(MISS_REASONS),
-    "qpdf": frozenset(MISS_REASONS),
+    "pymupdf": frozenset(),
+    "qpdf": frozenset(),
+    "pymupdf-forged-header": frozenset(MISS_REASONS),
 }
 
 TAMPER_CORPUS = sorted(

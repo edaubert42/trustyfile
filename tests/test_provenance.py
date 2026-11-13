@@ -225,14 +225,19 @@ def test_analyze_provenance_skips_when_extraction_failed(tmp_path):
     assert res.confidence == 0.5
 
 
-def test_analyze_provenance_clean_fitz_pdf_no_flags(tmp_path):
+def test_analyze_provenance_fitz_pdf_under_unknown_name_is_unverified(tmp_path):
+    """A PyMuPDF-written file signed "Acme Billing": an app built on PyMuPDF
+    or a rewritten copy, the bytes cannot tell. Reported as unverifiable
+    origin (low), never as a rewrite. Until 2026-11-13 this raised nothing."""
     doc = fitz.open()
     doc.new_page()
     path = str(tmp_path / "clean.pdf")
     doc.save(path)
     doc.close()
     res = analyze_provenance(_PdfData(path, producer="Acme Billing"))
-    assert res.flags == [] and res.module == "provenance"
+    assert res.module == "provenance"
+    assert [(f.code, f.severity) for f in res.flags] == [("PROVENANCE_WRITER_UNVERIFIED", "low")]
+    assert res.flags[0].details["reason"] == "unknown_name"
 
 
 def test_analyze_provenance_flags_laundered_from_bytes(tmp_path, monkeypatch):
@@ -409,6 +414,17 @@ _CORPUS = sorted(
     + glob.glob(os.path.join("samples", "legitimate", "web", "**", "*.pdf"), recursive=True)
 )
 
+# Legit files whose provenance flag is TRUE, file name -> (allowed codes, why).
+# Each entry must say why the flag costs nothing on that file.
+PROVENANCE_EXCEPTIONS: dict[str, tuple[set[str], str]] = {
+    "Notice-congé-bailleur.pdf": (
+        {"PROVENANCE_WRITER_UNVERIFIED"},
+        "really written by qpdf under a Skia Producer (the only qpdf file of the "
+        "legit corpus). A notice, not an issued document: the low flag is a hint "
+        "and the band stays as it was.",
+    ),
+}
+
 
 @pytest.mark.skipif(not _CORPUS, reason="legit corpus not present (gitignored)")
 @pytest.mark.parametrize("pdf_path", _CORPUS, ids=[os.path.basename(p) for p in _CORPUS])
@@ -420,10 +436,19 @@ def test_provenance_no_false_positive_on_corpus(pdf_path):
     res = analyze_provenance(_PdfData(pdf_path,
                                       producer=meta.get("producer"),
                                       creator=meta.get("creator")))
-    assert res.flags == [], (
-        f"unexpected provenance flags on {os.path.basename(pdf_path)}: "
-        f"{[f.code for f in res.flags]}"
+    allowed, _why = PROVENANCE_EXCEPTIONS.get(os.path.basename(pdf_path), (set(), ""))
+    unexpected = [f.code for f in res.flags if f.code not in allowed]
+    assert unexpected == [], (
+        f"unexpected provenance flags on {os.path.basename(pdf_path)}: {unexpected}"
     )
+
+
+@pytest.mark.skipif(not _CORPUS, reason="legit corpus not present (gitignored)")
+def test_provenance_exceptions_name_existing_files():
+    """A stale exception (file renamed or removed) must not linger."""
+    names = {os.path.basename(p) for p in _CORPUS}
+    stale = sorted(set(PROVENANCE_EXCEPTIONS) - names)
+    assert not stale, f"PROVENANCE_EXCEPTIONS names files absent from the corpus: {stale}"
 
 
 # ============================================================================
@@ -512,18 +537,101 @@ def test_pymupdf_roundtrip_is_classified(tmp_path):
     assert cls.category == "native_generator"
 
 
-def test_local_engines_never_flag(tmp_path):
-    """Engine-class entries must stay silent even against a contradicting
-    Producer: they are attribution only, and every one of them has honest
-    legitimate users. Guards against a future edit re-categorizing one of
-    them into a converter class."""
+def test_local_engines_never_raise_a_converter_flag(tmp_path):
+    """Engine-class entries have honest legitimate users: against a
+    contradicting Producer they never raise the converter flags, and qpdf
+    never more than the low "origin unverified" flag. Guards against a future
+    edit re-categorizing one of them into a converter class."""
     out = tmp_path / "qpdf.pdf"
     pikepdf = pytest.importorskip("pikepdf")
     with pikepdf.open(_synthetic_source(tmp_path)) as pdf:
         pdf.save(out)
-    res = analyze_provenance(_PdfData(out, producer="Acme Invoicing Suite 3.0"))
-    assert res.flags == []
-    assert res.score == 100
+    for producer in ("Acme Invoicing Suite 3.0", "Adobe PDF Library 19.8", None):
+        res = analyze_provenance(_PdfData(out, producer=producer))
+        assert [(f.code, f.severity) for f in res.flags] == [
+            ("PROVENANCE_WRITER_UNVERIFIED", "low")], producer
+
+
+# ============================================================================
+# Rewrite engines (2026-11-13): PyMuPDF or qpdf bytes under another name.
+# See REWRITE_ENGINES in src/modules/provenance.py.
+# ============================================================================
+
+from src.modules.provenance import build_rewrite_flags
+
+_PYMUPDF = Classification("pymupdf", "native_generator", 1.0, ("header_magic",))
+_QPDF = Classification("qpdf", "optimizer", 1.0, ("header_magic",))
+
+
+def test_pymupdf_bytes_under_a_known_tool_name_is_a_rewrite():
+    flags = build_rewrite_flags(_PYMUPDF, "Adobe PDF Library 19.8.103",
+                                "Acrobat PDFMaker 19 pour Word")
+    assert [(f.code, f.severity) for f in flags] == [("PROVENANCE_FILE_REWRITTEN", "high")]
+    assert flags[0].details["known_writer"] == "adobe"
+    assert flags[0].details["engine"] == "PyMuPDF"
+
+
+def test_known_tool_named_only_in_the_creator_counts():
+    flags = build_rewrite_flags(_PYMUPDF, None, "wkhtmltopdf 0.12.6")
+    assert [f.code for f in flags] == ["PROVENANCE_FILE_REWRITTEN"]
+
+
+@pytest.mark.parametrize("producer,creator,reason", [
+    ("TestBillingEngine 1.0", "TestBillingApp 1.0", "unknown_name"),
+    ("PyMuPDF 1.26.7", None, "unknown_name"),   # naming itself buys no exemption
+    (None, None, "no_name"),
+    ("", "  ", "no_name"),
+])
+def test_pymupdf_bytes_under_an_uncheckable_name_is_unverified(producer, creator, reason):
+    flags = build_rewrite_flags(_PYMUPDF, producer, creator)
+    assert [(f.code, f.severity) for f in flags] == [("PROVENANCE_WRITER_UNVERIFIED", "low")]
+    assert flags[0].details["reason"] == reason
+
+
+def test_qpdf_under_a_known_tool_name_is_unverified_never_a_break():
+    flags = build_rewrite_flags(_QPDF, "Skia/PDF m65", None)
+    assert [(f.code, f.severity) for f in flags] == [("PROVENANCE_WRITER_UNVERIFIED", "low")]
+    assert flags[0].details["reason"] == "rewritten"
+
+
+def test_other_tools_are_not_rewrite_engines():
+    word = Classification("microsoft_word", "office", 1.0, ("header_magic", "trailer_keys"))
+    assert build_rewrite_flags(word, "Adobe PDF Library", None) == []
+    assert build_rewrite_flags(Classification(None, None, 0.0, ()), "Adobe", None) == []
+
+
+def test_known_writer_matches_whole_words_only():
+    from src.modules.provenance import _named_known_writer
+    assert _named_known_writer("qt 4.8.7") == "qt"
+    assert _named_known_writer("itext 7.1.16") == "itext"
+    assert _named_known_writer("message router 2") is None      # "sage" inside a word
+    assert _named_known_writer("sqtool exporter") is None       # "qt" inside a word
+    assert _named_known_writer("pymupdf 1.26") is None          # the engine is not "another tool"
+
+
+def test_real_pymupdf_rewrite_of_a_word_file_is_flagged(tmp_path):
+    """End to end on real bytes: a file that says Microsoft Word, saved again
+    by PyMuPDF the way a forger wipes its history."""
+    src = tmp_path / "word.pdf"
+    doc = fitz.open()
+    doc.new_page().insert_text((72, 100), "Facture FA-2026-0042", fontsize=12)
+    doc.set_metadata({"producer": "Microsoft® Word pour Microsoft 365"})
+    doc.save(str(src), garbage=4, deflate=True)
+    doc.close()
+    res = analyze_provenance(_PdfData(src, producer="Microsoft® Word pour Microsoft 365"))
+    assert [f.code for f in res.flags] == ["PROVENANCE_FILE_REWRITTEN"]
+
+
+def test_stamped_fixture_is_no_longer_a_pymupdf_file(tmp_path):
+    """stamp_issuer_header is what keeps the PyMuPDF-built fixtures of the
+    other test files out of this rule: the file must still open, keep its
+    text, and raise nothing."""
+    from scripts.build_corpus import stamp_issuer_header
+    path = _synthetic_source(tmp_path)
+    stamp_issuer_header(str(path))
+    with fitz.open(str(path)) as doc:
+        assert "SYNTHETIC TEST INVOICE" in doc[0].get_text()
+    assert analyze_provenance(_PdfData(path, producer="ReportLab PDF Library")).flags == []
 
 
 def test_magic_only_entries_have_unique_magic():
