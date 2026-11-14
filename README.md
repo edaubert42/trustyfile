@@ -271,7 +271,9 @@ trustyfile/
 │   ├── generate_demo_pdf.py  # Older suspicious test PDF (iLovePDF, fonts, watermark)
 │   ├── generate_tampered.py  # Generate tampered corpus samples
 │   ├── build_corpus.py       # Corpus indexing for the band-gate tests
-│   ├── eval_harness.py       # Calibration / evaluation harness
+│   ├── eval_harness.py       # Local regression report (per sub-corpus, rewrite
+│   │                         # resistance, corpus sha256, commit); not a detection rate
+│   ├── corpus_rewrite.py     # Wipe a PDF's file history (rewrite gate + harness)
 │   ├── run_analysis.py       # Analyse every PDF of a folder from the command line
 │   └── record_demo.py        # Record docs/demo.gif from the sample invoice
 └── tests/                    # Unit tests
