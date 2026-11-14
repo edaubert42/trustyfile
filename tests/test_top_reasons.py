@@ -2,6 +2,7 @@
 
 from src.evidence import GENUINE_CODES
 from src.models import Flag
+from src.scoring import ISSUER_SIGNED_CODES
 from src.summary import MAX_TOP_REASONS, top_reasons
 
 
@@ -27,9 +28,12 @@ def test_low_severity_is_never_a_reason():
 
 
 def test_genuine_direction_codes_are_never_a_reason():
-    genuine = next(iter(GENUINE_CODES))
-    flags = [_flag("high", genuine), _flag("medium", "A")]
-    assert [f.code for f in top_reasons(flags)] == ["A"]
+    # Every code, not next(iter(...)): a frozenset's order changes with the
+    # hash seed, so picking one made the test random. The issuer's signature
+    # also outweighs "A" itself: tests/test_pades.py covers that case.
+    for genuine in sorted(GENUINE_CODES - ISSUER_SIGNED_CODES):
+        flags = [_flag("high", genuine), _flag("medium", "A")]
+        assert [f.code for f in top_reasons(flags)] == ["A"], genuine
 
 
 def test_no_flags_gives_no_reasons():
