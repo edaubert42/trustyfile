@@ -158,13 +158,23 @@ def _url(path: str, **params: str | int | None) -> str:
 # --- Rendering ----------------------------------------------------------------
 
 
-def _app_head(lang: str) -> Markup:
-    """<head> of a page that is about one visitor's document: not indexed."""
+def _app_head(lang: str, description: str | None = None) -> Markup:
+    """<head> of a page that is about one visitor's document: not indexed.
+
+    `description` adds a meta description, for the one such page a crawler
+    reaches through a link (the demo): Bing reports any crawled page without one.
+    """
     t = translator(lang)
+    description_tag = (
+        f'    <meta name="description" content="{Markup.escape(description)}">\n'
+        if description
+        else ""
+    )
     return Markup(
         '    <meta charset="UTF-8">\n'
         '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
         f"    <title>{Markup.escape(t('page_title'))}</title>\n"
+        f"{description_tag}"
         '    <meta name="robots" content="noindex, nofollow">\n'
         '    <meta name="theme-color" content="#1a1a2e">\n'
         '    <link rel="icon" href="/favicon.ico" type="image/x-icon">\n'
@@ -451,9 +461,11 @@ def _results_page(request: Request, token: str, document: StoredDocument, lang: 
     page_number = min(first_flagged_page(document.result) + 1, page_count)
     came_from = request.query_params.get("from", "")
     batch_url = _url(f"/b/{came_from}", lang=lang) if _TOKEN_RE.match(came_from) else None
+    head = _app_head(lang, translator(lang)("demo_meta_description")) if document.demo else None
     return _page(
         "results.html",
         lang,
+        head=head,
         token=token,
         demo=document.demo,
         batch_url=batch_url,

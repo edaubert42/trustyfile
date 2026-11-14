@@ -81,7 +81,12 @@ def test_openapi_is_served_under_the_api_prefix(client):
     spec = client.get("/api/openapi.json")
     assert spec.status_code == 200
     assert "/api/v1/analyze" in spec.json()["paths"]
-    assert client.get("/api/docs").status_code == 200
+    docs = client.get("/api/docs")
+    assert docs.status_code == 200
+    # What Bing's site scan asks of every crawled page.
+    assert docs.text.count("<h1") == 1
+    assert '<meta name="description" content="' in docs.text
+    assert '<html lang="en">' in docs.text
 
 
 # --------------------------------------------------------------------------

@@ -52,7 +52,8 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, File, Query, Request, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBasic, HTTPBasicCredentials, HTTPBearer
-from fastapi.responses import JSONResponse, Response
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -168,10 +169,46 @@ api = FastAPI(
         "`GET /api/v1/usage` gives the same figures without spending one."
     ),
     # Caddy only proxies /api/*, so the interactive docs must live there too.
-    docs_url="/api/docs",
+    # FastAPI's own docs page is replaced by `api_docs` below.
+    docs_url=None,
     openapi_url="/api/openapi.json",
     redoc_url=None,
 )
+
+DOCS_DESCRIPTION = (
+    "TrustyFile API reference: send a PDF to POST /api/v1/analyze and get back "
+    "a JSON fraud-detection report with a trust score, per-module findings and "
+    "a French or English verdict."
+)
+
+
+@api.get("/api/docs", include_in_schema=False)
+def api_docs() -> HTMLResponse:
+    """
+    The interactive API reference (Swagger UI), with what search engines ask of
+    a page: a language, a meta description and an <h1>.
+
+    FastAPI's stock page has none of the three (Swagger draws its own title
+    in JavaScript, as an <h2>), so Bing's site scan reported it. The stock
+    HTML is kept and patched; a FastAPI upgrade that changes the markers
+    makes the test in tests/test_api.py fail rather than ship a bare page.
+    """
+    stock = get_swagger_ui_html(openapi_url=api.openapi_url, title="TrustyFile API - documentation")
+    page = stock.body.decode()
+    page = page.replace("<html>", '<html lang="en">', 1)
+    page = page.replace(
+        "<head>",
+        f'<head>\n    <meta name="description" content="{DOCS_DESCRIPTION}">',
+        1,
+    )
+    page = page.replace(
+        '<div id="swagger-ui">',
+        '<h1 style="font-family:sans-serif; font-size:1.1rem; margin:1rem 20px 0;">'
+        '<a href="/" style="color:inherit;">TrustyFile</a> API - documentation</h1>\n'
+        '    <div id="swagger-ui">',
+        1,
+    )
+    return HTMLResponse(page)
 
 # Module-level so tests can swap them; one of each per process.
 _limiter = SlidingWindowLimiter(limit=RATE_LIMIT, window_s=RATE_WINDOW_S)

@@ -22,9 +22,9 @@ def headline_html(lang: str) -> str:
     t = translator(lang)
     return f"""
         <div id="landing-content">
-            <p style="color:white; font-size:2.2rem; text-align:center; margin:0 auto 0.8rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
+            <h1 style="color:white; font-size:2.2rem; line-height:1.6; padding:0; text-align:center; margin:0 auto 0.8rem auto; max-width:600px; font-weight:bold; letter-spacing:0.5px;">
                 {t("landing_headline")}
-            </p>
+            </h1>
         </div>
         <div id="landing-tagline">
             <p style="color:white; font-size:1.2rem; text-align:center; margin:1.2rem auto 0.5rem auto; max-width:500px; line-height:1.5;">

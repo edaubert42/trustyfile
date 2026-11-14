@@ -131,9 +131,9 @@ def gauge_html(result: AnalysisResult, summary: AnalysisSummary,
                         font-size="14" fill="{gauge_color}" font-weight="bold">
                         {t("trusted") if score >= 95 else t(f"risk_{risk_level}")}</text>
                 </svg>
-                <p style="color:white; font-size:1.15rem; font-weight:bold; line-height:1.35; max-width:420px; margin:0.1rem auto 0.6rem auto;">
+                <h1 style="color:white; font-size:1.15rem; font-weight:bold; line-height:1.35; padding:0; max-width:420px; margin:0.1rem auto 0.6rem auto;">
                     {_headline}
-                </p>
+                </h1>
                 {_advice_html}
                 {_caveat_html}
             </div>

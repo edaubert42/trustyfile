@@ -309,6 +309,14 @@ def test_demo_page_shows_the_sample_document(client):
     assert client.get("/r/demo/page/1.png").status_code == 200
 
 
+# Bing's site scan flags a crawled page with no <h1> or no meta description.
+@pytest.mark.parametrize("path", ["/", "/en", "/?lang=fr", "/?lang=en", "/demo?lang=fr", "/demo?lang=en"])
+def test_crawled_pages_have_one_h1_and_a_meta_description(client, path):
+    text = client.get(path).text
+    assert text.count("<h1") == 1
+    assert '<meta name="description" content="' in text
+
+
 def test_landing_invites_to_the_sample_report(client):
     page = client.get("/?lang=fr").text
     assert "Essayez avec un exemple" in page
