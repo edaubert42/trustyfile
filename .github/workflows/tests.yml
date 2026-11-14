@@ -52,12 +52,12 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.label }}
           cache-to: type=gha,mode=max,scope=${{ matrix.label }}
 
-      # NOTE: ~760 tests, not the ~888 that run locally. The corpus-driven
-      # gates (test_corpus_bands, test_coverage_gate, test_overlay_*)
-      # parametrize over samples/, which never enters the build context
-      # (.dockerignore) because it holds real documents. With no corpus the
-      # parametrize list is empty, so those cases generate silently rather
-      # than reporting as skips. Green here is not full cover.
+      # NOTE: ~1900 tests, not the ~2450 that run locally with the corpus.
+      # The detection-quality gates (test_corpus_bands, test_corpus_types,
+      # test_coverage_gate...) read samples/, which never enters the build
+      # context (.dockerignore) because it holds real documents. Here they
+      # skip, and tests/conftest.py ends the log with a CORPUS ABSENT
+      # warning. Green here is not full cover.
       - name: Run the test suite in the image
         run: docker run --rm trustyfile:test
 
