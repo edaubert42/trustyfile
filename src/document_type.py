@@ -107,6 +107,33 @@ KEYWORDS: dict[str, list[str]] = {
         # English
         "payslip", "pay slip", "gross pay", "net pay",
     ],
+    "bank_statement": [
+        # Words of a statement's balance and transaction table. Left out on
+        # purpose: "iban", "bic", "solde", "débit", "crédit", "virement" and
+        # "prélèvement", which an invoice prints in its payment details (5
+        # legit invoices of the corpus carry "débit", 4 "virement").
+        # French
+        "relevé de compte", "relevé bancaire", "extrait de compte",
+        "relevé des opérations", "solde initial", "solde final", "ancien solde",
+        "nouveau solde", "solde créditeur", "solde débiteur",
+        "titulaire du compte", "numéro de compte", "date de valeur",
+        "date d'opération", "total des opérations", "découvert autorisé", "agios",
+        # English
+        "bank statement", "account statement", "statement of account",
+        "statement period", "opening balance", "closing balance",
+        "beginning balance", "ending balance", "account summary",
+        "account number", "account holder", "deposits", "withdrawals",
+        "checking", "savings account", "sort code", "routing number", "balance",
+    ],
+    "official_record": [
+        # A record an administration prints from its register: the driving-
+        # licence record (RII), a pension career record, a school transcript.
+        # Not "permis de conduire" alone: it belongs to identity.
+        "relevé d'information intégral", "relevé de points", "solde de points",
+        "neph", "système national des permis de conduire", "titulaire du permis",
+        "relevé de carrière", "relevé de situation individuelle",
+        "relevé de notes",
+    ],
     "technical": [
         # French — protocoles, specs, documentations techniques
         "protocole technique", "spécification technique", "cahier des charges",
@@ -258,6 +285,11 @@ TITLES: dict[str, list[str]] = {
                     "declaration of conformity"],
     "tax_document": ["avis d'imposition", "avis d'impôt"],
     "payslip": ["bulletin de paie", "bulletin de salaire", "payslip"],
+    "bank_statement": ["relevé de compte", "relevé bancaire", "extrait de compte",
+                       "relevé des opérations", "bank statement", "account statement",
+                       "statement of account"],
+    "official_record": ["relevé d'information", "relevé de points",
+                        "relevé de carrière", "relevé de situation", "relevé de notes"],
     "technical": ["spécification technique", "spécifications techniques",
                   "protocole technique", "documentation technique",
                   "fiche technique", "fiche produit", "technical specification",
@@ -267,8 +299,15 @@ TITLES: dict[str, list[str]] = {
 }
 
 
+# A French letter names itself on its subject line, wherever the address
+# block pushes it: "Objet : Attestation" sat 250 characters down a France
+# Travail letter, out of the title area. Page 1 only: an appendix that quotes
+# a subject line is not the document's own declaration.
+_SUBJECT_LINE = re.compile(r"(?<!\w)objet\s*:\s*")
+
+
 def _title_types(first_page: str) -> set[str]:
-    """Return the types named in the title area of page 1.
+    """Return the types named in the title area or on the subject line of page 1.
 
     Examples:
         >>> sorted(_title_types("FACTURE AXE MOTOS SUZUKI TOULON 34 BOULEVARD"))
@@ -277,10 +316,21 @@ def _title_types(first_page: str) -> set[str]:
         ['technical']
         >>> sorted(_title_types("Ministère chargé du Logement Recours amiable"))
         []
+        >>> sorted(_title_types("M. DUPONT 1 rue de la Paix ... Objet : Attestation Monsieur"))
+        ['attestation']
     """
-    window = " ".join(first_page.split())[:TITLE_WINDOW].lower()
+    page = " ".join(first_page.split()).lower()
+    window = page[:TITLE_WINDOW]
+    # The text right after each "Objet :" on the page
+    subjects = [page[m.end():] for m in _SUBJECT_LINE.finditer(page)]
+
+    def is_title(phrase: str) -> bool:
+        # Anywhere in the top window; after "Objet :", only as its first words
+        in_window = re.search(r"(?<!\w)" + re.escape(phrase), window)
+        return bool(in_window) or any(s.startswith(phrase) for s in subjects)
+
     return {doc_type for doc_type, phrases in TITLES.items()
-            if any(re.search(r"(?<!\w)" + re.escape(ph), window) for ph in phrases)}
+            if any(is_title(ph) for ph in phrases)}
 
 
 # =============================================================================

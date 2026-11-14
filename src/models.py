@@ -23,6 +23,8 @@ DocumentType = Literal[
     "attestation",   # Attestation (domicile, employeur, etc.)
     "tax_document",  # Avis d'imposition, déclaration fiscale
     "payslip",       # Bulletin de salaire (bulletin de paie)
+    "bank_statement",   # Relevé de compte bancaire
+    "official_record",  # Relevé administratif (RII du permis, relevé de carrière)
     "technical",     # Protocole technique, spécification, documentation API
     "scientific",    # Article scientifique, revue, thèse
     "legal_notice",  # Notice, CGV, mentions légales

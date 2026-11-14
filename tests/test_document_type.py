@@ -147,3 +147,48 @@ def test_title_beats_keywords_quoted_from_another_genre():
     text = ("Spécifications Techniques Date : 17/06/2024 interopérabilité " + _FILLER
             + "facture numéro de facture")
     assert detect_document_type(FakePDFData(text)) == "technical"
+
+
+# --- Bank statements and official records (2026-11-13) ----------------------
+# Both were "unknown" (capped at REVIEW) instead of an issued type: a known
+# forged driving-licence record stayed REVIEW 73.
+
+def test_english_bank_statement_is_a_bank_statement():
+    text = ("Customer service information " + _FILLER + "Your Regular Checking "
+            "Account summary Beginning balance on July 31 $54.11 Deposits and other "
+            "additions 0.00 Withdrawals and other subtractions Ending balance $54.11")
+    assert detect_document_type(FakePDFData(text)) == "bank_statement"
+
+
+def test_french_bank_statement_is_a_bank_statement():
+    text = ("RELEVÉ DE COMPTE n° 11 du 01/10/2026 au 31/10/2026 " + _FILLER
+            + "Date d'opération Date de valeur Libellé Débit Crédit "
+            "Ancien solde 1 204,10 Nouveau solde créditeur 980,55")
+    assert detect_document_type(FakePDFData(text)) == "bank_statement"
+
+
+def test_invoice_with_bank_details_stays_an_invoice():
+    # Payment details at the foot of an invoice name an account, not a statement
+    text = ("FACTURE n° FA-2026-118 " + _FILLER + "Total HT 100,00 € TVA 20% "
+            "Total TTC 120,00 € Titulaire du compte : ACME SARL Numéro de compte 0001")
+    assert detect_document_type(FakePDFData(text)) == "invoice"
+
+
+def test_driving_licence_record_is_an_official_record():
+    text = ("1/5 Relevé d'information intégral (RII) du permis de conduire " + _FILLER
+            + "système national des permis de conduire solde de points Numéro (NEPH)")
+    assert detect_document_type(FakePDFData(text)) == "official_record"
+
+
+def test_subject_line_names_a_letter_as_an_attestation():
+    # France Travail letter: the address block pushes "Objet" past the title area
+    text = ("KCX2 FT56 Page 1/1 M. DUPONT JEAN 1 RUE DE LA PAIX 75002 PARIS " + _FILLER
+            + "Objet : Attestation Monsieur DUPONT, France Travail certifie que vous "
+            "avez été admis au bénéfice de l'allocation.")
+    assert detect_document_type(FakePDFData(text)) == "attestation"
+
+
+def test_subject_line_on_a_later_page_is_not_a_title():
+    pages = FakePDFData(_FILLER + "nous restons à votre disposition")
+    pages.text_by_page.append("Annexe Objet : Attestation de la banque")
+    assert detect_document_type(pages) == "unknown"

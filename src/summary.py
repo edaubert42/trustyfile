@@ -21,7 +21,9 @@ from src.scoring import collect_all_flags
 #
 #   payment -> invoice                        : don't pay / don't sign
 #   proof   -> attestation, certificate,
-#              tax_document, identity         : don't accept it; check with the issuer
+#              tax_document, payslip,
+#              bank_statement, official_record,
+#              identity                       : don't accept it; check with the issuer
 #   generic -> everything else, incl. unknown : don't rely on it
 #
 # "unknown" is generic, not payment, on purpose: a neutral sentence under a
@@ -32,6 +34,8 @@ NEXT_STEP_FAMILY: dict[str, str] = {
     "certificate": "proof",
     "tax_document": "proof",
     "payslip": "proof",
+    "bank_statement": "proof",
+    "official_record": "proof",
     "identity": "proof",
 }
 
