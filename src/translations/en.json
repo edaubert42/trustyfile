@@ -261,6 +261,7 @@
     "flag_read_guide": "Understand this signal in the guide",
     "demo_button": "Try it with an example",
     "demo_banner": "Sample: a fictitious invoice, forged on purpose for this demo.",
+    "demo_meta_description": "Sample TrustyFile analysis of a fictitious invoice forged on purpose: trust score, detected anomalies and edited areas highlighted on the page.",
     "demo_exit": "Analyse another document",
     "footer_contact": "Questions or feedback?",
 
