@@ -152,8 +152,9 @@ jobs:
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          # Paths that cannot change a verdict. Anything else runs the gates.
-          site_only='^(src/web/|src/site/|public/|docs/|tests/test_web_|tests/test_app_|tests/test_api\.py$|tests/test_guides\.py$|scripts/build_guides\.py$|scripts/indexnow\.py$|\.github/workflows/indexnow\.yml$|Caddyfile$|start\.sh$|.*\.md$)'
+          # Paths that cannot change a verdict (translations: the corpus tests
+          # pass with both files emptied). Anything else runs the gates.
+          site_only='^(src/web/|src/site/|src/translations/|public/|docs/|tests/test_web_|tests/test_app_|tests/test_api\.py$|tests/test_guides\.py$|scripts/build_guides\.py$|scripts/indexnow\.py$|\.github/workflows/indexnow\.yml$|Caddyfile$|start\.sh$|.*\.md$)'
           others=$(git diff --name-only "$BASE" HEAD | grep -Ev "$site_only" || true)
           if [ -z "$others" ]; then
             echo "Site-only change: corpus gates skipped."
