@@ -76,7 +76,7 @@ TrustyFile analyzes PDF documents (invoices, receipts, payslips, contracts) to d
 | visual | Converter/SPECIMEN watermarks, QR codes (OpenCV): sender domain, URL shorteners, phishing TLDs |
 | fonts | Font diversity, subset mixing, mid-line changes |
 | images | Screenshots, resolution/compression, paste artifacts, EXIF dates/software |
-| structure | Incremental updates, signatures (EU DSS), JavaScript, embedded files |
+| structure | Incremental updates, signatures (PAdES, offline), JavaScript, embedded files |
 | overlay | Cover-and-retype boxes, conflicting text, cross-revision value changes |
 | invisible | Text rendered invisibly or hidden behind covering elements |
 | provenance | Producer structural fingerprints — catches a forged/stripped Producer string |
@@ -262,6 +262,7 @@ trustyfile/
 │   │   ├── identity.py       # MRZ checksums
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes
 │   │   ├── twod_doc_crypto.py  # 2D-Doc ECDSA signature verification (offline)
+│   │   ├── pades.py          # PDF signature (PAdES) verification (offline, pyHanko)
 │   │   └── external.py       # optional: SIREN/SIRET/VAT (opt-in, network)
 │   └── extractors/           # PDF data extraction
 │       ├── pdf_extractor.py

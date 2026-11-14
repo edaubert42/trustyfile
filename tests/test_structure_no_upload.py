@@ -16,7 +16,7 @@ def test_verify_signature_makes_no_network_call(monkeypatch, tmp_path):
     import requests
     monkeypatch.setattr(requests, "post", boom)
 
-    info = structure.verify_signature_dss(str(p))
+    info = structure.verify_signature(str(p))
     assert called["hit"] is False
     assert info["is_trusted"] is False
 
@@ -37,6 +37,6 @@ def test_no_network_even_when_signature_present(monkeypatch, tmp_path):
     # Also guard requests.get in case of future drift.
     monkeypatch.setattr(requests, "get", boom)
 
-    info = structure.verify_signature_dss(str(p))
+    info = structure.verify_signature(str(p))
     assert info["has_signature"] is True   # we forced presence
-    assert info["is_trusted"] is False     # Phase 0 never asserts trust
+    assert info["is_trusted"] is False     # no filled signature to trust

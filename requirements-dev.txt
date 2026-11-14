@@ -22,3 +22,5 @@ pypdfium2>=5.0.0,<6      # PDFium bindings — Chrome's PDF engine (green on 5.1
 # fastapi.testclient (tests/test_api.py) drives the API in-process over httpx.
 # Nothing in src/ imports it, so it stays out of the runtime image.
 httpx>=0.28,<1           # green on 0.28.1
+# scripts/fetch_eutl_certs.py parses the EU trusted lists (build time only).
+pyhanko[etsi]>=0.38.1,<0.39

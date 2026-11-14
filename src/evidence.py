@@ -39,9 +39,13 @@ HARD_NEGATIVE_CODES: frozenset[str] = frozenset({
 # ONLY when the barcode's ECDSA signature verifies against the ANTS-published
 # issuer certificate AND every barcode field matches the visible text — the
 # cross-check is what binds the authentic barcode to the page it sits on.
-# (pyHanko PAdES validation is the next candidate for this set.)
+# STRUCT_SIGNATURE_ISSUER_VERIFIED (structure.check_signature): a PDF
+# signature that verifies, chains to an EU qualified CA, covers everything a
+# reader sees, and whose signer's VAT/SIREN or name is printed on the page
+# (the cross-check binding the signature to the issuer, user rule 2026-11-14).
 HARD_POSITIVE_CODES: frozenset[str] = frozenset({
     "TWOD_DOC_SIGNATURE_VALID",
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED",
 })
 # Soft positive signals — evidence FOR the document. Only signals an attacker
 # cannot cheaply manufacture belong here (an empty signature FIELD, for
@@ -58,6 +62,7 @@ GENUINE_CODES: frozenset[str] = frozenset({
     "ARITH_XML_CONSISTENT",              # visible layer matches embedded e-invoice XML (totals/IBAN)
     "TWOD_DOC_CONSISTENT",               # visible layer matches the signed 2D-Doc barcode fields
     "TWOD_DOC_SIGNATURE_VALID",          # hard positive; here for display-layer exclusion (see NOTE)
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED",  # hard positive; same reason
 })
 
 

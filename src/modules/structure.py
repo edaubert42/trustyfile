@@ -1289,7 +1289,7 @@ def has_digital_signature(pdf_path: str) -> bool:
     Check if the PDF contains a digital signature field.
 
     Note: This only checks for PRESENCE of a signature, not validity.
-    Use verify_signature_dss() to verify the signature is trusted.
+    Use verify_signature() to check what the signature proves.
 
     Args:
         pdf_path: Path to the PDF file
@@ -1389,30 +1389,131 @@ def _has_signature_value(pdf_path: str) -> bool:
     return False
 
 
-def verify_signature_dss(pdf_path: str) -> dict:
-    """
-    Report presence of a digital signature WITHOUT uploading the document.
+def verify_signature(pdf_path: str, page_text: str = "") -> dict:
+    """Check the PDF's signatures offline (pyHanko) and summarise them.
 
-    Phase 0: the previous implementation POSTed the whole PDF to the EU DSS
-    demo API, violating the 'document never leaves the machine' constraint.
-    Real offline cryptographic validation (ByteRange, chain, post-signing diff)
-    arrives in Phase 2 via pyHanko. Until then we only detect presence locally
-    and never assert trust.
+    The document never leaves the machine: the chain is checked against the
+    EU qualified CAs bundled in src/data/eutl_certs (see src/modules/pades.py
+    for what is and is not checked).
+
+    Args:
+        pdf_path: The PDF to check.
+        page_text: The document's visible text, to find the signer on it.
+
+    Returns:
+        A summary of every signature in the file:
+          has_signature      a signature field or value is present
+          checked            pyHanko could read the file and its signatures
+          count              filled signatures found by pyHanko
+          is_invalid         one signature does not verify (bytes intact)
+          modified_after     content changed after a signature was made
+          is_valid           every signature intact and verifying
+          is_trusted         one of them chains to an EU qualified CA
+          issuer_verified    a trusted signature, nothing changed since it,
+                             and its signer's VAT/SIREN or name is on the page
+          cert_expired, signer, signed_at  of the signature described
+                             (the issuer-verified one, else the last one)
+
+    Example:
+        An EDF invoice -> {"has_signature": True, "checked": True, "count": 1,
+        "is_valid": True, "is_trusted": True, "issuer_verified": True,
+        "cert_expired": True, "signer": "Common Name: ELECTRICITE DE FRANCE, ...",
+        "signed_at": "2024-03-08T06:44:08+01:00", ...}
     """
-    present = False
+    from src.modules.pades import signer_on_page, verify_signatures
+
+    info = {
+        "has_signature": False, "checked": False, "count": 0,
+        "is_invalid": False, "modified_after": False, "is_valid": False,
+        "is_trusted": False, "issuer_verified": False, "cert_expired": False,
+        "signer": None, "signed_at": None,
+    }
     try:
-        present = has_digital_signature(pdf_path)
+        info["has_signature"] = has_digital_signature(pdf_path)
     except Exception as e:
         logger.error(f"Signature presence check failed: {e}")
-    return {
-        "has_signature": present,
-        "is_valid": False,
-        "is_trusted": False,
-        "is_fully_valid": False,
-        "signer": None,
-        "signature_level": "",
-        "note": "offline — signature present but not cryptographically verified",
-    }
+    if not info["has_signature"]:
+        return info
+
+    checks = verify_signatures(pdf_path)
+    if checks is None:
+        return info     # pyHanko could not read it: checked stays False
+    info["checked"] = True
+    info["count"] = len(checks)
+    if not checks:
+        return info     # a field without a filled signature pyHanko can see
+
+    info["modified_after"] = any(c.modified_after for c in checks)
+    info["is_invalid"] = any(c.intact and not c.valid for c in checks)
+    info["is_valid"] = all(c.intact and c.valid for c in checks)
+
+    trusted = [c for c in checks if c.trusted and c.valid and not c.modified_after]
+    info["is_trusted"] = info["is_valid"] and bool(trusted)
+    verified = [c for c in trusted if c.untouched and signer_on_page(c, page_text)]
+    info["issuer_verified"] = (info["is_trusted"] and not info["modified_after"]
+                               and bool(verified))
+
+    described = (verified or trusted or checks)[-1]
+    info["cert_expired"] = described.cert_expired
+    info["signer"] = described.signer
+    info["signed_at"] = described.signed_at.isoformat() if described.signed_at else None
+    return info
+
+
+def check_signature(signature_info: dict) -> list[Flag]:
+    """Turn the signature summary into at most one flag.
+
+    Strongest finding first:
+      MODIFIED_AFTER_SIGNING  high: the signed content changed. Proof of
+                              modification (scoring.MODIFICATION_PROOF_CODES)
+      INVALID                 high: the signature does not verify
+      ISSUER_VERIFIED         hard positive: trusted, untouched since signed,
+                              signer named on the page (user rule 2026-11-14)
+      TRUSTED / TRUSTED_EXPIRED  low, soft positive: trusted, but the signer
+                              is not the issuer the page names (or the
+                              document changed in permitted ways since)
+      NOT_TRUSTED             medium: valid, but no EU qualified CA vouches
+      UNVERIFIABLE            low: pyHanko could not read the signature
+      UNVERIFIED              low: a signature field with nothing pyHanko sees
+
+    Example:
+        {"has_signature": False, ...} -> []
+    """
+    info = signature_info
+    if not info.get("has_signature"):
+        return []
+    signer = info.get("signer") or "unknown signer"
+    details = {k: info.get(k) for k in ("signer", "signed_at", "cert_expired", "count")}
+
+    def flag(severity: str, code: str, message: str) -> list[Flag]:
+        return [Flag(severity=severity, code=code, message=message, details=details)]
+
+    if not info.get("checked"):
+        return flag("low", "STRUCT_SIGNATURE_UNVERIFIABLE",
+                    "Document has a signature that could not be read for verification")
+    if info.get("count", 0) == 0:
+        return flag("low", "STRUCT_SIGNATURE_UNVERIFIED",
+                    "Document has a signature field, but no signature could be verified")
+    if info.get("modified_after"):
+        return flag("high", "STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING",
+                    "The content was changed after the document was signed")
+    if info.get("is_invalid"):
+        return flag("high", "STRUCT_SIGNATURE_INVALID",
+                    "Document has an INVALID digital signature")
+    if info.get("issuer_verified"):
+        # severity medium like TWOD_DOC_SIGNATURE_VALID: kind=hard comes from
+        # evidence.HARD_POSITIVE_CODES.
+        return flag("medium", "STRUCT_SIGNATURE_ISSUER_VERIFIED",
+                    f"Signed by the issuer named on the page, EU-trusted "
+                    f"certificate, unchanged since signing: {signer}")
+    if info.get("is_trusted"):
+        if info.get("cert_expired"):
+            return flag("low", "STRUCT_SIGNATURE_TRUSTED_EXPIRED",
+                        f"Document has EU trusted signature (certificate expired since): {signer}")
+        return flag("low", "STRUCT_SIGNATURE_TRUSTED",
+                    f"Document has EU trusted signature: {signer}")
+    return flag("medium", "STRUCT_SIGNATURE_NOT_TRUSTED",
+                f"Document has signature but NOT from EU trusted list: {signer}")
 
 
 # =============================================================================
@@ -1595,17 +1696,15 @@ def count_incremental_updates(pdf_path: str) -> int:
         return 1  # Assume clean if we can't read
 
 
-def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> list[Flag]:
+def check_incremental_updates(pdf_path: str) -> list[Flag]:
     """
     Check if the PDF has been edited (has incremental updates).
 
-    If a TRUSTED digital signature is present (verified via EU DSS API),
-    1 incremental update is expected and legitimate.
-    An untrusted or invalid signature does NOT excuse incremental updates.
+    Signing appends one revision, so each signed field excuses one update.
+    What the signatures themselves prove is check_signature's job.
 
     Args:
         pdf_path: Path to the PDF file
-        verify_signatures: Whether to verify signatures via DSS API
 
     Returns:
         List of flags if suspicious updates detected
@@ -1619,71 +1718,7 @@ def check_incremental_updates(pdf_path: str, verify_signatures: bool = True) -> 
 
     edits = eof_count - 1
 
-    # Check for digital signature
     has_signature = has_digital_signature(pdf_path)
-    signature_info = {}
-
-    if has_signature and verify_signatures:
-        # Local, presence-only verification (document never leaves the machine)
-        signature_info = verify_signature_dss(pdf_path)
-
-        # Add flag about signature status
-        signer = signature_info.get("signer", "Unknown")
-        level = signature_info.get("signature_level", "")
-
-        if signature_info.get("is_trusted"):
-            # Signature uses Qualified Certificate from EU Trusted List
-            if signature_info.get("is_fully_valid"):
-                # Fully validated
-                flags.append(Flag(
-                    severity="low",  # Informational - excellent signature
-                    code="STRUCT_SIGNATURE_TRUSTED",
-                    message=f"Document has EU trusted signature: {signer} ({level})",
-                    details=signature_info
-                ))
-            else:
-                # QC but not fully valid (e.g., cert expired but was valid at signing time)
-                flags.append(Flag(
-                    severity="low",  # Still trustworthy - QC from EU list
-                    code="STRUCT_SIGNATURE_TRUSTED_EXPIRED",
-                    message=f"Document has EU trusted signature (certificate may be expired): {signer}",
-                    details=signature_info
-                ))
-        elif signature_info.get("is_valid"):
-            # Valid signature but not from EU trusted list
-            flags.append(Flag(
-                severity="medium",
-                code="STRUCT_SIGNATURE_NOT_TRUSTED",
-                message=f"Document has signature but NOT from EU trusted list: {signer}",
-                details=signature_info
-            ))
-        elif signature_info.get("unverifiable"):
-            # Signature present but couldn't be verified
-            flags.append(Flag(
-                severity="medium",
-                code="STRUCT_SIGNATURE_UNVERIFIABLE",
-                message="Document has signature but format not recognized by EU DSS",
-                details=signature_info
-            ))
-        elif signature_info.get("is_invalid"):
-            # Cryptographically verified and REJECTED (future pyHanko path).
-            # The offline presence-only verifier never sets this.
-            flags.append(Flag(
-                severity="high",
-                code="STRUCT_SIGNATURE_INVALID",
-                message="Document has INVALID digital signature",
-                details=signature_info
-            ))
-        elif signature_info.get("has_signature"):
-            # Signature present but NOT verified (offline verifier never
-            # asserts validity). Calling this "INVALID" was a verified audit
-            # FP — every legitimately signed document was flagged high.
-            flags.append(Flag(
-                severity="low",  # informational, like the trusted branches
-                code="STRUCT_SIGNATURE_UNVERIFIED",
-                message="Document has a digital signature (present, not cryptographically verified locally)",
-                details=signature_info
-            ))
 
     # A REAL signature explains incremental updates: each signing pass appends
     # exactly one. Excuse up to one update per SIGNED field — a 3-signer
@@ -2456,22 +2491,23 @@ def analyze_structure(pdf_data: PDFData, verify_signatures: bool = True) -> Modu
 
     Args:
         pdf_data: Extracted PDF data
-        verify_signatures: Whether to verify digital signatures via EU DSS API
-                          (requires internet, set False for offline use)
+        verify_signatures: Whether to check digital signatures (offline, pyHanko)
 
     Returns:
         ModuleResult with score, flags, and confidence
     """
     all_flags = []
 
-    # First, check for trusted signature (affects other checks)
+    # Signatures first: a trusted one changes how object streams are read.
     has_trusted_signature = False
-    if verify_signatures and has_digital_signature(pdf_data.file_path):
-        sig_info = verify_signature_dss(pdf_data.file_path)
-        has_trusted_signature = sig_info.get("is_trusted", False)
+    if verify_signatures:
+        page_text = "\n".join(pdf_data.text_by_page)
+        sig_info = verify_signature(pdf_data.file_path, page_text)
+        has_trusted_signature = sig_info["is_trusted"]
+        all_flags.extend(check_signature(sig_info))
 
     # Run all structure checks
-    all_flags.extend(check_incremental_updates(pdf_data.file_path, verify_signatures))
+    all_flags.extend(check_incremental_updates(pdf_data.file_path))
     all_flags.extend(check_javascript(pdf_data.file_path))
     all_flags.extend(check_hidden_annotations(pdf_data.file_path))
     all_flags.extend(check_acrobat_text_edit(pdf_data.file_path))
