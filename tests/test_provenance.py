@@ -401,7 +401,13 @@ def test_distiller_and_mupdf_converter_no_longer_collide():
 # this skips when absent instead of failing CI.
 # ============================================================================
 
-_CORPUS = sorted(glob.glob(os.path.join("samples", "legitimate", "real", "*.pdf")))
+# The legit corpus as test_corpus_bands reads it: local documents at the top
+# of samples/legitimate/ plus the public reference e-invoices under web/.
+# (It pointed at legitimate/real/, which no longer exists, so it never ran.)
+_CORPUS = sorted(
+    glob.glob(os.path.join("samples", "legitimate", "*.pdf"))
+    + glob.glob(os.path.join("samples", "legitimate", "web", "**", "*.pdf"), recursive=True)
+)
 
 
 @pytest.mark.skipif(not _CORPUS, reason="legit corpus not present (gitignored)")

@@ -406,7 +406,10 @@ def test_analyze_deposit_einvoice_no_flag(tmp_path):
 # --- Real-corpus detection (samples are gitignored; skip when absent) ----------
 import os
 
-_REAL = "samples/legitimate/real/mustang_gnuaccounting_505.pdf"
+# Was samples/legitimate/real/mustang_gnuaccounting_505.pdf until that folder
+# became legitimate/web/zugferd/ under the reference corpus's own file names.
+_REAL = ("samples/legitimate/web/zugferd/"
+         "ZUGFeRDv1__correct__Mustangproject__MustangGnuaccountingBeispielRE-20170509_505.pdf")
 
 
 @pytest.mark.skipif(not os.path.exists(_REAL), reason="real invoice sample not present")
