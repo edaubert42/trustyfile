@@ -124,7 +124,7 @@ class TestCheckIncrementalUpdates:
         """A clean PDF should not be flagged."""
         path = create_clean_pdf()
         # Disable signature verification (no network in tests)
-        flags = check_incremental_updates(path, verify_signatures=False)
+        flags = check_incremental_updates(path)
         assert len(flags) == 0
 
 
@@ -153,16 +153,11 @@ class TestSignatureHandling:
     incremental update, so signature presence must excuse matching updates.
     """
 
-    def test_present_signature_reports_unverified_not_invalid(self, monkeypatch):
+    def test_present_signature_reports_unverified_not_invalid(self):
+        """A field pyHanko finds no filled signature in is UNVERIFIED (low), never INVALID."""
         import src.modules.structure as structure
-        path = create_incrementally_saved_pdf("signed1.pdf", saves=2)
-        monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
-        flags = structure.check_incremental_updates(path, verify_signatures=True)
-        codes = {f.code for f in flags}
-        assert "STRUCT_SIGNATURE_INVALID" not in codes, codes
-        unverified = [f for f in flags if f.code == "STRUCT_SIGNATURE_UNVERIFIED"]
-        assert len(unverified) == 1
-        assert unverified[0].severity == "low"
+        flags = structure.check_signature({"has_signature": True, "checked": True, "count": 0})
+        assert [(f.code, f.severity) for f in flags] == [("STRUCT_SIGNATURE_UNVERIFIED", "low")]
 
     def test_signature_presence_excuses_one_update(self, monkeypatch):
         """1 signature + 1 incremental update = a normal signing pass."""
@@ -170,7 +165,7 @@ class TestSignatureHandling:
         path = create_incrementally_saved_pdf("signed2.pdf", saves=1)
         monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
         monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
-        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        flags = structure.check_incremental_updates(path)
         assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
 
     def test_multi_signer_document_not_critical(self, monkeypatch):
@@ -179,7 +174,7 @@ class TestSignatureHandling:
         path = create_incrementally_saved_pdf("signed3.pdf", saves=3)
         monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
         monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 3)
-        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        flags = structure.check_incremental_updates(path)
         assert not [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"], flags
 
     def test_updates_beyond_signature_count_still_flagged(self, monkeypatch):
@@ -188,14 +183,14 @@ class TestSignatureHandling:
         path = create_incrementally_saved_pdf("signed4.pdf", saves=3)
         monkeypatch.setattr(structure, "has_digital_signature", lambda *a: True)
         monkeypatch.setattr(structure, "count_signature_fields", lambda *a: 1)
-        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        flags = structure.check_incremental_updates(path)
         upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
         assert len(upd) == 1  # 3 edits - 1 excused = 2 effective
 
     def test_unsigned_pdf_updates_unchanged(self):
         """No signature → incremental updates flagged exactly as before."""
         path = create_incrementally_saved_pdf("unsigned.pdf", saves=2)
-        flags = check_incremental_updates(path, verify_signatures=True)
+        flags = check_incremental_updates(path)
         upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
         assert len(upd) == 1
 
@@ -222,7 +217,7 @@ class TestSignatureHandling:
         page.add_widget(w)
         doc.saveIncr()
         doc.close()
-        flags = structure.check_incremental_updates(path, verify_signatures=True)
+        flags = structure.check_incremental_updates(path)
         upd = [f for f in flags if f.code == "STRUCT_INCREMENTAL_UPDATES"]
         assert len(upd) == 1, "empty signature field must not excuse the tamper edit"
 
@@ -606,7 +601,7 @@ class TestLinearizedFiles:
 
     def test_linearized_file_raises_no_incremental_update_flag(self):
         path = _linearized_copy("lin.pdf")
-        codes = [f.code for f in check_incremental_updates(path, verify_signatures=False)]
+        codes = [f.code for f in check_incremental_updates(path)]
         assert "STRUCT_INCREMENTAL_UPDATES" not in codes
 
     def test_edit_after_linearization_is_still_one_revision(self):
@@ -617,5 +612,5 @@ class TestLinearizedFiles:
         doc.saveIncr()
         doc.close()
         assert count_incremental_updates(path) == 2
-        codes = [f.code for f in check_incremental_updates(path, verify_signatures=False)]
+        codes = [f.code for f in check_incremental_updates(path)]
         assert "STRUCT_INCREMENTAL_UPDATES" in codes

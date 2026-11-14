@@ -97,6 +97,9 @@ MODIFICATION_PROOF_CODES: frozenset[str] = frozenset({
     "OVERLAY_REVISION_VALUE_CHANGED",  # an amount/date/ID differs between revisions
     "FONTS_MIDWORD_CHANGE",            # two font families inside ONE word
                                        # (no legit hit, local corpus 2026-11-12)
+    "STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING",  # signed bytes changed, or a
+                                       # revision appended after signing changed
+                                       # the content (pyHanko diff analysis)
     # Not STRUCT_HIDDEN_MODIFICATION: legit Factur-X toolkits (Symtrax) append
     # the XML without touching ModDate — measured on the ZUGFeRD corpus.
 })
@@ -194,7 +197,51 @@ _PIPELINE_EXCUSABLE_CODES: frozenset[str] = frozenset({
 # It excuses PROVENANCE_BREAK_CODES only. Proof that visible content changed
 # (MODIFICATION_PROOF_CODES) and every other finding keep their full effect:
 # the barcode does not cover every field on the page.
-VERIFIED_DOCUMENT_CODES: frozenset[str] = frozenset({"TWOD_DOC_SIGNATURE_VALID"})
+# Same for a PDF signature made by the issuer the page names
+# (STRUCT_SIGNATURE_ISSUER_VERIFIED, user rule 2026-11-14).
+VERIFIED_DOCUMENT_CODES: frozenset[str] = frozenset({
+    "TWOD_DOC_SIGNATURE_VALID", "STRUCT_SIGNATURE_ISSUER_VERIFIED",
+})
+
+# A PDF signature that covers every byte, by the issuer the page names
+# (structure.check_signature). Beyond VERIFIED_DOCUMENT_CODES, it also
+# outweighs the soft page findings (fonts, ELA, images): nothing can have
+# changed after the issuer signed. Measured 2026-11-14: one of 38 EDF
+# invoices (a weight suffix read as a font change, an ELA region) stayed
+# REVIEW without this.
+ISSUER_SIGNED_CODES: frozenset[str] = frozenset({"STRUCT_SIGNATURE_ISSUER_VERIFIED"})
+
+
+def outweighed_codes(flags: list[Flag]) -> set[str]:
+    """Return the codes a proof of authenticity outweighs.
+
+    Those findings stay in the full details, but are neither scored nor
+    listed as reasons next to the verdict (summary.top_reasons and the
+    bullets use this too, so what the reader is told matches the score):
+      - a verified document (VERIFIED_DOCUMENT_CODES) outweighs the
+        provenance codes: traces that only say a tool touched the file;
+      - an issuer's whole-file signature (ISSUER_SIGNED_CODES) also
+        outweighs every soft tamper finding. Hard tamper evidence and proof
+        of modification are never outweighed.
+
+    Examples:
+        >>> sig = Flag(severity="medium", code="STRUCT_SIGNATURE_ISSUER_VERIFIED", message="")
+        >>> font = Flag(severity="high", code="FONTS_MIDLINE_CHANGE", message="")
+        >>> sorted(outweighed_codes([sig, font]))
+        ['FONTS_MIDLINE_CHANGE']
+        >>> outweighed_codes([font])
+        set()
+    """
+    from src.evidence import GENUINE_CODES, HARD_NEGATIVE_CODES
+
+    codes = {f.code for f in flags}
+    outweighed: set[str] = set()
+    if codes & VERIFIED_DOCUMENT_CODES:
+        outweighed |= codes & PROVENANCE_BREAK_CODES
+    if codes & ISSUER_SIGNED_CODES:
+        never = GENUINE_CODES | HARD_NEGATIVE_CODES | MODIFICATION_PROOF_CODES
+        outweighed |= {c for c in codes if c not in never}
+    return outweighed
 
 # Genres an issuer generates once and hands over untouched.
 ISSUED_DOCUMENT_TYPES: frozenset[str] = frozenset({
@@ -203,8 +250,10 @@ ISSUED_DOCUMENT_TYPES: frozenset[str] = frozenset({
 })
 
 # Signing a PDF appends a revision and rewrites ModDate: on a signed document,
-# a date gap is the signature itself. INVALID is not an excuse.
+# a date gap is the signature itself. INVALID and MODIFIED_AFTER_SIGNING
+# are not an excuse.
 _SIGNATURE_PRESENT_CODES: frozenset[str] = frozenset({
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED",
     "STRUCT_SIGNATURE_TRUSTED", "STRUCT_SIGNATURE_TRUSTED_EXPIRED",
     "STRUCT_SIGNATURE_NOT_TRUSTED", "STRUCT_SIGNATURE_UNVERIFIED",
     "STRUCT_SIGNATURE_UNVERIFIABLE",
@@ -476,6 +525,9 @@ def create_analysis_result(
     # net tamper under 0.7 nats) and two of them would still add up to REVIEW.
     verified = any(f.code in VERIFIED_DOCUMENT_CODES
                    for r in module_results for f in r.flags)
+    # What a verified 2D-Doc or the issuer's whole-file signature outweighs
+    # (see outweighed_codes): shown to the reader, not scored.
+    outweighed = outweighed_codes([f for r in module_results for f in r.flags])
 
     # Build the evidence ledger. A module that found nothing (no flags AND
     # score >= 100) ABSTAINS: it contributes no evidence rather than nudging
@@ -491,7 +543,7 @@ def create_analysis_result(
             scored_flags.append(f)
             if f.code in NON_EVIDENCE_CODES:
                 continue
-            if verified and f.code in PROVENANCE_BREAK_CODES:
+            if f.code in outweighed:
                 continue    # shown to the reader, not scored
             ev = flag_to_evidence(f, r.module)
             ev = apply_doc_type_suppression(ev, document_type)

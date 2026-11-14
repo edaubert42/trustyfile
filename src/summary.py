@@ -239,6 +239,8 @@ FLAG_THEME_MAP: dict[str, str] = {
     # signature — positive codes (TRUSTED*, UNVERIFIED) are low severity and
     # filtered out of bullets by the low-severity skip; negative ones
     # (NOT_TRUSTED, UNVERIFIABLE, INVALID) surface as bullets like any finding.
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED": "signature",  # hard genuine-direction; bullets skip it
+    "STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING": "tampering",
     "STRUCT_SIGNATURE_TRUSTED": "signature",
     "STRUCT_SIGNATURE_TRUSTED_EXPIRED": "signature",
     "STRUCT_SIGNATURE_UNVERIFIED": "signature",
@@ -367,6 +369,11 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
     "STRUCT_ACROFORM_DETECTED": lambda f: (
         f"The PDF contains {(f.details or {}).get('total_count', '?')} fillable form "
         "field(s): anyone who opens it can change their values."
+    ),
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED": lambda f: (
+        "The document is signed by the company it names, with an EU-trusted "
+        f"certificate ({(f.details or {}).get('signer', 'unknown signer')}), "
+        "and nothing changed since it was signed."
     ),
     "STRUCT_SIGNATURE_TRUSTED": lambda f: (
         "The document carries a valid EU-trusted digital signature "
@@ -908,9 +915,13 @@ SENTENCE_TEMPLATES: dict[str, callable] = {
         "file's XMP metadata."
     ),
     # --- signature (negative findings only; positive codes never bullet) ---
+    "STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING": lambda f: (
+        "The document was changed after it was signed: its digital signature "
+        "no longer covers what the page shows."
+    ),
     "STRUCT_SIGNATURE_INVALID": lambda f: (
-        "The document's digital signature failed cryptographic verification — "
-        "the content was likely modified after signing."
+        "The document's digital signature failed cryptographic verification: "
+        "it was not made with the key of the certificate it carries."
     ),
     "STRUCT_SIGNATURE_NOT_TRUSTED": lambda f: (
         "The document is signed, but the certificate is not on the EU trusted list."
@@ -1005,6 +1016,11 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     "STRUCT_ACROFORM_DETECTED": lambda f: (
         f"Le PDF contient {(f.details or {}).get('total_count', '?')} champ(s) de "
         "formulaire modifiable(s) : toute personne qui l'ouvre peut en changer la valeur."
+    ),
+    "STRUCT_SIGNATURE_ISSUER_VERIFIED": lambda f: (
+        "Le document est signé par l'entreprise qu'il nomme, avec un certificat "
+        f"reconnu par l'UE ({(f.details or {}).get('signer', 'signataire inconnu')}), "
+        "et rien n'a changé depuis la signature."
     ),
     "STRUCT_SIGNATURE_TRUSTED": lambda f: (
         "Le document porte une signature numérique valide reconnue par l'UE "
@@ -1562,9 +1578,14 @@ SENTENCE_TEMPLATES_FR: dict[str, callable] = {
     ),
     # --- signature (constats négatifs uniquement ; les codes positifs ne
     # produisent jamais de puce) ---
+    "STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING": lambda f: (
+        "Le document a été modifié après avoir été signé : sa signature "
+        "numérique ne couvre plus ce que la page affiche."
+    ),
     "STRUCT_SIGNATURE_INVALID": lambda f: (
         "La signature numérique du document a échoué à la vérification "
-        "cryptographique — le contenu a probablement été modifié après signature."
+        "cryptographique : elle n'a pas été faite avec la clé du certificat "
+        "qu'elle porte."
     ),
     "STRUCT_SIGNATURE_NOT_TRUSTED": lambda f: (
         "Le document est signé, mais le certificat ne figure pas sur la liste "
@@ -1881,6 +1902,9 @@ def _build_bullets(
 
     severity_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     mentioned_codes: set[str] = set()
+    # What a proof of authenticity outweighs is not scored: no bullet either.
+    from src.scoring import outweighed_codes
+    outweighed = outweighed_codes([f for flags in grouped.values() for f in flags])
 
     for theme in theme_order:
         if theme not in grouped:
@@ -1900,7 +1924,7 @@ def _build_bullets(
             # Skip GENUINE-direction flags — positive evidence is presented in
             # the positive-signals section, never as a finding bullet.
             from src.evidence import GENUINE_CODES
-            if flag.code in GENUINE_CODES:
+            if flag.code in GENUINE_CODES or flag.code in outweighed:
                 continue
 
             sentence = _flag_to_sentence(flag, lang)
@@ -2021,12 +2045,14 @@ def top_reasons(flags: list[Flag], limit: int = MAX_TOP_REASONS,
     # Imported here, like the other users in this file, to avoid an import
     # cycle between summary and evidence at module load time.
     from src.evidence import GENUINE_CODES
+    from src.scoring import outweighed_codes
 
+    outweighed = outweighed_codes(flags)
     reasons: list[Flag] = []
     for flag in flags:
         if flag.severity == "low":
             continue
-        if flag.code in GENUINE_CODES:
+        if flag.code in GENUINE_CODES or flag.code in outweighed:
             continue
         if band == "UNVERIFIABLE" and flag.code in SCAN_RESTATING_CODES:
             continue

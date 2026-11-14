@@ -63,6 +63,8 @@ TrustyFile is a document fraud detection tool inspired by VirusTotal. Users uplo
 - **2D-Doc / DataMatrix**: pylibdmtx (needs the libdmtx system lib)
 - **Image Processing**: opencv-python-headless (cv2), numpy, Pillow
 - **XML (e-invoice)**: defusedxml — untrusted embedded XML, blocks XXE
+- **PDF signatures**: pyHanko — PAdES validation offline (integrity, diff
+  after signing, chain to the bundled EU trusted list)
 - **Web Interface**: FastAPI + Jinja templates, rendered on the server
   (`src/web/app.py`); one uvicorn process behind Caddy, which serves the
   static files itself. Streamlit was dropped in 2026-11.
@@ -149,6 +151,8 @@ trustyfile/
 │   │   ├── twod_doc.py       # French 2D-Doc barcodes
 │   │   ├── twod_doc_crypto.py # 2D-Doc ECDSA verification (offline, certs
 │   │   │                     # committed under src/data/twod_doc_certs/)
+│   │   ├── pades.py          # PDF signature (PAdES) verification, pyHanko,
+│   │   │                     # offline: EU qualified CAs in src/data/eutl_certs/
 │   │   └── span_conflict.py  # Shared helper (overlay + invisible)
 │   └── extractors/
 │       ├── pdf_extractor.py  # PDF text/image extraction
@@ -392,7 +396,8 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Dark mode UI
 
 **Phase 4 - Security**
-- [x] Digital signature validation: Verify PDF signatures via EU DSS API
+- [x] Digital signature validation: PAdES, offline with pyHanko (`src/modules/pades.py`;
+      the EU DSS API upload was removed: documents never leave the machine)
 - [x] VirusTotal API integration (`src/web/virustotal.py`, requires API key)
 - [x] 2D-Doc verification: Decode French government 2D barcodes (libdmtx)
 
@@ -411,8 +416,16 @@ push. Phase 8 (detection depth) is where active work sits.
 - [x] Crypto verification (part 1): 2D-Doc ECDSA signature verification
       (`twod_doc_crypto.py`) — `TWOD_DOC_SIGNATURE_VALID` is the first
       HARD_POSITIVE code; certs bundled offline in `src/data/twod_doc_certs/`
-      (rebuild with `scripts/fetch_twod_doc_certs.py`). PAdES via pyHanko
-      remains the candidate for part 2 (PDF signatures).
+      (rebuild with `scripts/fetch_twod_doc_certs.py`).
+- [x] Crypto verification (part 2): PDF signatures (PAdES) with pyHanko,
+      offline (`pades.py`). `STRUCT_SIGNATURE_ISSUER_VERIFIED` (hard positive)
+      needs: intact, chains to an EU qualified CA (770 bundled in
+      `src/data/eutl_certs/`, rebuild with `scripts/fetch_eutl_certs.py`),
+      nothing changed since signing, and the signer's VAT/SIREN or exact
+      name on the page. It also outweighs soft page findings
+      (`scoring.outweighed_codes`). `STRUCT_SIGNATURE_MODIFIED_AFTER_SIGNING`
+      is proof of modification. Not checked offline: revocation; signing
+      time is the one the signer claims.
 
 ### Known gaps
 - The zero-FP corpus gates parametrize over `samples/`, which is gitignored,

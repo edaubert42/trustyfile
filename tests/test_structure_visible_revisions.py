@@ -51,7 +51,7 @@ def _content_updates(path, times=3):
 
 
 def _incr_flag(path):
-    return [f for f in check_incremental_updates(str(path), verify_signatures=False)
+    return [f for f in check_incremental_updates(str(path))
             if f.code == "STRUCT_INCREMENTAL_UPDATES"]
 
 
@@ -143,7 +143,7 @@ def test_content_written_onto_a_blank_original_is_low(tmp_path):
     pdf = _blank_then_written(tmp_path / "blank.pdf")
     assert visible_content_unchanged(str(pdf)) is False     # content did appear
     assert original_revision_blank(str(pdf)) is True
-    flags = check_incremental_updates(str(pdf), verify_signatures=False)
+    flags = check_incremental_updates(str(pdf))
     by_code = {f.code: f for f in flags}
     assert by_code["STRUCT_INCREMENTAL_UPDATES"].severity == "low"
     assert by_code["STRUCT_INCREMENTAL_UPDATES"].details["original_blank"] is True
@@ -157,6 +157,6 @@ def test_hidden_modification_stays_high_when_content_was_altered(tmp_path):
     doc = fitz.open(str(pdf))
     assert doc.metadata["modDate"] == doc.metadata["creationDate"]
     doc.close()
-    flags = {f.code: f for f in check_incremental_updates(str(pdf), verify_signatures=False)}
+    flags = {f.code: f for f in check_incremental_updates(str(pdf))}
     assert flags["STRUCT_HIDDEN_MODIFICATION"].severity == "high"
     assert flags["STRUCT_INCREMENTAL_UPDATES"].severity == "high"
