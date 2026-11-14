@@ -30,6 +30,8 @@ from pathlib import Path
 
 import pymupdf
 
+from build_corpus import stamp_issuer_header
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "public" / "static" / "demo" / "facture-exemple.pdf"
 
@@ -118,6 +120,12 @@ def build(out: Path = OUT) -> Path:
     doc.set_metadata(metadata)
     doc.save(out, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
     doc.close()
+    # The invoice stands for a file the issuer's billing software wrote, but
+    # PyMuPDF builds it, and PyMuPDF's header bytes under another tool's name
+    # read as a rewritten file (PROVENANCE_WRITER_UNVERIFIED): a finding about
+    # this script, not about the forgery the demo shows. Same-length swap, so
+    # both revisions' byte offsets stay valid.
+    stamp_issuer_header(str(out))
     return out
 
 

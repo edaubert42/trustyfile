@@ -22,6 +22,9 @@ EXPECTED_CODES = {
     "CONTENT_INVALID_IBAN",        # one digit changed in the IBAN
 }
 
+# Findings about how the demo is built (PyMuPDF), not about the forgery.
+UNWANTED_CODES = {"PROVENANCE_WRITER_UNVERIFIED"}
+
 
 def _analyse(path: Path):
     from src.analyzer import TrustyFileAnalyzer
@@ -35,6 +38,7 @@ def test_committed_sample_is_caught_for_the_reasons_the_banner_gives():
     assert DEMO.stat().st_size < 50_000  # it ships with the app: stay small
     result, codes = _analyse(DEMO)
     assert EXPECTED_CODES <= codes, codes
+    assert not UNWANTED_CODES & codes, codes
     assert result.document_type == "invoice"
     assert result.band == "SUSPICIOUS", (result.band, result.trust_score)
 
@@ -46,6 +50,7 @@ def test_generator_still_reproduces_the_committed_sample(tmp_path):
     rebuilt = make_demo_invoice.build(tmp_path / "demo.pdf")
     result, codes = _analyse(rebuilt)
     assert EXPECTED_CODES <= codes, codes
+    assert not UNWANTED_CODES & codes, codes
     assert result.band == "SUSPICIOUS"
 
 
