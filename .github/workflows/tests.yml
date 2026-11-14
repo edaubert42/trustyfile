@@ -113,3 +113,122 @@ jobs:
       - name: Container logs
         if: always() && matrix.smoke
         run: docker logs site 2>&1 | tail -50 || true
+
+  # The detection-quality gates on the real sample corpus (forgeries stay
+  # SUSPICIOUS, no false positive on legitimate documents), which the job
+  # above cannot run: samples/ holds real documents and never enters the
+  # repository or an image.
+  #
+  # The corpus lives in the private repository edaubert42/trustyfile-corpus,
+  # as one gpg-encrypted tar archive (file names included). This job clones
+  # it with a read-only deploy key (CORPUS_DEPLOY_KEY), decrypts it with
+  # CORPUS_PASSPHRASE into the runner's temp dir, and mounts it read-only into
+  # the test container at run time: it is never built into the image or its
+  # cache. GitHub never hands secrets to pull requests from forks.
+  #
+  # This repository is public, and so are its Actions logs. The file names
+  # are the test ids and carry personal names, and a failure message can
+  # quote a document. So the pytest output never reaches the log: only the
+  # counts line does. Read the details by rerunning locally with the corpus.
+  #
+  # A pull request that only touches the site (pages, guides, static files,
+  # docs) skips the gates and reports success, so this required check never
+  # blocks it. Pushes to main and manual runs always run them.
+  corpus:
+    name: corpus
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Does this change touch detection?
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Paths that cannot change a verdict. Anything else runs the gates.
+          site_only='^(src/web/|src/site/|public/|docs/|tests/test_web_|tests/test_app_|tests/test_api\.py$|tests/test_guides\.py$|scripts/build_guides\.py$|scripts/indexnow\.py$|\.github/workflows/indexnow\.yml$|Caddyfile$|start\.sh$|.*\.md$)'
+          others=$(git diff --name-only "$BASE" HEAD | grep -Ev "$site_only" || true)
+          if [ -z "$others" ]; then
+            echo "Site-only change: corpus gates skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check the secrets are available
+        if: steps.scope.outputs.run == 'true'
+        env:
+          DEPLOY_KEY: ${{ secrets.CORPUS_DEPLOY_KEY }}
+          PASSPHRASE: ${{ secrets.CORPUS_PASSPHRASE }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ] || [ -z "$PASSPHRASE" ]; then
+            echo "::error::Corpus secrets unavailable (a pull request from a fork?). The corpus gates cannot run."
+            exit 1
+          fi
+
+      - name: Fetch the encrypted corpus
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: edaubert42/trustyfile-corpus
+          ssh-key: ${{ secrets.CORPUS_DEPLOY_KEY }}
+          persist-credentials: false
+          path: .corpus-encrypted
+
+      - name: Decrypt it outside the build context
+        if: steps.scope.outputs.run == 'true'
+        env:
+          PASSPHRASE: ${{ secrets.CORPUS_PASSPHRASE }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus"
+          cat .corpus-encrypted/corpus.tar.gpg.part-* \
+            | gpg --batch --quiet --decrypt --passphrase-fd 3 3<<<"$PASSPHRASE" \
+            | tar -xf - -C "$RUNNER_TEMP/corpus"
+          rm -rf .corpus-encrypted
+          echo "PDFs: $(find "$RUNNER_TEMP/corpus/samples" -name '*.pdf' | wc -l)"
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.scope.outputs.run == 'true'
+
+      # Same image as the "production" leg above, from its cache. Read only:
+      # that leg writes the cache, two writers on one scope would race.
+      - name: Build the test image
+        if: steps.scope.outputs.run == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: test
+          load: true
+          tags: trustyfile:test
+          cache-from: type=gha,scope=production
+
+      - name: Run the corpus gates (counts only in the log)
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set +e
+          docker run --rm \
+            -v "$RUNNER_TEMP/corpus/samples:/app/samples:ro" \
+            -e TRUSTYFILE_REQUIRE_CORPUS=1 \
+            trustyfile:test python -m pytest tests/ -q --no-header -p no:cacheprovider \
+            > "$RUNNER_TEMP/pytest.log" 2>&1
+          status=$?
+          set -e
+          # The last line of a -q run: "N passed, M failed, K skipped in Xs".
+          # Counts only, no test id: that is all this log may show.
+          tail -n 1 "$RUNNER_TEMP/pytest.log" | grep -Eo '[0-9]+ (passed|failed|errors?|skipped|xfailed|xpassed|deselected)' | paste -sd, - || true
+          rm -f "$RUNNER_TEMP/pytest.log"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Corpus gates failed (pytest exit $status). Details are kept out of this public log: rerun locally with the corpus and TRUSTYFILE_REQUIRE_CORPUS=1."
+          fi
+          exit "$status"
+
+      - name: Remove the decrypted corpus
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/corpus" .corpus-encrypted
