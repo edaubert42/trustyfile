@@ -199,6 +199,7 @@ VERIFIED_DOCUMENT_CODES: frozenset[str] = frozenset({"TWOD_DOC_SIGNATURE_VALID"}
 # Genres an issuer generates once and hands over untouched.
 ISSUED_DOCUMENT_TYPES: frozenset[str] = frozenset({
     "invoice", "identity", "certificate", "attestation", "tax_document", "payslip",
+    "bank_statement", "official_record",
 })
 
 # Signing a PDF appends a revision and rewrites ModDate: on a signed document,

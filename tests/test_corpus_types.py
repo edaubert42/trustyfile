@@ -43,7 +43,7 @@ FOLDER_LABELS: dict[str, frozenset[str]] = {
     "doctypes/menu/": NOT_ISSUED,
     "doctypes/press_release/": NOT_ISSUED,
     "doctypes/letter/": NOT_ISSUED,
-    "doctypes/bank_statement/": NOT_ISSUED,
+    "doctypes/bank_statement/": frozenset({"bank_statement"}),
     "doctypes/price_list/": NOT_ISSUED,
     "doctypes/technical/": NOT_ISSUED,
     "legitimate/web/zugferd/": frozenset({"invoice"}),
@@ -52,6 +52,8 @@ FOLDER_LABELS: dict[str, frozenset[str]] = {
 }
 
 INVOICE = frozenset({"invoice"})
+ATTESTATION = frozenset({"attestation"})
+RECORD = frozenset({"official_record"})
 # Single files (path under samples/) -> accepted types.
 FILE_LABELS: dict[str, frozenset[str]] = {
     # Local legit invoices
@@ -85,6 +87,10 @@ FILE_LABELS: dict[str, frozenset[str]] = {
     "2d_doc/technical_spec.pdf": NOT_ISSUED,
     "2d_doc/id.pdf": NOT_ISSUED,                  # full ANTS spec, not an ID
     "2d_doc/test_taxes.pdf": frozenset({"tax_document"}),
+    "2d_doc/test.pdf": RECORD,                    # driving-licence record (RII)
+    # Official records and attestations an administration issues
+    "legitimate/releve_information_integral_permis_de_conduire.pdf": RECORD,
+    "legitimate/avis_de_situation.pdf": ATTESTATION,   # France Travail
     # Suspicious corpus: the genre is still known
     "suspicious/82988103_modified.pdf": INVOICE,
     "suspicious/FACA3322030235.pdf": INVOICE,
@@ -96,7 +102,9 @@ FILE_LABELS: dict[str, frozenset[str]] = {
     "suspicious/eDF_Facture_20220905_155624 (AOUT 2022) - Copie.pdf": INVOICE,
     "suspicious/facture-2059303029.pdf": INVOICE,
     "suspicious/invoice_FRW0000308935.pdf": INVOICE,
-    "suspicious/fr_proof_2025-2026_edaubert1.pdf": frozenset({"attestation"}),
+    "suspicious/fr_proof_2025-2026_edaubert1.pdf": ATTESTATION,
+    "suspicious/rii_permis_de_conduire_modif.pdf": RECORD,
+    "suspicious/avis_de_situation.pdf": ATTESTATION,
 }
 
 # Path under samples/ -> why the classifier gets it wrong today.

@@ -282,6 +282,8 @@
     "doctype_attestation": "Attestation",
     "doctype_tax_document": "Tax document",
     "doctype_payslip": "Payslip",
+    "doctype_bank_statement": "Bank statement",
+    "doctype_official_record": "Official record",
     "doctype_technical": "Technical document",
     "doctype_scientific": "Scientific paper",
     "doctype_legal_notice": "Legal notice / T&C",
