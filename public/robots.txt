@@ -6,5 +6,8 @@ Allow: /
 Disallow: /r/
 Disallow: /b/
 Disallow: /analyse
+# Except the sample document's JSON download, linked from /demo: a blocked link
+# shows up in Bing as an error. The file itself answers X-Robots-Tag: noindex.
+Allow: /r/demo/report.json
 
 Sitemap: https://www.trustyfile.com/sitemap.xml
