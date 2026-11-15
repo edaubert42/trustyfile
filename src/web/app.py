@@ -541,7 +541,11 @@ def report_download(request: Request, token: str) -> Response:
     return Response(
         text,
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            # robots.txt lets crawlers fetch the demo's copy; never index it.
+            "X-Robots-Tag": "noindex",
+        },
     )
 
 

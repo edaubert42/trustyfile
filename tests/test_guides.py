@@ -462,6 +462,31 @@ def test_robots_does_not_block_the_guides():
             )
 
 
+def _robots_allows(path: str) -> bool:
+    """Bing's and Google's reading: the longest matching rule wins, Allow on a tie.
+
+    (urllib.robotparser takes the first match instead, so it cannot be used here.)
+    """
+    robots = (ROOT / "public" / "robots.txt").read_text(encoding="utf-8")
+    best_length, allowed = -1, True
+    for line in robots.splitlines():
+        field, _, value = line.partition(":")
+        field, value = field.strip().lower(), value.strip()
+        if field not in ("allow", "disallow") or not path.startswith(value):
+            continue
+        if len(value) > best_length or (len(value) == best_length and field == "allow"):
+            best_length, allowed = len(value), field == "allow"
+    return allowed
+
+
+def test_robots_lets_crawlers_fetch_only_the_demo_json():
+    """/demo links its JSON download; any other /r/ or /b/ token stays blocked."""
+    assert _robots_allows("/r/demo/report.json?lang=fr")
+    assert _robots_allows("/demo")
+    for private in ("/r/demo", "/r/AbC123/report.json", "/r/AbC123", "/b/AbC123/report.json", "/analyse"):
+        assert not _robots_allows(private), private
+
+
 # --- Dates, tool callouts, llms.txt -----------------------------------------
 
 

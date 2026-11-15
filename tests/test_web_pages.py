@@ -203,6 +203,8 @@ def test_report_download_matches_the_api_report(client, monkeypatch, tmp_path_fa
     download = client.get(f"{path}/report.json?lang=fr")
     assert download.status_code == 200
     assert download.headers["content-disposition"].startswith("attachment; filename=")
+    # robots.txt lets crawlers fetch the demo's copy: the header keeps it out of the index.
+    assert download.headers["x-robots-tag"] == "noindex"
 
     db = str(tmp_path_factory.mktemp("keys") / "api.db")
     monkeypatch.setenv(API_DB_ENV, db)
